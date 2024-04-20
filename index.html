@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jo Pearson Designer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+    <link rel="stylesheet" href="styles/style.css">
+    <link rel="stylesheet" href="styles/game.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+
+</head>
+<body class="font-sans antialiased text-gray-900 leading-normal tracking-wider bg-white flex flex-col min-h-screen">
+    <header class="sticky top-0 z-50 bg-white shadow">
+        <nav class="container-fluid mx-auto px-12 py-3 flex justify-between items-center">
+            <h1><a href="/" class="text-xl font-bold text-gray-900">Jo Pearson Designer</a></h1>
+            <div class="flex items-center">
+                <a href="#work" class="text-gray-900 mx-3 hover:underline">Work</a>
+                <a href="#about" class="text-gray-900 mx-3 hover:underline">About</a>
+                <a href="#contact" class="text-gray-900 mx-3 hover:underline">Contact</a>
+            </div>
+        </nav>
+    </header>
+    <main class="px-6 pt-10 flex-grow">
+        <section id="hero" class="flex flex-col justify-center items-center text-center py-20">
+            <img src="assets/icons/logo.svg" alt="Jo Pearson Designer Logo" class="h-32 mb-8">
+            <h2 class="text-4xl font-bold">Transforming Pixels into Masterpieces</h2>
+            <h3 class="mb-4 text-xl">Embark on a Design Journey to the Digital Realm</h3>
+            <a href="#work" class="pixel-art-button mt-4">Start Your Quest</a>
+        </section>
+        <!-- Guardians of Lumara: Vela's Voyage -->
+        <section id="game">
+            <canvas id="gameCanvas"></canvas>
+            <script src="game.js"></script>
+
+        </section>
+        <!-- About Me Section -->
+        <section id="about" class="about-section">
+            <div class="container">
+                <!-- Pixel Art Title -->
+                <h2 class="section-title">About Me</h2>
+                <blockquote class="leading-7">Empowering Brands with Creative Design Solutions for Digital Success.</blockquote>
+                <div class="about-content">
+                    <!-- My Pixelated Selfie -->
+                    <div class="about-img">
+                        <img src="assets/images/jo.svg" alt="Jo Pearson in 8-bit style" class="pixelated-circle"/>
+                    </div>
+                    <!-- My Unique Value Proposition (UVP) -->
+                    <div class="about-text">
+                        <ul class="custom-bullets leading-normal">
+                            <li class="my-2">I am <strong>Jo Pearson</strong>, a versatile designer with a passion for <strong>innovation</strong> and <strong>problem-solving</strong>.</li>
+                            <li class="my-2">With a background in UI <strong>design</strong> and <strong>development</strong>, I bring a unique blend of <strong>creativity</strong> and <strong>technical expertise</strong> to every project.</li>
+                            <li class="my-2">Whether it's crafting <strong>captivating graphics</strong>, designing <strong>intuitive user experiences</strong>, or building <strong>responsive websites</strong>, I thrive in <strong>dynamic environments</strong> where I can bring ideas to life.</li>
+                            <li class="my-2">My strength lies in my ability to <strong>think outside the box</strong>, <strong>adapt quickly</strong>, and deliver exceptional results that <strong>exceed client expectations</strong>.</li>
+                            <li class="my-2">If you're a startup seeking a creative partner who can handle <strong>graphic design</strong>, <strong>product design</strong>, and <strong>web development</strong> with finesse, I'm the perfect fit to help you turn your <strong>vision into reality</strong>.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- My Work Section -->
+        <section id="work" class="py-20 bg-gray-100">
+            <div class="container mx-auto px-6">
+                <h2 class="text-3xl font-bold text-center mb-10">My Work</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Example Work Item -->
+                    <!-- <div class="work-item shadow-lg rounded-lg overflow-hidden">
+                        <img src="assets/work/project-1.jpg" alt="Project 1" class="w-full">
+                        <div class="p-4">
+                            <h3 class="text-xl font-bold">Project 1</h3>
+                            <p>An innovative web design project that showcases modern UI/UX principles.</p>
+                        </div>
+                    </div> -->
+                    <div class="work-button" data-category="web-design-and-development">
+                        <div class="work-button-content flex flex-col justify-center items-center">
+                            <img src="assets/Icons/website-design.svg" alt="Web Design & Development Icon" width="70" height="70"/>
+                            <h3 class="text-sm font-semibold">Web Design & Development</h3>
+                        </div>
+                    </div>
+                    <div class="work-button" data-category="app-design-and-development">
+                        <div class="work-button-content flex flex-col justify-center items-center">
+                            <img src="assets/Icons/application-design.svg" alt="App Design & Development Icon" width="50" height="50"/>
+                            <h3 class="text-sm font-semibold">App Design & Development</h3>
+                        </div>
+                    </div>
+                    <div class="work-button" data-category="ux-design-and-wireframing">
+                        <div class="work-button-content flex flex-col justify-center items-center">
+                            <img src="assets/Icons/wireframes-prototypes.svg" alt="UX Design & Wireframing Icon" width="50" height="50"/>
+                            <h3 class="text-sm font-semibold">UX Design & Wireframing</h3>
+                        </div>
+                    </div>
+                    <div class="work-button" data-category="logo-design-and-branding">
+                        <div class="work-button-content flex flex-col justify-center items-center">
+                            <img src="assets/Icons/brand-identity.svg" alt="Logo Design & Branding" width="50" height="50"/>
+                            <h3 class="text-sm font-semibold">Logo Design & Branding</h3>
+                        </div>
+                    </div>
+                    <div class="work-button" data-category="illustrations-and-animations">
+                        <div class="work-button-content flex flex-col justify-center items-center">
+                            <img src="assets/Icons/illustration-animation.svg" alt="Illustrations & Animations" width="50" height="50"/>
+                            <h3 class="text-sm font-semibold">Illustrations & Animations</h3>
+                        </div>
+                    </div>
+                    <div class="work-button" data-category="digital-marketing">
+                        <div class="work-button-content flex flex-col justify-center items-center">
+                            <img src="assets/Icons/digital-marketing.svg" alt="Digital Marketing" width="50" height="50"/>
+                            <h3 class="text-sm font-semibold">Digital Marketing</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Testimonials Section -->
+        <section id="testimonials" class="py-20">
+            <div class="container mx-auto px-6 text-center">
+                <h2 class="text-3xl font-bold mb-4">Happy Clients</h2>
+                <div class="testimonial-item">
+                    <blockquote class="text-xl italic">"Jo is a strong communicator and a self-aware, self-motivated builder."</blockquote>
+                    <p class="text-md font-semibold mt-4">—Bobby Calderwood, founder of Evident Stack</p>
+                </div>
+                <!-- Additional testimonials here -->
+            </div>
+        </section>
+
+        <!-- Contact Section -->
+        <section id="contact" class="py-20 bg-gray-100">
+            <div class="container mx-auto px-6 text-center">
+                <h2 class="text-3xl font-bold mb-4">Get In Touch</h2>
+                <p class="mb-8">Interested in working together? Let's chat about your project.</p>
+                <a href="mailto:jo.pearson@example.com" class="btn-primary">Email Me</a>
+            </div>
+        </section>
+    </main>
+
+    <footer class="text-center p-4">
+        © <span id="currentYear">2024</span> Jo Pearson Designer. All rights reserved.
+    </footer>
+    <script src="app.js"></script>
+
+</body>
+</html>

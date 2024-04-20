@@ -1,0 +1,551 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-color: #0058f8;
+  --secondary-color: #e40058;
+  --text-color: #333;
+  --background-color: #fff;
+  --green-color: #58d854; /* Vibrant NES Green */
+  /* NES Color Palette */
+  --black-color: #000000;
+  --white-color: #fcfcfc;
+  --light-gray-color: #f8f8f8;
+  --medium-gray-color: #bcbcbc;
+  --dark-gray-color: #7c7c7c;
+  --light-blue-color: #a4e4fc;
+  --blue-color: #3cbcfc;
+  --dark-blue-color: #0078f8;
+  --bright-blue-color: #0000fc;
+  --pale-blue-color: #b8b8f8;
+  --bright-pale-blue-color: #6888fc;
+  --deep-blue-color: #0058f8;
+  --darker-blue-color: #0000bc;
+  --pale-purple-color: #d8b8f8;
+  --deep-purple-color: #9878f8;
+  --deep-bright-purple-color: #6844fc;
+  --dark-purple-color: #4428bc;
+  --pale-pink-color: #f8b8f8;
+  --bright-pink-color: #f878f8;
+  --deep-pink-color: #d800cc;
+  --dark-pink-color: #940084;
+  --pale-red-color: #f8a4c0;
+  --deep-red-color: #f85898;
+  --bright-red-color: #e40058;
+  --red-color: #a80020;
+  --pale-orange-color: #f0d0b0;
+  --orange-color: #f87858;
+  --bright-orange-color: #f83800;
+  --dark-orange-color: #a81000;
+  --pale-yellow-color: #fce0a8;
+  --bright-yellow-color: #fca044;
+  --orange-yellow-color: #e45c10;
+  --deep-orange-color: #881400;
+  --pale-gold-color: #f8d878;
+  --gold-color: #f8b800;
+  --dark-gold-color: #ac7c00;
+  --brown-color: #503000;
+  --pale-green-color: #d8f878;
+  --green-color: #b8f818;
+  --bright-green-color: #00b800;
+  --dark-green-color: #007800;
+  --pale-light-green-color: #b8f8b8;
+  --light-green-color: #58d854;
+  --deep-green-color: #00a800;
+  --darker-green-color: #006800;
+  --pale-turquoise-color: #b8f8d8;
+  --bright-turquoise-color: #58f898;
+  --turquoise-color: #00a844;
+  --dark-turquoise-color: #005800;
+  --cyan-color: #00fcfc;
+  --pale-cyan-color: #00e8d8;
+  --dark-cyan-color: #008888;
+  --deep-cyan-color: #004058;
+  --pale-lavender-color: #f8d8f8;
+  --gray-color: #787878;
+}
+
+body,
+html {
+  margin: 0;
+  padding: 0;
+  background-color: var(--background-color);
+}
+
+body,
+p,
+a,
+button {
+  font-family: "Open Sans", sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Montserrat Alternates", sans-serif;
+  color: var(--text-color);
+}
+
+header h1 a {
+  font-family: "Montserrat Alternates", sans-serif;
+}
+
+.btn-primary {
+  background-color: var(--secondary-color);
+  color: #ffffff;
+  padding: 10px 20px;
+  border-radius: 4px;
+  transition: background-color 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: darken(var(--secondary-color), 10%);
+}
+
+.pixel-art-button {
+  font-family: "VT323", monospace;
+  font-size: 24px;
+  font-weight: bold;
+  text-transform: uppercase;
+  padding: 10px 20px;
+  color: #ffffff;
+  background-color: var(--secondary-color);
+  border: 3px solid #ffffff; /* White border for the pixel effect */
+  cursor: pointer;
+  image-rendering: pixelated; /* Ensures the button looks sharp and pixelated */
+  box-shadow: 3px 3px 0px #0000bc,
+    /* Right bottom shadow with new color */ -1px -1px 0px #0000bc,
+    /* Left top outline with new color */ 1px -1px 0px #0000bc,
+    /* Right top outline with new color */ -1px 1px 0px #0000bc; /* Left bottom outline with new color */
+}
+
+.pixel-art-button:hover {
+  background-color: #555555; /* Darker shade on hover */
+}
+
+/* Lora for callouts or quotes */
+blockquote,
+.callout {
+  font-family: "Lora", serif;
+  line-height: 1.3 !important;
+  font-size: 2.5rem;
+  margin: 1em 0 0 0;
+  font-style: italic;
+  font-weight: bolder;
+  margin-bottom: 30px;
+  color: #666;
+}
+
+/* General Styles */
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* Section Styling */
+section {
+  padding: 60px 0;
+}
+
+/* Typography */
+/* Responsive Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+a,
+li,
+input,
+textarea {
+  font-size: clamp(0.875rem, 1vw + 1rem, 1.25rem);
+}
+
+nav a {
+  font-family: "Open Sans", sans-serif;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+h2 {
+  margin-bottom: 20px;
+  color: var(--text-color);
+}
+
+p {
+  line-height: 1.6;
+}
+
+.container {
+  width: 90%;
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+h2 {
+  font-size: 2rem;
+  margin-bottom: 20px;
+}
+
+/* Modified Section Title Styling */
+.section-title {
+  font-family: "Press Start 2P", cursive; /* Keep the retro font for consistency */
+  font-size: 28px; /* Increase size for prominence */
+  color: var(--primary-color); /* Adjust color to match NES palette */
+  text-align: center;
+  margin-bottom: 30px; /* Increase spacing */
+  padding: 15px 30px; /* Adjust padding */
+  background: var(--primary-color);
+  display: inline-block;
+  box-shadow: 4px 4px 0 var(--primary-color), -4px -4px 0 var(--primary-color); /* Simplified shadow for a distinct look */
+  image-rendering: pixelated; /* Ensure pixelated effect */
+  transition: transform 0.2s ease-in-out; /* Smooth transition for a subtle hover effect */
+}
+
+.section-title:hover {
+  transform: scale(1.05); /* Slightly enlarge on hover for interactivity */
+  box-shadow: 5px 5px 0 var(--primary-color), -5px -5px 0 var(--primary-color); /* Enhanced shadow effect on hover */
+  background: var(--primary-color);
+}
+
+/* Adding this to ensure section titles stand out distinctly from buttons */
+.section-title {
+  cursor: default; /* Changes cursor to default to indicate non-interactivity */
+}
+
+#about .section-title {
+  color: var(--green-color); /* Vibrant NES Green */
+  border: 4px solid var(--green-color); /* Bold border in a bright color */
+}
+
+.about-section {
+  background-color: #f0f0f0; /* Light grey background */
+  padding: 120px 0;
+  color: #333;
+}
+
+.about-content {
+  display: grid;
+  grid-template-columns: 1fr 2fr; /* 1/3 for image, 2/3 for text */
+  gap: 20px;
+  align-items: center;
+}
+
+.about-img {
+  justify-self: center; /* Center the image horizontally */
+}
+
+.about-img img {
+  width: 100%; /* Set width to 100% */
+  height: auto; /* Let the height adjust automatically */
+  max-width: 360px; /* Set a maximum width */
+  max-height: 360px; /* Set a maximum height */
+  border-radius: 50%; /* Make the image circular */
+  background-color: var(--primary-color);
+  transition: transform 0.3s ease; /* Add transition for smooth effect */
+}
+
+.about-img img:hover {
+  transform: scale(1.04); /* Scale up the image on hover */
+  border-color: var(--green-color); /* Change border color on hover */
+}
+
+.pixelated-circle::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: url("assets/images/jo.svg");
+  background-size: cover;
+  background-repeat: no-repeat;
+  filter: blur(2px);
+  position: absolute;
+  border-radius: 50%;
+  transition: filter 0.3s ease; /* Add transition for smooth effect */
+}
+
+.pixelated-circle:hover::after {
+  filter: none; /* Remove blur effect on hover */
+}
+
+.pixelated-circle {
+  border-radius: 50%;
+  border: 9px solid #ccc;
+  image-rendering: pixelated;
+}
+
+.custom-bullets {
+  list-style-type: none; /* Removes the default list styling */
+  padding-left: 0; /* Aligns text to the left */
+}
+
+.custom-bullets li {
+  position: relative;
+  padding-left: 32px; /* Provides space for the custom bullet */
+  text-align: left;
+  font-family: "Open Sans", sans-serif;
+}
+
+.custom-bullets li::before {
+  content: "▶"; /* Example: Using a simple triangle as the bullet point */
+  position: absolute;
+  left: 0;
+  color: var(--primary-color);
+  font-size: 16px; /* Adjust size to fit your design */
+  line-height: 2.4; /* Adjusts vertical alignment of the bullet */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .about-content {
+    grid-template-columns: 1fr; /* Display image and text stacked on smaller screens */
+  }
+
+  .about-img {
+    justify-self: center;
+  }
+
+  .about-text {
+    text-align: center; /* Center-align text on smaller screens */
+  }
+}
+
+/* Retro NES Elements */
+/* Consider adding specific styles that mimic NES controller buttons for interactive elements */
+/* Add pixelated hover effects using CSS or JavaScript */
+
+/* Hero Section */
+#hero {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+/* Pixelated shadow effect for headings in the hero section */
+#hero h1,
+#hero h2,
+#hero h3,
+#hero h4,
+#hero h5,
+#hero h6 {
+  font-family: "Press Start 2P", cursive, system-ui;
+  color: white;
+  text-shadow: 3px 3px 0px #0000bc,
+    /* Right bottom shadow with new color */ -1px -1px 0px #0000bc,
+    /* Left top outline with new color */ 1px -1px 0px #0000bc,
+    /* Right top outline with new color */ -1px 1px 0px #0000bc; /* Left bottom outline with new color */
+}
+
+/* Pixelated shadow effect for paragraph, links, list items, input, and textarea */
+#hero p,
+#hero a,
+#hero li,
+#hero input,
+#hero textarea {
+  font-family: "VT323", monospace;
+  color: white;
+}
+
+/* My Work Section */
+@media screen and (max-width: 768px) {
+  #work-menu {
+    grid-template-columns: repeat(
+      2,
+      1fr
+    ); /* Adjusts to two columns for medium screens */
+  }
+}
+
+@media screen and (max-width: 480px) {
+  #work-menu {
+    grid-template-columns: 1fr; /* Stacks items vertically on small screens */
+  }
+}
+
+#work-menu {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* Creates three columns */
+  gap: 20px; /* Adds spacing between tiles */
+}
+
+.work-button {
+  position: relative;
+  height: 250px;
+  background-color: #f3f4f6;
+  text-align: center;
+  cursor: pointer;
+  overflow: hidden; /* Ensures no overflow from content */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: box-shadow 0.3s ease, transform 0.3s ease,
+    background-color 0.3s ease; /* Enhanced transitions */
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1); /* Light shadow for a lifted look */
+  border-radius: 8px; /* Optional: Adds rounded corners */
+}
+
+.work-button-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%; /* Adjust based on content size */
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px; /* Space between icon and text */
+}
+
+/* Enhanced Hover Effect for the button - Simulate Push In with gradient and shadow */
+.work-button:hover {
+  background: linear-gradient(145deg, #d6d6d6, #ffffff);
+  /* Adjusted gradient for a more pronounced effect */
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
+  transform: scale(0.98); /* Slightly scale down to simulate push */
+}
+
+.work-button:focus,
+.work-button:focus-within {
+  outline: 2px solid #4299e1; /* Blue outline for focus */
+}
+
+/* Uniform IMG Icon size within the button */
+.work-button img {
+  width: 70px;
+  height: 70px;
+  transition: transform 0.3s ease;
+  /* Smooth transition for the zoom effect */
+}
+
+/* Adjustments for icon and text spacing and sizing */
+.work-button img {
+  margin-bottom: 4px; /* Space between icon and text */
+}
+
+.work-button h2 {
+  margin-top: 1rem; /* Adjust as needed */
+  font-weight: bold;
+}
+
+/* Zoom effect on hover for SVG Icon */
+.work-button:hover img {
+  transform: scale(
+    1.2
+  ); /* Adjust scale ratio as needed for the icon zoom effect */
+}
+
+/* Depth effect for button press */
+.work-button:active {
+  transform: scale(0.95);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Vibration effect for the icon */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-10px);
+  }
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(10px);
+  }
+}
+
+.work-button:active img {
+  animation: shake 0.82s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  transform: scale(1.1); /* Increase the size to emphasize the shake */
+}
+
+/* Ripple effect styles */
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  transform: scale(0);
+  animation: ripple-effect 0.6s linear;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+@keyframes ripple-effect {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* Testimonials Section */
+#testimonials {
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.testimonial-item {
+  background-color: #ffffff;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  margin: 20px 0;
+  padding: 20px;
+  border-radius: 5px;
+  inline-size: fit-content;
+  margin-inline: auto;
+}
+
+/* Contact Section */
+#contact {
+  background-color: #f9f9f9;
+}
+
+.btn-primary {
+  display: inline-block;
+  text-decoration: none;
+}
+
+/* Footer Styling */
+footer {
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 20px;
+  }
+
+  .btn-primary {
+    padding: 10px 15px;
+  }
+
+  section {
+    padding: 40px 0;
+  }
+}
+
+/* Utility Classes */
+.shadow-lg {
+  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+}
+
+.rounded-lg {
+  border-radius: 10px;
+}
+
+.overflow-hidden {
+  overflow: hidden;
+}

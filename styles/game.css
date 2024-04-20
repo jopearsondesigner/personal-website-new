@@ -1,0 +1,13 @@
+canvas {
+  background: #000;
+  display: block;
+  margin: 0 auto;
+  border-radius: 15px; /* Slight rounding at the corners */
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5); /* Inner shadow for depth */
+  transform: scaleX(1.02); /* Slight horizontal stretch */
+}
+
+/* Add this to apply the font globally, adjust as needed */
+body {
+  font-family: "Press Start 2P", cursive;
+}
