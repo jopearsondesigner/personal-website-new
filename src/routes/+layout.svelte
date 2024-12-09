@@ -8,7 +8,8 @@
 	import { sineIn } from 'svelte/easing';
 	import { Sun, Moon } from 'svelte-bootstrap-icons';
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
-	import { theme } from '$lib/stores/theme';
+	import { theme, initializeTheme } from '$lib/stores/theme';
+	import Tooltip from '$lib/components/Tooltip.svelte';
 
 	let activeNavItem = '/'; // Initialize with home path
 	let contentWrapper: HTMLElement;
@@ -25,6 +26,9 @@
 	function toggleTheme() {
 		theme.update((currentTheme) => {
 			const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+			// Add a transition class to handle all color changes
+			document.documentElement.classList.add('theme-transition');
+
 			if (newTheme === 'dark') {
 				document.documentElement.classList.add('dark');
 				document.documentElement.classList.remove('light');
@@ -32,6 +36,12 @@
 				document.documentElement.classList.add('light');
 				document.documentElement.classList.remove('dark');
 			}
+
+			// Remove the transition class after the transition is complete
+			setTimeout(() => {
+				document.documentElement.classList.remove('theme-transition');
+			}, 300); // Match this with your transition duration
+
 			localStorage.setItem('theme', newTheme);
 			return newTheme;
 		});
@@ -52,6 +62,11 @@
 		const savedTheme = localStorage.getItem('theme') || 'dark';
 		theme.set(savedTheme);
 		document.documentElement.classList.add(savedTheme);
+		if (savedTheme === 'dark') {
+			document.documentElement.classList.remove('light');
+		} else {
+			document.documentElement.classList.remove('dark');
+		}
 
 		const handleLoading = () => {
 			Promise.all([
@@ -93,7 +108,7 @@
 <LoadingScreen />
 
 <nav
-	class="sticky border-b-[2.5px] border-[color:var(--arcade-black-200)] dark:border-[color:var(--arcade-black-600)] top-0 shadow-header z-50 {$theme ===
+	class="sticky relative border-b-[2.5px] border-arcadeBlack-200 dark:border-arcadeBlack-600 top-0 shadow-header z-50 {$theme ===
 	'dark'
 		? 'navbar-background-dark'
 		: 'navbar-background-light'} p-container-padding box-border"
@@ -107,7 +122,26 @@
 				Jo Pearson
 			</span>
 		</NavBrand>
-		<div class="flex md:order-2">
+		<div class="flex md:order-2 items-center gap-4">
+			<!-- Theme toggle button for desktop -->
+			<Tooltip
+				text={$theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+				position="bottom"
+			>
+				<button
+					on:click={toggleTheme}
+					class="hidden md:flex items-center justify-center w-10 h-10 rounded-full bg-opacity-20 hover:bg-opacity-30 transition-all duration-300 ease-in dark:text-[var(--arcade-white-300)] text-[var(--arcade-black-500)]"
+					aria-label="Toggle Dark Mode"
+				>
+					{#if $theme === 'dark'}
+						<Sun size={20} />
+					{:else}
+						<Moon size={20} />
+					{/if}
+				</button>
+			</Tooltip>
+
+			<!-- Mobile menu button -->
 			<button
 				on:click={toggleDrawer}
 				class="focus:outline-none whitespace-normal m-0.5 rounded-lg focus:ring-2 p-1.5 focus:ring-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 md:hidden"
@@ -169,14 +203,6 @@
 				Blog
 			</a>
 		</div>
-		<!-- Theme toggle button -->
-		<button on:click={toggleTheme} class="theme-toggle-button" aria-label="Toggle Dark Mode">
-			{#if $theme === 'dark'}
-				<Sun size={24} />
-			{:else}
-				<Moon size={24} />
-			{/if}
-		</button>
 	</Navbar>
 </nav>
 
