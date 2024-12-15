@@ -1,3 +1,4 @@
+<!-- +layout.svelte -->
 <script lang="ts">
 	import '../app.css';
 	import { Navbar, NavBrand, Drawer, Button, CloseButton } from 'flowbite-svelte';
@@ -10,6 +11,13 @@
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import { theme, initializeTheme } from '$lib/stores/theme';
 	import Tooltip from '$lib/components/Tooltip.svelte';
+	import { browser } from '$app/environment';
+	import { writable } from 'svelte/store';
+	import { layoutStore } from '$lib/stores/store';
+
+	let navbarElement: HTMLElement;
+
+	export const navbarHeight = writable(0);
 
 	let activeNavItem = '/'; // Initialize with home path
 	let contentWrapper: HTMLElement;
@@ -86,10 +94,35 @@
 		};
 
 		handleLoading();
+
+		if (navbarElement) {
+			const height = navbarElement.offsetHeight;
+			layoutStore.setNavbarHeight(height);
+		}
+
+		// Update height on mount
+		updateNavHeight();
+
+		// Update height on resize
+		window.addEventListener('resize', updateNavHeight);
+
+		return () => {
+			window.removeEventListener('resize', updateNavHeight);
+		};
 	});
+
+	// Add this to your existing script
+	$: if (browser && $layoutStore.navbarHeight > 0) {
+		document.documentElement.style.setProperty('--navbar-height', `${$layoutStore.navbarHeight}px`);
+	}
 </script>
 
 <svelte:head>
+	<meta
+		name="viewport"
+		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+	/>
+
 	<link href="https://fonts.googleapis.com/css2?family=Gruppo&display=swap" rel="stylesheet" />
 	<link
 		href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
@@ -108,20 +141,21 @@
 <LoadingScreen />
 
 <nav
-	class="sticky relative border-b-[2.5px] border-arcadeBlack-200 dark:border-arcadeBlack-600 top-0 shadow-header z-50 {$theme ===
+	bind:this={navbarElement}
+	class="sticky relative md:border-b-[2.5px] md:border-arcadeBlack-200 md:dark:border-arcadeBlack-600 top-0 z-50 {$theme ===
 	'dark'
 		? 'navbar-background-dark'
-		: 'navbar-background-light'} p-container-padding box-border"
+		: 'navbar-background-light'} p-container-padding box-border md:shadow-header"
 >
 	<Navbar class="container max-w-screen-xl mx-auto px-4 flex justify-between items-center">
 		<NavBrand href="/">
-			<img src={logo} alt="Jo Pearson Logo" class="h-11 w-11 mr-[2px] pt-1 header-logo-pulse" />
+			<img src={logo} alt="Jo Pearson Logo" class="h-9 w-9 mr-[8px] pt-1 header-logo-pulse" />
 			<span
-				class="hidden md:inline-block text-[20px] header-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[21.96px] mt-[5px]"
+				class="hidden lg:inline-block text-[16px] header-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[24.96px] mt-[5px]"
 			>
 				Jo Pearson
-			</span>
-		</NavBrand>
+			</span></NavBrand
+		>
 		<div class="flex md:order-2 items-center gap-4">
 			<!-- Theme toggle button for desktop -->
 			<Tooltip
@@ -130,7 +164,7 @@
 			>
 				<button
 					on:click={toggleTheme}
-					class="hidden md:flex items-center justify-center w-10 h-10 rounded-full bg-opacity-20 hover:bg-opacity-30 transition-all duration-300 ease-in dark:text-[var(--arcade-white-300)] text-[var(--arcade-black-500)]"
+					class=" md:flex items-center justify-center w-10 h-10 rounded-full bg-opacity-20 hover:bg-opacity-30 transition-all duration-300 ease-in dark:text-[var(--arcade-white-300)] text-[var(--arcade-black-500)]"
 					aria-label="Toggle Dark Mode"
 				>
 					{#if $theme === 'dark'}
@@ -144,7 +178,7 @@
 			<!-- Mobile menu button -->
 			<button
 				on:click={toggleDrawer}
-				class="focus:outline-none whitespace-normal m-0.5 rounded-lg focus:ring-2 p-1.5 focus:ring-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 md:hidden"
+				class="text-arcadeBlack-500 dark:text-arcadeWhite-300 focus:outline-none whitespace-normal m-0.5 rounded-lg focus:ring-2 p-1.5 focus:ring-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 lg:hidden"
 			>
 				<svg
 					class="w-6 h-6"
@@ -161,7 +195,7 @@
 			</button>
 		</div>
 
-		<div class="md:flex md:flex-wrap md:order-1 hidden">
+		<div class="lg:flex lg:flex-wrap lg:order-1 hidden">
 			<a
 				href="/"
 				class:nav-button={true}
@@ -300,6 +334,45 @@
 </main>
 
 <style>
+	:global(:root) {
+		--navbar-height: 0px;
+	}
+
+	@media (max-width: 1023px) {
+		.navbar-logo,
+		.mobile-menu-button {
+			text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+		}
+		.navbar-background-dark {
+			@apply overflow-hidden bg-transparent;
+		}
+
+		.navbar-background-light {
+			@apply overflow-hidden bg-transparent;
+		}
+	}
+
+	/* Desktop styles */
+	@media (min-width: 1024px) {
+		.navbar-background-dark {
+			background-color: var(--dark-mode-bg);
+			background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
+				linear-gradient(225deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
+				linear-gradient(45deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
+				linear-gradient(315deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%);
+			background-size: 4px 4px;
+		}
+
+		.navbar-background-light {
+			background-color: var(--light-mode-bg);
+			background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
+				linear-gradient(225deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
+				linear-gradient(45deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
+				linear-gradient(315deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%);
+			background-size: 4px 4px;
+		}
+	}
+
 	.nav-link {
 		position: relative;
 		overflow: hidden;
@@ -321,7 +394,7 @@
 		width: 100%;
 	}
 
-	@media (max-width: 768px) {
+	@media (pointer: coarse) {
 		.nav-link {
 			padding: 0.5rem 1rem;
 			width: 100%;

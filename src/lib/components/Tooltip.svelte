@@ -11,12 +11,12 @@
 	};
 
 	const arrowClasses = {
-		top: 'bottom-[-8px] left-1/2 -translate-x-1/2 border-t-arcadeBlack-700 dark:border-t-arcadeWhite-200 border-x-transparent border-b-transparent',
+		top: 'bottom-[-8px] left-1/2 -translate-x-1/2 border-t-arcadeBlack-600 dark:border-t-arcadeWhite-200 border-x-transparent border-b-transparent',
 		bottom:
-			'top-[-8px] left-1/2 -translate-x-1/2 border-b-arcadeBlack-700 dark:border-b-arcadeWhite-200 border-x-transparent border-t-transparent',
-		left: 'right-[-8px] top-1/2 -translate-y-1/2 border-l-arcadeBlack-700 dark:border-l-arcadeWhite-200 border-y-transparent border-r-transparent',
+			'top-[-8px] left-1/2 -translate-x-1/2 border-b-arcadeBlack-600 dark:border-b-arcadeWhite-200 border-x-transparent border-t-transparent',
+		left: 'right-[-8px] top-1/2 -translate-y-1/2 border-l-arcadeBlack-600 dark:border-l-arcadeWhite-200 border-y-transparent border-r-transparent',
 		right:
-			'left-[-8px] top-1/2 -translate-y-1/2 border-r-arcadeBlack-700 dark:border-r-arcadeWhite-200 border-y-transparent border-l-transparent'
+			'left-[-8px] top-1/2 -translate-y-1/2 border-r-arcadeBlack-600 dark:border-r-arcadeWhite-200 border-y-transparent border-l-transparent'
 	};
 </script>
 
@@ -29,7 +29,7 @@
 	>
 		<div class="relative">
 			<div
-				class="bg-arcadeBlack-700 dark:bg-arcadeWhite-200 text-arcadeWhite-200 dark:text-arcadeBlack-700 px-2 py-1 rounded text-xs font-light tracking-wide whitespace-nowrap shadow-lg backdrop-blur-sm bg-opacity-95"
+				class="bg-arcadeBlack-600 dark:bg-arcadeWhite-200 text-arcadeWhite-200 dark:text-arcadeBlack-700 px-2 py-1 rounded text-xs font-light tracking-wide whitespace-nowrap shadow-lg backdrop-blur-sm bg-opacity-95"
 			>
 				{text}
 			</div>

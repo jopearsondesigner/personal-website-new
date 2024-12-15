@@ -3,7 +3,7 @@
 	import gsap from 'gsap';
 
 	let isHovered = false;
-	let buttonSize = 0.67; // Modify this value to adjust the size
+	let buttonSize = 0.57; // Modify this value to adjust the size
 
 	// Function to handle GSAP animations
 	const animateButton = () => {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Hero from '$lib/components/Hero.svelte';
+	import { layoutStore } from '$lib/stores/store';
 
 	onMount(() => {
 		window.addEventListener('resize', () => {
@@ -18,9 +19,9 @@
 
 <div
 	class="min-h-screen bg-background dark:bg-background-dark text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-200)]"
+	style="margin-top: calc(-{$layoutStore.navbarHeight}px)"
 >
 	<div class="container-fluid">
-		<!-- Hero Component -->
 		<Hero />
 
 		<!-- About Section -->

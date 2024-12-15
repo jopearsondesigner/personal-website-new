@@ -9,11 +9,16 @@
 	--arcade-black-200: #d5d5d5;
 	--arcade-black-500: #2b2b2b;
 	--arcade-black-600: #262626;
+	--arcade-black-700: #1a1a1a;
+	--arcade-white-200: #f5f5dc;
 	--arcade-white-300: #ececce;
 	--arcade-electric-blue-500: #1e90ff;
 	--arcade-bright-yellow-200: #ffe480;
 	--arcade-bright-yellow-500: #ffd700;
+	--arcade-neon-green-100: #c7ffdd;
+	--arcade-neon-green-200: #9fffbf;
 	--arcade-neon-green-500: #27ff99;
+
 	--arcade-magenta-500: #ff00ff;
 	--teal-500: #00a8a8;
 
@@ -94,7 +99,7 @@ html.light {
 
 /* Component styles */
 .nav-button {
-	@apply bg-gradient-to-br from-[var(--arcade-black-200)] to-[#505050] text-[var(--arcade-white-300)] border border-[#333] py-3 px-5 font-body text-sm text-center cursor-pointer relative transition-all  shadow-md;
+	@apply bg-gradient-to-br from-[var(--arcade-black-200)] to-[#505050] text-[var(--arcade-white-300)] border border-[#333] py-3 px-5 font-body text-link text-center cursor-pointer relative transition-all  shadow-md;
 }
 
 .nav-button:first-child {
@@ -114,7 +119,7 @@ html.light {
 }
 
 .nav-button::before {
-	@apply content-[''] absolute top-1.5 right-1.5 w-1 h-1 bg-gray-500 rounded-full shadow-[0_0_8px_rgba(0,255,0,0.5)] transition-colors;
+	@apply content-[''] absolute top-1.5 right-1.5 w-1 h-1 bg-gray-500 rounded-full shadow-[0_0_8px_rgba(0,255,0,0.5)] transition-colors duration-300 ease-in;
 }
 
 .nav-button.active::before {
@@ -122,7 +127,7 @@ html.light {
 }
 
 .nav-button.active {
-	@apply text-[var(--arcade-neon-green-500)] text-sm shadow-[0_0_8px_rgba(152,251,152,0.8)];
+	@apply text-[var(--arcade-neon-green-500)] shadow-[0_0_8px_rgba(152,251,152,0.8)];
 }
 
 /* Light mode specific styles */

@@ -1,6 +1,5 @@
 <!-- src/lib/components/GameComponent.svelte -->
 <script>
-	import { onMount, onDestroy } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
 	import Game from '$components/game/Game.svelte';
 
@@ -10,55 +9,50 @@
 	];
 </script>
 
-<div class="game-wrapper">
+<div class="flex items-center justify-center w-full h-full p-[1vmin]">
 	<div class="game-background">
-		<!-- Left side panel -->
-		<div class="side-panel left" in:fly={{ x: -50, duration: 1000 }}>
-			{#each decorativeText.filter((item) => item.side === 'left') as item}
-				<div class="arcade-text">
-					<span class="label">{item.text}</span>
-					<span class="value">{item.value}</span>
-				</div>
-			{/each}
-			<div class="neon-line"></div>
-			<div class="pixel-decoration"></div>
+		<!-- Left side panel - only show on desktop -->
+		<div class="hidden lg:block">
+			<div class="side-panel left" in:fly={{ x: -50, duration: 1000 }}>
+				{#each decorativeText.filter((item) => item.side === 'left') as item}
+					<div class="arcade-text">
+						<span class="label">{item.text}</span>
+						<span class="value">{item.value}</span>
+					</div>
+				{/each}
+				<div class="neon-line"></div>
+				<div class="pixel-decoration"></div>
+			</div>
 		</div>
 
 		<!-- Game container -->
-		<div class="game-view-container">
+		<div class="game-view-container w-full lg:max-w-[calc(100%-300px)]">
 			<Game />
 		</div>
 
-		<!-- Right side panel -->
-		<div class="side-panel right" in:fly={{ x: 50, duration: 1000 }}>
-			{#each decorativeText.filter((item) => item.side === 'right') as item}
-				<div class="arcade-text">
-					<span class="label">{item.text}</span>
-					<span class="value">{item.value}</span>
-				</div>
-			{/each}
-			<div class="neon-line"></div>
-			<div class="pixel-decoration"></div>
+		<!-- Right side panel - only show on desktop -->
+		<div class="hidden lg:block">
+			<div class="side-panel right" in:fly={{ x: 50, duration: 1000 }}>
+				{#each decorativeText.filter((item) => item.side === 'right') as item}
+					<div class="arcade-text">
+						<span class="label">{item.text}</span>
+						<span class="value">{item.value}</span>
+					</div>
+				{/each}
+				<div class="neon-line"></div>
+				<div class="pixel-decoration"></div>
+			</div>
 		</div>
 	</div>
 </div>
 
 <style>
-	.game-wrapper {
-		width: 100%;
-		height: 100%;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		padding: 2vmin;
-	}
-
 	.game-background {
 		position: relative;
 		width: 100%;
 		height: 100%;
 		background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
-		border-radius: 1.5vmin;
+		border-radius: 2.35vmin;
 		display: flex;
 		justify-content: center;
 		align-items: center;
@@ -66,13 +60,11 @@
 	}
 
 	.game-view-container {
-		flex: 1;
 		height: 100%;
-		margin: 0 150px; /* Creates space for side panels */
+		position: relative;
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		position: relative;
 	}
 
 	.side-panel {
@@ -85,6 +77,16 @@
 		align-items: center;
 		padding: 2rem 1rem;
 		z-index: 2;
+		pointer-events: none;
+		/* Add display none by default */
+		display: none;
+	}
+
+	/* Show only on lg screens */
+	@media (min-width: 1024px) {
+		.side-panel {
+			display: flex;
+		}
 	}
 
 	.side-panel.left {
@@ -99,7 +101,7 @@
 
 	.arcade-text {
 		font-family: 'Press Start 2P', monospace;
-		color: var(--arcade-neon-green-500);
+		color: var(--arcade-neon-green-100);
 		text-align: center;
 		margin: 1rem 0;
 		display: flex;
@@ -114,24 +116,30 @@
 
 	.arcade-text .value {
 		font-size: 1rem;
-		text-shadow: 0 0 5px var(--arcade-neon-green-500);
+		text-shadow: 0 0 5px var(--arcade-neon-green-100);
 	}
 
 	.neon-line {
 		width: 80%;
 		height: 2px;
-		background: var(--arcade-neon-green-500);
+		background: var(--arcade-neon-green-100);
 		margin: 2rem 0;
-		box-shadow: 0 0 10px var(--arcade-neon-green-500);
-		opacity: 0.5;
+		box-shadow: 0 0 10px var(--arcade-neon-green-100);
+		opacity: 0.333;
 	}
 
 	.pixel-decoration {
 		width: 100%;
 		height: 40px;
-		background-image: linear-gradient(45deg, var(--arcade-neon-green-500) 25%, transparent 25%),
-			linear-gradient(-45deg, var(--arcade-neon-green-500) 25%, transparent 25%);
+		background-image: linear-gradient(45deg, var(--arcade-neon-green-100) 25%, transparent 25%),
+			linear-gradient(-45deg, var(--arcade-neon-green-100) 25%, transparent 25%);
 		background-size: 10px 10px;
 		opacity: 0.1;
+	}
+
+	@media (max-width: 1023px) and (orientation: landscape) {
+		.game-wrapper {
+			padding-bottom: 80px; /* Less padding in landscape */
+		}
 	}
 </style>

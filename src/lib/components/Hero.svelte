@@ -9,6 +9,7 @@
 	import GameComponent from '$lib/components/GameComponent.svelte';
 	import { animations } from '$lib/utils/animation-utils';
 	import { animationState, screenStore } from '$lib/stores/animation-store';
+	import { layoutStore } from '$lib/stores/store';
 
 	let header: HTMLElement;
 	let insertConcept: HTMLElement;
@@ -168,6 +169,15 @@
 
 		// Initial animation start is handled by the reactive statement
 		currentScreen = 'main';
+		const handleOrientation = () => {
+			const isLandscape = window.innerWidth > window.innerHeight;
+			document.body.classList.toggle('landscape', isLandscape);
+		};
+
+		window.addEventListener('resize', handleOrientation);
+		handleOrientation();
+
+		return () => window.removeEventListener('resize', handleOrientation);
 	});
 
 	onDestroy(() => {
@@ -176,10 +186,21 @@
 	});
 </script>
 
-<section id="hero" class="w-full h-screen relative overflow-hidden">
+<section
+	id="hero"
+	class="w-full relative overflow-hidden flex items-center justify-center"
+	style="
+        margin-top: calc(-{$layoutStore.navbarHeight}px);
+        height: calc(100vh + {$layoutStore.navbarHeight}px);
+    "
+>
 	<div id="arcade-cabinet" class="w-full h-full relative flex items-center justify-center">
 		<div class="cabinet-background absolute inset-0"></div>
 		<div class="arcade-screen-wrapper relative">
+			<!-- Add a wrapper div -->
+			<div class="navigation-wrapper relative z-50">
+				<ArcadeNavigation on:changeScreen={handleScreenChange} />
+			</div>
 			<div
 				id="arcade-screen"
 				class="relative w-[90vw] h-[70vh] md:w-[80vw] md:h-[600px] glow"
@@ -187,7 +208,7 @@
 			>
 				<div id="reflection" class="absolute inset-0 pointer-events-none"></div>
 				<div class="glow-effect"></div>
-				<ArcadeNavigation on:changeScreen={handleScreenChange} />
+
 				<div id="scanline-overlay" class="absolute inset-0 pointer-events-none z-10"></div>
 				{#if currentScreen === 'main'}
 					<div
@@ -226,13 +247,13 @@
 
 <style>
 	:root {
-		--arcade-screen-width: 90vw;
-		--arcade-screen-height: 70vh;
-		--header-font-size: 8vmin;
+		--arcade-screen-width: min(95vw, 800px);
+		--arcade-screen-height: min(70vh, 600px);
+		--header-font-size: 14vmin;
 		--insert-concept-font-size: 2.45min;
 	}
 
-	@media (min-width: 768px) {
+	@media (min-width: 1020px) {
 		:root {
 			--arcade-screen-width: 80vw;
 			--arcade-screen-height: 600px;
@@ -247,13 +268,86 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		background: radial-gradient(
-			circle at 50% 50%,
-			rgba(34, 34, 34, 0.3) 0%,
-			rgba(0, 0, 0, 0.7) 70%
-		);
 		padding: 2vmin;
 		box-sizing: border-box;
+		position: relative;
+		/* Enhanced shadow depth while keeping it clean */
+		box-shadow:
+			inset 0 0 70px rgba(0, 0, 0, 0.15),
+			inset 0 0 40px rgba(0, 0, 0, 0.1),
+			0 0 35px rgba(0, 0, 0, 0.08);
+	}
+
+	:global(html.light #arcade-cabinet) {
+		background:
+        /* Subtle highlight at top */
+			linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 15%),
+			/* Side lighting gradients */
+				linear-gradient(
+					90deg,
+					rgba(0, 0, 0, 0.03) 0%,
+					rgba(0, 0, 0, 0) 5%,
+					rgba(0, 0, 0, 0) 95%,
+					rgba(0, 0, 0, 0.03) 100%
+				),
+			/* Base texture */
+				repeating-linear-gradient(
+					45deg,
+					rgba(255, 255, 255, 0.03) 0px,
+					rgba(255, 255, 255, 0.03) 1px,
+					transparent 1px,
+					transparent 2px
+				),
+			/* Main surface gradient */
+				radial-gradient(
+					ellipse at 50% 40%,
+					rgba(255, 255, 255, 0.95) 0%,
+					rgba(235, 235, 235, 0.98) 40%,
+					rgba(220, 220, 220, 0.99) 70%
+				);
+		position: relative;
+	}
+
+	:global(html.dark #arcade-cabinet) {
+		background:
+        /* Subtle highlight at top */
+			linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 15%),
+			/* Side lighting gradients */
+				linear-gradient(
+					90deg,
+					rgba(0, 0, 0, 0.2) 0%,
+					rgba(0, 0, 0, 0) 5%,
+					rgba(0, 0, 0, 0) 95%,
+					rgba(0, 0, 0, 0.2) 100%
+				),
+			/* Base texture */
+				repeating-linear-gradient(
+					45deg,
+					rgba(255, 255, 255, 0.02) 0px,
+					rgba(255, 255, 255, 0.02) 1px,
+					transparent 1px,
+					transparent 2px
+				),
+			/* Main surface gradient */
+				radial-gradient(
+					ellipse at 50% 40%,
+					rgba(45, 45, 45, 0.95) 0%,
+					rgba(35, 35, 35, 0.98) 40%,
+					rgba(25, 25, 25, 0.99) 70%
+				);
+		position: relative;
+	}
+
+	:global(html.light #arcade-cabinet)::after,
+	:global(html.dark #arcade-cabinet)::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 4vmin;
+		box-shadow:
+			inset 0 2px 4px rgba(0, 0, 0, 0.05),
+			inset 0 -2px 4px rgba(255, 255, 255, 0.05);
+		pointer-events: none;
 	}
 
 	#arcade-screen {
@@ -261,12 +355,19 @@
 		height: var(--arcade-screen-height);
 		border: 0.6vmin solid rgba(226, 226, 189, 1);
 		border-radius: 4vmin;
-		box-shadow:
-			0 0 30px rgba(0, 0, 0, 0.8),
-			inset 0 0 20px rgba(255, 255, 255, 0.1);
-		background: linear-gradient(145deg, #111 0%, #444 100%);
 		position: relative;
 		z-index: 0;
+		aspect-ratio: 4/3;
+		/* Enhanced shadows for depth */
+		box-shadow:
+			0 0 30px rgba(0, 0, 0, 0.8),
+			inset 0 0 50px rgba(0, 0, 0, 0.9),
+			inset 0 0 2px rgba(255, 255, 255, 0.3),
+			inset 0 0 100px rgba(0, 0, 0, 0.7);
+		background: linear-gradient(145deg, #111 0%, #444 100%);
+		/* Added physical depth simulation */
+		transform: perspective(1000px) rotateX(2deg);
+		transform-style: preserve-3d;
 	}
 
 	#arcade-screen::before,
@@ -282,10 +383,15 @@
 	}
 
 	#arcade-screen::before {
-		background: linear-gradient(45deg, #00ffff, #0000ff, #ff00ff, #ff0000);
-		filter: blur(2vmin);
-		opacity: 0;
-		transition: opacity 0.3s ease-in-out;
+		content: '';
+		position: absolute;
+		inset: -0.8vmin;
+		border-radius: 4.5vmin;
+		background: linear-gradient(145deg, rgba(235, 235, 235, 1) 0%, rgba(210, 210, 210, 1) 100%);
+		z-index: -1;
+		box-shadow:
+			inset 0 0 8px rgba(0, 0, 0, 0.15),
+			0 0 5px rgba(0, 0, 0, 0.15);
 	}
 
 	#arcade-screen::after {
@@ -293,6 +399,19 @@
 		filter: blur(4vmin);
 		opacity: 0;
 		transition: opacity 0.3s ease-in-out;
+	}
+
+	/* Added bezel effect */
+	#arcade-screen::before {
+		content: '';
+		position: absolute;
+		inset: -1vmin;
+		border-radius: 4.5vmin;
+		background: linear-gradient(145deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
+		z-index: -1;
+		box-shadow:
+			inset 0 0 10px rgba(0, 0, 0, 0.8),
+			0 0 5px rgba(0, 0, 0, 0.5);
 	}
 
 	#arcade-screen.glow::before,
@@ -313,10 +432,12 @@
 		pointer-events: none;
 	}
 
+	/* Rest of your original styles remain unchanged */
 	#scanline-overlay {
 		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.1) 51%);
 		background-size: 100% 4px;
 		animation: scanline 0.2s linear infinite;
+		border-radius: 3.5vmin;
 	}
 
 	@keyframes scanline {
@@ -332,7 +453,7 @@
 		position: absolute;
 		inset: 0;
 		background: radial-gradient(circle at center, #000 20%, #001c4d 80%, #000000);
-		border-radius: 3.5vmin;
+		border-radius: 4vmin;
 		overflow: hidden;
 		z-index: 0;
 		perspective: 1000px;
@@ -360,6 +481,7 @@
 		font-family: 'Pixelify Sans', sans-serif;
 		font-size: var(--header-font-size);
 		letter-spacing: 0.2vmin;
+		line-height: 1.27;
 		font-weight: 700;
 		color: rgba(227, 255, 238, 1);
 		text-shadow:
@@ -388,12 +510,16 @@
 	}
 
 	#reflection {
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 20%);
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 20%);
 		border-radius: 4vmin;
 	}
 
 	#reflection,
 	#scanline-overlay {
 		z-index: 1;
+	}
+
+	section {
+		height: calc(100vh - var(--navbar-height, 64px));
 	}
 </style>

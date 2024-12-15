@@ -15,20 +15,37 @@
 	const GAME_HEIGHT = 600;
 	const ASPECT_RATIO = GAME_WIDTH / GAME_HEIGHT;
 
+	let isTouchDevice = false;
+
 	function calculateScale() {
 		if (!container) return;
 
 		const containerWidth = container.clientWidth;
 		const containerHeight = container.clientHeight;
 
-		const widthScale = (containerWidth * scaleFactor) / GAME_WIDTH;
-		const heightScale = (containerHeight * scaleFactor) / GAME_HEIGHT;
+		// For mobile/tablet, use slightly larger scale
+		const mobileScaleFactor = window.innerWidth < 1024 ? 0.95 : scaleFactor;
 
-		scale = Math.min(widthScale, heightScale, 1);
+		// Calculate available space while maintaining aspect ratio
+		const availableWidth = containerWidth * scaleFactor;
+		const availableHeight = containerHeight * scaleFactor;
 
+		// Determine which dimension is limiting
+		const widthScale = availableWidth / GAME_WIDTH;
+		const heightScale = availableHeight / GAME_HEIGHT;
+
+		// Use the smaller scale to ensure the game fits
+		scale = Math.min(widthScale, heightScale);
+
+		// Apply the scale
 		const wrapper = container.querySelector('.game-scale-wrapper');
 		if (wrapper) {
 			wrapper.style.transform = `scale(${scale})`;
+			wrapper.style.transformOrigin = 'center center';
+
+			// Set wrapper dimensions to maintain aspect ratio
+			wrapper.style.width = `${GAME_WIDTH}px`;
+			wrapper.style.height = `${GAME_HEIGHT}px`;
 		}
 	}
 
@@ -44,6 +61,13 @@
 			setupGame(canvas);
 			calculateScale();
 
+			// Create resize observer
+			resizeObserver = new ResizeObserver(() => {
+				calculateScale();
+			});
+
+			isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
 			resizeObserver = new ResizeObserver(calculateScale);
 			resizeObserver.observe(container);
 		}
@@ -53,6 +77,7 @@
 		if (resizeObserver) {
 			resizeObserver.disconnect();
 		}
+		window.removeEventListener('resize', calculateScale);
 	});
 </script>
 
@@ -62,12 +87,12 @@
 >
 	<!-- Size Control Button -->
 	<button
-		class="size-control-toggle"
+		class="size-control-toggle hidden lg:block"
 		on:click={() => (showSizeControl = !showSizeControl)}
 		in:fade={{ duration: 300 }}
 	>
 		<span class="arcade-text flex items-center justify-center"
-			><Gear size={8} class="mr-2" />
+			><Gear width={12} class="mr-2" />
 			<p class="mt-1">SIZE</p></span
 		>
 	</button>
@@ -75,7 +100,7 @@
 	<!-- Size Control Panel -->
 	{#if showSizeControl}
 		<div
-			class="size-control-panel"
+			class="size-control-panel hidden lg:block"
 			in:fly={{ y: 20, duration: 300 }}
 			out:fly={{ y: 20, duration: 200 }}
 		>
@@ -119,13 +144,13 @@
 		</div>
 	{/if}
 
-	<div class="game-scale-wrapper">
+	<div class="game-scale-wrapper flex justify-center items-center">
 		<div
 			class="game-container"
 			in:fade={{ duration: 800 }}
 			style="width: {GAME_WIDTH}px; height: {GAME_HEIGHT}px;"
 		>
-			<div id="reflection" class="absolute inset-0 pointer-events-none z-[11]"></div>
+			<div id="reflection" class="absolute inset-0 pointer-events-none z-[3]"></div>
 			<canvas
 				bind:this={canvas}
 				id="gameCanvas"
@@ -137,6 +162,9 @@
 			<div class="neon-glow"></div>
 		</div>
 	</div>
+	{#if isTouchDevice && window.innerWidth < 1024}
+		<!-- Game controls for touch devices go here -->
+	{/if}
 </div>
 
 <style>
@@ -145,12 +173,12 @@
 		top: 1rem;
 		right: 1rem;
 		background: rgba(43, 43, 43, 0.7);
-		border: 1px solid var(--arcade-neon-green-500);
+		border: 1px solid var(--arcade-neon-green-200);
 		border-radius: 4px;
-		padding: 0.5rem 1rem;
-		color: var(--arcade-neon-green-500);
+		padding: 0.45rem 0.65rem;
+		color: var(--arcade-neon-green-100);
 		font-family: 'Press Start 2P', monospace;
-		font-size: 0.7rem;
+		font-size: 0.625rem;
 		cursor: pointer;
 		z-index: 100;
 		transition: all 0.3s ease;
@@ -166,9 +194,9 @@
 		top: 4rem;
 		right: 1rem;
 		background: rgba(43, 43, 43, 0.7);
-		border: 1px solid var(--arcade-neon-green-500);
+		border: 1px solid var(--arcade-neon-green-200);
 		border-radius: 4px;
-		padding: 1rem;
+		padding: 0.65rem;
 		z-index: 100;
 		box-shadow: 0 0 20px rgba(39, 255, 153, 0.2);
 	}
@@ -181,11 +209,11 @@
 
 	.size-option {
 		font-family: 'Press Start 2P', monospace;
-		font-size: 0.7rem;
-		padding: 0.5rem 1rem;
+		font-size: 0.625rem;
+		padding: 0.45rem 0.65rem;
 		background: transparent;
-		border: 1px solid var(--arcade-neon-green-500);
-		color: var(--arcade-neon-green-500);
+		border: 1px solid var(--arcade-neon-green-1XXAA00);
+		color: var(--arcade-neon-green-100);
 		cursor: pointer;
 		transition: all 0.3s ease;
 	}
@@ -195,21 +223,28 @@
 	}
 
 	.size-option.active {
-		background: var(--arcade-neon-green-500);
-		color: black;
+		background: var(--arcade-neon-green-200);
+		color: rgb(26, 26, 26);
 	}
 
 	.game-wrapper {
-		padding: 2rem;
-		box-sizing: border-box;
+		width: 100%;
+		height: 100%;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		position: relative;
+		/* Remove padding to prevent offset */
+		padding: 0;
 	}
 
 	.game-scale-wrapper {
 		transform-origin: center center;
 		will-change: transform;
-		display: flex;
-		align-items: center;
-		justify-content: center;
+		/* Ensure proper centering */
+		position: relative;
+		width: 100%;
+		height: 100%;
 	}
 
 	.game-container {
@@ -255,7 +290,7 @@
 	#reflection {
 		background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 20%);
 		border-radius: 4vmin;
-		z-index: 1;
+		/* z-index: 3; */
 	}
 
 	.neon-glow {
@@ -269,5 +304,22 @@
 			inset 0 0 10px rgba(39, 255, 153, 0.3);
 		pointer-events: none;
 		z-index: 2;
+	}
+	/* Add padding at the bottom on touch devices to make room for controls */
+	@media (max-width: 1023px) {
+		.game-container {
+			border-radius: 12px;
+			outline: 4px solid rgba(34, 34, 34, 0.9);
+		}
+
+		.neon-glow {
+			border-radius: 14px;
+		}
+	}
+
+	@media (max-width: 1023px) and (pointer: coarse) {
+		.game-wrapper {
+			padding-bottom: 120px;
+		}
 	}
 </style>

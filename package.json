@@ -21,7 +21,7 @@
 		"@sveltejs/vite-plugin-svelte": "^4.0.1",
 		"@types/eslint": "^8.56.11",
 		"@types/node": "^20.14.14",
-		"@types/three": "^0.167.1",
+		"@types/three": "^0.167.2",
 		"autoprefixer": "^10.4.19",
 		"eslint": "^9.16.0",
 		"eslint-config-prettier": "^9.1.0",
@@ -46,6 +46,7 @@
 		"@sveltejs/adapter-vercel": "^5.4.8",
 		"flowbite-svelte": "^0.46.14",
 		"gsap": "^3.12.5",
+		"lucide-svelte": "^0.468.0",
 		"svelte-bootstrap-icons": "^3.1.1",
 		"three": "^0.167.1",
 		"vite-imagetools": "^7.0.4"

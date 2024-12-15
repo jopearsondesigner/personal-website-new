@@ -12,9 +12,11 @@
 	>
 		<div class="flex flex-col items-center">
 			<img src={Logo} alt="Logo" class="h-16 w-16 animate-pulse" />
-			<div class="mt-4 h-1 w-32 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+			<div
+				class="mt-4 h-1 w-32 overflow-hidden rounded-full bg-[var(--arcade-white-200)] dark:bg-[var(--arcade-black-700)]"
+			>
 				<div
-					class="h-full w-full animate-progress bg-[var(--arcade-neon-green-500)] transition-all duration-300"
+					class="h-full w-full animate-progress bg-[var(--arcade-neon-green-200)] transition-transform duration-300"
 				></div>
 			</div>
 		</div>
@@ -32,6 +34,7 @@
 	}
 
 	.animate-progress {
+		will-change: transform;
 		animation: progress 1.5s ease-in-out infinite;
 	}
 </style>

@@ -1,7 +1,10 @@
+<!-- ArcadeNavigation.svelte -->
 <script lang="ts">
 	import { createEventDispatcher, onMount } from 'svelte';
 
 	const dispatch = createEventDispatcher();
+
+	let menuButtonRef: HTMLElement;
 
 	let selectedIndex = 0;
 	let isMenuOpen = false;
@@ -41,7 +44,10 @@
 		}
 	}
 
-	function toggleMenu() {
+	function toggleMenu(event?: Event) {
+		if (event) {
+			event.stopPropagation();
+		}
 		isMenuOpen = !isMenuOpen;
 
 		if (isMenuOpen && menuRef) {
@@ -61,12 +67,28 @@
 	}
 
 	function handleClickOutside(event: MouseEvent) {
-		if (isMobile && isMenuOpen && menuRef && !menuRef.contains(event.target as Node)) {
-			toggleMenu();
+		const target = event.target as Node;
+
+		// Check if click is on the overlay
+		const overlay = document.querySelector('.overlay');
+		if (overlay && overlay.contains(target)) {
+			isMenuOpen = false;
+			return;
 		}
+
+		if (menuButtonRef && menuButtonRef.contains(target)) {
+			return;
+		}
+
+		if (menuRef && menuRef.contains(target)) {
+			return;
+		}
+
+		isMenuOpen = false;
 	}
 
 	onMount(() => {
+		// Move the media query logic here
 		const mediaQuery = window.matchMedia('(max-width: 768px)');
 		isMobile = mediaQuery.matches;
 
@@ -76,15 +98,15 @@
 
 		mediaQuery.addListener(handleResize);
 
-		// Add event listeners to document instead of component
+		// Add event listeners inside onMount
 		document.addEventListener('click', handleClickOutside);
 		document.addEventListener('keydown', handleKeydown);
 
-		// Set initial focus
 		if (menuRef) {
 			menuRef.focus();
 		}
 
+		// Clean up function
 		return () => {
 			mediaQuery.removeListener(handleResize);
 			document.removeEventListener('click', handleClickOutside);
@@ -96,17 +118,27 @@
 <nav class="arcade-navigation" class:mobile={isMobile} aria-label="Game navigation">
 	{#if isMobile}
 		<button
+			bind:this={menuButtonRef}
 			class="menu-button pixel-art"
-			on:click|stopPropagation={toggleMenu}
+			on:click|preventDefault|stopPropagation={toggleMenu}
 			aria-expanded={isMenuOpen}
 			aria-controls="menu-container"
 		>
 			MENU
 		</button>
 	{/if}
+
+	{#if isMobile && isMenuOpen}
+		<div
+			class="overlay fixed inset-0 bg-[#2b2b2b] bg-opacity-70 z-[40]"
+			on:click|stopPropagation={() => (isMenuOpen = false)}
+			aria-hidden="true"
+		/>
+	{/if}
+
 	<div
-		id="menu-container"
-		class="menu-container pixel-art"
+		id="menu-container relative"
+		class="menu-container pixel-art z-[101] text-link"
 		class:hidden={isMobile && !isMenuOpen}
 		tabindex="0"
 		bind:this={menuRef}
@@ -120,7 +152,7 @@
 		{/if}
 		{#each menuItems as item, index}
 			<button
-				class="menu-item"
+				class="menu-item z-[50]"
 				class:selected={selectedIndex === index}
 				on:click|stopPropagation={() => handleMenuItemClick(index)}
 				role="menuitem"
@@ -137,37 +169,76 @@
 </nav>
 
 <style lang="postcss">
+	.overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-color: rgba(43, 43, 43, 0.7);
+		z-index: 90;
+		pointer-events: auto;
+	}
+
+	.hidden {
+		display: none !important;
+	}
+
 	.arcade-navigation {
 		position: absolute;
-		top: 1rem;
-		left: 1rem;
-		z-index: 10;
-		pointer-events: auto;
+		top: 2rem;
+		left: 2.37rem;
+		z-index: 1000;
+		/* pointer-events: none; */
+	}
+
+	.arcade-navigation.mobile {
+		/* position: relative; */
+		right: auto;
+		z-index: 1;
+		left: 1.19rem;
+		top: 1.17rem;
 	}
 
 	.pixel-art {
 		font-family: 'Press Start 2P', cursive;
-		font-size: 0.8rem;
-		line-height: 1.2;
+		font-size: 0.625rem;
+		line-height: 1.65;
 		text-transform: uppercase;
 	}
 
 	.menu-container {
-		background-color: rgba(43, 43, 43, 0.7);
-		border: 1px solid theme('colors.arcadeNeonGreen.500');
-		padding: 0.5rem;
+		background-color: rgba(43, 43, 43, 0.75);
+		border: 1px solid theme('colors.arcadeNeonGreen.200');
+		padding: 0.65rem;
 		border-radius: 4px;
 		outline: none;
 		pointer-events: auto;
+		position: relative;
+		z-index: 110;
 	}
 
 	.menu-container:focus {
-		box-shadow: 0 0 0 2px theme('colors.arcadeNeonGreen.500');
+		box-shadow: 0 0 0 1px theme('colors.arcadeNeonGreen.100');
+	}
+
+	.mobile .menu-container {
+		position: fixed;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
+		pointer-events: auto;
+		width: 90%;
+		max-width: 400px;
 	}
 
 	.menu-item {
-		color: theme('colors.arcadeWhite.200');
-		padding: 0.5rem 0.75rem;
+		color: var(--arcade-neon-green-100);
+		padding: 0.45rem 0.65rem;
 		cursor: pointer;
 		transition: all 0.3s ease;
 		text-decoration: none;
@@ -181,14 +252,35 @@
 		pointer-events: auto;
 	}
 
-	.menu-item:focus {
+	.menu-item:hover {
+		color: theme('colors.arcadeNeonGreen.100');
+		background-color: rgba(39, 255, 153, 0.05);
+	}
+
+	.menu-item.selected {
+		color: theme('colors.arcadeNeonGreen.100');
 		background-color: rgba(39, 255, 153, 0.1);
 	}
 
-	.menu-item:hover,
-	.menu-item.selected {
-		color: theme('colors.arcadeNeonGreen.500');
-		background-color: rgba(39, 255, 153, 0.1);
+	.mobile .menu-button {
+		background-color: rgba(43, 43, 43, 0.7);
+		color: var(--arcade-neon-green-100);
+		border: 1px solid var(--arcade-neon-green-200);
+		padding: 0.45rem 0.65rem;
+		border-radius: 4px;
+		pointer-events: auto;
+	}
+
+	.mobile .menu-item {
+		background-color: transparent;
+		color: var(--arcade-neon-green-100);
+		border: none;
+		padding: 0 1rem;
+		margin: 0.5rem 0;
+		border-radius: 4px;
+		width: 80%;
+		text-align: center;
+		justify-content: center;
 	}
 
 	.arrow {
@@ -196,7 +288,7 @@
 		margin-bottom: 5px;
 		animation: blink 1s infinite;
 		display: inline-block;
-		width: 1em;
+		width: 0.75em;
 		text-align: center;
 	}
 
@@ -216,53 +308,15 @@
 		}
 	}
 
-	.mobile .menu-button {
-		background-color: theme('colors.arcadeBlack.500');
-		color: theme('colors.arcadeNeonGreen.500');
-		border: 1px solid theme('colors.arcadeNeonGreen.500');
-		padding: 0.5rem 1rem;
-		border-radius: 4px;
-		pointer-events: auto;
-	}
-
-	.mobile .menu-container {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		display: flex;
-		flex-direction: column;
-		justify-content: center;
-		align-items: center;
-		z-index: 1000;
-	}
-
-	.hidden {
-		display: none;
-	}
-
 	.close-button {
 		position: absolute;
 		top: 1rem;
 		right: 1rem;
 		background-color: transparent;
-		color: theme('colors.arcadeWhite.200');
+		color: var(--arcade-neon-green-100);
 		border: none;
-		font-size: 1.5rem;
+		font-size: 0.65rem;
 		cursor: pointer;
 		pointer-events: auto;
-	}
-
-	.mobile .menu-item {
-		background-color: theme('colors.arcadeBlack.500');
-		color: theme('colors.arcadeNeonGreen.500');
-		border: 1px solid theme('colors.arcadeNeonGreen.500');
-		padding: 1rem 2rem;
-		margin: 0.5rem 0;
-		border-radius: 4px;
-		width: 80%;
-		text-align: center;
-		justify-content: center;
 	}
 </style>

@@ -120,7 +120,8 @@ export default {
 				h3: ['28px', '1.4'], // H3 size and line height
 				h4: ['24px', '1.4'], // H4 size and line height
 				h5: ['20px', '1.4'], // H5 size and line height
-				h6: ['18px', '1.4'] // H6 size and line height
+				h6: ['18px', '1.4'], // H6 size and line height
+				link: ['11px', '1.4'] // link size and line height
 			},
 			spacing: {
 				'section-padding': '80px', // Section padding
