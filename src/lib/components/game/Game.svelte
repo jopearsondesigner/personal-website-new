@@ -1,9 +1,10 @@
-<!-- src/lib/components/Game.svelte -->
-<script>
+<script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { setupGame } from '$lib/game.js';
+	import { browser } from '$app/environment';
 	import { fade, fly } from 'svelte/transition';
 	import { Gear } from 'svelte-bootstrap-icons';
+	import GameControls from './GameControls.svelte';
+	import { setupGame } from '$lib/game.js';
 
 	let canvas;
 	let container;
@@ -16,6 +17,52 @@
 	const ASPECT_RATIO = GAME_WIDTH / GAME_HEIGHT;
 
 	let isTouchDevice = false;
+
+	// Add this function to handle control events from GameControls
+	function handleControlInput(event) {
+		const { detail } = event;
+		const { type, button, value } = detail;
+
+		if (type === 'joystick') {
+			// Handle joystick input
+			if (value.x < -0.5) {
+				// Simulate left arrow key down
+				const event = new KeyboardEvent('keydown', { key: 'ArrowLeft' });
+				window.dispatchEvent(event);
+			} else if (value.x > 0.5) {
+				// Simulate right arrow key down
+				const event = new KeyboardEvent('keydown', { key: 'ArrowRight' });
+				window.dispatchEvent(event);
+			} else {
+				// Release arrow keys
+				const leftEvent = new KeyboardEvent('keyup', { key: 'ArrowLeft' });
+				const rightEvent = new KeyboardEvent('keyup', { key: 'ArrowRight' });
+				window.dispatchEvent(leftEvent);
+				window.dispatchEvent(rightEvent);
+			}
+
+			// Handle vertical movement (jump)
+			if (value.y < -0.5) {
+				const event = new KeyboardEvent('keydown', { key: 'ArrowUp' });
+				window.dispatchEvent(event);
+			}
+		} else if (type === 'button') {
+			// Handle button presses
+			const keyMap = {
+				ammo: ' ', // Space bar for normal shot
+				heatseeker: 'x', // X for heat seeker
+				pause: 'p',
+				enter: 'Enter'
+			};
+
+			const key = keyMap[button];
+			if (key) {
+				const eventType = value ? 'keydown' : 'keyup';
+				const event = new KeyboardEvent(eventType, { key });
+				window.dispatchEvent(event);
+			}
+		}
+	}
 
 	function calculateScale() {
 		if (!container) return;
@@ -57,17 +104,15 @@
 	let resizeObserver;
 
 	onMount(() => {
-		if (canvas) {
+		if (browser && canvas) {
+			// Added browser check
 			setupGame(canvas);
 			calculateScale();
 
-			// Create resize observer
-			resizeObserver = new ResizeObserver(() => {
-				calculateScale();
-			});
-
+			// Check for touch device
 			isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
+			// Create resize observer
 			resizeObserver = new ResizeObserver(calculateScale);
 			resizeObserver.observe(container);
 		}
@@ -77,7 +122,6 @@
 		if (resizeObserver) {
 			resizeObserver.disconnect();
 		}
-		window.removeEventListener('resize', calculateScale);
 	});
 </script>
 
@@ -91,10 +135,10 @@
 		on:click={() => (showSizeControl = !showSizeControl)}
 		in:fade={{ duration: 300 }}
 	>
-		<span class="arcade-text flex items-center justify-center"
-			><Gear width={12} class="mr-2" />
-			<p class="mt-1">SIZE</p></span
-		>
+		<span class="arcade-text flex items-center justify-center">
+			<Gear width={12} class="mr-2" />
+			<p class="mt-1">SIZE</p>
+		</span>
 	</button>
 
 	<!-- Size Control Panel -->
@@ -105,41 +149,15 @@
 			out:fly={{ y: 20, duration: 200 }}
 		>
 			<div class="size-options">
-				<button
-					class="size-option"
-					class:active={scaleFactor === 0.5}
-					on:click={() => adjustSize(0.5)}
-				>
-					50%
-				</button>
-				<button
-					class="size-option"
-					class:active={scaleFactor === 0.6}
-					on:click={() => adjustSize(0.6)}
-				>
-					60%
-				</button>
-				<button
-					class="size-option"
-					class:active={scaleFactor === 0.7}
-					on:click={() => adjustSize(0.7)}
-				>
-					70%
-				</button>
-				<button
-					class="size-option"
-					class:active={scaleFactor === 0.8}
-					on:click={() => adjustSize(0.8)}
-				>
-					80%
-				</button>
-				<button
-					class="size-option"
-					class:active={scaleFactor === 0.9}
-					on:click={() => adjustSize(0.9)}
-				>
-					90%
-				</button>
+				{#each [0.5, 0.6, 0.7, 0.8, 0.9] as size}
+					<button
+						class="size-option"
+						class:active={scaleFactor === size}
+						on:click={() => adjustSize(size)}
+					>
+						{size * 100}%
+					</button>
+				{/each}
 			</div>
 		</div>
 	{/if}
@@ -162,8 +180,10 @@
 			<div class="neon-glow"></div>
 		</div>
 	</div>
+
+	<!-- Mobile Controls -->
 	{#if isTouchDevice && window.innerWidth < 1024}
-		<!-- Game controls for touch devices go here -->
+		<GameControls on:control={handleControlInput} />
 	{/if}
 </div>
 
@@ -289,7 +309,7 @@
 
 	#reflection {
 		background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 20%);
-		border-radius: 4vmin;
+		border-radius: 20px;
 		/* z-index: 3; */
 	}
 
@@ -320,6 +340,14 @@
 	@media (max-width: 1023px) and (pointer: coarse) {
 		.game-wrapper {
 			padding-bottom: 120px;
+		}
+	}
+
+	/* Add new mobile optimizations */
+	@media (max-width: 1023px) {
+		.game-wrapper {
+			--controls-height: 180px;
+			height: calc(100% - var(--controls-height));
 		}
 	}
 </style>

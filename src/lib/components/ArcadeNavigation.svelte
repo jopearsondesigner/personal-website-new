@@ -89,7 +89,7 @@
 
 	onMount(() => {
 		// Move the media query logic here
-		const mediaQuery = window.matchMedia('(max-width: 768px)');
+		const mediaQuery = window.matchMedia('(max-width: 1024px)');
 		isMobile = mediaQuery.matches;
 
 		const handleResize = (e: MediaQueryListEvent) => {

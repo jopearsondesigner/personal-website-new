@@ -38,7 +38,16 @@
 	--header-font-size: 8vmin;
 	--insert-concept-font-size: 3.5vmin;
 
+	--controls-height: 180px;
+	--controls-height-landscape: 120px;
+
 	transition: all 0.3s ease;
+}
+
+@media (orientation: landscape) {
+	:root {
+		--controls-height: 120px;
+	}
 }
 
 /* Disable transitions during theme switch to prevent flickering */
@@ -171,4 +180,17 @@ html.dark .nav-button:active {
 .fade-enter-from,
 .fade-leave-to {
 	opacity: 0;
+}
+
+/* Adjust main container for controls */
+@media (max-width: 1023px) and (pointer: coarse) {
+	.game-wrapper {
+		height: calc(100% - var(--controls-height));
+	}
+}
+
+@media (max-width: 1023px) and (pointer: coarse) and (orientation: landscape) {
+	.game-wrapper {
+		height: calc(100% - var(--controls-height-landscape));
+	}
 }

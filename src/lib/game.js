@@ -3624,6 +3624,7 @@ function animate() {
 
 // End of animate
 
+// Event Listeners
 function setupInputListeners() {
 	window.addEventListener('keydown', function (event) {
 		const key = event.key.toUpperCase();
