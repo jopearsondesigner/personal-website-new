@@ -208,7 +208,7 @@
 	}
 
 	.menu-container {
-		background-color: rgba(43, 43, 43, 0.75);
+		background-color: rgba(43, 43, 43, 0.55);
 		border: 1px solid theme('colors.arcadeNeonGreen.200');
 		padding: 0.65rem;
 		border-radius: 4px;
@@ -263,7 +263,7 @@
 	}
 
 	.mobile .menu-button {
-		background-color: rgba(43, 43, 43, 0.7);
+		background-color: rgba(43, 43, 43, 0.55);
 		color: var(--arcade-neon-green-100);
 		border: 1px solid var(--arcade-neon-green-200);
 		padding: 0.45rem 0.65rem;

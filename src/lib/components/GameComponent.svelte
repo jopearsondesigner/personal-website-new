@@ -52,7 +52,27 @@
 		width: 100%;
 		height: 100%;
 		background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
-		border-radius: 2.35vmin;
+		border-radius: 3vmin;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		overflow: hidden;
+	}
+
+	:global(html.light .game-background) {
+		position: relative;
+		width: 100%;
+		height: 100%;
+		/* Light mode gradient using arcadeWhite shades */
+		background: linear-gradient(
+			135deg,
+			var(--arcade-white-100) 0%,
+			var(--arcade-white-200) 50%,
+			var(--arcade-white-300) 100%
+		);
+		border-radius: 2.9vmin;
+		/* Subtle shadow for depth in light mode */
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 		display: flex;
 		justify-content: center;
 		align-items: center;

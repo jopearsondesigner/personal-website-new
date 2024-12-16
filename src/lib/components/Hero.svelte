@@ -246,22 +246,48 @@
 </section>
 
 <style>
+	/* CSS Custom Properties
+	----------------------------------------*/
 	:root {
+		/* Layout */
 		--arcade-screen-width: min(95vw, 800px);
 		--arcade-screen-height: min(70vh, 600px);
+
+		/* Typography */
 		--header-font-size: 14vmin;
-		--insert-concept-font-size: 2.45min;
+		--insert-concept-font-size: 2.45vmin;
+
+		/* Colors */
+		--screen-border-color: rgba(226, 226, 189, 1);
+		--header-text-color: rgba(227, 255, 238, 1);
+		--insert-concept-color: rgba(245, 245, 220, 1);
+
+		/* Shadows & Effects */
+		--cabinet-shadow: inset 0 0 70px rgba(0, 0, 0, 0.15), inset 0 0 40px rgba(0, 0, 0, 0.1),
+			0 0 35px rgba(0, 0, 0, 0.08);
+
+		--screen-shadow: 0 0 30px rgba(0, 0, 0, 0.8), inset 0 0 50px rgba(0, 0, 0, 0.9),
+			inset 0 0 2px rgba(255, 255, 255, 0.3), inset 0 0 100px rgba(0, 0, 0, 0.7);
 	}
 
+	/* Desktop Breakpoint
+	----------------------------------------*/
 	@media (min-width: 1020px) {
 		:root {
 			--arcade-screen-width: 80vw;
 			--arcade-screen-height: 600px;
 			--header-font-size: 5.6rem;
-			--insert-concept-font-size: 2.45vmin;
 		}
 	}
 
+	/* Layout Styles
+	----------------------------------------*/
+	section {
+		height: calc(100vh - var(--navbar-height, 64px));
+	}
+
+	/* Arcade Cabinet
+	----------------------------------------*/
 	#arcade-cabinet {
 		width: 100%;
 		height: 100%;
@@ -271,127 +297,101 @@
 		padding: 2vmin;
 		box-sizing: border-box;
 		position: relative;
-		/* Enhanced shadow depth while keeping it clean */
-		box-shadow:
-			inset 0 0 70px rgba(0, 0, 0, 0.15),
-			inset 0 0 40px rgba(0, 0, 0, 0.1),
-			0 0 35px rgba(0, 0, 0, 0.08);
+		box-shadow: var(--cabinet-shadow);
 	}
 
+	/* Theme-specific Cabinet Styles */
 	:global(html.light #arcade-cabinet) {
-		background:
-        /* Subtle highlight at top */
-			linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 15%),
-			/* Side lighting gradients */
-				linear-gradient(
-					90deg,
-					rgba(0, 0, 0, 0.03) 0%,
-					rgba(0, 0, 0, 0) 5%,
-					rgba(0, 0, 0, 0) 95%,
-					rgba(0, 0, 0, 0.03) 100%
-				),
-			/* Base texture */
-				repeating-linear-gradient(
-					45deg,
-					rgba(255, 255, 255, 0.03) 0px,
-					rgba(255, 255, 255, 0.03) 1px,
-					transparent 1px,
-					transparent 2px
-				),
-			/* Main surface gradient */
-				radial-gradient(
-					ellipse at 50% 40%,
-					rgba(255, 255, 255, 0.95) 0%,
-					rgba(235, 235, 235, 0.98) 40%,
-					rgba(220, 220, 220, 0.99) 70%
-				);
-		position: relative;
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 15%),
+			linear-gradient(
+				90deg,
+				rgba(0, 0, 0, 0.03) 0%,
+				rgba(0, 0, 0, 0) 5%,
+				rgba(0, 0, 0, 0) 95%,
+				rgba(0, 0, 0, 0.03) 100%
+			),
+			repeating-linear-gradient(
+				45deg,
+				rgba(255, 255, 255, 0.03) 0px,
+				rgba(255, 255, 255, 0.03) 1px,
+				transparent 1px,
+				transparent 2px
+			),
+			radial-gradient(
+				ellipse at 50% 40%,
+				rgba(255, 255, 255, 0.95) 0%,
+				rgba(235, 235, 235, 0.98) 40%,
+				rgba(220, 220, 220, 0.99) 70%
+			);
 	}
 
 	:global(html.dark #arcade-cabinet) {
-		background:
-        /* Subtle highlight at top */
-			linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 15%),
-			/* Side lighting gradients */
-				linear-gradient(
-					90deg,
-					rgba(0, 0, 0, 0.2) 0%,
-					rgba(0, 0, 0, 0) 5%,
-					rgba(0, 0, 0, 0) 95%,
-					rgba(0, 0, 0, 0.2) 100%
-				),
-			/* Base texture */
-				repeating-linear-gradient(
-					45deg,
-					rgba(255, 255, 255, 0.02) 0px,
-					rgba(255, 255, 255, 0.02) 1px,
-					transparent 1px,
-					transparent 2px
-				),
-			/* Main surface gradient */
-				radial-gradient(
-					ellipse at 50% 40%,
-					rgba(45, 45, 45, 0.95) 0%,
-					rgba(35, 35, 35, 0.98) 40%,
-					rgba(25, 25, 25, 0.99) 70%
-				);
-		position: relative;
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 15%),
+			linear-gradient(
+				90deg,
+				rgba(0, 0, 0, 0.2) 0%,
+				rgba(0, 0, 0, 0) 5%,
+				rgba(0, 0, 0, 0) 95%,
+				rgba(0, 0, 0, 0.2) 100%
+			),
+			repeating-linear-gradient(
+				45deg,
+				rgba(255, 255, 255, 0.02) 0px,
+				rgba(255, 255, 255, 0.02) 1px,
+				transparent 1px,
+				transparent 2px
+			),
+			radial-gradient(
+				ellipse at 50% 40%,
+				rgba(45, 45, 45, 0.95) 0%,
+				rgba(35, 35, 35, 0.98) 40%,
+				rgba(25, 25, 25, 0.99) 70%
+			);
 	}
 
-	:global(html.light #arcade-cabinet)::after,
-	:global(html.dark #arcade-cabinet)::after {
-		content: '';
-		position: absolute;
-		inset: 0;
-		border-radius: 4vmin;
-		box-shadow:
-			inset 0 2px 4px rgba(0, 0, 0, 0.05),
-			inset 0 -2px 4px rgba(255, 255, 255, 0.05);
-		pointer-events: none;
-	}
-
+	/* Arcade Screen
+	----------------------------------------*/
 	#arcade-screen {
 		width: var(--arcade-screen-width);
 		height: var(--arcade-screen-height);
-		border: 0.6vmin solid rgba(226, 226, 189, 1);
+		/* Remove the original border */
+		border: none;
 		border-radius: 4vmin;
 		position: relative;
 		z-index: 0;
 		aspect-ratio: 4/3;
-		/* Enhanced shadows for depth */
-		box-shadow:
-			0 0 30px rgba(0, 0, 0, 0.8),
-			inset 0 0 50px rgba(0, 0, 0, 0.9),
-			inset 0 0 2px rgba(255, 255, 255, 0.3),
-			inset 0 0 100px rgba(0, 0, 0, 0.7);
+		box-shadow: var(--screen-shadow);
 		background: linear-gradient(145deg, #111 0%, #444 100%);
-		/* Added physical depth simulation */
 		transform: perspective(1000px) rotateX(2deg);
 		transform-style: preserve-3d;
 	}
 
+	/* Screen Effects
+----------------------------------------*/
 	#arcade-screen::before,
 	#arcade-screen::after {
 		content: '';
 		position: absolute;
-		top: -4px;
-		left: -4px;
-		right: -4px;
-		bottom: -4px;
-		border-radius: 4vmin;
+		inset: -1vmin;
+		border-radius: 4.5vmin;
 		z-index: -1;
 	}
 
 	#arcade-screen::before {
-		content: '';
-		position: absolute;
-		inset: -0.8vmin;
-		border-radius: 4.5vmin;
-		background: linear-gradient(145deg, rgba(235, 235, 235, 1) 0%, rgba(210, 210, 210, 1) 100%);
-		z-index: -1;
+		background:
+        /* More transparent glass tube effect */
+			linear-gradient(
+				145deg,
+				rgba(220, 225, 235, 0.45) 0%,
+				rgba(200, 205, 215, 0.35) 50%,
+				rgba(180, 185, 195, 0.4) 100%
+			),
+			/* Base bezel color */
+				linear-gradient(145deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
 		box-shadow:
-			inset 0 0 8px rgba(0, 0, 0, 0.15),
-			0 0 5px rgba(0, 0, 0, 0.15);
+			inset 0 0 10px rgba(0, 0, 0, 0.8),
+			0 0 5px rgba(0, 0, 0, 0.5),
+			/* Enhanced glass reflection */ 0 0 3px rgba(255, 255, 255, 0.15);
 	}
 
 	#arcade-screen::after {
@@ -401,54 +401,63 @@
 		transition: opacity 0.3s ease-in-out;
 	}
 
-	/* Added bezel effect */
-	#arcade-screen::before {
-		content: '';
-		position: absolute;
-		inset: -1vmin;
-		border-radius: 4.5vmin;
-		background: linear-gradient(145deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
-		z-index: -1;
-		box-shadow:
-			inset 0 0 10px rgba(0, 0, 0, 0.8),
-			0 0 5px rgba(0, 0, 0, 0.5);
-	}
-
 	#arcade-screen.glow::before,
 	#arcade-screen.glow::after {
 		opacity: 1;
 	}
 
-	#arcade-cabinet::after {
-		content: '';
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		box-shadow:
-			inset 0 0 50px rgba(255, 255, 255, 0.1),
-			0 0 100px rgba(255, 255, 255, 0.1);
-		pointer-events: none;
+	/* Typography
+	----------------------------------------*/
+	#header {
+		font-family: 'Pixelify Sans', sans-serif;
+		font-size: var(--header-font-size);
+		letter-spacing: 0.2vmin;
+		line-height: 1.27;
+		font-weight: 700;
+		color: var(--header-text-color);
+		text-shadow:
+			0 0 1vmin rgba(39, 255, 153, 0.8),
+			0 0 2vmin rgba(39, 255, 153, 0.7),
+			0 0 3vmin rgba(39, 255, 153, 0.6),
+			0 0 4vmin rgba(245, 245, 220, 0.5),
+			0 0 7vmin rgba(245, 245, 220, 0.3),
+			0 0 8vmin rgba(245, 245, 220, 0.1);
 	}
 
-	/* Rest of your original styles remain unchanged */
+	#insert-concept {
+		font-family: 'Press Start 2P', sans-serif;
+		text-transform: uppercase;
+		letter-spacing: 0.2vmin;
+		font-size: var(--insert-concept-font-size);
+		font-weight: 700;
+		color: var(--insert-concept-color);
+		text-shadow:
+			0 0 0.15vmin rgba(250, 250, 240, 0.4),
+			0 0 0.3vmin rgba(250, 250, 240, 0.45),
+			0 0 1.2vmin rgba(250, 250, 240, 0.3),
+			0 0 0.4vmin rgba(245, 245, 220, 0.25),
+			0 0 1.5vmin rgba(245, 245, 220, 0.15),
+			0 0 2vmin rgba(245, 245, 220, 0.05);
+	}
+
+	/* Visual Effects
+	----------------------------------------*/
 	#scanline-overlay {
 		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.1) 51%);
 		background-size: 100% 4px;
 		animation: scanline 0.2s linear infinite;
 		border-radius: 3.5vmin;
+		z-index: 1;
 	}
 
-	@keyframes scanline {
-		0% {
-			background-position: 0 0;
-		}
-		100% {
-			background-position: 0 4px;
-		}
+	#reflection {
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 20%);
+		border-radius: 4vmin;
+		z-index: 1;
 	}
 
+	/* Space Background
+	----------------------------------------*/
 	#space-background {
 		position: absolute;
 		inset: 0;
@@ -477,49 +486,14 @@
 		will-change: transform;
 	}
 
-	#header {
-		font-family: 'Pixelify Sans', sans-serif;
-		font-size: var(--header-font-size);
-		letter-spacing: 0.2vmin;
-		line-height: 1.27;
-		font-weight: 700;
-		color: rgba(227, 255, 238, 1);
-		text-shadow:
-			0 0 1vmin rgba(39, 255, 153, 0.8),
-			0 0 2vmin rgba(39, 255, 153, 0.7),
-			0 0 3vmin rgba(39, 255, 153, 0.6),
-			0 0 4vmin rgba(245, 245, 220, 0.5),
-			0 0 7vmin rgba(245, 245, 220, 0.3),
-			0 0 8vmin rgba(245, 245, 220, 0.1);
-	}
-
-	#insert-concept {
-		font-family: 'Press Start 2P', sans-serif;
-		text-transform: uppercase;
-		letter-spacing: 0.2vmin;
-		font-size: var(--insert-concept-font-size);
-		font-weight: 700;
-		color: rgba(245, 245, 220, 1);
-		text-shadow:
-			0 0 0.15vmin rgba(250, 250, 240, 0.4),
-			0 0 0.3vmin rgba(250, 250, 240, 0.45),
-			0 0 1.2vmin rgba(250, 250, 240, 0.3),
-			0 0 0.4vmin rgba(245, 245, 220, 0.25),
-			0 0 1.5vmin rgba(245, 245, 220, 0.15),
-			0 0 2vmin rgba(245, 245, 220, 0.05);
-	}
-
-	#reflection {
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 20%);
-		border-radius: 4vmin;
-	}
-
-	#reflection,
-	#scanline-overlay {
-		z-index: 1;
-	}
-
-	section {
-		height: calc(100vh - var(--navbar-height, 64px));
+	/* Animations
+	----------------------------------------*/
+	@keyframes scanline {
+		0% {
+			background-position: 0 0;
+		}
+		100% {
+			background-position: 0 4px;
+		}
 	}
 </style>
