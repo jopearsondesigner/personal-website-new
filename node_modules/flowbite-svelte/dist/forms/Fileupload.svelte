@@ -1,0 +1,19 @@
+<script>import { twMerge } from "tailwind-merge";
+import Input from "./Input.svelte";
+export let value = "";
+export let files = void 0;
+export let inputClass = "border !p-0 dark:text-gray-400";
+</script>
+
+<Input {...$$restProps} class={twMerge(inputClass, $$props.class)} let:props>
+  <input type="file" on:change on:keyup on:keydown on:keypress on:focus on:blur on:click on:mouseover on:mouseenter on:mouseleave on:paste bind:value bind:files {...props} />
+</Input>
+
+<!--
+@component
+[Go to docs](https://flowbite-svelte.com/)
+## Props
+@prop export let value: $$Props['value'] = '';
+@prop export let files: $$Props['files'] = undefined;
+@prop export let inputClass: $$Props['inputClass'] = 'border !p-0 dark:text-gray-400';
+-->

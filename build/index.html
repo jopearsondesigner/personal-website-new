@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" href="/favicon.png" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link href="https://fonts.googleapis.com/css2?family=Gruppo&display=swap" rel="stylesheet" />
+        <style>
+            #initial-loader {
+                position: fixed;
+                inset: 0;
+                z-index: 99999;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background-color: #1a1a1a;
+                opacity: 1;
+                transition: opacity 0.3s ease-out;
+                /* Ensure no inheritance of filters or blend modes */
+                filter: none;
+                mix-blend-mode: normal;
+            }
+            #initial-loader.fade-out {
+                opacity: 0;
+            }
+            .loader-content {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 1rem;
+                /* Ensure no inheritance of filters or blend modes */
+                isolation: isolate;
+            }
+            .loader-logo {
+                height: 64px;
+                width: 64px;
+                /* Reset any potential color alterations */
+                filter: none;
+                mix-blend-mode: normal;
+                /* Prevent any color space transformations */
+                transform: translateZ(0);
+                backface-visibility: hidden;
+                will-change: opacity;
+            }
+            .loader-logo path {
+                fill: #00A8A8;
+            }
+            .loader-text {
+                font-family: 'Gruppo', sans-serif;
+                color: #ececce;
+                font-size: 20px;
+                letter-spacing: 10.96px;
+                text-transform: uppercase;
+                animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            }
+            .loader-progress {
+                margin-top: 0.5rem;
+                height: 4px;
+                width: 128px;
+                overflow: hidden;
+                border-radius: 9999px;
+                background-color: #374151;
+            }
+            .loader-progress-inner {
+                height: 100%;
+                width: 100%;
+                background-color: #27ff99;
+                animation: progress 1.5s ease-in-out infinite;
+            }
+            @keyframes pulse {
+                0%, 100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.5;
+                }
+            }
+            @keyframes progress {
+                0% {
+                    transform: translateX(-100%);
+                }
+                100% {
+                    transform: translateX(100%);
+                }
+            }
+        </style>
+        
+		<link rel="modulepreload" href="/_app/immutable/entry/start.DwBMfwXd.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/entry.ZPZqo7aW.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/utils.D22Xb4Z6.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/index.BF1R2iSJ.js">
+		<link rel="modulepreload" href="/_app/immutable/entry/app.CS3SjvBV.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/disclose-version.Ba94ovf-.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/index-client.DmTjv-97.js">
+		<link rel="modulepreload" href="/_app/immutable/chunks/3.AivEKjif.js">
+    </head>
+    <body data-sveltekit-preload-data="hover" class="">
+        <div id="initial-loader">
+            <div class="loader-content">
+                <svg
+                    class="loader-logo"
+                    viewBox="0 0 200 200"
+                    xmlns="http://www.w3.org/2000/svg"
+                >
+                    <path
+                        d="M100 0C44.8 0 0 44.8 0 100s44.8 100 100 100 100-44.8 100-100S155.2 0 100 0zm0 180c-44.2 0-80-35.8-80-80s35.8-80 80-80 80 35.8 80 80-35.8 80-80 80z"
+                    />
+                    <path
+                        d="M100 60c-22.1 0-40 17.9-40 40s17.9 40 40 40 40-17.9 40-40-17.9-40-40-40zm0 60c-11 0-20-9-20-20s9-20 20-20 20 9 20 20-9 20-20 20z"
+                    />
+                </svg>
+                <div class="loader-text">Jo Pearson</div>
+                <div class="loader-progress">
+                    <div class="loader-progress-inner"></div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: contents">
+			<script>
+				{
+					__sveltekit_6p56id = {
+						base: ""
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("/_app/immutable/entry/start.DwBMfwXd.js"),
+						import("/_app/immutable/entry/app.CS3SjvBV.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element);
+					});
+				}
+			</script>
+		</div>
+
+        <script>
+            window.addEventListener('load', () => {
+                const loader = document.getElementById('initial-loader');
+                if (loader) {
+                    loader.classList.add('fade-out');
+                    setTimeout(() => {
+                        loader.style.display = 'none';
+                    }, 300);
+                }
+            });
+        </script>
+    </body>
+</html>
+
