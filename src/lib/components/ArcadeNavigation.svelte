@@ -186,8 +186,8 @@
 
 	.arcade-navigation {
 		position: absolute;
-		top: 2rem;
-		left: 2.37rem;
+		top: 1rem;
+		left: 1.47rem;
 		z-index: 100;
 		/* pointer-events: none; */
 	}
@@ -210,7 +210,7 @@
 	.menu-container {
 		background-color: rgba(43, 43, 43, 0.55);
 		border: 1px solid theme('colors.arcadeNeonGreen.200');
-		padding: 0.65rem;
+		padding: 0.35rem;
 		border-radius: 4px;
 		outline: none;
 		pointer-events: auto;
