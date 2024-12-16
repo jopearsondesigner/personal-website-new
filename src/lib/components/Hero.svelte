@@ -160,6 +160,8 @@
 			document.body.classList.toggle('landscape', isLandscape);
 		};
 
+		arcadeScreen.classList.add('power-sequence');
+
 		window.addEventListener('resize', handleOrientation);
 		handleOrientation();
 
@@ -180,61 +182,71 @@
         height: calc(100vh + {$layoutStore.navbarHeight}px);
     "
 >
-	<div id="arcade-cabinet" class="w-full h-full relative flex items-center justify-center">
-		<div class="cabinet-background absolute inset-0"></div>
-		<div class="cabinet-wear absolute inset-0"></div>
+	<div
+		id="arcade-cabinet"
+		class="cabinet-metal w-full h-full relative flex items-center justify-center"
+	>
+		<div class="cabinet-plastic">
+			<div class="cabinet-background absolute inset-0"></div>
+			<div class="cabinet-wear absolute inset-0"></div>
 
-		<div class="arcade-screen-wrapper relative">
-			<div class="navigation-wrapper relative z-50">
-				<ArcadeNavigation on:changeScreen={handleScreenChange} />
-			</div>
+			<div class="arcade-screen-wrapper relative">
+				<div class="navigation-wrapper relative z-50">
+					<ArcadeNavigation on:changeScreen={handleScreenChange} />
+				</div>
 
-			<!-- Screen Bezel Layer -->
-			<div class="screen-bezel"></div>
+				<!-- Screen Bezel Layer -->
+				<div class="screen-bezel"></div>
 
-			<div
-				id="arcade-screen"
-				class="relative w-[90vw] h-[70vh] md:w-[80vw] md:h-[600px] glow"
-				bind:this={arcadeScreen}
-			>
-				<!-- Screen Effects -->
-				<div class="screen-reflection"></div>
-				<div class="screen-glare"></div>
-				<div class="screen-glass"></div>
-				<div class="glow-effect"></div>
+				<div
+					id="arcade-screen"
+					class="crt-screen hardware-accelerated relative w-[90vw] h-[70vh] md:w-[80vw] md:h-[600px] glow"
+					bind:this={arcadeScreen}
+				>
+					<div class="phosphor-decay"></div>
+					<div class="shadow-mask"></div>
+					<div class="interlace"></div>
+					<!-- Screen Effects -->
+					<div class="screen-reflection"></div>
+					<div class="screen-glare"></div>
+					<div class="screen-glass"></div>
+					<div class="glow-effect"></div>
 
-				<div id="scanline-overlay" class="absolute inset-0 pointer-events-none z-10"></div>
+					<div id="scanline-overlay" class="absolute inset-0 pointer-events-none z-10"></div>
 
-				{#if currentScreen === 'main'}
-					<div
-						id="space-background"
-						class="absolute inset-0 overflow-hidden pointer-events-none"
-						bind:this={spaceBackground}
-					>
+					{#if currentScreen === 'main'}
 						<div
-							class="star-container absolute inset-0 pointer-events-none"
-							bind:this={starContainer}
+							id="space-background"
+							class="absolute inset-0 overflow-hidden pointer-events-none"
+							bind:this={spaceBackground}
 						>
-							{#each stars as star (star)}
-								<div class="star absolute" style={star.style}></div>
-							{/each}
+							<div
+								class="star-container absolute inset-0 pointer-events-none"
+								bind:this={starContainer}
+							>
+								{#each stars as star (star)}
+									<div class="star absolute" style={star.style}></div>
+								{/each}
+							</div>
 						</div>
-					</div>
-					<div
-						id="text-wrapper"
-						class="absolute inset-0 flex flex-col items-center justify-center z-0 p-2 box-border"
-					>
-						<div id="header" class="text-center mb-2" bind:this={header}>Power-up Your Brand!</div>
-						<div id="insert-concept" class="text-center" bind:this={insertConcept}>
-							Insert Concept
+						<div
+							id="text-wrapper"
+							class="absolute inset-0 flex flex-col items-center justify-center z-0 p-2 box-border"
+						>
+							<div id="header" class="text-center mb-2" bind:this={header}>
+								Power-up Your Brand!
+							</div>
+							<div id="insert-concept" class="text-center" bind:this={insertConcept}>
+								Insert Concept
+							</div>
+							<div class="mt-8">
+								<ArcadeCtaButton />
+							</div>
 						</div>
-						<div class="mt-8">
-							<ArcadeCtaButton />
-						</div>
-					</div>
-				{:else if currentScreen === 'game'}
-					<GameComponent />
-				{/if}
+					{:else if currentScreen === 'game'}
+						<GameComponent />
+					{/if}
+				</div>
 			</div>
 		</div>
 	</div>
@@ -247,7 +259,7 @@
 		--arcade-screen-height: min(70vh, 600px);
 		--border-radius: 4vmin;
 		--cabinet-depth: 2.5vmin;
-		--screen-recess: 2vmin;
+		--screen-recess: 1.8vmin;
 		--bezel-thickness: 0.8vmin;
 
 		/* Typography */
@@ -306,6 +318,7 @@
 	}
 
 	.cabinet-wear {
+		border-radius: 6vmin;
 		background: repeating-linear-gradient(
 			45deg,
 			transparent 0px,
@@ -315,6 +328,19 @@
 		);
 		opacity: 0.3;
 		mix-blend-mode: multiply;
+		/* Add subtle texture */
+		backdrop-filter: contrast(1.02);
+	}
+
+	:global(html.light) .cabinet-wear {
+		background: repeating-linear-gradient(
+			45deg,
+			transparent 0px,
+			transparent 5px,
+			rgba(0, 0, 0, 0.03) 5px,
+			rgba(0, 0, 0, 0.03) 6px
+		);
+		opacity: 0.4;
 	}
 
 	.arcade-screen-wrapper {
@@ -322,6 +348,9 @@
 		padding: var(--screen-recess);
 		transform: perspective(1000px) rotateX(2deg);
 		transform-style: preserve-3d;
+		width: fit-content;
+		height: fit-content;
+		margin: 0 auto;
 	}
 
 	.screen-bezel {
@@ -337,28 +366,27 @@
 			),
 			linear-gradient(to bottom, rgba(40, 40, 40, 1), rgba(60, 60, 60, 1));
 		transform: translateZ(-1px);
-		box-shadow: var(--bezel-shadow);
+		box-shadow:
+    /* Deeper inset shadow */
+			inset 0 0 20px rgba(0, 0, 0, 0.9),
+			/* Subtle edge highlight */ 0 0 2px var(--glass-reflection),
+			/* Screen glow */ 0 0 15px rgba(39, 255, 153, 0.2);
 	}
 
-	/* Add this to your existing CSS */
 	:global(html.light) .screen-bezel {
-		background:
-        /* Subtle metallic texture */
-			repeating-linear-gradient(
+		background: repeating-linear-gradient(
 				45deg,
-				rgba(200, 200, 200, 0.05) 0px,
-				rgba(200, 200, 200, 0.05) 1px,
+				rgba(180, 180, 180, 0.1) 0px,
+				rgba(180, 180, 180, 0.1) 1px,
 				transparent 1px,
 				transparent 2px
 			),
-			/* Base gradient for light plastic/metal look */
-				linear-gradient(to bottom, rgba(200, 200, 200, 1), rgba(180, 180, 180, 1));
-		/* Adjusted shadow for light theme bezel */
+			linear-gradient(to bottom, rgba(160, 160, 160, 1), rgba(140, 140, 140, 1));
 		box-shadow:
-        /* Deeper inset shadow */
-			inset 0 0 20px rgba(0, 0, 0, 0.4),
-			/* Subtle outer glow */ 0 0 2px rgba(255, 255, 255, 0.3),
-			/* Screen glow influence */ 0 0 15px rgba(39, 255, 153, 0.1);
+    /* Deeper inset shadow */
+			inset 0 0 25px rgba(0, 0, 0, 0.5),
+			/* Enhanced edge highlight */ 0 0 2px rgba(255, 255, 255, 0.4),
+			/* Stronger screen glow */ 0 0 20px rgba(39, 255, 153, 0.15);
 	}
 
 	#arcade-screen {
@@ -558,5 +586,422 @@
 		100% {
 			background-position: 0 4px;
 		}
+	}
+
+	/* T-Molding LED/Neon Simulation */
+	.t-molding {
+		position: absolute;
+		inset: -4px;
+		border-radius: calc(var(--border-radius) + 8px);
+		background: transparent;
+		overflow: hidden;
+		z-index: -1;
+	}
+
+	.t-molding::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			90deg,
+			rgba(255, 0, 98, 0.8) 0%,
+			rgba(255, 0, 98, 0.4) 50%,
+			rgba(255, 0, 98, 0.8) 100%
+		);
+		filter: blur(3px);
+		animation: tmoldingPulse 4s infinite;
+	}
+
+	.t-molding::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: rgba(255, 255, 255, 0.1);
+		box-shadow:
+    /* Inner diffusion */
+			inset 0 0 15px rgba(255, 255, 255, 0.2),
+			/* Outer glow */ 0 0 20px rgba(255, 0, 98, 0.4);
+	}
+
+	/* Control Panel Underlighting */
+	.control-panel-light {
+		position: absolute;
+		bottom: -20px;
+		left: 10%;
+		right: 10%;
+		height: 20px;
+		background: linear-gradient(to bottom, rgba(0, 255, 255, 0.4), transparent);
+		filter: blur(8px);
+		transform: perspective(500px) rotateX(60deg);
+		transform-origin: top;
+		opacity: 0.6;
+		animation: controlPanelGlow 2s ease-in-out infinite alternate;
+	}
+
+	/* Corner Accent Lights */
+	.corner-accent {
+		position: absolute;
+		width: 30px;
+		height: 30px;
+		background: radial-gradient(
+			circle at center,
+			rgba(255, 255, 255, 0.9),
+			rgba(255, 255, 255, 0.1) 70%,
+			transparent 100%
+		);
+		filter: blur(2px);
+		opacity: 0.7;
+	}
+
+	.corner-accent.top-left {
+		top: -15px;
+		left: -15px;
+	}
+	.corner-accent.top-right {
+		top: -15px;
+		right: -15px;
+	}
+	.corner-accent.bottom-left {
+		bottom: -15px;
+		left: -15px;
+	}
+	.corner-accent.bottom-right {
+		bottom: -15px;
+		right: -15px;
+	}
+
+	/* Environmental Light Spill */
+	.light-spill {
+		position: absolute;
+		inset: -50px;
+		background: radial-gradient(circle at 50% 50%, rgba(255, 0, 98, 0.15), transparent 70%);
+		filter: blur(20px);
+		mix-blend-mode: screen;
+		pointer-events: none;
+		z-index: -2;
+	}
+
+	/* Light Theme Adjustments */
+	:global(html.light) .t-molding::before {
+		opacity: 0.4;
+		background: linear-gradient(
+			90deg,
+			rgba(0, 150, 255, 0.6) 0%,
+			rgba(0, 150, 255, 0.3) 50%,
+			rgba(0, 150, 255, 0.6) 100%
+		);
+	}
+
+	:global(html.light) .control-panel-light {
+		opacity: 0.3;
+		background: linear-gradient(to bottom, rgba(0, 150, 255, 0.3), transparent);
+	}
+
+	/* Hardware-accurate Animations */
+	@keyframes tmoldingPulse {
+		0%,
+		100% {
+			opacity: 0.8;
+		}
+		50% {
+			opacity: 1;
+		}
+	}
+
+	@keyframes controlPanelGlow {
+		from {
+			opacity: 0.5;
+		}
+		to {
+			opacity: 0.7;
+		}
+	}
+
+	/* Fluorescent Flicker Effect */
+	.screen-flicker {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(transparent 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%);
+		opacity: 0;
+		animation: screenFlicker 0.1s steps(2) infinite;
+	}
+
+	@keyframes screenFlicker {
+		0%,
+		100% {
+			opacity: 0;
+		}
+		50% {
+			opacity: 1;
+		}
+	}
+
+	/* Hardware Power-up Sequence */
+	@keyframes powerUp {
+		0% {
+			filter: brightness(0);
+			transform: scale(0.98);
+		}
+		5% {
+			filter: brightness(0.3);
+			transform: scale(0.99);
+		}
+		10% {
+			filter: brightness(0.1);
+			transform: scale(0.98);
+		}
+		15% {
+			filter: brightness(0.5);
+			transform: scale(1);
+		}
+		30% {
+			filter: brightness(0.3);
+			transform: scale(0.99);
+		}
+		100% {
+			filter: brightness(1);
+			transform: scale(1);
+		}
+	}
+
+	/* CRT and Phosphor Effects */
+	.crt-screen {
+		--phosphor-decay: 16ms;
+		--refresh-rate: 60Hz;
+		--shadow-mask-size: 3px;
+		--bloom-intensity: 0.4;
+		--misconvergence-offset: 0.5px;
+
+		position: relative;
+		overflow: hidden;
+		background: #000;
+	}
+
+	/* P22 Phosphor Decay Simulation */
+	.phosphor-decay {
+		position: absolute;
+		inset: 0;
+		mix-blend-mode: screen;
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 20%);
+		animation: phosphorPersistence var(--phosphor-decay) linear infinite;
+	}
+
+	/* RGB Shadow Mask Pattern */
+	.shadow-mask {
+		position: absolute;
+		inset: 0;
+		background-image: repeating-linear-gradient(
+			90deg,
+			rgba(255, 0, 0, 0.1),
+			rgba(0, 255, 0, 0.1),
+			rgba(0, 0, 255, 0.1)
+		);
+		background-size: var(--shadow-mask-size) var(--shadow-mask-size);
+		pointer-events: none;
+		opacity: 0.3;
+	}
+
+	/* Authentic Interlace Flicker */
+	.interlace {
+		position: absolute;
+		inset: 0;
+		background: repeating-linear-gradient(
+			0deg,
+			rgba(0, 0, 0, 0.2) 0px,
+			transparent 1px,
+			transparent 2px
+		);
+		animation: interlaceFlicker calc(1000ms / var(--refresh-rate)) steps(2) infinite;
+	}
+
+	/* Color Bleed and Misconvergence */
+	.color-bleed {
+		position: absolute;
+		inset: 0;
+		filter: blur(1.5px);
+		opacity: 0.4;
+		mix-blend-mode: screen;
+	}
+
+	.misconvergence {
+		position: absolute;
+		inset: 0;
+		transform: translate3d(var(--misconvergence-offset), 0, 0);
+		mix-blend-mode: screen;
+		opacity: 0.4;
+	}
+
+	/* Hardware Power Sequence */
+	.power-sequence {
+		animation: powerUpSequence 2.5s ease-out;
+	}
+
+	/* Authentic Cabinet Materials */
+	.cabinet-metal {
+		background: linear-gradient(180deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
+		box-shadow: var(--cabinet-shadow);
+	}
+
+	:global(html.light) .cabinet-metal {
+		background:
+    /* Intense top highlight */
+			linear-gradient(
+				180deg,
+				rgba(255, 255, 255, 1) 0%,
+				rgba(255, 255, 255, 0.3) 8%,
+				transparent 15%
+			),
+			/* Enhanced side gradients for more depth */
+				linear-gradient(
+					90deg,
+					rgba(120, 120, 120, 1) 0%,
+					rgba(180, 180, 180, 0) 15%,
+					rgba(180, 180, 180, 0) 85%,
+					rgba(120, 120, 120, 1) 100%
+				),
+			/* More contrasted base material */
+				linear-gradient(170deg, #f0f0f0 0%, #d0d0d0 30%, #a0a0a0 60%, #808080 100%);
+		box-shadow:
+    /* Stronger outer shadow */
+			0 20px 40px rgba(0, 0, 0, 0.4),
+			/* Deeper cavity shadow */ 0 10px 30px rgba(0, 0, 0, 0.3),
+			/* Enhanced edge highlights */ inset 0 2px 4px rgba(255, 255, 255, 1),
+			/* Deeper side shadows */ inset -3px 0 10px rgba(0, 0, 0, 0.2),
+			inset 3px 0 10px rgba(0, 0, 0, 0.2),
+			/* Enhanced bottom shadow */ inset 0 -5px 15px rgba(0, 0, 0, 0.3);
+	}
+
+	.cabinet-plastic {
+		position: relative;
+		width: 100%;
+		height: 100%;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		border-radius: 6vmin;
+		background: linear-gradient(180deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
+		box-shadow:
+    /* Deep cavity shadow */
+			inset 0 10px 30px rgba(0, 0, 0, 0.4),
+			/* Side shadows for depth */ inset -5px 0 15px rgba(0, 0, 0, 0.3),
+			inset 5px 0 15px rgba(0, 0, 0, 0.3),
+			/* Bottom shadow */ inset 0 -5px 15px rgba(0, 0, 0, 0.4);
+		padding: 2vmin;
+	}
+
+	/* Light theme cabinet adjustments */
+	:global(html.light) .cabinet-plastic {
+		background:
+    /* Enhanced top highlight */
+			linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, transparent 15%),
+			/* Deeper base gradient */
+				linear-gradient(170deg, #d8d8d8 0%, #b8b8b8 40%, #989898 70%, #787878 100%);
+		box-shadow:
+    /* Stronger top highlight */
+			inset 0 2px 4px rgba(255, 255, 255, 0.95),
+			/* Deeper cavity shadow */ inset 0 15px 35px rgba(0, 0, 0, 0.25),
+			/* Enhanced side shadows */ inset -8px 0 20px rgba(0, 0, 0, 0.2),
+			inset 8px 0 20px rgba(0, 0, 0, 0.2),
+			/* Deeper bottom shadow */ inset 0 -8px 20px rgba(0, 0, 0, 0.25);
+	}
+
+	.cabinet-plastic::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 6vmin;
+		background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.1), transparent 70%);
+		pointer-events: none;
+	}
+
+	.cabinet-background {
+		background: linear-gradient(
+			45deg,
+			rgba(20, 20, 20, 0.4) 0%,
+			rgba(40, 40, 40, 0.4) 50%,
+			rgba(20, 20, 20, 0.4) 100%
+		);
+		border-radius: 6vmin;
+	}
+
+	:global(html.light) .cabinet-background {
+		background: linear-gradient(
+			45deg,
+			rgba(140, 140, 140, 0.5) 0%,
+			rgba(180, 180, 180, 0.5) 50%,
+			rgba(140, 140, 140, 0.5) 100%
+		);
+		mix-blend-mode: multiply;
+	}
+
+	/* Authentic Power-up Animation */
+	@keyframes powerUpSequence {
+		0% {
+			filter: brightness(0) blur(2px);
+			transform: scale(0.98);
+		}
+		5% {
+			filter: brightness(0.3) blur(1px);
+			transform: scale(0.99);
+		}
+		10% {
+			filter: brightness(0.1) blur(2px);
+			transform: scale(0.98);
+		}
+		15% {
+			filter: brightness(0.5) blur(0.5px);
+			transform: scale(1);
+		}
+		30% {
+			filter: brightness(0.3) blur(1px);
+			transform: scale(0.99);
+		}
+		100% {
+			filter: brightness(1) blur(0);
+			transform: scale(1);
+		}
+	}
+
+	@keyframes phosphorPersistence {
+		0% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.7;
+		}
+		100% {
+			opacity: 0;
+		}
+	}
+
+	@keyframes interlaceFlicker {
+		0% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.7;
+		}
+		100% {
+			opacity: 1;
+		}
+	}
+
+	/* Theme-specific adjustments */
+	:global(html.light) .crt-screen {
+		--bloom-intensity: 0.3;
+		--shadow-mask-size: 2.5px;
+		background: linear-gradient(180deg, #111 0%, #222 100%);
+	}
+
+	:global(html.light) .shadow-mask {
+		opacity: 0.2;
+	}
+
+	/* Performance optimizations */
+	.hardware-accelerated {
+		transform: translateZ(0);
+		backface-visibility: hidden;
+		perspective: 1000px;
+		will-change: transform, opacity;
 	}
 </style>

@@ -14,8 +14,13 @@
 	import { browser } from '$app/environment';
 	import { writable } from 'svelte/store';
 	import { layoutStore } from '$lib/stores/store';
+	import ArcadeNavMenu from '$lib/components/ArcadeNavMenu.svelte';
 
 	let navbarElement: HTMLElement;
+
+	let navHeight;
+
+	let isMenuOpen = false;
 
 	export const navbarHeight = writable(0);
 
@@ -30,6 +35,15 @@
 	};
 
 	$: activeUrl = $page.url.pathname;
+
+	// Define the updateNavHeight function
+	function updateNavHeight() {
+		if (navbarElement) {
+			const height = navbarElement.offsetHeight;
+			navbarHeight.set(height);
+			layoutStore.setNavbarHeight(height); // Ensure layoutStore is updated too
+		}
+	}
 
 	function toggleTheme() {
 		theme.update((currentTheme) => {
@@ -67,6 +81,7 @@
 	}
 
 	onMount(() => {
+		// Set the theme based on saved preference or default to 'dark'
 		const savedTheme = localStorage.getItem('theme') || 'dark';
 		theme.set(savedTheme);
 		document.documentElement.classList.add(savedTheme);
@@ -76,6 +91,7 @@
 			document.documentElement.classList.remove('dark');
 		}
 
+		// Handle loading screen
 		const handleLoading = () => {
 			Promise.all([
 				document.fonts.ready,
@@ -89,27 +105,29 @@
 			]).then(() => {
 				setTimeout(() => {
 					loadingStore.set(false);
-				}, 1500);
+				}, 1500); // Adjust the delay as needed
 			});
 		};
 
 		handleLoading();
 
+		// Update navbar height if the navbar element exists
 		if (navbarElement) {
-			const height = navbarElement.offsetHeight;
-			layoutStore.setNavbarHeight(height);
+			updateNavHeight();
 		}
 
-		// Update height on mount
-		updateNavHeight();
-
-		// Update height on resize
+		// Add resize listener to update navbar height dynamically
 		window.addEventListener('resize', updateNavHeight);
 
+		// Cleanup on component unmount
 		return () => {
 			window.removeEventListener('resize', updateNavHeight);
 		};
 	});
+
+	$: if (browser && $layoutStore.navbarHeight > 0) {
+		document.documentElement.style.setProperty('--navbar-height', `${$layoutStore.navbarHeight}px`);
+	}
 
 	// Add this to your existing script
 	$: if (browser && $layoutStore.navbarHeight > 0) {
@@ -176,23 +194,9 @@
 			</Tooltip>
 
 			<!-- Mobile menu button -->
-			<button
-				on:click={toggleDrawer}
-				class="text-arcadeBlack-500 dark:text-arcadeWhite-300 focus:outline-none whitespace-normal m-0.5 rounded-lg focus:ring-2 p-1.5 focus:ring-gray-400 hover:bg-gray-100 dark:hover:bg-gray-600 lg:hidden"
-			>
-				<svg
-					class="w-6 h-6"
-					fill="currentColor"
-					viewBox="0 0 20 20"
-					xmlns="http://www.w3.org/2000/svg"
-				>
-					<path
-						fill-rule="evenodd"
-						d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-						clip-rule="evenodd"
-					></path>
-				</svg>
-			</button>
+			<div class="lg:hidden">
+				<ArcadeNavMenu bind:isOpen={isMenuOpen} />
+			</div>
 		</div>
 
 		<div class="lg:flex lg:flex-wrap lg:order-1 hidden">
