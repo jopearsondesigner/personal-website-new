@@ -69,13 +69,22 @@
 
 		const containerWidth = container.clientWidth;
 		const containerHeight = container.clientHeight;
+		const isLandscape = window.innerWidth > window.innerHeight;
 
-		// For mobile/tablet, use slightly larger scale
-		const mobileScaleFactor = window.innerWidth < 1024 ? 0.95 : scaleFactor;
+		// Adjust scale factor based on device orientation and screen size
+		const currentScaleFactor =
+			window.innerWidth < 1024
+				? isLandscape
+					? 0.85
+					: 0.95 // Mobile/tablet scales
+				: scaleFactor; // Desktop scale
+
+		// Add padding adjustment for controls in landscape mode
+		const landscapePadding = isLandscape ? 80 : 0; // Account for control height in landscape
 
 		// Calculate available space while maintaining aspect ratio
-		const availableWidth = containerWidth * scaleFactor;
-		const availableHeight = containerHeight * scaleFactor;
+		const availableWidth = containerWidth * currentScaleFactor;
+		const availableHeight = (containerHeight - landscapePadding) * currentScaleFactor;
 
 		// Determine which dimension is limiting
 		const widthScale = availableWidth / GAME_WIDTH;
@@ -83,6 +92,12 @@
 
 		// Use the smaller scale to ensure the game fits
 		scale = Math.min(widthScale, heightScale);
+
+		// For landscape mode on mobile, ensure minimum scale
+		if (isLandscape && window.innerWidth < 1024) {
+			const minScale = 0.6; // Minimum scale factor for landscape
+			scale = Math.max(scale, minScale);
+		}
 
 		// Apply the scale
 		const wrapper = container.querySelector('.game-scale-wrapper');
@@ -105,12 +120,16 @@
 
 	onMount(() => {
 		if (browser && canvas) {
-			// Added browser check
 			setupGame(canvas);
 			calculateScale();
 
 			// Check for touch device
 			isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+			// Add orientation change handler
+			window.addEventListener('orientationchange', () => {
+				setTimeout(calculateScale, 100); // Small delay to ensure new dimensions are available
+			});
 
 			// Create resize observer
 			resizeObserver = new ResizeObserver(calculateScale);
@@ -340,6 +359,12 @@
 	@media (max-width: 1023px) and (pointer: coarse) {
 		.game-wrapper {
 			padding-bottom: 120px;
+		}
+	}
+
+	@media (max-width: 1023px) and (orientation: landscape) {
+		.game-wrapper {
+			padding-bottom: 80px; /* Less padding in landscape */
 		}
 	}
 

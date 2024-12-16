@@ -136,10 +136,4 @@
 		background-size: 10px 10px;
 		opacity: 0.1;
 	}
-
-	@media (max-width: 1023px) and (orientation: landscape) {
-		.game-wrapper {
-			padding-bottom: 80px; /* Less padding in landscape */
-		}
-	}
 </style>

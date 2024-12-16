@@ -188,7 +188,7 @@
 		position: absolute;
 		top: 2rem;
 		left: 2.37rem;
-		z-index: 1000;
+		z-index: 100;
 		/* pointer-events: none; */
 	}
 

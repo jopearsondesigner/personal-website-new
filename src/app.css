@@ -44,9 +44,17 @@
 	transition: all 0.3s ease;
 }
 
-@media (orientation: landscape) {
+@media (orientation: landscape) and (max-width: 1023px) {
 	:root {
-		--controls-height: 120px;
+		--controls-height: var(--controls-height-landscape);
+	}
+
+	.game-wrapper {
+		padding-bottom: 0 !important;
+	}
+
+	.controls-container {
+		height: var(--controls-height-landscape);
 	}
 }
 
@@ -182,15 +190,33 @@ html.dark .nav-button:active {
 	opacity: 0;
 }
 
-/* Adjust main container for controls */
-@media (max-width: 1023px) and (pointer: coarse) {
+/* Landscape mode adjustments */
+@media (orientation: landscape) {
 	.game-wrapper {
-		height: calc(100% - var(--controls-height));
+		padding-bottom: var(--controls-height-landscape);
+		height: calc(100vh - var(--controls-height-landscape));
+	}
+
+	.controls-container {
+		height: var(--controls-height-landscape);
 	}
 }
 
-@media (max-width: 1023px) and (pointer: coarse) and (orientation: landscape) {
+/* Portrait mode */
+@media (orientation: portrait) {
 	.game-wrapper {
-		height: calc(100% - var(--controls-height-landscape));
+		padding-bottom: var(--controls-height);
+		height: calc(100vh - var(--controls-height));
+	}
+
+	.controls-container {
+		height: var(--controls-height);
+	}
+}
+
+/* Hide controls when not needed */
+@media (min-width: 1024px) {
+	.controls-container {
+		display: none;
 	}
 }

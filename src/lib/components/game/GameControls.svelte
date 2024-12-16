@@ -206,7 +206,7 @@
 		left: 0;
 		right: 0;
 		height: var(--controls-height, 180px);
-		background: rgba(20, 20, 20, 0.85);
+		background: rgba(43, 43, 43, 0.22);
 		backdrop-filter: blur(10px);
 		display: flex;
 		justify-content: space-between;

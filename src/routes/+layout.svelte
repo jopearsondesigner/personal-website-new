@@ -142,7 +142,7 @@
 
 <nav
 	bind:this={navbarElement}
-	class="sticky relative md:border-b-[2.5px] md:border-arcadeBlack-200 md:dark:border-arcadeBlack-600 top-0 z-50 {$theme ===
+	class="sticky relative md:border-b-[2.5px] md:border-arcadeBlack-200 md:dark:border-arcadeBlack-600 top-0 z-[101] {$theme ===
 	'dark'
 		? 'navbar-background-dark'
 		: 'navbar-background-light'} p-container-padding box-border md:shadow-header"
