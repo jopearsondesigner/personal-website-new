@@ -19,7 +19,7 @@
 		"@sveltejs/adapter-auto": "^3.3.1",
 		"@sveltejs/adapter-static": "^3.0.6",
 		"@sveltejs/kit": "^2.8.2",
-		"@sveltejs/vite-plugin-svelte": "^4.0.3",
+		"@sveltejs/vite-plugin-svelte": "^4.0.0",
 		"@types/eslint": "^8.56.11",
 		"@types/node": "^20.14.14",
 		"@types/three": "^0.167.2",
@@ -39,7 +39,6 @@
 		"typescript": "^5.7.2",
 		"typescript-eslint": "^8.0.0-alpha.20",
 		"vite": "^5.0.3",
-		"vite-plugin-svelte": "^3.0.1",
 		"vitest": "^1.2.0"
 	},
 	"type": "module",
