@@ -30,3 +30,5 @@ export const load: PageServerLoad = async ({ params }) => {
 		post
 	};
 };
+
+export const prerender = false;
