@@ -77,6 +77,7 @@
 	<div
 		class="fixed inset-0 z-40 backdrop-blur-sm bg-arcadeBlack-500/50"
 		on:click={closeMenu}
+		on:keydown={(e) => e.key === 'Enter' && closeMenu()}
 		transition:fade={{ duration: 200 }}
 	>
 		<!-- Menu Panel -->
@@ -97,6 +98,7 @@
                      arcade-glow"
 						style="transition-delay: {150 + index * 75}ms"
 						on:click={closeMenu}
+						on:keydown={(e) => e.key === 'Enter' && closeMenu()}
 						transition:fly={{ x: 50, duration: 300, delay: 100 + index * 75 }}
 					>
 						{item.label}
@@ -122,7 +124,7 @@
 			<div class="absolute bottom-8 left-6 right-6">
 				<div
 					class="h-px bg-gradient-to-r from-transparent via-arcadeNeonGreen-500/50 to-transparent"
-				/>
+				></div>
 				<div class="mt-4 text-sm text-arcadeWhite-300/60 text-center">Press ESC to close</div>
 			</div>
 		</div>

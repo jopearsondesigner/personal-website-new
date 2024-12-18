@@ -6,3 +6,5 @@ export async function load() {
 	];
 	return { projects };
 }
+
+export const prerender = true;

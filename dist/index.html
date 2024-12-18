@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <link rel="icon" href="data:image/png;base64,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" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link href="https://fonts.googleapis.com/css2?family=Gruppo&display=swap" rel="stylesheet" />
+        <style>
+            #initial-loader {
+                position: fixed;
+                inset: 0;
+                z-index: 99999;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background-color: #1a1a1a;
+                opacity: 1;
+                transition: opacity 0.3s ease-out;
+                /* Ensure no inheritance of filters or blend modes */
+                filter: none;
+                mix-blend-mode: normal;
+            }
+            #initial-loader.fade-out {
+                opacity: 0;
+            }
+            .loader-content {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 1rem;
+                /* Ensure no inheritance of filters or blend modes */
+                isolation: isolate;
+            }
+            .loader-logo {
+                height: 64px;
+                width: 64px;
+                /* Reset any potential color alterations */
+                filter: none;
+                mix-blend-mode: normal;
+                /* Prevent any color space transformations */
+                transform: translateZ(0);
+                backface-visibility: hidden;
+                will-change: opacity;
+            }
+            .loader-logo path {
+                fill: #00A8A8;
+            }
+            .loader-text {
+                font-family: 'Gruppo', sans-serif;
+                color: #ececce;
+                font-size: 20px;
+                letter-spacing: 10.96px;
+                text-transform: uppercase;
+                animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            }
+            .loader-progress {
+                margin-top: 0.5rem;
+                height: 4px;
+                width: 128px;
+                overflow: hidden;
+                border-radius: 9999px;
+                background-color: #374151;
+            }
+            .loader-progress-inner {
+                height: 100%;
+                width: 100%;
+                background-color: #27ff99;
+                animation: progress 1.5s ease-in-out infinite;
+            }
+            @keyframes pulse {
+                0%, 100% {
+                    opacity: 1;
+                }
+                50% {
+                    opacity: 0.5;
+                }
+            }
+            @keyframes progress {
+                0% {
+                    transform: translateX(-100%);
+                }
+                100% {
+                    transform: translateX(100%);
+                }
+            }
+        </style>
+        
+		<link rel="modulepreload" href="data:application/javascript;base64,aW1wb3J0e2EgYXMgdH1mcm9tIi4uL2NodW5rcy9lbnRyeS5aUFpxbzdhVy5qcyI7ZXhwb3J0e3QgYXMgc3RhcnR9Owo=">
+		<link rel="modulepreload" href="/assets/entry.ZPZqo7aW-22aa6564.js">
+		<link rel="modulepreload" href="/assets/utils.D22Xb4Z6-b022782e.js">
+		<link rel="modulepreload" href="data:application/javascript;base64,aW1wb3J0e24gYXMgZixiIGFzIGEsZCBhcyBwfWZyb20iLi91dGlscy5EMjJYYjRaNi5qcyI7Y29uc3Qgcj1bXTtmdW5jdGlvbiBnKHMsaT1mKXtsZXQgZT1udWxsO2NvbnN0IG89bmV3IFNldDtmdW5jdGlvbiB1KG4pe2lmKGEocyxuKSYmKHM9bixlKSl7Y29uc3QgYz0hci5sZW5ndGg7Zm9yKGNvbnN0IHQgb2Ygbyl0WzFdKCksci5wdXNoKHQscyk7aWYoYyl7Zm9yKGxldCB0PTA7dDxyLmxlbmd0aDt0Kz0yKXJbdF1bMF0oclt0KzFdKTtyLmxlbmd0aD0wfX19ZnVuY3Rpb24gYihuKXt1KG4ocykpfWZ1bmN0aW9uIGwobixjPWYpe2NvbnN0IHQ9W24sY107cmV0dXJuIG8uYWRkKHQpLG8uc2l6ZT09PTEmJihlPWkodSxiKXx8ZiksbihzKSwoKT0+e28uZGVsZXRlKHQpLG8uc2l6ZT09PTAmJmUmJihlKCksZT1udWxsKX19cmV0dXJue3NldDp1LHVwZGF0ZTpiLHN1YnNjcmliZTpsfX1mdW5jdGlvbiBfKHMpe2xldCBpO3JldHVybiBwKHMsZT0+aT1lKSgpLGl9ZXhwb3J0e18gYXMgZyxnIGFzIHd9Owo=">
+		<link rel="modulepreload" href="/assets/app.CS3SjvBV-483ad5b2.js">
+		<link rel="modulepreload" href="/assets/disclose-version.Ba94ovf--047cc3a5.js">
+		<link rel="modulepreload" href="data:application/javascript;base64,aW1wb3J0e3YgYXMgeCx3IGFzIGQseCBhcyB2LHkseiBhcyB1LEEsRSBhcyBTLEggYXMgZyxCIGFzIG0sQyBhcyBiLEQgYXMgRSxGIGFzIEQsRyBhcyBSLEkgYXMgQyxpIGFzIG8sSiBhcyBGLFMgYXMgTCxoIGFzIGwsSyBhcyBfLEwgYXMgTSxnIGFzIE4sTSBhcyBxfWZyb20iLi91dGlscy5EMjJYYjRaNi5qcyI7ZnVuY3Rpb24gTyhzLHQsbixpPW51bGwsYT0hMSl7dSYmQSgpO3ZhciBlPXMscj1udWxsLGY9bnVsbCxjPW51bGwsaz1hP1M6MDt4KCgpPT57aWYoYz09PShjPSEhdCgpKSlyZXR1cm47bGV0IGg9ITE7aWYodSl7Y29uc3QgcD1lLmRhdGE9PT1nO2M9PT1wJiYoZT1tKCksYihlKSxFKCExKSxoPSEwKX1jPyhyP2Qocik6cj12KCgpPT5uKGUpKSxmJiZ5KGYsKCk9PntmPW51bGx9KSk6KGY/ZChmKTppJiYoZj12KCgpPT5pKGUpKSksciYmeShyLCgpPT57cj1udWxsfSkpLGgmJkUoITApfSxrKSx1JiYoZT1EKX1mdW5jdGlvbiBUKHMsdCl7cmV0dXJuIHM9PT10fHwocz09bnVsbD92b2lkIDA6c1tMXSk9PT10fWZ1bmN0aW9uIFAocz17fSx0LG4saSl7cmV0dXJuIFIoKCk9Pnt2YXIgYSxlO3JldHVybiBDKCgpPT57YT1lLGU9W10sbygoKT0+e3MhPT1uKC4uLmUpJiYodChzLC4uLmUpLGEmJlQobiguLi5hKSxzKSYmdChudWxsLC4uLmEpKX0pfSksKCk9PntGKCgpPT57ZSYmVChuKC4uLmUpLHMpJiZ0KG51bGwsLi4uZSl9KX19KSxzfWZ1bmN0aW9uIHcocyl7bD09PW51bGwmJl8oKSxNJiZsLmwhPT1udWxsP0gobCkubS5wdXNoKHMpOk4oKCk9Pntjb25zdCB0PW8ocyk7aWYodHlwZW9mIHQ9PSJmdW5jdGlvbiIpcmV0dXJuIHR9KX1mdW5jdGlvbiBZKHMpe2w9PT1udWxsJiZfKCksdygoKT0+KCk9Pm8ocykpfWZ1bmN0aW9uIEIocyx0LHtidWJibGVzOm49ITEsY2FuY2VsYWJsZTppPSExfT17fSl7cmV0dXJuIG5ldyBDdXN0b21FdmVudChzLHtkZXRhaWw6dCxidWJibGVzOm4sY2FuY2VsYWJsZTppfSl9ZnVuY3Rpb24gJCgpe2NvbnN0IHM9bDtyZXR1cm4gcz09PW51bGwmJl8oKSwodCxuLGkpPT57dmFyIGU7Y29uc3QgYT0oZT1zLnMuJCRldmVudHMpPT1udWxsP3ZvaWQgMDplW3RdO2lmKGEpe2NvbnN0IHI9cShhKT9hLnNsaWNlKCk6W2FdLGY9Qih0LG4saSk7Zm9yKGNvbnN0IGMgb2YgciljLmNhbGwocy54LGYpO3JldHVybiFmLmRlZmF1bHRQcmV2ZW50ZWR9cmV0dXJuITB9fWZ1bmN0aW9uIEgocyl7dmFyIHQ9cy5sO3JldHVybiB0LnU/Pyh0LnU9e2E6W10sYjpbXSxtOltdfSl9ZXhwb3J0e1kgYXMgYSxQIGFzIGIsJCBhcyBjLE8gYXMgaSx3IGFzIG99Owo=">
+		<link rel="modulepreload" href="/assets/3.AivEKjif-a64bf056.js">
+    </head>
+    <body data-sveltekit-preload-data="hover" class="">
+        <div id="initial-loader">
+            <div class="loader-content">
+                <svg
+                    class="loader-logo"
+                    viewBox="0 0 200 200"
+                    xmlns="http://www.w3.org/2000/svg"
+                >
+                    <path
+                        d="M100 0C44.8 0 0 44.8 0 100s44.8 100 100 100 100-44.8 100-100S155.2 0 100 0zm0 180c-44.2 0-80-35.8-80-80s35.8-80 80-80 80 35.8 80 80-35.8 80-80 80z"
+                    />
+                    <path
+                        d="M100 60c-22.1 0-40 17.9-40 40s17.9 40 40 40 40-17.9 40-40-17.9-40-40-40zm0 60c-11 0-20-9-20-20s9-20 20-20 20 9 20 20-9 20-20 20z"
+                    />
+                </svg>
+                <div class="loader-text">Jo Pearson</div>
+                <div class="loader-progress">
+                    <div class="loader-progress-inner"></div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: contents">
+			<script>
+				{
+					__sveltekit_6p56id = {
+						base: ""
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("data:application/javascript;base64,aW1wb3J0e2EgYXMgdH1mcm9tIi4uL2NodW5rcy9lbnRyeS5aUFpxbzdhVy5qcyI7ZXhwb3J0e3QgYXMgc3RhcnR9Owo="),
+						import("/assets/app.CS3SjvBV-483ad5b2.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element);
+					});
+				}
+			</script>
+		</div>
+
+        <script>
+            window.addEventListener('load', () => {
+                const loader = document.getElementById('initial-loader');
+                if (loader) {
+                    loader.classList.add('fade-out');
+                    setTimeout(() => {
+                        loader.style.display = 'none';
+                    }, 300);
+                }
+            });
+        </script>
+    </body>
+</html>
+

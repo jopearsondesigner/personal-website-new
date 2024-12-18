@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Page Not Found</title>
+    <script>
+        // Single Page App redirect script
+        const segment = location.pathname.split('/personal-website-new')[1] || '';
+        location.replace(`/personal-website-new/?path=${segment}`);
+    </script>
+</head>
+<body>
+    <p>Page not found. Redirecting...</p>
+</body>
+</html>

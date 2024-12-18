@@ -1,4 +1,4 @@
-<!-- +layout.svelte -->
+<!-- +layout.svelte  -->
 <script lang="ts">
 	import '../app.css';
 	import { Navbar, NavBrand, Drawer, Button, CloseButton } from 'flowbite-svelte';
@@ -128,11 +128,6 @@
 	$: if (browser && $layoutStore.navbarHeight > 0) {
 		document.documentElement.style.setProperty('--navbar-height', `${$layoutStore.navbarHeight}px`);
 	}
-
-	// Add this to your existing script
-	$: if (browser && $layoutStore.navbarHeight > 0) {
-		document.documentElement.style.setProperty('--navbar-height', `${$layoutStore.navbarHeight}px`);
-	}
 </script>
 
 <svelte:head>
@@ -233,7 +228,7 @@
 				Contact
 			</a>
 			<a
-				href="/#blog"
+				href="/blog"
 				class:nav-button={true}
 				class:active={activeNavItem === '/#blog'}
 				on:click={(e) => handleNavLinkClick(e, '/#blog')}
@@ -252,12 +247,18 @@
 	id="sidebar"
 	class="{$theme === 'dark' ? 'navbar-background-dark' : 'navbar-background-light'} p-4"
 >
-	<div class="flex items-center">
+	<div class="flex items-center justify-between">
 		<h5
 			id="drawer-label"
 			class="inline-flex items-center mb-4 text-base font-semibold text-gray-500 dark:text-gray-400"
-		></h5>
-		<CloseButton on:click={toggleDrawer} class="mb-4 text-[color:var(--arcade-white-300)]" />
+		>
+			Navigation Menu
+		</h5>
+		<CloseButton
+			on:click={toggleDrawer}
+			on:keydown={(e) => e.key === 'Enter' && toggleDrawer()}
+			class="mb-4 text-[color:var(--arcade-white-300)]"
+		/>
 	</div>
 	<div class="nav-button-group-mobile">
 		<a
@@ -318,8 +319,8 @@
 		<button
 			on:click={() => {
 				toggleTheme();
-				toggleDrawer();
 			}}
+			on:keydown={(e) => e.key === 'Enter' && toggleTheme()}
 			class="nav-button-mobile flex items-center"
 			aria-label="Toggle Dark Mode"
 		>
@@ -343,10 +344,6 @@
 	}
 
 	@media (max-width: 1023px) {
-		.navbar-logo,
-		.mobile-menu-button {
-			text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-		}
 		.navbar-background-dark {
 			@apply overflow-hidden bg-transparent;
 		}
@@ -374,35 +371,6 @@
 				linear-gradient(45deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
 				linear-gradient(315deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%);
 			background-size: 4px 4px;
-		}
-	}
-
-	.nav-link {
-		position: relative;
-		overflow: hidden;
-	}
-
-	.nav-link::after {
-		content: '';
-		position: absolute;
-		bottom: 0;
-		left: 50%;
-		width: 0;
-		height: 2px;
-		background: var(--arcade-neon-green-500);
-		transition: all 0.3s ease;
-		transform: translateX(-50%);
-	}
-
-	.nav-link:hover::after {
-		width: 100%;
-	}
-
-	@media (pointer: coarse) {
-		.nav-link {
-			padding: 0.5rem 1rem;
-			width: 100%;
-			text-align: center;
 		}
 	}
 
