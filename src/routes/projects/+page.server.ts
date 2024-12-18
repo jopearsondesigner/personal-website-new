@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 
-export const prerender = true; // Enable prerendering for this route
+export const prerender = false; // Enable prerendering for this route
 
 export async function load({ params }: { params: { slug: string } }) {
 	const projects: { [key: string]: { title: string; description: string } } = {

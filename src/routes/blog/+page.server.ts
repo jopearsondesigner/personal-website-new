@@ -25,3 +25,5 @@ export const load: PageServerLoad = async () => {
 		posts
 	};
 };
+
+export const prerender = false;
