@@ -6,8 +6,8 @@
 	import GameControls from './GameControls.svelte';
 	import { setupGame } from '$lib/game.js';
 
-	let canvas;
-	let container;
+	let canvas: HTMLCanvasElement;
+	let container: HTMLDivElement;
 	let scale = 1;
 	let showSizeControl = false;
 	let scaleFactor = 0.9; // Default size
