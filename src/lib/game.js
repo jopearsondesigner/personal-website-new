@@ -158,11 +158,11 @@ let lastVelaShotTime = 0;
 const PLAYER_HITBOX_PADDING = 28;
 
 const assetURLs = [
-	'/assets/images/game/void_swarm_sprite.png',
-	'/assets/images/game/vela_main_sprite.png',
-	'/assets/images/game/projectile_main_sprite.png',
-	'/assets/images/game/game_mechanics_sprite.png',
-	'/assets/images/game/main_logo_title_screen-01.svg'
+	'../assets/images/game/void_swarm_sprite.png',
+	'../assets/images/game/vela_main_sprite.png',
+	'../assets/images/game/projectile_main_sprite.png',
+	'../assets/images/game/game_mechanics_sprite.png',
+	'../assets/images/game/main_logo_title_screen-01.svg'
 ];
 
 function initializePlayer() {
@@ -657,7 +657,7 @@ class DroppingCrate {
 		this.height = 56;
 		this.speed = 0.5;
 		this.spriteImage = new Image();
-		this.spriteImage.src = '/assets/images/game/game_mechanics_sprite.png';
+		this.spriteImage.src = '../assets/images/game/game_mechanics_sprite.png';
 		this.frameX = 0;
 		this.swayAngle = Math.random() * Math.PI * 2;
 		this.swaySpeed = 0.05;
@@ -709,7 +709,7 @@ class ExtraLife {
 		this.height = 56;
 		this.speed = 1.5;
 		this.spriteImage = new Image();
-		this.spriteImage.src = `/assets/images/game/game_mechanics_sprite.png`;
+		this.spriteImage.src = `./assets/images/game/game_mechanics_sprite.png`;
 		this.frameX = 1;
 		this.loaded = false;
 
@@ -757,7 +757,7 @@ class PowerUp {
 		this.height = 56; // Correct height of the sprite
 		this.speed = 1;
 		this.spriteImage = new Image();
-		this.spriteImage.src = `/assets/images/game/game_mechanics_sprite.png`;
+		this.spriteImage.src = `./assets/images/game/game_mechanics_sprite.png`;
 		this.frameX = 2; // Frame 3 (PowerUp)
 		this.loaded = false;
 
@@ -1828,7 +1828,7 @@ class Enemy {
 		this.flapSpeed = Math.floor(Math.random() * 10 + 1);
 		this.patternIndex = Math.floor(Math.random() * 4);
 		this.spriteImage = new Image();
-		this.spriteImage.src = `/assets/images/game/void_swarm_sprite.png`;
+		this.spriteImage.src = `./assets/images/game/void_swarm_sprite.png`;
 		this.targetX = player.x;
 		this.diveSpeed = Math.random() * 1.5 + 1.5;
 		this.isAggressive = false;
@@ -2046,7 +2046,7 @@ class CityEnemy extends Enemy {
 		this.isAggressive = false;
 		this.toBeRemoved = false;
 		this.spriteImage = new Image();
-		this.spriteImage.src = `/assets/images/game/void_swarm_sprite.png`;
+		this.spriteImage.src = `./assets/images/game/void_swarm_sprite.png`;
 		this.frameX = 0;
 		this.frameTimer = 0;
 		this.frameInterval = 8;
@@ -2229,7 +2229,7 @@ class AnimatedProjectile {
 		this.firingEnemy = firingEnemy; // Store a reference to the enemy that fired the projectile
 		if (!this.constructor.spriteSheet) {
 			this.constructor.spriteSheet = new Image();
-			this.constructor.spriteSheet.src = `/assets/images/game/projectile_main_sprite.png`;
+			this.constructor.spriteSheet.src = `./assets/images/game/projectile_main_sprite.png`;
 		}
 		this.spriteSheet = this.constructor.spriteSheet;
 		this.fireballEffects = [];
@@ -2840,7 +2840,7 @@ function createStarField(count) {
 function initializeTitleScreen() {
 	// Load logo image
 	titleScreenState.logoImage = new Image();
-	titleScreenState.logoImage.src = '/assets/images/game/main_logo_title_screen-01.svg';
+	titleScreenState.logoImage.src = './assets/images/game/main_logo_title_screen-01.svg';
 	titleScreenState.logoImage.onload = () => {
 		titleScreenState.logoLoaded = true;
 	};
@@ -3362,24 +3362,24 @@ export function setupGame(canvasElement) {
 
 	// Load game mechanics sprite first
 	newGameMechanicsSprite = new Image();
-	newGameMechanicsSprite.src = '/assets/images/game/game_mechanics_sprite.png';
+	newGameMechanicsSprite.src = './assets/images/game/game_mechanics_sprite.png';
 
 	newGameMechanicsSprite.onload = function () {
 		console.log('Game mechanics sprite loaded successfully');
 
 		// Preload all game assets
 		preloadAssets([
-			'/assets/images/game/void_swarm_sprite.png',
-			'/assets/images/game/vela_main_sprite.png',
-			'/assets/images/game/projectile_main_sprite.png',
-			'/assets/images/game/game_mechanics_sprite.png',
-			'/assets/images/game/main_logo_title_screen-01.svg'
+			'./assets/images/game/void_swarm_sprite.png',
+			'./assets/images/game/vela_main_sprite.png',
+			'./assets/images/game/projectile_main_sprite.png',
+			'./assets/images/game/game_mechanics_sprite.png',
+			'./assets/images/game/main_logo_title_screen-01.svg'
 		])
 			.then((loadedImages) => {
 				console.log('All assets loaded, initializing game components...');
 
 				// Initialize player sprite
-				player.spriteImage.src = '/assets/images/game/vela_main_sprite.png';
+				player.spriteImage.src = './assets/images/game/vela_main_sprite.png';
 
 				// Initialize game components
 				smokeParticlePool = new ParticlePool(100);
