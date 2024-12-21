@@ -3,7 +3,6 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: ['main']
-
   workflow_dispatch:
 
 permissions:
@@ -31,8 +30,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: List contents before build
+        run: ls -la
+
       - name: Build
-        run: npm run build
+        run: |
+          npm run build
+          echo "Build completed"
+          ls -la build
+          echo "Contents of build/assets:"
+          ls -la build/assets || echo "assets directory not found"
+        env:
+          NODE_ENV: production
+
+      - name: Copy assets
+        run: |
+          mkdir -p build/assets
+          cp -r static/assets/* build/assets/ || echo "No static assets to copy"
+          echo "Assets copied. Build directory structure:"
+          ls -la build
+          ls -la build/assets
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
