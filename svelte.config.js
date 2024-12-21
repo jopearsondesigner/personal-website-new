@@ -16,8 +16,9 @@ const config = {
 			$components: 'src/lib/components'
 		},
 		paths: {
-			base: process.env.NODE_ENV === 'production' ? '/personal-website-new' : '',
-			assets: process.env.NODE_ENV === 'production' ? '/personal-website-new' : ''
+			base: process.env.NODE_ENV === 'production' ? '/personal-website-new' : ''
+			// Remove the assets configuration since we're handling static assets differently
+			// assets: process.env.NODE_ENV === 'production' ? '/personal-website-new' : ''
 		},
 		prerender: {
 			handleHttpError: 'warn'
