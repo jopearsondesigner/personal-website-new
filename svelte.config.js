@@ -16,16 +16,11 @@ const config = {
 			$components: 'src/lib/components'
 		},
 		paths: {
-			base: process.env.NODE_ENV === 'production' ? '/personal-website-new' : ''
+			base: process.env.NODE_ENV === 'production' ? '/personal-website-new' : '',
+			assets: process.env.NODE_ENV === 'production' ? '/personal-website-new' : ''
 		},
 		prerender: {
-			entries: ['/', '/projects', '/projects/project-1', '/projects/project-2'],
-			handleHttpError: ({ path, referrer, message }) => {
-				if (message.includes('404')) {
-					return;
-				}
-				throw new Error(message);
-			}
+			handleHttpError: 'warn'
 		}
 	},
 	preprocess: vitePreprocess()
