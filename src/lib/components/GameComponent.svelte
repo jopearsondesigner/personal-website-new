@@ -1,12 +1,44 @@
 <!-- src/lib/components/GameComponent.svelte -->
 <script>
 	import { fade, fly } from 'svelte/transition';
+	import { onMount, onDestroy } from 'svelte';
+	import { writable, derived } from 'svelte/store';
 	import Game from '$components/game/Game.svelte';
 
-	let decorativeText = [
-		{ text: 'HIGH SCORE', value: '000000', side: 'left' },
-		{ text: '1UP', value: '0', side: 'right' }
-	];
+	// Memoized decorative text to prevent unnecessary recreations
+	const decorativeText = {
+		left: [{ text: 'HIGH SCORE', value: '000000' }],
+		right: [{ text: '1UP', value: '0' }]
+	};
+
+	// Reactive store for game state
+	const gameState = writable({
+		score: 0,
+		highScore: parseInt(localStorage.getItem('highScore') || '0')
+	});
+
+	// Derived store for score display
+	const formattedScore = derived(gameState, ($state) => ({
+		current: $state.score.toString().padStart(6, '0'),
+		high: $state.highScore.toString().padStart(6, '0')
+	}));
+
+	// Update high score in localStorage when it changes
+	const unsubscribe = gameState.subscribe((state) => {
+		if (state.score > state.highScore) {
+			gameState.update((s) => ({ ...s, highScore: state.score }));
+			localStorage.setItem('highScore', state.score.toString());
+		}
+	});
+
+	// Handle score updates from Game component
+	function handleScoreUpdate(event) {
+		gameState.update((s) => ({ ...s, score: event.detail }));
+	}
+
+	onDestroy(() => {
+		unsubscribe();
+	});
 </script>
 
 <div class="flex items-center justify-center w-full h-full p-[1vmin]">
@@ -14,33 +46,33 @@
 		<!-- Left side panel - only show on desktop -->
 		<div class="hidden lg:block">
 			<div class="side-panel left" in:fly={{ x: -50, duration: 1000 }}>
-				{#each decorativeText.filter((item) => item.side === 'left') as item}
+				{#each decorativeText.left as item}
 					<div class="arcade-text">
 						<span class="label">{item.text}</span>
-						<span class="value">{item.value}</span>
+						<span class="value">{$formattedScore.high}</span>
 					</div>
 				{/each}
-				<div class="neon-line"></div>
-				<div class="pixel-decoration"></div>
+				<div class="neon-line" />
+				<div class="pixel-decoration" />
 			</div>
 		</div>
 
 		<!-- Game container -->
 		<div class="game-view-container w-full lg:max-w-[calc(100%-300px)]">
-			<Game />
+			<Game on:scoreUpdate={handleScoreUpdate} />
 		</div>
 
 		<!-- Right side panel - only show on desktop -->
 		<div class="hidden lg:block">
 			<div class="side-panel right" in:fly={{ x: 50, duration: 1000 }}>
-				{#each decorativeText.filter((item) => item.side === 'right') as item}
+				{#each decorativeText.right as item}
 					<div class="arcade-text">
 						<span class="label">{item.text}</span>
-						<span class="value">{item.value}</span>
+						<span class="value">{$formattedScore.current}</span>
 					</div>
 				{/each}
-				<div class="neon-line"></div>
-				<div class="pixel-decoration"></div>
+				<div class="neon-line" />
+				<div class="pixel-decoration" />
 			</div>
 		</div>
 	</div>
@@ -60,10 +92,6 @@
 	}
 
 	:global(html.light .game-background) {
-		position: relative;
-		width: 100%;
-		height: 100%;
-		/* Light mode gradient using arcadeWhite shades */
 		background: linear-gradient(
 			135deg,
 			var(--arcade-white-100) 0%,
@@ -71,12 +99,7 @@
 			var(--arcade-white-300) 100%
 		);
 		border-radius: 2.9vmin;
-		/* Subtle shadow for depth in light mode */
 		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		overflow: hidden;
 	}
 
 	.game-view-container {
@@ -92,17 +115,14 @@
 		top: 0;
 		bottom: 0;
 		width: 150px;
-		display: flex;
+		display: none;
 		flex-direction: column;
 		align-items: center;
 		padding: 2rem 1rem;
 		z-index: 2;
 		pointer-events: none;
-		/* Add display none by default */
-		display: none;
 	}
 
-	/* Show only on lg screens */
 	@media (min-width: 1024px) {
 		.side-panel {
 			display: flex;

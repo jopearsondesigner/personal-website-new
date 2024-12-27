@@ -1,152 +1,132 @@
-<!-- +layout.svelte  -->
 <script lang="ts">
 	import '../app.css';
 	import { Navbar, NavBrand, Drawer, Button, CloseButton } from 'flowbite-svelte';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import { loadingStore } from '$lib/stores/loading';
 	import logo from '$lib/assets/images/logo-black.svg';
 	import { sineIn } from 'svelte/easing';
 	import { Sun, Moon } from 'svelte-bootstrap-icons';
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
-	import { theme, initializeTheme } from '$lib/stores/theme';
+	import { theme } from '$lib/stores/theme';
 	import Tooltip from '$lib/components/Tooltip.svelte';
 	import { browser } from '$app/environment';
 	import { writable } from 'svelte/store';
 	import { layoutStore } from '$lib/stores/store';
 	import ArcadeNavMenu from '$lib/components/ArcadeNavMenu.svelte';
 
+	// Use ResizeObserver instead of window resize event
+	let resizeObserver: ResizeObserver;
 	let navbarElement: HTMLElement;
-
-	let navHeight;
-
-	let isMenuOpen = false;
-
-	export const navbarHeight = writable(0);
-
-	let activeNavItem = '/'; // Initialize with home path
 	let contentWrapper: HTMLElement;
-
+	let isMenuOpen = false;
 	let hidden = true;
-	let transitionParamsRight = {
+
+	// Create stores with initial values
+	export const navbarHeight = writable(0);
+	const activeNavItem = writable('/');
+
+	// Memoize transition parameters
+	const transitionParamsRight = {
 		x: 320,
 		duration: 200,
 		easing: sineIn
 	};
 
-	$: activeUrl = $page.url.pathname;
+	// Debounced navbar height update function
+	const updateNavHeight = (() => {
+		let frame: number;
+		return () => {
+			cancelAnimationFrame(frame);
+			frame = requestAnimationFrame(() => {
+				if (navbarElement) {
+					const height = navbarElement.offsetHeight;
+					navbarHeight.set(height);
+					layoutStore.setNavbarHeight(height);
 
-	// Define the updateNavHeight function
-	function updateNavHeight() {
-		if (navbarElement) {
-			const height = navbarElement.offsetHeight;
-			navbarHeight.set(height);
-			layoutStore.setNavbarHeight(height); // Ensure layoutStore is updated too
-		}
-	}
+					if (browser) {
+						document.documentElement.style.setProperty('--navbar-height', `${height}px`);
+					}
+				}
+			});
+		};
+	})();
 
+	// Optimized theme toggle with minimal reflows
 	function toggleTheme() {
 		theme.update((currentTheme) => {
 			const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-			// Add a transition class to handle all color changes
-			document.documentElement.classList.add('theme-transition');
+			const root = document.documentElement;
 
-			if (newTheme === 'dark') {
-				document.documentElement.classList.add('dark');
-				document.documentElement.classList.remove('light');
-			} else {
-				document.documentElement.classList.add('light');
-				document.documentElement.classList.remove('dark');
-			}
+			// Batch DOM operations
+			requestAnimationFrame(() => {
+				root.classList.add('theme-transition');
+				root.classList.toggle('dark', newTheme === 'dark');
+				root.classList.toggle('light', newTheme === 'light');
 
-			// Remove the transition class after the transition is complete
-			setTimeout(() => {
-				document.documentElement.classList.remove('theme-transition');
-			}, 300); // Match this with your transition duration
+				// Remove transition class after animation
+				setTimeout(() => {
+					root.classList.remove('theme-transition');
+				}, 300);
+			});
 
 			localStorage.setItem('theme', newTheme);
 			return newTheme;
 		});
 	}
 
-	function handleNavLinkClick(event: MouseEvent, path: string) {
-		const buttons = document.querySelectorAll('.nav-button');
-		buttons.forEach((button) => button.classList.remove('active'));
-		activeNavItem = path;
+	// Simplified nav link click handler
+	function handleNavLinkClick(path: string) {
+		activeNavItem.set(path);
 	}
 
 	function toggleDrawer() {
 		hidden = !hidden;
-		console.log('Drawer toggled, hidden:', hidden);
 	}
 
+	// Initialization and cleanup logic
 	onMount(() => {
-		// Set the theme based on saved preference or default to 'dark'
+		// Theme initialization
 		const savedTheme = localStorage.getItem('theme') || 'dark';
 		theme.set(savedTheme);
 		document.documentElement.classList.add(savedTheme);
-		if (savedTheme === 'dark') {
-			document.documentElement.classList.remove('light');
-		} else {
-			document.documentElement.classList.remove('dark');
-		}
 
-		// Handle loading screen
-		const handleLoading = () => {
-			Promise.all([
-				document.fonts.ready,
-				new Promise((resolve) => {
-					if (document.readyState === 'complete') {
-						resolve(true);
-					} else {
-						window.addEventListener('load', () => resolve(true), { once: true });
-					}
-				})
-			]).then(() => {
-				setTimeout(() => {
-					loadingStore.set(false);
-				}, 1500); // Adjust the delay as needed
-			});
-		};
-
-		handleLoading();
-
-		// Update navbar height if the navbar element exists
+		// Initialize ResizeObserver
 		if (navbarElement) {
-			updateNavHeight();
+			resizeObserver = new ResizeObserver(updateNavHeight);
+			resizeObserver.observe(navbarElement);
 		}
 
-		// Add resize listener to update navbar height dynamically
-		window.addEventListener('resize', updateNavHeight);
-
-		// Cleanup on component unmount
-		return () => {
-			window.removeEventListener('resize', updateNavHeight);
-		};
+		// Loading screen handling
+		Promise.all([
+			document.fonts.ready,
+			new Promise((resolve) => {
+				if (document.readyState === 'complete') {
+					resolve(true);
+				} else {
+					window.addEventListener('load', () => resolve(true), { once: true });
+				}
+			})
+		]).then(() => {
+			setTimeout(() => loadingStore.set(false), 1500);
+		});
 	});
 
-	$: if (browser && $layoutStore.navbarHeight > 0) {
-		document.documentElement.style.setProperty('--navbar-height', `${$layoutStore.navbarHeight}px`);
-	}
+	onDestroy(() => {
+		if (resizeObserver) {
+			resizeObserver.disconnect();
+		}
+	});
 </script>
 
+<!-- Template section -->
 <svelte:head>
 	<meta
 		name="viewport"
 		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
 	/>
-
-	<link href="https://fonts.googleapis.com/css2?family=Gruppo&display=swap" rel="stylesheet" />
 	<link
-		href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
-		rel="stylesheet"
-	/>
-	<link
-		href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=VT323&display=swap"
-		rel="stylesheet"
-	/>
-	<link
-		href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;900&display=swap"
+		href="https://fonts.googleapis.com/css2?family=Gruppo&family=Press+Start+2P&family=Pixelify+Sans:wght@400;500;600;700&family=VT323&family=Roboto:wght@100;900&display=swap"
 		rel="stylesheet"
 	/>
 </svelte:head>
@@ -167,17 +147,17 @@
 				class="hidden lg:inline-block text-[16px] header-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[24.96px] mt-[5px]"
 			>
 				Jo Pearson
-			</span></NavBrand
-		>
+			</span>
+		</NavBrand>
+
 		<div class="flex md:order-2 items-center gap-4">
-			<!-- Theme toggle button for desktop -->
 			<Tooltip
 				text={$theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
 				position="bottom"
 			>
 				<button
 					on:click={toggleTheme}
-					class=" md:flex items-center justify-center w-10 h-10 rounded-full bg-opacity-20 hover:bg-opacity-30 transition-all duration-300 ease-in dark:text-[var(--arcade-white-300)] text-[var(--arcade-black-500)]"
+					class="md:flex items-center justify-center w-10 h-10 rounded-full bg-opacity-20 hover:bg-opacity-30 transition-all duration-300 ease-in dark:text-[var(--arcade-white-300)] text-[var(--arcade-black-500)]"
 					aria-label="Toggle Dark Mode"
 				>
 					{#if $theme === 'dark'}
@@ -188,57 +168,28 @@
 				</button>
 			</Tooltip>
 
-			<!-- Mobile menu button -->
 			<div class="lg:hidden">
 				<ArcadeNavMenu bind:isOpen={isMenuOpen} />
 			</div>
 		</div>
 
+		<!-- Navigation Links -->
 		<div class="lg:flex lg:flex-wrap lg:order-1 hidden">
-			<a
-				href="/"
-				class:nav-button={true}
-				class:active={activeNavItem === '/'}
-				on:click={(e) => handleNavLinkClick(e, '/')}
-			>
-				Home
-			</a>
-			<a
-				href="/#work"
-				class:nav-button={true}
-				class:active={activeNavItem === '/#work'}
-				on:click={(e) => handleNavLinkClick(e, '/#work')}
-			>
-				Work
-			</a>
-			<a
-				href="/#about"
-				class:nav-button={true}
-				class:active={activeNavItem === '/#about'}
-				on:click={(e) => handleNavLinkClick(e, '/#about')}
-			>
-				About
-			</a>
-			<a
-				href="/#contact"
-				class:nav-button={true}
-				class:active={activeNavItem === '/#contact'}
-				on:click={(e) => handleNavLinkClick(e, '/#contact')}
-			>
-				Contact
-			</a>
-			<a
-				href="/blog"
-				class:nav-button={true}
-				class:active={activeNavItem === '/#blog'}
-				on:click={(e) => handleNavLinkClick(e, '/#blog')}
-			>
-				Blog
-			</a>
+			{#each ['/', '/#work', '/#about', '/#contact', '/blog'] as path}
+				<a
+					href={path}
+					class="nav-button"
+					class:active={$activeNavItem === path}
+					on:click={() => handleNavLinkClick(path)}
+				>
+					{path === '/' ? 'Home' : path.slice(2).charAt(0).toUpperCase() + path.slice(3)}
+				</a>
+			{/each}
 		</div>
 	</Navbar>
 </nav>
 
+<!-- Mobile Drawer -->
 <Drawer
 	placement="right"
 	transitionType="fly"
@@ -254,73 +205,26 @@
 		>
 			Navigation Menu
 		</h5>
-		<CloseButton
-			on:click={toggleDrawer}
-			on:keydown={(e) => e.key === 'Enter' && toggleDrawer()}
-			class="mb-4 text-[color:var(--arcade-white-300)]"
-		/>
+		<CloseButton on:click={toggleDrawer} class="mb-4 text-[color:var(--arcade-white-300)]" />
 	</div>
+
 	<div class="nav-button-group-mobile">
-		<a
-			href="/"
-			class="nav-button-mobile"
-			class:active={activeNavItem === '/'}
-			on:click={(e) => {
-				handleNavLinkClick(e, '/');
-				toggleDrawer();
-			}}
-		>
-			Home
-		</a>
-		<a
-			href="/#work"
-			class="nav-button-mobile"
-			class:active={activeNavItem === '/#work'}
-			on:click={(e) => {
-				handleNavLinkClick(e, '/#work');
-				toggleDrawer();
-			}}
-		>
-			Work
-		</a>
-		<a
-			href="/#about"
-			class="nav-button-mobile"
-			class:active={activeNavItem === '/#about'}
-			on:click={(e) => {
-				handleNavLinkClick(e, '/#about');
-				toggleDrawer();
-			}}
-		>
-			About
-		</a>
-		<a
-			href="/#contact"
-			class="nav-button-mobile"
-			class:active={activeNavItem === '/#contact'}
-			on:click={(e) => {
-				handleNavLinkClick(e, '/#contact');
-				toggleDrawer();
-			}}
-		>
-			Contact
-		</a>
-		<a
-			href="/#blog"
-			class="nav-button-mobile"
-			class:active={activeNavItem === '/#blog'}
-			on:click={(e) => {
-				handleNavLinkClick(e, '/#blog');
-				toggleDrawer();
-			}}
-		>
-			Blog
-		</a>
+		{#each ['/', '/#work', '/#about', '/#contact', '/blog'] as path}
+			<a
+				href={path}
+				class="nav-button-mobile"
+				class:active={$activeNavItem === path}
+				on:click={() => {
+					handleNavLinkClick(path);
+					toggleDrawer();
+				}}
+			>
+				{path === '/' ? 'Home' : path.slice(2).charAt(0).toUpperCase() + path.slice(3)}
+			</a>
+		{/each}
+
 		<button
-			on:click={() => {
-				toggleTheme();
-			}}
-			on:keydown={(e) => e.key === 'Enter' && toggleTheme()}
+			on:click={toggleTheme}
 			class="nav-button-mobile flex items-center"
 			aria-label="Toggle Dark Mode"
 		>
@@ -344,16 +248,12 @@
 	}
 
 	@media (max-width: 1023px) {
-		.navbar-background-dark {
-			@apply overflow-hidden bg-transparent;
-		}
-
+		.navbar-background-dark,
 		.navbar-background-light {
 			@apply overflow-hidden bg-transparent;
 		}
 	}
 
-	/* Desktop styles */
 	@media (min-width: 1024px) {
 		.navbar-background-dark {
 			background-color: var(--dark-mode-bg);
@@ -386,5 +286,13 @@
 		50% {
 			opacity: 0.7;
 		}
+	}
+
+	/* Add will-change to optimize animations */
+	.theme-transition {
+		will-change: background-color, color;
+		transition:
+			background-color 0.3s ease,
+			color 0.3s ease;
 	}
 </style>
