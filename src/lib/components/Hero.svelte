@@ -6,7 +6,7 @@
 	import { get } from 'svelte/store';
 	import ArcadeCtaButton from '$lib/components/ArcadeCtaButton.svelte';
 	import ArcadeNavigation from '$lib/components/ArcadeNavigation.svelte';
-	import GameComponent from '$lib/components/GameComponent.svelte';
+	import ArcadeCabinet from '$lib/components/ArcadeCabinet.svelte';
 	import { animations } from '$lib/utils/animation-utils';
 	import { animationState, screenStore } from '$lib/stores/animation-store';
 	import { layoutStore } from '$lib/stores/store';
@@ -244,7 +244,7 @@
 							</div>
 						</div>
 					{:else if currentScreen === 'game'}
-						<GameComponent />
+						<ArcadeCabinet />
 					{/if}
 				</div>
 			</div>

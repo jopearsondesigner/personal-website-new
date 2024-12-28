@@ -202,7 +202,7 @@
 
 	.pixel-art {
 		font-family: 'Press Start 2P', cursive;
-		font-size: 0.625rem;
+		font-size: 0.5625rem;
 		line-height: 1.65;
 		text-transform: uppercase;
 	}

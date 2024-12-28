@@ -1,3 +1,4 @@
+<!-- Game.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
@@ -217,7 +218,7 @@
 		padding: 0.45rem 0.65rem;
 		color: var(--arcade-neon-green-100);
 		font-family: 'Press Start 2P', monospace;
-		font-size: 0.625rem;
+		font-size: 0.5625rem;
 		cursor: pointer;
 		z-index: 100;
 		transition: all 0.3s ease;
