@@ -1,4 +1,4 @@
-<!-- src/lib/components/ArcadeCabinet.svelte -->
+<!-- src/lib/components/GameScreen.svelte -->
 <script>
 	import { fade, fly } from 'svelte/transition';
 	import Game from '$components/game/Game.svelte';
