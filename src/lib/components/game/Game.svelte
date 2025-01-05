@@ -1,153 +1,213 @@
-<!-- Game.svelte -->
+<!-- src/lib/components/game/Game.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
-	import { fade, fly } from 'svelte/transition';
-	import { Gear } from 'svelte-bootstrap-icons';
+	import { fade } from 'svelte/transition';
+	import { Cog } from 'lucide-svelte';
 	import GameControls from './GameControls.svelte';
 	import { setupGame } from '$lib/game.js';
+	import { writable, get } from 'svelte/store';
 
 	let canvas: HTMLCanvasElement;
-	let container: HTMLDivElement;
+	let gameContainer: HTMLDivElement;
 	let scale = 1;
 	let showSizeControl = false;
-	let scaleFactor = 0.9; // Default size
+	let scaleFactor = 0.9;
+	let controlsPosition = { x: 0, y: 0 };
+	let mounted = false;
 
 	const GAME_WIDTH = 800;
 	const GAME_HEIGHT = 600;
-	const ASPECT_RATIO = GAME_WIDTH / GAME_HEIGHT;
 
-	let isTouchDevice = false;
+	// Initialize device state store
+	const deviceState = writable({
+		isTouchDevice: false,
+		windowWidth: 0,
+		showControls: false
+	});
 
-	// Add this function to handle control events from GameControls
-	function handleControlInput(event) {
-		const { detail } = event;
-		const { type, button, value } = detail;
-
-		if (type === 'joystick') {
-			// Handle joystick input
-			if (value.x < -0.5) {
-				// Simulate left arrow key down
-				const event = new KeyboardEvent('keydown', { key: 'ArrowLeft' });
-				window.dispatchEvent(event);
-			} else if (value.x > 0.5) {
-				// Simulate right arrow key down
-				const event = new KeyboardEvent('keydown', { key: 'ArrowRight' });
-				window.dispatchEvent(event);
-			} else {
-				// Release arrow keys
-				const leftEvent = new KeyboardEvent('keyup', { key: 'ArrowLeft' });
-				const rightEvent = new KeyboardEvent('keyup', { key: 'ArrowRight' });
-				window.dispatchEvent(leftEvent);
-				window.dispatchEvent(rightEvent);
-			}
-
-			// Handle vertical movement (jump)
-			if (value.y < -0.5) {
-				const event = new KeyboardEvent('keydown', { key: 'ArrowUp' });
-				window.dispatchEvent(event);
-			}
-		} else if (type === 'button') {
-			// Handle button presses
-			const keyMap = {
-				ammo: ' ', // Space bar for normal shot
-				heatseeker: 'x', // X for heat seeker
-				pause: 'p',
-				enter: 'Enter'
+	// Debounced resize handler
+	function debounce(func: Function, wait: number) {
+		let timeout: NodeJS.Timeout;
+		return function executedFunction(...args: any[]) {
+			const later = () => {
+				clearTimeout(timeout);
+				func(...args);
 			};
+			clearTimeout(timeout);
+			timeout = setTimeout(later, wait);
+		};
+	}
 
-			const key = keyMap[button];
-			if (key) {
-				const eventType = value ? 'keydown' : 'keyup';
-				const event = new KeyboardEvent(eventType, { key });
-				window.dispatchEvent(event);
+	// Improved device capability checking
+	// In Game.svelte
+	function initializeDeviceState() {
+		if (!browser || !mounted) {
+			console.log('[Game] Cannot initialize device state - browser:', browser, 'mounted:', mounted);
+			return;
+		}
+
+		const touchCapable =
+			'ontouchstart' in window ||
+			navigator.maxTouchPoints > 0 ||
+			(navigator as any).msMaxTouchPoints > 0;
+
+		const width = window.innerWidth;
+		const isLandscape = width > window.innerHeight;
+
+		const newState = {
+			isTouchDevice: touchCapable,
+			windowWidth: width,
+			showControls: touchCapable && width < 1024
+		};
+
+		console.log('[Game] Initializing device state:', newState);
+		deviceState.set(newState);
+
+		// Subscribe to state changes
+		deviceState.subscribe((state) => {
+			console.log('[Game] Device state updated:', state);
+		});
+	}
+
+	// Update controls position based on device orientation
+	function updateControlsPosition() {
+		if (!browser || !mounted) return;
+
+		const state = get(deviceState);
+		const isLandscape = state.windowWidth > window.innerHeight;
+
+		controlsPosition = isLandscape
+			? { x: 0, y: window.innerHeight - 120 }
+			: { x: 0, y: window.innerHeight - 180 };
+
+		console.log('[Game] Controls position updated:', controlsPosition);
+	}
+
+	// Handle control input with improved error handling
+	function handleControlInput(event: CustomEvent) {
+		if (!browser || !mounted) return;
+
+		try {
+			const { detail } = event;
+			const { type, button, value } = detail;
+
+			console.log('[Game] Control input received:', { type, button, value });
+
+			if (type === 'joystick') {
+				if (value.x < -0.5) {
+					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+				} else if (value.x > 0.5) {
+					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+				} else {
+					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
+					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
+				}
+
+				if (value.y < -0.5) {
+					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+				}
+			} else if (type === 'button') {
+				const keyMap = {
+					ammo: ' ',
+					heatseeker: 'x',
+					pause: 'p',
+					enter: 'Enter'
+				};
+
+				const key = keyMap[button];
+				if (key) {
+					const eventType = value ? 'keydown' : 'keyup';
+					window.dispatchEvent(new KeyboardEvent(eventType, { key }));
+				}
 			}
+		} catch (error) {
+			console.error('[Game] Error handling control input:', error);
 		}
 	}
 
+	// Improved scale calculation
 	function calculateScale() {
-		if (!container) return;
+		if (!gameContainer || !browser || !mounted) return;
 
-		const containerWidth = container.clientWidth;
-		const containerHeight = container.clientHeight;
-		const isLandscape = window.innerWidth > window.innerHeight;
+		const state = get(deviceState);
+		const containerWidth = gameContainer.clientWidth;
+		const containerHeight = gameContainer.clientHeight;
+		const isLandscape = state.windowWidth > window.innerHeight;
 
-		// Adjust scale factor based on device orientation and screen size
-		const currentScaleFactor =
-			window.innerWidth < 1024
-				? isLandscape
-					? 0.85
-					: 0.95 // Mobile/tablet scales
-				: scaleFactor; // Desktop scale
+		const currentScaleFactor = state.windowWidth < 1024 ? (isLandscape ? 0.85 : 0.95) : scaleFactor;
 
-		// Add padding adjustment for controls in landscape mode
-		const landscapePadding = isLandscape ? 80 : 0; // Account for control height in landscape
-
-		// Calculate available space while maintaining aspect ratio
 		const availableWidth = containerWidth * currentScaleFactor;
-		const availableHeight = (containerHeight - landscapePadding) * currentScaleFactor;
+		const availableHeight = containerHeight * currentScaleFactor;
 
-		// Determine which dimension is limiting
 		const widthScale = availableWidth / GAME_WIDTH;
 		const heightScale = availableHeight / GAME_HEIGHT;
 
-		// Use the smaller scale to ensure the game fits
 		scale = Math.min(widthScale, heightScale);
 
-		// For landscape mode on mobile, ensure minimum scale
-		if (isLandscape && window.innerWidth < 1024) {
-			const minScale = 0.6; // Minimum scale factor for landscape
-			scale = Math.max(scale, minScale);
+		if (isLandscape && state.windowWidth < 1024) {
+			scale = Math.max(scale, 0.6);
 		}
 
-		// Apply the scale
-		const wrapper = container.querySelector('.game-scale-wrapper');
+		const wrapper = gameContainer.querySelector('.game-scale-wrapper');
 		if (wrapper) {
 			wrapper.style.transform = `scale(${scale})`;
 			wrapper.style.transformOrigin = 'center center';
-
-			// Set wrapper dimensions to maintain aspect ratio
 			wrapper.style.width = `${GAME_WIDTH}px`;
 			wrapper.style.height = `${GAME_HEIGHT}px`;
 		}
+
+		console.log('[Game] Scale calculated:', scale);
 	}
 
-	function adjustSize(newSize) {
-		scaleFactor = newSize;
+	// Debounced resize handler
+	const handleResize = debounce(() => {
+		if (!browser || !mounted) return;
+		initializeDeviceState();
 		calculateScale();
-	}
-
-	let resizeObserver;
+		updateControlsPosition();
+	}, 100);
 
 	onMount(() => {
-		if (browser && canvas) {
-			setupGame(canvas);
-			calculateScale();
+		if (!browser) return;
 
-			// Check for touch device
-			isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+		mounted = true;
+		console.log('[Game] Component mounted');
 
-			// Add orientation change handler
+		// Initialize device state
+		initializeDeviceState();
+
+		if (canvas) {
+			try {
+				setupGame(canvas);
+				calculateScale();
+			} catch (error) {
+				console.error('[Game] Game initialization error:', error);
+			}
+
+			// Handle orientation changes
 			window.addEventListener('orientationchange', () => {
-				setTimeout(calculateScale, 100); // Small delay to ensure new dimensions are available
+				setTimeout(handleResize, 100);
 			});
 
-			// Create resize observer
-			resizeObserver = new ResizeObserver(calculateScale);
-			resizeObserver.observe(container);
+			// Handle resize events
+			window.addEventListener('resize', handleResize);
+
+			// Initialize controls position
+			updateControlsPosition();
 		}
 	});
 
 	onDestroy(() => {
-		if (resizeObserver) {
-			resizeObserver.disconnect();
-		}
+		if (!browser) return;
+		window.removeEventListener('resize', handleResize);
+		mounted = false;
 	});
 </script>
 
 <div
-	class="game-wrapper relative w-full h-full flex items-center justify-center overflow-hidden"
-	bind:this={container}
+	class="game-wrapper relative w-full h-full flex items-center justify-center"
+	bind:this={gameContainer}
 >
 	<!-- Size Control Button -->
 	<button
@@ -156,7 +216,7 @@
 		in:fade={{ duration: 300 }}
 	>
 		<span class="arcade-text flex items-center justify-center">
-			<Gear width={12} class="mr-2" />
+			<Cog class="mr-2" size={12} />
 			<p class="mt-1">SIZE</p>
 		</span>
 	</button>
@@ -165,8 +225,8 @@
 	{#if showSizeControl}
 		<div
 			class="size-control-panel hidden lg:block"
-			in:fly={{ y: 20, duration: 300 }}
-			out:fly={{ y: 20, duration: 200 }}
+			in:fade={{ duration: 300 }}
+			out:fade={{ duration: 200 }}
 		>
 			<div class="size-options">
 				{#each [0.5, 0.6, 0.7, 0.8, 0.9] as size}
@@ -183,27 +243,34 @@
 	{/if}
 
 	<div class="game-scale-wrapper flex justify-center items-center">
-		<div
-			class="game-container"
-			in:fade={{ duration: 800 }}
-			style="width: {GAME_WIDTH}px; height: {GAME_HEIGHT}px;"
-		>
-			<div id="reflection" class="absolute inset-0 pointer-events-none z-[3]"></div>
+		<div class="game-container" in:fade={{ duration: 800 }}>
+			<div id="reflection" class="absolute inset-0 pointer-events-none z-[3]" />
 			<canvas
 				bind:this={canvas}
 				id="gameCanvas"
 				width={GAME_WIDTH}
 				height={GAME_HEIGHT}
 				class="canvas-pixel-art"
-			></canvas>
-			<div id="scanline-overlay" class="absolute inset-0 pointer-events-none z-10"></div>
-			<div class="neon-glow"></div>
+			/>
+			<div id="scanline-overlay" class="absolute inset-0 pointer-events-none z-10" />
+			<div class="neon-glow" />
 		</div>
 	</div>
 
 	<!-- Mobile Controls -->
-	{#if isTouchDevice && window.innerWidth < 1024}
-		<GameControls on:control={handleControlInput} />
+	<!-- {#if $deviceState.showControls}
+		<div
+			class="fixed bottom-0 left-0 right-0 z-50"
+			style="transform: translate({controlsPosition.x}px, {controlsPosition.y}px)"
+		>
+			<GameControls on:control={handleControlInput} />
+		</div>
+	{/if} -->
+
+	{#if $deviceState.showControls}
+		<div class="controls-wrapper fixed bottom-0 left-0 right-0 w-full" style="z-index: 9999;">
+			<GameControls on:control={handleControlInput} />
+		</div>
 	{/if}
 </div>
 
@@ -252,7 +319,7 @@
 		font-size: 0.625rem;
 		padding: 0.45rem 0.65rem;
 		background: transparent;
-		border: 1px solid var(--arcade-neon-green-1XXAA00);
+		border: 1px solid var(--arcade-neon-green-100);
 		color: var(--arcade-neon-green-100);
 		cursor: pointer;
 		transition: all 0.3s ease;
@@ -274,14 +341,12 @@
 		justify-content: center;
 		align-items: center;
 		position: relative;
-		/* Remove padding to prevent offset */
 		padding: 0;
 	}
 
 	.game-scale-wrapper {
 		transform-origin: center center;
 		will-change: transform;
-		/* Ensure proper centering */
 		position: relative;
 		width: 100%;
 		height: 100%;
@@ -292,15 +357,11 @@
 		width: 800px;
 		height: 600px;
 		background: black;
-		/* Slightly curved corners like old CRT screens */
 		border-radius: 20px;
-		/* Inset border effect */
 		outline: 6px solid rgba(34, 34, 34, 0.9);
-		/* Subtle inner shadow for depth */
 		box-shadow:
 			inset 0 0 50px rgba(0, 0, 0, 0.5),
 			0 0 30px rgba(0, 0, 0, 0.3);
-		/* Ensure content stays within bounds */
 		overflow: hidden;
 	}
 
@@ -318,19 +379,9 @@
 		animation: scanline 0.2s linear infinite;
 	}
 
-	@keyframes scanline {
-		0% {
-			background-position: 0 0;
-		}
-		100% {
-			background-position: 0 4px;
-		}
-	}
-
 	#reflection {
 		background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 20%);
 		border-radius: 20px;
-		/* z-index: 3; */
 	}
 
 	.neon-glow {
@@ -345,7 +396,7 @@
 		pointer-events: none;
 		z-index: 2;
 	}
-	/* Add padding at the bottom on touch devices to make room for controls */
+
 	@media (max-width: 1023px) {
 		.game-container {
 			border-radius: 12px;
@@ -357,23 +408,17 @@
 		}
 	}
 
-	@media (max-width: 1023px) and (pointer: coarse) {
-		.game-wrapper {
-			padding-bottom: 120px;
+	@keyframes scanline {
+		0% {
+			background-position: 0 0;
+		}
+		100% {
+			background-position: 0 4px;
 		}
 	}
 
-	@media (max-width: 1023px) and (orientation: landscape) {
-		.game-wrapper {
-			padding-bottom: 80px; /* Less padding in landscape */
-		}
-	}
-
-	/* Add new mobile optimizations */
-	@media (max-width: 1023px) {
-		.game-wrapper {
-			--controls-height: 180px;
-			height: calc(100% - var(--controls-height));
-		}
+	/* Add new styles for mobile controls visibility */
+	:global(.controls-container) {
+		z-index: 9999 !important;
 	}
 </style>
