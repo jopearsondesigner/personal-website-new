@@ -37,7 +37,7 @@
 	--arcade-screen-width: 90vw;
 	--arcade-screen-height: 70vh;
 	--header-font-size: 8vmin;
-	--insert-concept-font-size: 3.5vmin;
+	--insert-concept-font-size: 4.5vmin;
 
 	--controls-height: 180px;
 	--controls-height-landscape: 120px;
@@ -69,7 +69,7 @@
 		--arcade-screen-width: 80vw;
 		--arcade-screen-height: 600px;
 		--header-font-size: 5.6rem;
-		--insert-concept-font-size: 3.33vmin;
+		--insert-concept-font-size: 2.33vmin;
 	}
 }
 

@@ -202,7 +202,7 @@
 
 	.pixel-art {
 		font-family: 'Press Start 2P', cursive;
-		font-size: 0.5625rem;
+		font-size: 0.6875rem;
 		line-height: 1.65;
 		text-transform: uppercase;
 	}
@@ -250,6 +250,15 @@
 		text-align: left;
 		outline: none;
 		pointer-events: auto;
+		font-size: 0.6875rem;
+		/* font-size: 0.8125rem; */
+		/* font-size: 0.75rem; */
+	}
+
+	@media (max-width: 1024px) {
+		.menu-item {
+			font-size: 0.8125rem;
+		}
 	}
 
 	.menu-item:hover {
@@ -315,7 +324,7 @@
 		background-color: transparent;
 		color: var(--arcade-neon-green-100);
 		border: none;
-		font-size: 0.65rem;
+		font-size: 0.8125rem;
 		cursor: pointer;
 		pointer-events: auto;
 	}
