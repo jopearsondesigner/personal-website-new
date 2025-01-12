@@ -1,15 +1,53 @@
 <!-- src/lib/components/GameScreen.svelte -->
-<script>
+<script lang="ts">
 	import { fade, fly } from 'svelte/transition';
+	import { browser } from '$app/environment';
+	import { writable } from 'svelte/store';
 	import Game from '$components/game/Game.svelte';
+	import { onMount, onDestroy } from 'svelte';
 
 	let decorativeText = [
 		{ text: 'HIGH SCORE', value: '000000', side: 'left' },
 		{ text: '1UP', value: '0', side: 'right' }
 	];
+	function initializeDeviceState() {
+		if (browser) {
+			// Check if we're on a touch device
+			const isTouchDevice =
+				'ontouchstart' in window ||
+				navigator.maxTouchPoints > 0 ||
+				// @ts-ignore
+				navigator.msMaxTouchPoints > 0;
+
+			// Update device state
+			const deviceInfo = {
+				isTouchDevice,
+				windowWidth: window.innerWidth,
+				showControls: isTouchDevice || window.innerWidth < 1024
+			};
+
+			deviceState.set(deviceInfo);
+		}
+	}
+
+	// ADD onMount after the script starts:
+	onMount(() => {
+		if (browser) {
+			initializeDeviceState();
+			window.addEventListener('resize', () => {
+				initializeDeviceState();
+			});
+		}
+	});
+
+	onDestroy(() => {
+		if (browser) {
+			window.removeEventListener('resize', initializeDeviceState);
+		}
+	});
 </script>
 
-<div class="flex items-center justify-center w-full h-full p-[1vmin]">
+<div id="game-screen" class="flex items-center justify-center w-full h-full p-[1vmin]">
 	<div class="game-background">
 		<!-- Left side panel - only show on desktop -->
 		<div class="hidden lg:block">
@@ -47,6 +85,15 @@
 </div>
 
 <style>
+	#game-screen {
+		position: relative;
+		height: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		/* padding-bottom: env(safe-area-inset-bottom); */
+	}
+
 	.game-background {
 		position: relative;
 		width: 100%;

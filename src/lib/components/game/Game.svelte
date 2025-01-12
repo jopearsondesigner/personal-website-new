@@ -4,9 +4,15 @@
 	import { browser } from '$app/environment';
 	import { fade } from 'svelte/transition';
 	import { Cog } from 'lucide-svelte';
-	import GameControls from './GameControls.svelte';
 	import { setupGame } from '$lib/game.js';
-	import { writable, get } from 'svelte/store';
+	import { get } from 'svelte/store';
+	import { writable } from 'svelte/store';
+
+	const deviceState = writable({
+		isTouchDevice: false,
+		windowWidth: 0,
+		showControls: false
+	});
 
 	let canvas: HTMLCanvasElement;
 	let gameContainer: HTMLDivElement;
@@ -18,13 +24,6 @@
 
 	const GAME_WIDTH = 800;
 	const GAME_HEIGHT = 600;
-
-	// Initialize device state store
-	const deviceState = writable({
-		isTouchDevice: false,
-		windowWidth: 0,
-		showControls: false
-	});
 
 	// Debounced resize handler
 	function debounce(func: Function, wait: number) {
@@ -41,101 +40,17 @@
 
 	// Improved device capability checking
 	// In Game.svelte
-	function initializeDeviceState() {
-		if (!browser || !mounted) {
-			console.log('[Game] Cannot initialize device state - browser:', browser, 'mounted:', mounted);
-			return;
-		}
 
-		const touchCapable =
-			'ontouchstart' in window ||
-			navigator.maxTouchPoints > 0 ||
-			(navigator as any).msMaxTouchPoints > 0;
-
-		const width = window.innerWidth;
-		const isLandscape = width > window.innerHeight;
-
-		const newState = {
-			isTouchDevice: touchCapable,
-			windowWidth: width,
-			showControls: touchCapable && width < 1024
-		};
-
-		console.log('[Game] Initializing device state:', newState);
-		deviceState.set(newState);
-
-		// Subscribe to state changes
-		deviceState.subscribe((state) => {
-			console.log('[Game] Device state updated:', state);
-		});
-	}
-
-	// Update controls position based on device orientation
-	function updateControlsPosition() {
-		if (!browser || !mounted) return;
-
-		const state = get(deviceState);
-		const isLandscape = state.windowWidth > window.innerHeight;
-
-		controlsPosition = isLandscape
-			? { x: 0, y: window.innerHeight - 120 }
-			: { x: 0, y: window.innerHeight - 180 };
-
-		console.log('[Game] Controls position updated:', controlsPosition);
-	}
-
-	// Handle control input with improved error handling
-	function handleControlInput(event: CustomEvent) {
-		if (!browser || !mounted) return;
-
-		try {
-			const { detail } = event;
-			const { type, button, value } = detail;
-
-			console.log('[Game] Control input received:', { type, button, value });
-
-			if (type === 'joystick') {
-				if (value.x < -0.5) {
-					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
-				} else if (value.x > 0.5) {
-					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
-				} else {
-					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
-					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
-				}
-
-				if (value.y < -0.5) {
-					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
-				}
-			} else if (type === 'button') {
-				const keyMap = {
-					ammo: ' ',
-					heatseeker: 'x',
-					pause: 'p',
-					enter: 'Enter'
-				};
-
-				const key = keyMap[button];
-				if (key) {
-					const eventType = value ? 'keydown' : 'keyup';
-					window.dispatchEvent(new KeyboardEvent(eventType, { key }));
-				}
-			}
-		} catch (error) {
-			console.error('[Game] Error handling control input:', error);
-		}
-	}
-
-	// Improved scale calculation
 	function calculateScale() {
 		if (!gameContainer || !browser || !mounted) return;
 
-		const state = get(deviceState);
 		const containerWidth = gameContainer.clientWidth;
 		const containerHeight = gameContainer.clientHeight;
-		const isLandscape = state.windowWidth > window.innerHeight;
 
-		const currentScaleFactor = state.windowWidth < 1024 ? (isLandscape ? 0.85 : 0.95) : scaleFactor;
+		// Mobile-specific scale adjustment
+		const isMobile = window.innerWidth < 768; // Adjust breakpoint as needed
+		const mobileScaleFactor = isMobile ? 0.95 : 0.8; // Larger scale for mobile
+		const currentScaleFactor = isMobile ? mobileScaleFactor : scaleFactor;
 
 		const availableWidth = containerWidth * currentScaleFactor;
 		const availableHeight = containerHeight * currentScaleFactor;
@@ -143,11 +58,11 @@
 		const widthScale = availableWidth / GAME_WIDTH;
 		const heightScale = availableHeight / GAME_HEIGHT;
 
+		// Use the smaller scale to maintain aspect ratio
 		scale = Math.min(widthScale, heightScale);
 
-		if (isLandscape && state.windowWidth < 1024) {
-			scale = Math.max(scale, 0.6);
-		}
+		// Enforce minimum scale for readability
+		scale = Math.max(scale, 0.5);
 
 		const wrapper = gameContainer.querySelector('.game-scale-wrapper');
 		if (wrapper) {
@@ -156,16 +71,12 @@
 			wrapper.style.width = `${GAME_WIDTH}px`;
 			wrapper.style.height = `${GAME_HEIGHT}px`;
 		}
-
-		console.log('[Game] Scale calculated:', scale);
 	}
 
 	// Debounced resize handler
 	const handleResize = debounce(() => {
 		if (!browser || !mounted) return;
-		initializeDeviceState();
 		calculateScale();
-		updateControlsPosition();
 	}, 100);
 
 	onMount(() => {
@@ -173,9 +84,6 @@
 
 		mounted = true;
 		console.log('[Game] Component mounted');
-
-		// Initialize device state
-		initializeDeviceState();
 
 		if (canvas) {
 			try {
@@ -192,9 +100,6 @@
 
 			// Handle resize events
 			window.addEventListener('resize', handleResize);
-
-			// Initialize controls position
-			updateControlsPosition();
 		}
 	});
 
@@ -256,22 +161,6 @@
 			<div class="neon-glow" />
 		</div>
 	</div>
-
-	<!-- Mobile Controls -->
-	<!-- {#if $deviceState.showControls}
-		<div
-			class="fixed bottom-0 left-0 right-0 z-50"
-			style="transform: translate({controlsPosition.x}px, {controlsPosition.y}px)"
-		>
-			<GameControls on:control={handleControlInput} />
-		</div>
-	{/if} -->
-
-	{#if $deviceState.showControls}
-		<div class="controls-wrapper fixed bottom-0 left-0 right-0 w-full" style="z-index: 9999;">
-			<GameControls on:control={handleControlInput} />
-		</div>
-	{/if}
 </div>
 
 <style>
@@ -363,6 +252,7 @@
 			inset 0 0 50px rgba(0, 0, 0, 0.5),
 			0 0 30px rgba(0, 0, 0, 0.3);
 		overflow: hidden;
+		transform-origin: center;
 	}
 
 	.canvas-pixel-art {
@@ -401,6 +291,17 @@
 		.game-container {
 			border-radius: 12px;
 			outline: 4px solid rgba(34, 34, 34, 0.9);
+			/* Add specific mobile adjustments */
+			margin: 1rem;
+		}
+
+		.game-wrapper {
+			padding: 1rem;
+		}
+		.game-scale-wrapper {
+			display: flex;
+			align-items: center;
+			justify-content: center;
 		}
 
 		.neon-glow {
@@ -417,8 +318,17 @@
 		}
 	}
 
-	/* Add new styles for mobile controls visibility */
-	:global(.controls-container) {
-		z-index: 9999 !important;
+	/* ADD orientation-specific adjustments */
+	@media (orientation: portrait) and (max-width: 1023px) {
+		.game-wrapper {
+			height: calc(100% - 120px); /* Account for controls */
+		}
+	}
+
+	@media (orientation: landscape) and (max-width: 1023px) {
+		.game-wrapper {
+			height: calc(100vh - var(--controls-height-landscape));
+			padding-right: 0; /* Remove the 250px padding */
+		}
 	}
 </style>

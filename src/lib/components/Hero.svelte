@@ -10,6 +10,7 @@
 	import { animations } from '$lib/utils/animation-utils';
 	import { animationState, screenStore } from '$lib/stores/animation-store';
 	import { layoutStore } from '$lib/stores/store';
+	import GameControls from '$lib/components/game/GameControls.svelte';
 
 	let header: HTMLElement;
 	let insertConcept: HTMLElement;
@@ -18,6 +19,7 @@
 	let spaceBackground: HTMLElement;
 	let currentScreen = 'main';
 	let stars = [];
+	let showControls = false;
 
 	$: {
 		stars = $animationState.stars;
@@ -151,6 +153,26 @@
 		currentScreen = newScreen;
 	}
 
+	function handleControlInput(event) {
+		const { detail } = event;
+		if (detail.type === 'joystick') {
+			if (detail.value.x < -0.5) {
+				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+			} else if (detail.value.x > 0.5) {
+				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+			} else {
+				window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
+				window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
+			}
+
+			if (detail.value.y < -0.5) {
+				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+			}
+		} else if (detail.type === 'button') {
+			// ... rest of your control handling code
+		}
+	}
+
 	onMount(() => {
 		if (!browser) return;
 
@@ -251,6 +273,12 @@
 			</div>
 		</div>
 	</div>
+	{#if currentScreen === 'game'}
+		<div class="fixed-game-controls lg:hidden">
+			<!-- Added lg:hidden class -->
+			<GameControls on:control={handleControlInput} />
+		</div>
+	{/if}
 </section>
 
 <style>
@@ -267,7 +295,7 @@
 		--bezel-thickness: 0.8vmin;
 
 		/* Typography */
-		--header-font-size: 17vmin;
+		--header-font-size: 60px;
 		--insert-concept-font-size: 3.45vmin;
 
 		/* Colors */
@@ -303,7 +331,7 @@
 		:root {
 			--arcade-screen-width: 80vw;
 			--arcade-screen-height: 600px;
-			--header-font-size: 5.6rem;
+			--header-font-size: 100px;
 			--insert-concept-font-size: 2.45vmin;
 		}
 	}
@@ -313,6 +341,51 @@
    ========================================================================== */
 	section {
 		height: calc(100vh - var(--navbar-height, 64px));
+	}
+
+	.fixed-game-controls {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		z-index: 9999;
+		background: rgba(43, 43, 43, 0.85);
+		backdrop-filter: blur(10px);
+		border-top: 1px solid rgba(39, 255, 153, 0.2);
+		transform: translateZ(0);
+		will-change: transform;
+		display: none; /* Hidden by default */
+	}
+
+	@media (max-width: 1023px) {
+		.fixed-game-controls {
+			display: block;
+		}
+	}
+
+	@media (orientation: portrait) {
+		.fixed-game-controls {
+			height: 120px;
+		}
+	}
+
+	@media (orientation: landscape) and (max-width: 1023px) {
+		.fixed-game-controls {
+			top: auto;
+			right: 0;
+			bottom: 0;
+			left: auto;
+			width: 100%;
+			height: 120px;
+			border-top: 1px solid rgba(39, 255, 153, 0.2);
+			border-left: none;
+		}
+	}
+
+	@media (orientation: portrait) and (max-width: 1023px) {
+		.fixed-game-controls {
+			height: 120px;
+		}
 	}
 
 	#arcade-cabinet {
