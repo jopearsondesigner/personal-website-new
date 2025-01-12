@@ -262,16 +262,31 @@
 
 	.controls-container {
 		width: 100%;
-		background: rgba(43, 43, 43, 0.15);
-		backdrop-filter: blur(2.5px);
+		/* Add fallback background color with higher opacity */
+		background: rgba(43, 43, 43, 0.15); /* Fallback */
+		/* Use @supports to check for backdrop-filter support */
+		@supports (backdrop-filter: blur(2px)) {
+			background: rgba(43, 43, 43, 0.15);
+			backdrop-filter: blur(2px);
+			-webkit-backdrop-filter: blur(2px); /* For Safari */
+		}
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
 		padding: 1rem;
-		padding-bottom: max(1rem, env(safe-area-inset-bottom));
 		border-top: 1px solid rgba(39, 255, 153, 0.2);
 		transform: translateZ(0);
 		will-change: transform;
+	}
+
+	/* Also update the light theme version */
+	:global(html.light) .controls-container {
+		background: rgba(240, 240, 240, 0.15); /* Fallback */
+		@supports (backdrop-filter: blur(2px)) {
+			background: rgba(240, 240, 240, 0.15);
+			backdrop-filter: blur(2px);
+			-webkit-backdrop-filter: blur(2px);
+		}
 	}
 
 	@media (orientation: landscape) and (max-width: 1023px) {
@@ -313,7 +328,7 @@
 	.joystick-base {
 		width: var(--joystick-size);
 		height: var(--joystick-size);
-		background: rgba(43, 43, 43 0.3);
+		background: rgba(43, 43, 43, 0.15);
 		border: 2px solid rgba(39, 255, 153, 0.3);
 		border-radius: 50%;
 		position: relative;

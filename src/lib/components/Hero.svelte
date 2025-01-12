@@ -349,12 +349,10 @@
 		left: 0;
 		right: 0;
 		z-index: 9999;
-		background: rgba(43, 43, 43, 0.85);
-		backdrop-filter: blur(10px);
-		border-top: 1px solid rgba(39, 255, 153, 0.2);
-		transform: translateZ(0);
+		/* border-top: 1px solid rgba(39, 255, 153, 0.2); */
+		/* transform: translateZ(0);
 		will-change: transform;
-		display: none; /* Hidden by default */
+		display: none; Hidden by default */
 	}
 
 	@media (max-width: 1023px) {
