@@ -25,6 +25,10 @@
 		stars = $animationState.stars;
 	}
 
+	$: if (browser) {
+		document.documentElement.style.setProperty('--navbar-height', `${$layoutStore.navbarHeight}px`);
+	}
+
 	$: if (currentScreen === 'main') {
 		if (browser) {
 			setTimeout(() => {
@@ -212,14 +216,16 @@
 			<div class="cabinet-background absolute inset-0"></div>
 			<div class="cabinet-wear absolute inset-0"></div>
 
-			<div class="arcade-screen-wrapper relative">
+			<div
+				class="arcade-screen-wrapper relative"
+				style="margin-top: calc(-2 * var(--navbar-height, 64px));"
+			>
 				<div class="navigation-wrapper relative z-50">
 					<ArcadeNavigation on:changeScreen={handleScreenChange} />
 				</div>
 
 				<!-- Screen Bezel Layer -->
 				<div class="screen-bezel"></div>
-
 				<div
 					id="arcade-screen"
 					class="crt-screen hardware-accelerated relative w-[90vw] h-[70vh] md:w-[80vw] md:h-[600px] glow"
@@ -344,45 +350,12 @@
 	}
 
 	.fixed-game-controls {
-		position: fixed;
-		bottom: 0;
-		left: 0;
-		right: 0;
-		z-index: 9999;
-		/* border-top: 1px solid rgba(39, 255, 153, 0.2); */
-		/* transform: translateZ(0);
-		will-change: transform;
-		display: none; Hidden by default */
+		display: none;
 	}
 
 	@media (max-width: 1023px) {
 		.fixed-game-controls {
 			display: block;
-		}
-	}
-
-	@media (orientation: portrait) {
-		.fixed-game-controls {
-			height: 120px;
-		}
-	}
-
-	@media (orientation: landscape) and (max-width: 1023px) {
-		.fixed-game-controls {
-			top: auto;
-			right: 0;
-			bottom: 0;
-			left: auto;
-			width: 100%;
-			height: 120px;
-			border-top: 1px solid rgba(39, 255, 153, 0.2);
-			border-left: none;
-		}
-	}
-
-	@media (orientation: portrait) and (max-width: 1023px) {
-		.fixed-game-controls {
-			height: 120px;
 		}
 	}
 

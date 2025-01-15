@@ -196,8 +196,8 @@
 		/* position: relative; */
 		right: auto;
 		z-index: 1;
-		left: 1.19rem;
-		top: 1.17rem;
+		left: 0.85rem;
+		top: 0.85rem;
 	}
 
 	.pixel-art {
@@ -278,6 +278,7 @@
 		padding: 0.45rem 0.65rem;
 		border-radius: 4px;
 		pointer-events: auto;
+		font-size: 0.5625rem;
 	}
 
 	.mobile .menu-item {

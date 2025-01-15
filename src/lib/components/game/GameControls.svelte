@@ -6,7 +6,21 @@
 	import { browser } from '$app/environment';
 	import { writable } from 'svelte/store';
 
+	export const menuOpen = writable(false);
+
 	const dispatch = createEventDispatcher();
+
+	// Constants for joystick configuration
+	const JOYSTICK_DEADZONE = 0.1;
+	const JOYSTICK_MAX_DISTANCE = 40;
+	const JOYSTICK_UPDATE_RATE = 16; // ~60fps
+	const BUTTON_HAPTIC_DURATION = 50; // ms
+
+	let keys = {
+		ArrowLeft: false,
+		ArrowRight: false,
+		ArrowUp: false
+	};
 
 	// Spring animation for smooth joystick movement
 	let joystickPos = spring(
@@ -17,18 +31,14 @@
 		}
 	);
 
-	// DOM references
+	// State management
+	let lastJoystickUpdate = 0;
 	let joystickBase: HTMLElement;
 	let controlsContainer: HTMLElement;
-
-	// State
 	let isJoystickActive = false;
 	let startPos = { x: 0, y: 0 };
 	let mounted = false;
-
-	// Responsive layout state
 	let isLandscape = false;
-	$: controlsHeight = isLandscape ? '100%' : '120px';
 
 	// Button states
 	const buttons = {
@@ -38,9 +48,11 @@
 		enter: false
 	};
 
+	$: controlsHeight = isLandscape ? 'var(--controls-height-landscape)' : 'var(--controls-height)';
+
 	function triggerHaptic() {
 		if (browser && 'vibrate' in navigator) {
-			navigator.vibrate(50);
+			navigator.vibrate(BUTTON_HAPTIC_DURATION);
 		}
 	}
 
@@ -71,24 +83,62 @@
 		let x = touch.clientX - rect.left - rect.width / 2;
 		let y = touch.clientY - rect.top - rect.height / 2;
 
-		const maxDistance = rect.width * 0.3;
 		const distance = Math.sqrt(x * x + y * y);
-
-		if (distance > maxDistance) {
+		if (distance > JOYSTICK_MAX_DISTANCE) {
 			const angle = Math.atan2(y, x);
-			x = Math.cos(angle) * maxDistance;
-			y = Math.sin(angle) * maxDistance;
+			x = Math.cos(angle) * JOYSTICK_MAX_DISTANCE;
+			y = Math.sin(angle) * JOYSTICK_MAX_DISTANCE;
 		}
+
+		// Apply deadzone
+		const normalizedX =
+			Math.abs(x) < JOYSTICK_DEADZONE * JOYSTICK_MAX_DISTANCE ? 0 : x / JOYSTICK_MAX_DISTANCE;
+		const normalizedY =
+			Math.abs(y) < JOYSTICK_DEADZONE * JOYSTICK_MAX_DISTANCE ? 0 : y / JOYSTICK_MAX_DISTANCE;
 
 		joystickPos.set({ x, y });
 
-		dispatch('control', {
-			type: 'joystick',
-			value: {
-				x: x / maxDistance,
-				y: y / maxDistance
+		// Generate keyboard events based on joystick position
+		if (normalizedX > 0.5) {
+			if (!keys.ArrowRight) {
+				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+				keys.ArrowRight = true;
+				keys.ArrowLeft = false;
 			}
-		});
+		} else if (normalizedX < -0.5) {
+			if (!keys.ArrowLeft) {
+				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+				keys.ArrowLeft = true;
+				keys.ArrowRight = false;
+			}
+		} else {
+			if (keys.ArrowLeft) {
+				window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
+				keys.ArrowLeft = false;
+			}
+			if (keys.ArrowRight) {
+				window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
+				keys.ArrowRight = false;
+			}
+		}
+
+		// Handle vertical movement (jumping)
+		if (normalizedY < -0.5 && !keys.ArrowUp) {
+			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+			keys.ArrowUp = true;
+		} else if (normalizedY >= -0.5 && keys.ArrowUp) {
+			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowUp' }));
+			keys.ArrowUp = false;
+		}
+
+		// Throttle control events
+		if (!lastJoystickUpdate || Date.now() - lastJoystickUpdate >= JOYSTICK_UPDATE_RATE) {
+			dispatch('control', {
+				type: 'joystick',
+				value: { x: normalizedX, y: normalizedY }
+			});
+			lastJoystickUpdate = Date.now();
+		}
 	}
 
 	function handleJoystickEnd() {
@@ -96,6 +146,21 @@
 
 		isJoystickActive = false;
 		joystickPos.set({ x: 0, y: 0 });
+
+		// Release all held keys
+		if (keys.ArrowLeft) {
+			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
+			keys.ArrowLeft = false;
+		}
+		if (keys.ArrowRight) {
+			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
+			keys.ArrowRight = false;
+		}
+		if (keys.ArrowUp) {
+			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowUp' }));
+			keys.ArrowUp = false;
+		}
+
 		dispatch('control', {
 			type: 'joystick',
 			value: { x: 0, y: 0 }
@@ -108,6 +173,25 @@
 		event.preventDefault();
 		buttons[button] = true;
 		triggerHaptic();
+
+		// Map buttons to keyboard events
+		let keyEvent;
+		switch (button) {
+			case 'ammo':
+				keyEvent = new KeyboardEvent('keydown', { key: ' ' });
+				break;
+			case 'heatseeker':
+				keyEvent = new KeyboardEvent('keydown', { key: 'x' });
+				break;
+			case 'pause':
+				keyEvent = new KeyboardEvent('keydown', { key: 'p' });
+				break;
+			case 'enter':
+				keyEvent = new KeyboardEvent('keydown', { key: 'Enter' });
+				break;
+		}
+		if (keyEvent) window.dispatchEvent(keyEvent);
+
 		dispatch('control', {
 			type: 'button',
 			button,
@@ -119,6 +203,24 @@
 		if (!browser || !mounted) return;
 
 		buttons[button] = false;
+
+		let keyEvent;
+		switch (button) {
+			case 'ammo':
+				keyEvent = new KeyboardEvent('keyup', { key: ' ' });
+				break;
+			case 'heatseeker':
+				keyEvent = new KeyboardEvent('keyup', { key: 'x' });
+				break;
+			case 'pause':
+				keyEvent = new KeyboardEvent('keyup', { key: 'p' });
+				break;
+			case 'enter':
+				keyEvent = new KeyboardEvent('keyup', { key: 'Enter' });
+				break;
+		}
+		if (keyEvent) window.dispatchEvent(keyEvent);
+
 		dispatch('control', {
 			type: 'button',
 			button,
@@ -135,20 +237,15 @@
 		if (!browser) return;
 		mounted = true;
 
-		// Initialize layout
 		updateLayoutOrientation();
 
-		// Event listeners for orientation changes
 		window.addEventListener('resize', updateLayoutOrientation);
 		window.addEventListener('orientationchange', updateLayoutOrientation);
-
-		// Event listeners for joystick
 		window.addEventListener('mousemove', handleJoystickMove);
 		window.addEventListener('mouseup', handleJoystickEnd);
 		window.addEventListener('touchmove', handleJoystickMove, { passive: false });
 		window.addEventListener('touchend', handleJoystickEnd);
 
-		// Prevent default touch behaviors
 		if (controlsContainer) {
 			controlsContainer.addEventListener('touchmove', (e) => e.preventDefault(), {
 				passive: false
@@ -158,6 +255,14 @@
 
 	onDestroy(() => {
 		if (!browser) return;
+
+		// Release any held keys
+		Object.keys(keys).forEach((key) => {
+			if (keys[key]) {
+				window.dispatchEvent(new KeyboardEvent('keyup', { key }));
+				keys[key] = false;
+			}
+		});
 
 		window.removeEventListener('resize', updateLayoutOrientation);
 		window.removeEventListener('orientationchange', updateLayoutOrientation);
@@ -177,9 +282,36 @@
 	style="height: {controlsHeight};"
 	in:fade={{ duration: 300 }}
 >
-	<div class="controls-layout">
-		<!-- Joystick -->
-		<div class="joystick-zone">
+	<!-- Header with utility buttons -->
+	<div class="controls-header">
+		<div class="utility-buttons">
+			<button
+				class="utility-button"
+				class:active={buttons.pause}
+				on:mousedown|preventDefault={(e) => handleButtonPress('pause', e)}
+				on:mouseup={() => handleButtonRelease('pause')}
+				on:touchstart|preventDefault={(e) => handleButtonPress('pause', e)}
+				on:touchend={() => handleButtonRelease('pause')}
+			>
+				Pause
+			</button>
+
+			<button
+				class="utility-button"
+				class:active={buttons.enter}
+				on:mousedown|preventDefault={(e) => handleButtonPress('enter', e)}
+				on:mouseup={() => handleButtonRelease('enter')}
+				on:touchstart|preventDefault={(e) => handleButtonPress('enter', e)}
+				on:touchend={() => handleButtonRelease('enter')}
+			>
+				Start
+			</button>
+		</div>
+	</div>
+
+	<!-- Main controls section -->
+	<div class="controls-main">
+		<div class="joystick-container">
 			<div
 				class="joystick-base"
 				bind:this={joystickBase}
@@ -195,169 +327,143 @@
 			</div>
 		</div>
 
-		<!-- Action Buttons -->
-		<div class="action-zone">
-			<div class="action-buttons">
-				<button
-					class="arcade-button ammo"
-					class:active={buttons.ammo}
-					on:mousedown|preventDefault={(e) => handleButtonPress('ammo', e)}
-					on:mouseup={() => handleButtonRelease('ammo')}
-					on:touchstart|preventDefault={(e) => handleButtonPress('ammo', e)}
-					on:touchend={() => handleButtonRelease('ammo')}
-				>
-					<span class="button-face" />
-					<span class="button-label">Ammo</span>
-				</button>
+		<div class="action-buttons">
+			<button
+				class="arcade-button ammo"
+				class:active={buttons.ammo}
+				on:mousedown|preventDefault={(e) => handleButtonPress('ammo', e)}
+				on:mouseup={() => handleButtonRelease('ammo')}
+				on:touchstart|preventDefault={(e) => handleButtonPress('ammo', e)}
+				on:touchend={() => handleButtonRelease('ammo')}
+			>
+				<span class="button-face" />
+			</button>
 
-				<button
-					class="arcade-button heatseeker"
-					class:active={buttons.heatseeker}
-					on:mousedown|preventDefault={(e) => handleButtonPress('heatseeker', e)}
-					on:mouseup={() => handleButtonRelease('heatseeker')}
-					on:touchstart|preventDefault={(e) => handleButtonPress('heatseeker', e)}
-					on:touchend={() => handleButtonRelease('heatseeker')}
-				>
-					<span class="button-face" />
-					<span class="button-label">Heat<br />seeker</span>
-				</button>
-			</div>
-
-			<!-- Utility Buttons -->
-			<div class="utility-buttons">
-				<button
-					class="utility-button"
-					class:active={buttons.pause}
-					on:mousedown|preventDefault={(e) => handleButtonPress('pause', e)}
-					on:mouseup={() => handleButtonRelease('pause')}
-					on:touchstart|preventDefault={(e) => handleButtonPress('pause', e)}
-					on:touchend={() => handleButtonRelease('pause')}
-				>
-					<span class="button-label">P</span>
-				</button>
-
-				<button
-					class="utility-button"
-					class:active={buttons.enter}
-					on:mousedown|preventDefault={(e) => handleButtonPress('enter', e)}
-					on:mouseup={() => handleButtonRelease('enter')}
-					on:touchstart|preventDefault={(e) => handleButtonPress('enter', e)}
-					on:touchend={() => handleButtonRelease('enter')}
-				>
-					<span class="button-label">Start</span>
-				</button>
-			</div>
+			<button
+				class="arcade-button heatseeker"
+				class:active={buttons.heatseeker}
+				on:mousedown|preventDefault={(e) => handleButtonPress('heatseeker', e)}
+				on:mouseup={() => handleButtonRelease('heatseeker')}
+				on:touchstart|preventDefault={(e) => handleButtonPress('heatseeker', e)}
+				on:touchend={() => handleButtonRelease('heatseeker')}
+			>
+				<span class="button-face" />
+			</button>
 		</div>
 	</div>
+
+	<!-- Footer spacing -->
+	<div class="controls-footer" />
 </div>
 
 <style>
+	/* Root variables */
 	:root {
-		--controls-height-landscape: 120px;
-		--joystick-size: 100px;
-		--button-size: 64px;
-		--button-spacing: 16px;
-		--utility-button-height: 32px;
+		--controls-height: 180px;
+		--controls-height-landscape: 140px;
+		--joystick-size: 84px;
+		--button-size: 72px;
+		--utility-button-size: 24px;
+		--controls-padding: 12px;
+		--neon-color: rgba(39, 255, 153, 1);
+		--neon-color-dim: rgba(39, 255, 153, 0.3);
+		--controls-background: rgba(245, 245, 220, 0.05);
 	}
 
+	/* Base container styles */
 	.controls-container {
+		position: fixed;
+		bottom: 0;
+		left: 0;
 		width: 100%;
-		/* Add fallback background color with higher opacity */
-		background: rgba(43, 43, 43, 0.15); /* Fallback */
-		/* Use @supports to check for backdrop-filter support */
-		@supports (backdrop-filter: blur(2px)) {
-			background: rgba(43, 43, 43, 0.15);
-			backdrop-filter: blur(2px);
-			-webkit-backdrop-filter: blur(2px); /* For Safari */
-		}
+		background: var(--controls-background);
+		border-top: 1px solid var(--neon-color-dim);
+		display: flex;
+		flex-direction: column;
+		padding-bottom: env(safe-area-inset-bottom, 0);
+		/* Add backdrop blur */
+		backdrop-filter: blur(1.5px); /* Modern browsers */
+		-webkit-backdrop-filter: blur(2.5px); /* Safari */
+	}
+
+	/* Header styles */
+	.controls-header {
+		height: 44px;
+		padding: 4px var(--controls-padding);
+		display: flex;
+		justify-content: end;
+		align-items: center;
+		border-bottom: 0 solid var(--neon-color-dim);
+	}
+
+	/* Main controls area */
+	.controls-main {
+		flex: 1;
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 1rem;
-		border-top: 1px solid rgba(39, 255, 153, 0.2);
-		transform: translateZ(0);
-		will-change: transform;
+		padding: var(--controls-padding);
 	}
 
-	/* Also update the light theme version */
-	:global(html.light) .controls-container {
-		background: rgba(240, 240, 240, 0.15); /* Fallback */
-		@supports (backdrop-filter: blur(2px)) {
-			background: rgba(240, 240, 240, 0.15);
-			backdrop-filter: blur(2px);
-			-webkit-backdrop-filter: blur(2px);
-		}
-	}
-
-	@media (orientation: landscape) and (max-width: 1023px) {
-		.controls-container.landscape {
-			width: 100%;
-			height: 100%; /* Match container height */
-			border-top: 1px solid rgba(39, 255, 153, 0.2);
-			border-left: none;
-		}
-
-		.controls-layout {
-			flex-direction: row;
-			padding: 0 24px;
-			height: 100%;
-		}
+	/* Footer spacing */
+	.controls-footer {
+		height: 12px;
 	}
 
 	.controls-layout {
 		width: 100%;
 		height: 100%;
 		display: flex;
+		padding: 0.5rem 1rem; /* Reduced padding */
+		max-width: 1200px;
+		position: relative;
+	}
+
+	.main-controls {
+		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		gap: 1rem;
-	}
-
-	.controls-container.landscape .controls-layout {
-		flex-direction: column;
-		justify-content: center;
-	}
-
-	.joystick-zone {
 		flex: 1;
+		padding: 0;
+		gap: 0;
+		position: relative;
+	}
+
+	/* Joystick styles */
+	.joystick-container {
+		flex: 0 0 var(--joystick-size);
 		display: flex;
 		justify-content: center;
 		align-items: center;
+		height: 100%;
+		touch-action: none;
+		margin-left: 2rem;
 	}
 
 	.joystick-base {
 		width: var(--joystick-size);
 		height: var(--joystick-size);
-		background: rgba(43, 43, 43, 0.15);
-		border: 2px solid rgba(39, 255, 153, 0.3);
+		background: var(--controls-background);
+		border: 2px solid var(--neon-color-dim);
 		border-radius: 50%;
 		position: relative;
 		display: flex;
 		justify-content: center;
 		align-items: center;
-	}
-
-	/* Mobile optimizations */
-	@media (max-width: 480px) {
-		.joystick-base {
-			width: 80px;
-			height: 80px;
-		}
-
-		.arcade-button {
-			width: 56px;
-			height: 56px;
-		}
+		touch-action: none;
 	}
 
 	.joystick-handle {
-		width: 50px;
-		height: 50px;
+		width: 60%; /* Increased from 50% */
+		height: 60%; /* Increased from 50% */
 		background: rgba(39, 255, 153, 0.2);
 		border: 2px solid rgba(39, 255, 153, 0.5);
 		border-radius: 50%;
 		position: absolute;
 		will-change: transform;
+		touch-action: none;
+		transform-style: preserve-3d;
+		backface-visibility: hidden;
 	}
 
 	.joystick-indicator {
@@ -367,48 +473,39 @@
 		border-radius: 50%;
 	}
 
-	.action-zone {
-		flex: 1;
+	/* Button styles */
+	.buttons-container {
+		margin-right: 2rem;
 		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-		justify-content: center;
+		align-items: center; /* Changed from flex-direction: column */
 	}
 
 	.action-buttons {
 		display: flex;
-		gap: 1rem;
-		justify-content: center;
+		gap: 1rem; /* Reduced from 1.5rem */
+		justify-content: flex-end;
 	}
 
 	.arcade-button {
 		width: var(--button-size);
 		height: var(--button-size);
-		background: transparent;
-		border: none;
 		position: relative;
-		cursor: pointer;
-	}
-
-	.button-face::before {
-		content: '';
-		position: absolute;
-		top: -8px;
-		left: -8px;
-		right: -8px;
-		bottom: -8px;
+		touch-action: none;
 	}
 
 	.button-face {
 		width: 100%;
 		height: 100%;
-		background: rgba(43, 43, 43 0.3);
-		border: 2px solid rgba(39, 255, 153, 0.3);
+		background: var(--controls-background);
+		border: 2px solid var(--neon-color-dim);
 		border-radius: 50%;
 		position: absolute;
 		top: 0;
 		left: 0;
 		transition: transform 0.1s ease;
+		will-change: transform;
+		backface-visibility: hidden;
+		transform-style: preserve-3d;
 	}
 
 	.arcade-button.active .button-face {
@@ -427,29 +524,29 @@
 		color: rgba(39, 255, 153, 0.8);
 		white-space: nowrap;
 		text-align: center;
+		pointer-events: none;
 	}
 
+	/* Utility buttons */
 	.utility-buttons {
 		display: flex;
-		justify-content: center;
-		gap: 2rem;
-		margin-top: 0.5rem;
+		gap: 12px;
 	}
 
 	.utility-button {
-		width: 50px;
-		height: 30px;
-		background: rgba(43, 43, 43 0.3);
-		border: 2px solid rgba(39, 255, 153, 0.3);
+		min-width: var(--utility-button-size);
+		height: var(--utility-button-size);
+		padding: 0 8px;
+		background: var(--controls-background);
+		border: 1px solid var(--neon-color-dim);
 		border-radius: 4px;
-		color: rgba(39, 255, 153, 0.8);
-		font-family: 'Press Start 2P', monospace;
-		font-size: 0.7rem;
-		cursor: pointer;
+		/* color: rgba(39, 255, 153, 0.8); */
+		color: rgba(245, 245, 220, 1);
+		font-family: 'Roboto', 'Press Start 2P', monospace;
+		font-weight: 600;
+		text-transform: uppercase;
+		font-size: 0.75rem;
 		transition: all 0.1s ease;
-		display: flex;
-		align-items: center;
-		justify-content: center;
 	}
 
 	.utility-button.active {
@@ -458,98 +555,94 @@
 		box-shadow: 0 0 10px rgba(39, 255, 153, 0.3);
 	}
 
-	/* Theme-specific styles */
+	/* Responsive styles */
+	@media (max-width: 1023px) {
+		.controls-container {
+			display: flex;
+		}
+	}
+
+	/* Portrait mode */
+	@media (orientation: portrait) {
+		.controls-container {
+			height: var(--controls-height);
+		}
+
+		.joystick-container {
+			margin-left: 1rem;
+		}
+
+		.buttons-container {
+			margin-right: 1rem;
+		}
+	}
+
+	/* Landscape mode */
+	@media (orientation: landscape) {
+		.controls-container {
+			height: var(--controls-height-landscape);
+		}
+
+		.controls-layout {
+			padding: 0.25rem 1rem;
+		}
+
+		.main-controls {
+			padding-top: 0; /* Removed padding-top */
+		}
+
+		.joystick-container {
+			margin-left: 3rem;
+		}
+
+		.buttons-container {
+			margin-right: 3rem;
+		}
+	}
+
+	/* Mobile optimizations */
+	@media (max-width: 480px) {
+		:root {
+			--controls-height: 160px;
+			--controls-height-landscape: 120px;
+			--joystick-size: 76px;
+			--button-size: 64px;
+			--utility-button-size: 32px;
+			--controls-padding: 8px;
+		}
+	}
+
+	/* Touch optimizations */
+	@media (hover: none) and (pointer: coarse) {
+		.arcade-button {
+			transform: scale(1.05);
+		}
+
+		.joystick-base {
+			transform: scale(1.05);
+		}
+	}
+
+	/* Safe area insets */
+	@supports (padding: env(safe-area-inset-bottom)) {
+		.controls-container {
+			padding-bottom: env(safe-area-inset-bottom);
+		}
+	}
+
+	/* Theme adjustments */
 	:global(html.light) .controls-container {
-		background: rgba(240, 240, 240, 0.95);
+		--controls-background: rgba(43, 43, 43, 0.45);
 	}
 
 	:global(html.light) .button-label {
 		color: rgba(30, 30, 30, 0.9);
 	}
 
-	/* Mobile optimizations */
-	@media (max-width: 480px) {
-		.arcade-button {
-			width: 60px;
-			height: 60px;
-		}
-
-		.button-label {
-			font-size: 0.6rem;
-			bottom: -20px;
-		}
-
-		.utility-button {
-			width: 45px;
-			height: 25px;
-			font-size: 0.6rem;
-		}
-	}
-
-	/* Landscape optimizations */
-	@media (orientation: landscape) and (max-height: 500px) {
-		.joystick-base {
-			width: 80px;
-			height: 80px;
-		}
-
-		.joystick-handle {
-			width: 40px;
-			height: 40px;
-		}
-
-		.arcade-button {
-			width: 50px;
-			height: 50px;
-		}
-
-		.utility-button {
-			width: 40px;
-			height: 24px;
-			font-size: 0.6rem;
-		}
-
-		.button-label {
-			font-size: 0.55rem;
-			bottom: -18px;
-		}
-	}
-
-	/* Safe area insets for modern devices */
-	@supports (padding: max(0px)) {
-		.controls-container {
-			padding-bottom: max(1rem, env(safe-area-inset-bottom));
-			padding-left: max(1rem, env(safe-area-inset-left));
-			padding-right: max(1rem, env(safe-area-inset-right));
-		}
-	}
-
-	/* Performance optimizations */
-	.joystick-handle,
-	.button-face {
-		will-change: transform;
-		backface-visibility: hidden;
-		transform-style: preserve-3d;
-	}
-
-	/* Custom arcade glow effects */
-	.arcade-button::after {
-		content: '';
-		position: absolute;
-		inset: -2px;
-		border-radius: 50%;
-		background: transparent;
-		border: 2px solid rgba(39, 255, 153, 0);
-		transition: all 0.3s ease;
-	}
-
-	.arcade-button:hover::after {
-		border-color: rgba(39, 255, 153, 0.2);
-		box-shadow: 0 0 10px rgba(39, 255, 153, 0.3);
-	}
-
-	.arcade-button.active::after {
-		border-color: rgba(39, 255, 153, 0.4);
-		box-shadow: 0 0 15px rgba(39, 255, 153, 0.5);
+	:global(html.light) .joystick-base,
+	:global(html.light) .arcade-button .button-face,
+	:global(html.light) .utility-button {
+		background: rgba(200, 200, 200, 0.2);
+		border-color: rgba(39, 255, 153, 0.25);
 	}
 </style>
