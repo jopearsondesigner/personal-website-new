@@ -56,32 +56,36 @@
 		}
 	}
 
-	function handleJoystickStart(event: TouchEvent | MouseEvent) {
+	function handleJoystickStart(event) {
 		if (!browser || !mounted) return;
 
 		event.preventDefault();
 		isJoystickActive = true;
-		const touch = 'touches' in event ? event.touches[0] : event;
+
+		const touch = event.type === 'touchstart' ? event.touches[0] : event;
 		const rect = joystickBase.getBoundingClientRect();
 
 		startPos = {
-			x: touch.clientX - rect.left - rect.width / 2,
-			y: touch.clientY - rect.top - rect.height / 2
+			x: touch.clientX - rect.left,
+			y: touch.clientY - rect.top
 		};
 
 		handleJoystickMove(event);
 	}
 
-	function handleJoystickMove(event: TouchEvent | MouseEvent) {
+	function handleJoystickMove(event) {
 		if (!browser || !mounted || !isJoystickActive) return;
 
 		event.preventDefault();
-		const touch = 'touches' in event ? event.touches[0] : event;
+		const touch = event.type === 'touchmove' ? event.touches[0] : event;
 		if (!touch) return;
 
 		const rect = joystickBase.getBoundingClientRect();
-		let x = touch.clientX - rect.left - rect.width / 2;
-		let y = touch.clientY - rect.top - rect.height / 2;
+		const centerX = rect.width / 2;
+		const centerY = rect.height / 2;
+
+		let x = touch.clientX - rect.left - centerX;
+		let y = touch.clientY - rect.top - centerY;
 
 		const distance = Math.sqrt(x * x + y * y);
 		if (distance > JOYSTICK_MAX_DISTANCE) {
@@ -90,55 +94,16 @@
 			y = Math.sin(angle) * JOYSTICK_MAX_DISTANCE;
 		}
 
-		// Apply deadzone
-		const normalizedX =
-			Math.abs(x) < JOYSTICK_DEADZONE * JOYSTICK_MAX_DISTANCE ? 0 : x / JOYSTICK_MAX_DISTANCE;
-		const normalizedY =
-			Math.abs(y) < JOYSTICK_DEADZONE * JOYSTICK_MAX_DISTANCE ? 0 : y / JOYSTICK_MAX_DISTANCE;
-
 		joystickPos.set({ x, y });
 
-		// Generate keyboard events based on joystick position
-		if (normalizedX > 0.5) {
-			if (!keys.ArrowRight) {
-				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
-				keys.ArrowRight = true;
-				keys.ArrowLeft = false;
-			}
-		} else if (normalizedX < -0.5) {
-			if (!keys.ArrowLeft) {
-				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
-				keys.ArrowLeft = true;
-				keys.ArrowRight = false;
-			}
-		} else {
-			if (keys.ArrowLeft) {
-				window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
-				keys.ArrowLeft = false;
-			}
-			if (keys.ArrowRight) {
-				window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
-				keys.ArrowRight = false;
-			}
-		}
+		// Update controls based on joystick position
+		const normalizedX = x / JOYSTICK_MAX_DISTANCE;
+		const normalizedY = y / JOYSTICK_MAX_DISTANCE;
 
-		// Handle vertical movement (jumping)
-		if (normalizedY < -0.5 && !keys.ArrowUp) {
-			window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
-			keys.ArrowUp = true;
-		} else if (normalizedY >= -0.5 && keys.ArrowUp) {
-			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowUp' }));
-			keys.ArrowUp = false;
-		}
-
-		// Throttle control events
-		if (!lastJoystickUpdate || Date.now() - lastJoystickUpdate >= JOYSTICK_UPDATE_RATE) {
-			dispatch('control', {
-				type: 'joystick',
-				value: { x: normalizedX, y: normalizedY }
-			});
-			lastJoystickUpdate = Date.now();
-		}
+		dispatch('control', {
+			type: 'joystick',
+			value: { x: normalizedX, y: normalizedY }
+		});
 	}
 
 	function handleJoystickEnd() {
@@ -256,21 +221,34 @@
 	onDestroy(() => {
 		if (!browser) return;
 
+		// Clean up all event listeners
+		if (controlsContainer) {
+			controlsContainer.removeEventListener('touchmove', (e) => e.preventDefault());
+		}
+
+		if (joystickBase) {
+			joystickBase.removeEventListener('mousedown', handleJoystickStart);
+			joystickBase.removeEventListener('touchstart', handleJoystickStart);
+		}
+
+		window.removeEventListener('mousemove', handleJoystickMove);
+		window.removeEventListener('mouseup', handleJoystickEnd);
+		window.removeEventListener('touchmove', handleJoystickMove);
+		window.removeEventListener('touchend', handleJoystickEnd);
+		window.removeEventListener('resize', updateLayoutOrientation);
+		window.removeEventListener('orientationchange', updateLayoutOrientation);
+
 		// Release any held keys
-		Object.keys(keys).forEach((key) => {
+		const heldKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', ' ', 'x', 'p', 'Enter'];
+		heldKeys.forEach((key) => {
 			if (keys[key]) {
 				window.dispatchEvent(new KeyboardEvent('keyup', { key }));
 				keys[key] = false;
 			}
 		});
 
-		window.removeEventListener('resize', updateLayoutOrientation);
-		window.removeEventListener('orientationchange', updateLayoutOrientation);
-		window.removeEventListener('mousemove', handleJoystickMove);
-		window.removeEventListener('mouseup', handleJoystickEnd);
-		window.removeEventListener('touchmove', handleJoystickMove);
-		window.removeEventListener('touchend', handleJoystickEnd);
-
+		// Reset state
+		joystickPos.set({ x: 0, y: 0 });
 		mounted = false;
 	});
 </script>
@@ -381,9 +359,12 @@
 		display: flex;
 		flex-direction: column;
 		padding-bottom: env(safe-area-inset-bottom, 0);
-		/* Add backdrop blur */
-		backdrop-filter: blur(1.5px); /* Modern browsers */
+		backdrop-filter: blur(2.5px); /* Modern browsers */
 		-webkit-backdrop-filter: blur(2.5px); /* Safari */
+		z-index: 1000;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
 	}
 
 	/* Header styles */
@@ -558,7 +539,20 @@
 	/* Responsive styles */
 	@media (max-width: 1023px) {
 		.controls-container {
-			display: flex;
+			display: flex !important;
+			flex-direction: column;
+			padding-bottom: env(safe-area-inset-bottom);
+		}
+
+		.joystick-container {
+			margin: 0;
+			padding: 1rem;
+			touch-action: none;
+		}
+
+		.action-buttons {
+			padding: 1rem;
+			gap: 1.5rem;
 		}
 	}
 
@@ -614,12 +608,9 @@
 
 	/* Touch optimizations */
 	@media (hover: none) and (pointer: coarse) {
+		.joystick-base,
 		.arcade-button {
-			transform: scale(1.05);
-		}
-
-		.joystick-base {
-			transform: scale(1.05);
+			transform: scale(1.2);
 		}
 	}
 

@@ -79,6 +79,37 @@
 		calculateScale();
 	}, 100);
 
+	function handleControlInput(event) {
+		const { detail } = event;
+
+		if (detail.type === 'joystick') {
+			// Handle joystick input
+			const { x, y } = detail.value;
+			if (Math.abs(x) > 0.5) {
+				window.dispatchEvent(
+					new KeyboardEvent('keydown', { key: x > 0 ? 'ArrowRight' : 'ArrowLeft' })
+				);
+			}
+			if (y < -0.5) {
+				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+			}
+		} else if (detail.type === 'button') {
+			// Handle button input
+			const keyMap = {
+				ammo: ' ',
+				heatseeker: 'x',
+				pause: 'p',
+				enter: 'Enter'
+			};
+
+			if (keyMap[detail.button]) {
+				window.dispatchEvent(
+					new KeyboardEvent(detail.value ? 'keydown' : 'keyup', { key: keyMap[detail.button] })
+				);
+			}
+		}
+	}
+
 	onMount(() => {
 		if (!browser) return;
 
@@ -105,7 +136,30 @@
 
 	onDestroy(() => {
 		if (!browser) return;
+
+		if (canvas) {
+			canvas.removeEventListener('touchstart', (e) => e.preventDefault());
+			canvas.removeEventListener('touchmove', (e) => e.preventDefault());
+			canvas.removeEventListener('touchend', (e) => e.preventDefault());
+		}
+
+		// Remove body/html modifications if they were set
+		if (isMobileDevice) {
+			document.body.style.removeProperty('overflow');
+			document.body.style.removeProperty('position');
+			document.body.style.removeProperty('width');
+			document.documentElement.style.removeProperty('position');
+			document.documentElement.style.removeProperty('width');
+		}
+
 		window.removeEventListener('resize', handleResize);
+		window.removeEventListener('orientationchange', handleOrientation);
+
+		// Cancel any ongoing animations
+		if (state.animationFrame) {
+			cancelAnimationFrame(state.animationFrame);
+		}
+
 		mounted = false;
 	});
 </script>
