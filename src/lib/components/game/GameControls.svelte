@@ -73,6 +73,172 @@
 		}
 	}
 
+	const JOYSTICK_CONFIG = {
+		// Increased from 0.15 for better subtle control
+		DEADZONE: 0.12,
+		// Expanded range for more precise movement
+		MAX_DISTANCE: 60,
+		// Added for smoother acceleration
+		MIN_MOVEMENT_THRESHOLD: 0.05,
+		// Multiple zones for progressive response
+		MOVEMENT_ZONES: {
+			PRECISE: 0.3,
+			NORMAL: 0.6,
+			RAPID: 1.0
+		},
+		// Dynamic acceleration curve
+		ACCELERATION: {
+			PRECISE: 1.2,
+			NORMAL: 1.5,
+			RAPID: 1.8
+		},
+		// Enhanced smoothing
+		SPRING: {
+			STIFFNESS: 0.25, // Reduced from 0.3
+			DAMPING: 0.85 // Increased from 0.8
+		},
+		// Haptic feedback configuration
+		HAPTIC: {
+			DURATION: {
+				TAP: 50,
+				ZONE_CHANGE: 20
+			},
+			INTENSITY: {
+				LIGHT: 0.3,
+				MEDIUM: 0.5,
+				STRONG: 0.8
+			}
+		}
+	};
+
+	// Enhanced movement calculation with progressive zones
+	function calculateMovement(normalizedValue, distance) {
+		const absValue = Math.abs(normalizedValue);
+		const sign = Math.sign(normalizedValue);
+
+		// Apply progressive acceleration based on movement zones
+		let acceleration;
+		let multiplier;
+
+		if (distance < JOYSTICK_CONFIG.MOVEMENT_ZONES.PRECISE) {
+			acceleration = JOYSTICK_CONFIG.ACCELERATION.PRECISE;
+			multiplier = 0.7;
+		} else if (distance < JOYSTICK_CONFIG.MOVEMENT_ZONES.NORMAL) {
+			acceleration = JOYSTICK_CONFIG.ACCELERATION.NORMAL;
+			multiplier = 0.85;
+		} else {
+			acceleration = JOYSTICK_CONFIG.ACCELERATION.RAPID;
+			multiplier = 1.0;
+		}
+
+		// Enhanced smoothing for low-speed precision
+		if (absValue < JOYSTICK_CONFIG.MIN_MOVEMENT_THRESHOLD) {
+			return 0;
+		}
+
+		// Apply smoothed acceleration curve
+		const acceleratedValue = sign * Math.pow(absValue, acceleration) * multiplier;
+
+		// Add subtle easing for more natural feel
+		return acceleratedValue * (0.95 + Math.sin(absValue * Math.PI) * 0.05);
+	}
+
+	// State management for movement zones
+	let currentMovementZone = 'PRECISE'; // Initialize with the most precise zone
+	let previousMovementZone = 'PRECISE';
+
+	// Enhanced joystick position handling with improved precision
+	function handleJoystickMove(event) {
+		if (!browser || !mounted || !isJoystickActive) return;
+
+		event.preventDefault();
+		const touch = event.type === 'touchmove' ? event.touches[0] : event;
+		if (!touch) return;
+
+		const rect = joystickBase.getBoundingClientRect();
+		const { x, y } = calculateRelativePosition(touch, rect);
+
+		const distance = Math.sqrt(x * x + y * y);
+		let normalizedX = x / JOYSTICK_CONFIG.MAX_DISTANCE;
+		let normalizedY = y / JOYSTICK_CONFIG.MAX_DISTANCE;
+
+		// Enhanced deadzone handling with smooth transition
+		const deadzoneTransition = (value, deadzone) => {
+			const absValue = Math.abs(value);
+			if (absValue < deadzone) return 0;
+			const sign = Math.sign(value);
+			// Smooth transition from deadzone
+			return (sign * (absValue - deadzone)) / (1 - deadzone);
+		};
+
+		normalizedX = deadzoneTransition(normalizedX, JOYSTICK_CONFIG.DEADZONE);
+		normalizedY = deadzoneTransition(normalizedY, JOYSTICK_CONFIG.DEADZONE);
+
+		// Calculate enhanced movement values
+		const moveX = calculateMovement(normalizedX, distance / JOYSTICK_CONFIG.MAX_DISTANCE);
+		const moveY = calculateMovement(normalizedY, distance / JOYSTICK_CONFIG.MAX_DISTANCE);
+
+		// Update visual position with improved spring configuration
+		if (distance > JOYSTICK_CONFIG.MAX_DISTANCE) {
+			const angle = Math.atan2(y, x);
+			const constrainedX = Math.cos(angle) * JOYSTICK_CONFIG.MAX_DISTANCE;
+			const constrainedY = Math.sin(angle) * JOYSTICK_CONFIG.MAX_DISTANCE;
+			joystickPos.set(
+				{
+					x: constrainedX,
+					y: constrainedY
+				},
+				{
+					stiffness: JOYSTICK_CONFIG.SPRING.STIFFNESS,
+					damping: JOYSTICK_CONFIG.SPRING.DAMPING
+				}
+			);
+		} else {
+			joystickPos.set(
+				{ x, y },
+				{
+					stiffness: JOYSTICK_CONFIG.SPRING.STIFFNESS,
+					damping: JOYSTICK_CONFIG.SPRING.DAMPING
+				}
+			);
+		}
+
+		// Provide haptic feedback for zone changes
+		previousMovementZone = currentMovementZone;
+		const currentDistance = Math.sqrt(moveX * moveX + moveY * moveY);
+
+		if (
+			currentDistance > JOYSTICK_CONFIG.MOVEMENT_ZONES.RAPID &&
+			previousMovementZone !== 'RAPID'
+		) {
+			triggerHaptic(
+				JOYSTICK_CONFIG.HAPTIC.DURATION.ZONE_CHANGE,
+				JOYSTICK_CONFIG.HAPTIC.INTENSITY.STRONG
+			);
+			currentMovementZone = 'RAPID';
+		} else if (
+			currentDistance > JOYSTICK_CONFIG.MOVEMENT_ZONES.NORMAL &&
+			previousMovementZone !== 'NORMAL'
+		) {
+			triggerHaptic(
+				JOYSTICK_CONFIG.HAPTIC.DURATION.ZONE_CHANGE,
+				JOYSTICK_CONFIG.HAPTIC.INTENSITY.MEDIUM
+			);
+			currentMovementZone = 'NORMAL';
+		}
+
+		// Dispatch enhanced control values
+		dispatch('control', {
+			type: 'joystick',
+			value: {
+				x: Math.max(-1, Math.min(1, moveX)),
+				y: Math.max(-1, Math.min(1, moveY)),
+				distance: currentDistance,
+				zone: currentMovementZone
+			}
+		});
+	}
+
 	function handleJoystickStart(event) {
 		if (!browser || !mounted) return;
 
@@ -90,59 +256,22 @@
 		handleJoystickMove(event);
 	}
 
-	function handleJoystickMove(event) {
-		if (!browser || !mounted || !isJoystickActive) return;
-
-		event.preventDefault();
-		const touch = event.type === 'touchmove' ? event.touches[0] : event;
-		if (!touch) return;
-
-		const rect = joystickBase.getBoundingClientRect();
-		const { x, y } = calculateRelativePosition(touch, rect);
-
-		const distance = Math.sqrt(x * x + y * y);
-		let normalizedX = x / JOYSTICK_MAX_DISTANCE;
-		let normalizedY = y / JOYSTICK_MAX_DISTANCE;
-
-		// Apply deadzone
-		if (Math.abs(normalizedX) < JOYSTICK_DEADZONE) normalizedX = 0;
-		if (Math.abs(normalizedY) < JOYSTICK_DEADZONE) normalizedY = 0;
-
-		// Apply progressive acceleration
-		normalizedX = applyProgressiveAcceleration(normalizedX, JOYSTICK_ACCELERATION);
-		normalizedY = applyProgressiveAcceleration(normalizedY, JOYSTICK_ACCELERATION);
-
-		// Update visual position
-		if (distance > JOYSTICK_MAX_DISTANCE) {
-			const angle = Math.atan2(y, x);
-			const constrainedX = Math.cos(angle) * JOYSTICK_MAX_DISTANCE;
-			const constrainedY = Math.sin(angle) * JOYSTICK_MAX_DISTANCE;
-			joystickPos.set({ x: constrainedX, y: constrainedY });
-		} else {
-			joystickPos.set({ x, y });
-		}
-
-		// Dispatch normalized values
-		dispatch('control', {
-			type: 'joystick',
-			value: {
-				x: Math.max(-1, Math.min(1, normalizedX)),
-				y: Math.max(-1, Math.min(1, normalizedY))
-			}
-		});
-	}
-
 	function handleJoystickEnd() {
 		if (!browser || !mounted) return;
 
 		isJoystickActive = false;
 		joystickPos.set({ x: 0, y: 0 });
 
+		// Reset movement zone
+		currentMovementZone = 'PRECISE';
+		previousMovementZone = 'PRECISE';
+
 		// Release all held keys
 		if (keys.ArrowLeft) {
 			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
 			keys.ArrowLeft = false;
 		}
+
 		if (keys.ArrowRight) {
 			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
 			keys.ArrowRight = false;
@@ -168,10 +297,10 @@
 		// Map buttons to keyboard events
 		let keyEvent;
 		switch (button) {
-			case 'ammo':
+			case 'heatseeker': // Changed from 'ammo'
 				keyEvent = new KeyboardEvent('keydown', { key: ' ' });
 				break;
-			case 'heatseeker':
+			case 'ammo': // Changed from 'heatseeker'
 				keyEvent = new KeyboardEvent('keydown', { key: 'x' });
 				break;
 			case 'pause':
@@ -197,10 +326,10 @@
 
 		let keyEvent;
 		switch (button) {
-			case 'ammo':
+			case 'heatseeker': // Changed from 'ammo'
 				keyEvent = new KeyboardEvent('keyup', { key: ' ' });
 				break;
-			case 'heatseeker':
+			case 'ammo': // Changed from 'heatseeker'
 				keyEvent = new KeyboardEvent('keyup', { key: 'x' });
 				break;
 			case 'pause':
@@ -357,8 +486,9 @@
 			</button>
 		</div>
 
-	<!-- Footer spacing -->
-	<div class="controls-footer" />
+		<!-- Footer spacing -->
+		<div class="controls-footer" />
+	</div>
 </div>
 
 <style>
@@ -437,18 +567,16 @@
 		position: relative;
 	}
 
-
-
 	.button-label {
 		position: absolute;
 		top: 50%;
 		left: 50%;
 		transform: translate(-50%, -50%);
-		font-family: 'Press Start 2P', monospace;
-		font-size: 0.75rem;
+		font-family: 'Roboto', 'Press Start 2P', monospace;
+		font-size: 0.4375rem;
 		color: rgba(245, 245, 220, 1);
 		text-shadow:
-			0 0 8px rgba(39, 255, 153, 0.6),
+			0 0 4px rgba(39, 255, 153, 0.6),
 			0 0 16px rgba(39, 255, 153, 0.4);
 		pointer-events: none;
 		text-transform: uppercase;
@@ -517,7 +645,7 @@
 		touch-action: none;
 		transform-style: preserve-3d;
 		backface-visibility: hidden;
-		transition: transform 0.05s ease-out;
+		transition: transform 0.05s cubic-bezier(0.4, 0, 0.2, 1);
 		box-shadow: 0 0 15px rgba(39, 255, 153, 0.3);
 	}
 
@@ -571,19 +699,6 @@
 		transform: scale(0.95);
 		background: rgba(39, 255, 153, 0.2);
 		box-shadow: 0 0 15px rgba(39, 255, 153, 0.4);
-	}
-
-	.button-label {
-		position: absolute;
-		bottom: -25px;
-		left: 50%;
-		transform: translateX(-50%);
-		font-family: 'Press Start 2P', monospace;
-		font-size: 0.7rem;
-		color: rgba(39, 255, 153, 0.8);
-		white-space: nowrap;
-		text-align: center;
-		pointer-events: none;
 	}
 
 	/* Utility buttons */

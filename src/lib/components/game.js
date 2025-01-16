@@ -22,6 +22,9 @@ let difficultyIncreaseScore = 500;
 let enemyInterval = 240;
 let heatseekerAmmo = [];
 let heatseekers = 0;
+let lastTime = 0;
+let deltaTime = 0;
+const FRAME_TARGET = 1000 / 60; // Target 60 FPS
 const maxHeatseekers = 3;
 const cometInterval = 2000;
 const ammoDropInterval = 3000;
@@ -2854,8 +2857,15 @@ function setupGame() {
 	};
 }
 
-function animate() {
+function animate(currentTime = 0) {
 	if (!gameActive || isPaused) return;
+
+	// Calculate delta time
+	deltaTime = currentTime - lastTime;
+	lastTime = currentTime;
+
+	// Normalize movement speed
+	const timeMultiplier = deltaTime / FRAME_TARGET;
 
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 	gameFrame++;
@@ -2932,8 +2942,9 @@ function animate() {
 
 	checkCollisions();
 
-	if (player.movingLeft && player.x > 0) player.x -= player.speed;
-	if (player.movingRight && player.x < canvas.width - player.width) player.x += player.speed;
+	if (player.movingLeft && player.x > 0) player.x -= player.speed * timeMultiplier;
+	if (player.movingRight && player.x < canvas.width - player.width)
+		player.x += player.speed * timeMultiplier;
 
 	if (enemies.length < maxEnemies && gameFrame % enemyInterval === 0) {
 		enemies.push(new Enemy());
