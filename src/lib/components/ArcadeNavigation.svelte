@@ -160,7 +160,25 @@
 				data-screen={item.label.toLowerCase().replace(/\s+/g, '-')}
 			>
 				{#if selectedIndex === index}
-					<span class="arrow" aria-hidden="true">▶</span>
+					<span class="arrow" aria-hidden="true">
+						<svg
+							id="Layer_1"
+							data-name="Layer 1"
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 16.56 17.67"
+						>
+							<defs>
+								<style>
+									.cls-1 {
+										fill: #c7ffdd;
+										stroke: #e5e7eb;
+										stroke-miterlimit: 10;
+									}
+								</style>
+							</defs>
+							<polygon class="cls-1" points=".5 .83 15.5 8.83 .5 16.83 .5 .83" />
+						</svg>
+					</span>
 				{/if}
 				<span class="menu-text">{item.label}</span>
 			</button>
@@ -300,6 +318,8 @@
 		display: inline-block;
 		width: 0.75em;
 		text-align: center;
+		width: 10px;
+		min-width: 10px;
 	}
 
 	.menu-text {

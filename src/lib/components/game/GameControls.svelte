@@ -11,10 +11,27 @@
 	const dispatch = createEventDispatcher();
 
 	// Constants for joystick configuration
-	const JOYSTICK_DEADZONE = 0.1;
-	const JOYSTICK_MAX_DISTANCE = 40;
-	const JOYSTICK_UPDATE_RATE = 16; // ~60fps
-	const BUTTON_HAPTIC_DURATION = 50; // ms
+	const JOYSTICK_DEADZONE = 0.15; // Increased from 0.1 for better control
+	const JOYSTICK_MAX_DISTANCE = 50; // Increased for better range
+	const JOYSTICK_UPDATE_RATE = 16;
+	const BUTTON_HAPTIC_DURATION = 50;
+	const JOYSTICK_ACCELERATION = 0.8; // New constant for progressive acceleration
+
+	function calculateRelativePosition(touch, rect) {
+		const centerX = rect.width / 2;
+		const centerY = rect.height / 2;
+
+		return {
+			x: touch.clientX - rect.left - centerX,
+			y: touch.clientY - rect.top - centerY
+		};
+	}
+
+	function applyProgressiveAcceleration(value, acceleration) {
+		const absValue = Math.abs(value);
+		const sign = Math.sign(value);
+		return sign * Math.pow(absValue, acceleration);
+	}
 
 	let keys = {
 		ArrowLeft: false,
@@ -81,28 +98,37 @@
 		if (!touch) return;
 
 		const rect = joystickBase.getBoundingClientRect();
-		const centerX = rect.width / 2;
-		const centerY = rect.height / 2;
-
-		let x = touch.clientX - rect.left - centerX;
-		let y = touch.clientY - rect.top - centerY;
+		const { x, y } = calculateRelativePosition(touch, rect);
 
 		const distance = Math.sqrt(x * x + y * y);
+		let normalizedX = x / JOYSTICK_MAX_DISTANCE;
+		let normalizedY = y / JOYSTICK_MAX_DISTANCE;
+
+		// Apply deadzone
+		if (Math.abs(normalizedX) < JOYSTICK_DEADZONE) normalizedX = 0;
+		if (Math.abs(normalizedY) < JOYSTICK_DEADZONE) normalizedY = 0;
+
+		// Apply progressive acceleration
+		normalizedX = applyProgressiveAcceleration(normalizedX, JOYSTICK_ACCELERATION);
+		normalizedY = applyProgressiveAcceleration(normalizedY, JOYSTICK_ACCELERATION);
+
+		// Update visual position
 		if (distance > JOYSTICK_MAX_DISTANCE) {
 			const angle = Math.atan2(y, x);
-			x = Math.cos(angle) * JOYSTICK_MAX_DISTANCE;
-			y = Math.sin(angle) * JOYSTICK_MAX_DISTANCE;
+			const constrainedX = Math.cos(angle) * JOYSTICK_MAX_DISTANCE;
+			const constrainedY = Math.sin(angle) * JOYSTICK_MAX_DISTANCE;
+			joystickPos.set({ x: constrainedX, y: constrainedY });
+		} else {
+			joystickPos.set({ x, y });
 		}
 
-		joystickPos.set({ x, y });
-
-		// Update controls based on joystick position
-		const normalizedX = x / JOYSTICK_MAX_DISTANCE;
-		const normalizedY = y / JOYSTICK_MAX_DISTANCE;
-
+		// Dispatch normalized values
 		dispatch('control', {
 			type: 'joystick',
-			value: { x: normalizedX, y: normalizedY }
+			value: {
+				x: Math.max(-1, Math.min(1, normalizedX)),
+				y: Math.max(-1, Math.min(1, normalizedY))
+			}
 		});
 	}
 
@@ -337,12 +363,12 @@
 <style>
 	/* Root variables */
 	:root {
-		--controls-height: 180px;
-		--controls-height-landscape: 140px;
-		--joystick-size: 84px;
-		--button-size: 72px;
-		--utility-button-size: 24px;
-		--controls-padding: 12px;
+		--controls-height: 200px;
+		--controls-height-landscape: 160px;
+		--joystick-size: 100px;
+		--button-size: 80px;
+		--utility-button-size: 32px;
+		--controls-padding: 16px;
 		--neon-color: rgba(39, 255, 153, 1);
 		--neon-color-dim: rgba(39, 255, 153, 0.3);
 		--controls-background: rgba(245, 245, 220, 0.05);
@@ -445,6 +471,12 @@
 		touch-action: none;
 		transform-style: preserve-3d;
 		backface-visibility: hidden;
+		transition: transform 0.05s ease-out;
+		box-shadow: 0 0 15px rgba(39, 255, 153, 0.3);
+	}
+
+	.joystick-handle:active {
+		box-shadow: 0 0 25px rgba(39, 255, 153, 0.5);
 	}
 
 	.joystick-indicator {
@@ -597,12 +629,21 @@
 	/* Mobile optimizations */
 	@media (max-width: 480px) {
 		:root {
-			--controls-height: 160px;
-			--controls-height-landscape: 120px;
-			--joystick-size: 76px;
-			--button-size: 64px;
+			--controls-height: 180px;
+			--controls-height-landscape: 140px;
+			--joystick-size: 90px;
+			--button-size: 72px;
 			--utility-button-size: 32px;
 			--controls-padding: 8px;
+		}
+
+		.joystick-container {
+			transform-origin: center;
+			transition: transform 0.3s ease;
+		}
+
+		.landscape .joystick-container {
+			transform: scale(0.9);
 		}
 	}
 

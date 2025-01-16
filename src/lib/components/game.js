@@ -1,5 +1,6 @@
 // game.js
 
+// Guardians of Lumara: Vela's Voyage
 // Initialize variables without accessing document
 let canvas = null;
 let ctx = null;
