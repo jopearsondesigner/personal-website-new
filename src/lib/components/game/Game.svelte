@@ -316,7 +316,7 @@
 		position: relative;
 		z-index: 1;
 		width: 100%;
-		height: 100%;
+		/* height: 100%; */
 	}
 
 	#scanline-overlay {
@@ -347,8 +347,8 @@
 		.game-container {
 			border-radius: 12px;
 			outline: 4px solid rgba(34, 34, 34, 0.9);
-			/* Add specific mobile adjustments */
 			margin: 1rem;
+			height: auto;
 		}
 
 		.game-wrapper {
