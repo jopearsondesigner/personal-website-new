@@ -333,7 +333,7 @@
 
 		<div class="action-buttons">
 			<button
-				class="arcade-button ammo"
+				class="arcade-button primary-action"
 				class:active={buttons.ammo}
 				on:mousedown|preventDefault={(e) => handleButtonPress('ammo', e)}
 				on:mouseup={() => handleButtonRelease('ammo')}
@@ -341,10 +341,11 @@
 				on:touchend={() => handleButtonRelease('ammo')}
 			>
 				<span class="button-face" />
+				<span class="button-label">SHOOT</span>
 			</button>
 
 			<button
-				class="arcade-button heatseeker"
+				class="arcade-button secondary-action"
 				class:active={buttons.heatseeker}
 				on:mousedown|preventDefault={(e) => handleButtonPress('heatseeker', e)}
 				on:mouseup={() => handleButtonRelease('heatseeker')}
@@ -352,9 +353,9 @@
 				on:touchend={() => handleButtonRelease('heatseeker')}
 			>
 				<span class="button-face" />
+				<span class="button-label">MISSILE</span>
 			</button>
 		</div>
-	</div>
 
 	<!-- Footer spacing -->
 	<div class="controls-footer" />
@@ -434,6 +435,51 @@
 		padding: 0;
 		gap: 0;
 		position: relative;
+	}
+
+
+
+	.button-label {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		font-family: 'Press Start 2P', monospace;
+		font-size: 0.75rem;
+		color: rgba(245, 245, 220, 1);
+		text-shadow:
+			0 0 8px rgba(39, 255, 153, 0.6),
+			0 0 16px rgba(39, 255, 153, 0.4);
+		pointer-events: none;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		white-space: nowrap;
+		text-align: center;
+		width: 100%;
+		padding: 0 4px;
+	}
+
+	/* Mobile optimization */
+	@media (max-width: 480px) {
+		.button-label {
+			font-size: 0.65rem;
+		}
+	}
+
+	/* Active state animation */
+	.arcade-button.active .button-label {
+		transform: translate(-50%, -50%) scale(0.95);
+		text-shadow:
+			0 0 12px rgba(39, 255, 153, 0.8),
+			0 0 24px rgba(39, 255, 153, 0.6);
+	}
+
+	/* High contrast for light theme */
+	:global(html.light) .button-label {
+		color: rgba(0, 0, 0, 0.9);
+		text-shadow:
+			0 0 8px rgba(39, 255, 153, 0.8),
+			0 0 16px rgba(39, 255, 153, 0.6);
 	}
 
 	/* Joystick styles */
