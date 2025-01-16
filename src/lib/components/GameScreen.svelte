@@ -1,4 +1,3 @@
-<!-- src/lib/components/GameScreen.svelte -->
 <script lang="ts">
 	import { fade, fly } from 'svelte/transition';
 	import { browser } from '$app/environment';
@@ -6,10 +5,18 @@
 	import Game from '$components/game/Game.svelte';
 	import { onMount, onDestroy } from 'svelte';
 
+	// Define the store
+	const deviceState = writable({
+		isTouchDevice: false,
+		windowWidth: 0,
+		showControls: false
+	});
+
 	let decorativeText = [
 		{ text: 'HIGH SCORE', value: '000000', side: 'left' },
 		{ text: '1UP', value: '0', side: 'right' }
 	];
+
 	function initializeDeviceState() {
 		if (browser) {
 			// Check if we're on a touch device
@@ -30,13 +37,11 @@
 		}
 	}
 
-	// ADD onMount after the script starts:
+	// Lifecycle hooks
 	onMount(() => {
 		if (browser) {
 			initializeDeviceState();
-			window.addEventListener('resize', () => {
-				initializeDeviceState();
-			});
+			window.addEventListener('resize', initializeDeviceState);
 		}
 	});
 
