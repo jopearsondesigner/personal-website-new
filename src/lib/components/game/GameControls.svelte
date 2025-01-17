@@ -11,40 +11,67 @@
 	const dispatch = createEventDispatcher();
 
 	// Constants for joystick configuration
-	const JOYSTICK_DEADZONE = 0.15; // Increased from 0.1 for better control
-	const JOYSTICK_MAX_DISTANCE = 50; // Increased for better range
+	const JOYSTICK_DEADZONE = 0.08;
+	const JOYSTICK_MAX_DISTANCE = 40;
 	const JOYSTICK_UPDATE_RATE = 16;
+	const JOYSTICK_SENSITIVITY = 1.35;
+	const ACCELERATION_CURVE = 0.7;
 	const BUTTON_HAPTIC_DURATION = 50;
-	const JOYSTICK_ACCELERATION = 0.8; // New constant for progressive acceleration
-
-	function calculateRelativePosition(touch, rect) {
-		const centerX = rect.width / 2;
-		const centerY = rect.height / 2;
-
-		return {
-			x: touch.clientX - rect.left - centerX,
-			y: touch.clientY - rect.top - centerY
-		};
-	}
-
-	function applyProgressiveAcceleration(value, acceleration) {
-		const absValue = Math.abs(value);
-		const sign = Math.sign(value);
-		return sign * Math.pow(absValue, acceleration);
-	}
 
 	let keys = {
 		ArrowLeft: false,
 		ArrowRight: false,
-		ArrowUp: false
+		ArrowUp: false,
+		ArrowDown: false,
+		' ': false, // Space
+		x: false,
+		p: false,
+		Enter: false
 	};
+
+	const TOUCH_CONFIG = {
+		SAMPLING_RATE: 16, // ms
+		INITIAL_DELAY: 50, // ms
+		MAX_DELTA: 1.5 // Maximum change per update
+	};
+
+	function calculateNormalizedPosition(touch, rect) {
+		const centerX = rect.width / 2;
+		const centerY = rect.height / 2;
+
+		// Calculate raw position
+		const rawX = touch.clientX - rect.left - centerX;
+		const rawY = touch.clientY - rect.top - centerY;
+
+		// Calculate distance from center
+		const distance = Math.sqrt(rawX * rawX + rawY * rawY);
+
+		// Normalize values
+		return {
+			x: rawX / Math.max(rect.width / 2, distance),
+			y: rawY / Math.max(rect.height / 2, distance),
+			distance: distance
+		};
+	}
+
+	function applyProgressiveAcceleration(value) {
+		// Apply increased sensitivity
+		value *= JOYSTICK_SENSITIVITY;
+
+		// Apply custom acceleration curve
+		const absValue = Math.abs(value);
+		const sign = Math.sign(value);
+
+		// Use a custom curve that's more responsive at lower inputs
+		return sign * Math.pow(absValue, ACCELERATION_CURVE);
+	}
 
 	// Spring animation for smooth joystick movement
 	let joystickPos = spring(
 		{ x: 0, y: 0 },
 		{
-			stiffness: 0.3,
-			damping: 0.8
+			stiffness: 0.55, // Increased for faster response
+			damping: 0.45 // Reduced for less lag
 		}
 	);
 
@@ -152,89 +179,40 @@
 		if (!browser || !mounted || !isJoystickActive) return;
 
 		event.preventDefault();
-		const touch = event.type === 'touchmove' ? event.touches[0] : event;
+		const touch = event.type.startsWith('touch') ? event.touches[0] : event;
 		if (!touch) return;
 
 		const rect = joystickBase.getBoundingClientRect();
-		const { x, y } = calculateRelativePosition(touch, rect);
+		const { x: normalizedX, y: normalizedY, distance } = calculateNormalizedPosition(touch, rect);
 
-		const distance = Math.sqrt(x * x + y * y);
-		let normalizedX = x / JOYSTICK_CONFIG.MAX_DISTANCE;
-		let normalizedY = y / JOYSTICK_CONFIG.MAX_DISTANCE;
+		// Apply enhanced sensitivity for mobile
+		const sensitivity = distance < JOYSTICK_MAX_DISTANCE * 0.5 ? 1.2 : 1.5;
+		let adjustedX = normalizedX * JOYSTICK_MAX_DISTANCE * sensitivity;
+		let adjustedY = normalizedY * JOYSTICK_MAX_DISTANCE * sensitivity;
 
-		// Enhanced deadzone handling with smooth transition
-		const deadzoneTransition = (value, deadzone) => {
-			const absValue = Math.abs(value);
-			if (absValue < deadzone) return 0;
-			const sign = Math.sign(value);
-			// Smooth transition from deadzone
-			return (sign * (absValue - deadzone)) / (1 - deadzone);
-		};
+		// Apply smoother deadzone
+		const deadzoneValue = Math.min(JOYSTICK_DEADZONE, (distance / JOYSTICK_MAX_DISTANCE) * 0.1);
+		if (Math.abs(adjustedX) < deadzoneValue) adjustedX = 0;
+		if (Math.abs(adjustedY) < deadzoneValue) adjustedY = 0;
 
-		normalizedX = deadzoneTransition(normalizedX, JOYSTICK_CONFIG.DEADZONE);
-		normalizedY = deadzoneTransition(normalizedY, JOYSTICK_CONFIG.DEADZONE);
-
-		// Calculate enhanced movement values
-		const moveX = calculateMovement(normalizedX, distance / JOYSTICK_CONFIG.MAX_DISTANCE);
-		const moveY = calculateMovement(normalizedY, distance / JOYSTICK_CONFIG.MAX_DISTANCE);
-
-		// Update visual position with improved spring configuration
-		if (distance > JOYSTICK_CONFIG.MAX_DISTANCE) {
-			const angle = Math.atan2(y, x);
-			const constrainedX = Math.cos(angle) * JOYSTICK_CONFIG.MAX_DISTANCE;
-			const constrainedY = Math.sin(angle) * JOYSTICK_CONFIG.MAX_DISTANCE;
-			joystickPos.set(
-				{
-					x: constrainedX,
-					y: constrainedY
-				},
-				{
-					stiffness: JOYSTICK_CONFIG.SPRING.STIFFNESS,
-					damping: JOYSTICK_CONFIG.SPRING.DAMPING
-				}
-			);
-		} else {
-			joystickPos.set(
-				{ x, y },
-				{
-					stiffness: JOYSTICK_CONFIG.SPRING.STIFFNESS,
-					damping: JOYSTICK_CONFIG.SPRING.DAMPING
-				}
-			);
+		// Update visual position with dynamic constraint
+		const maxDistance = Math.min(JOYSTICK_MAX_DISTANCE, rect.width * 0.4);
+		if (distance > maxDistance) {
+			const angle = Math.atan2(adjustedY, adjustedX);
+			adjustedX = Math.cos(angle) * maxDistance;
+			adjustedY = Math.sin(angle) * maxDistance;
 		}
 
-		// Provide haptic feedback for zone changes
-		previousMovementZone = currentMovementZone;
-		const currentDistance = Math.sqrt(moveX * moveX + moveY * moveY);
+		joystickPos.set({
+			x: adjustedX,
+			y: adjustedY
+		});
 
-		if (
-			currentDistance > JOYSTICK_CONFIG.MOVEMENT_ZONES.RAPID &&
-			previousMovementZone !== 'RAPID'
-		) {
-			triggerHaptic(
-				JOYSTICK_CONFIG.HAPTIC.DURATION.ZONE_CHANGE,
-				JOYSTICK_CONFIG.HAPTIC.INTENSITY.STRONG
-			);
-			currentMovementZone = 'RAPID';
-		} else if (
-			currentDistance > JOYSTICK_CONFIG.MOVEMENT_ZONES.NORMAL &&
-			previousMovementZone !== 'NORMAL'
-		) {
-			triggerHaptic(
-				JOYSTICK_CONFIG.HAPTIC.DURATION.ZONE_CHANGE,
-				JOYSTICK_CONFIG.HAPTIC.INTENSITY.MEDIUM
-			);
-			currentMovementZone = 'NORMAL';
-		}
-
-		// Dispatch enhanced control values
 		dispatch('control', {
 			type: 'joystick',
 			value: {
-				x: Math.max(-1, Math.min(1, moveX)),
-				y: Math.max(-1, Math.min(1, moveY)),
-				distance: currentDistance,
-				zone: currentMovementZone
+				x: Math.max(-1, Math.min(1, adjustedX / maxDistance)),
+				y: Math.max(-1, Math.min(1, adjustedY / maxDistance))
 			}
 		});
 	}
@@ -632,6 +610,9 @@
 		justify-content: center;
 		align-items: center;
 		touch-action: none;
+		-webkit-touch-callout: none;
+		-webkit-tap-highlight-color: transparent;
+		transform: translateZ(0);
 	}
 
 	.joystick-handle {
@@ -645,7 +626,7 @@
 		touch-action: none;
 		transform-style: preserve-3d;
 		backface-visibility: hidden;
-		transition: transform 0.05s cubic-bezier(0.4, 0, 0.2, 1);
+		transition: transform 0.05s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 		box-shadow: 0 0 15px rgba(39, 255, 153, 0.3);
 	}
 
@@ -809,10 +790,15 @@
 	}
 
 	/* Touch optimizations */
+
 	@media (hover: none) and (pointer: coarse) {
-		.joystick-base,
-		.arcade-button {
-			transform: scale(1.2);
+		.joystick-base {
+			transform: scale(1.1); /* Slightly larger on mobile */
+		}
+
+		.joystick-handle {
+			width: 65%; /* Larger touch target */
+			height: 65%;
 		}
 	}
 

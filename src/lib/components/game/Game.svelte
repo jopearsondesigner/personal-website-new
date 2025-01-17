@@ -1,4 +1,3 @@
-<!-- src/lib/components/game/Game.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
@@ -14,6 +13,25 @@
 		showControls: false
 	});
 
+	// Add game state store
+	const gameState = writable({
+		animationFrame: null
+	});
+
+	// Add device detection function
+	function detectDevice() {
+		if (!browser) return;
+		const isMobile =
+			/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+			(navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+
+		deviceState.update((state) => ({
+			...state,
+			isTouchDevice: isMobile,
+			windowWidth: window.innerWidth
+		}));
+	}
+
 	let canvas: HTMLCanvasElement;
 	let gameContainer: HTMLDivElement;
 	let scale = 1;
@@ -25,7 +43,7 @@
 	const GAME_WIDTH = 800;
 	const GAME_HEIGHT = 600;
 
-	// Debounced resize handler
+	// Debounce function
 	function debounce(func: Function, wait: number) {
 		let timeout: NodeJS.Timeout;
 		return function executedFunction(...args: any[]) {
@@ -38,18 +56,14 @@
 		};
 	}
 
-	// Improved device capability checking
-	// In Game.svelte
-
 	function calculateScale() {
 		if (!gameContainer || !browser || !mounted) return;
 
 		const containerWidth = gameContainer.clientWidth;
 		const containerHeight = gameContainer.clientHeight;
 
-		// Mobile-specific scale adjustment
-		const isMobile = window.innerWidth < 768; // Adjust breakpoint as needed
-		const mobileScaleFactor = isMobile ? 0.95 : 0.8; // Larger scale for mobile
+		const isMobile = get(deviceState).isTouchDevice;
+		const mobileScaleFactor = isMobile ? 0.95 : 0.8;
 		const currentScaleFactor = isMobile ? mobileScaleFactor : scaleFactor;
 
 		const availableWidth = containerWidth * currentScaleFactor;
@@ -58,10 +72,7 @@
 		const widthScale = availableWidth / GAME_WIDTH;
 		const heightScale = availableHeight / GAME_HEIGHT;
 
-		// Use the smaller scale to maintain aspect ratio
 		scale = Math.min(widthScale, heightScale);
-
-		// Enforce minimum scale for readability
 		scale = Math.max(scale, 0.5);
 
 		const wrapper = gameContainer.querySelector('.game-scale-wrapper');
@@ -73,9 +84,16 @@
 		}
 	}
 
+	// Handle orientation change
+	function handleOrientation() {
+		if (!browser || !mounted) return;
+		setTimeout(handleResize, 100);
+	}
+
 	// Debounced resize handler
 	const handleResize = debounce(() => {
 		if (!browser || !mounted) return;
+		detectDevice(); // Update device state on resize
 		calculateScale();
 	}, 100);
 
@@ -83,7 +101,6 @@
 		const { detail } = event;
 
 		if (detail.type === 'joystick') {
-			// Handle joystick input
 			const { x, y } = detail.value;
 			if (Math.abs(x) > 0.5) {
 				window.dispatchEvent(
@@ -94,7 +111,6 @@
 				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
 			}
 		} else if (detail.type === 'button') {
-			// Handle button input
 			const keyMap = {
 				ammo: ' ',
 				heatseeker: 'x',
@@ -116,6 +132,9 @@
 		mounted = true;
 		console.log('[Game] Component mounted');
 
+		// Detect device on mount
+		detectDevice();
+
 		if (canvas) {
 			try {
 				setupGame(canvas);
@@ -124,12 +143,7 @@
 				console.error('[Game] Game initialization error:', error);
 			}
 
-			// Handle orientation changes
-			window.addEventListener('orientationchange', () => {
-				setTimeout(handleResize, 100);
-			});
-
-			// Handle resize events
+			window.addEventListener('orientationchange', handleOrientation);
 			window.addEventListener('resize', handleResize);
 		}
 	});
@@ -143,8 +157,12 @@
 			canvas.removeEventListener('touchend', (e) => e.preventDefault());
 		}
 
+		// Get the current device state
+		const currentDeviceState = get(deviceState);
+		const currentGameState = get(gameState);
+
 		// Remove body/html modifications if they were set
-		if (isMobileDevice) {
+		if (currentDeviceState.isTouchDevice) {
 			document.body.style.removeProperty('overflow');
 			document.body.style.removeProperty('position');
 			document.body.style.removeProperty('width');
@@ -152,16 +170,21 @@
 			document.documentElement.style.removeProperty('width');
 		}
 
+		// Cancel any ongoing animations
+		if (currentGameState.animationFrame) {
+			cancelAnimationFrame(currentGameState.animationFrame);
+		}
+
 		window.removeEventListener('resize', handleResize);
 		window.removeEventListener('orientationchange', handleOrientation);
 
-		// Cancel any ongoing animations
-		if (state.animationFrame) {
-			cancelAnimationFrame(state.animationFrame);
-		}
-
 		mounted = false;
 	});
+
+	function adjustSize(size: number) {
+		scaleFactor = size;
+		calculateScale();
+	}
 </script>
 
 <div
@@ -316,7 +339,6 @@
 		position: relative;
 		z-index: 1;
 		width: 100%;
-		/* height: 100%; */
 	}
 
 	#scanline-overlay {
@@ -374,17 +396,16 @@
 		}
 	}
 
-	/* ADD orientation-specific adjustments */
 	@media (orientation: portrait) and (max-width: 1023px) {
 		.game-wrapper {
-			height: calc(100% - 120px); /* Account for controls */
+			height: calc(100% - 120px);
 		}
 	}
 
 	@media (orientation: landscape) and (max-width: 1023px) {
 		.game-wrapper {
 			height: calc(100vh - var(--controls-height-landscape));
-			padding-right: 0; /* Remove the 250px padding */
+			padding-right: 0;
 		}
 	}
 </style>
