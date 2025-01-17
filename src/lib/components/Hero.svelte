@@ -12,6 +12,7 @@
 	import { layoutStore } from '$lib/stores/store';
 	import GameControls from '$lib/components/game/GameControls.svelte';
 
+	let currentTimeline;
 	let header: HTMLElement;
 	let insertConcept: HTMLElement;
 	let arcadeScreen: HTMLElement;
@@ -20,28 +21,67 @@
 	let currentScreen = 'main';
 	let stars = [];
 	let showControls = false;
+	let updateTimeout;
+	let lastAnimationFrame;
+	const DEBUG = false;
+	const PERF_METRICS = DEBUG
+		? {
+				starUpdateTimes: [] as number[],
+				lastPerfLog: Date.now(),
+				logInterval: 5000 // Log every 5 seconds
+			}
+		: null;
 
-	$: {
-		stars = $animationState.stars;
-	}
+	$: stars = $animationState.stars;
 
 	$: if (browser) {
 		document.documentElement.style.setProperty('--navbar-height', `${$layoutStore.navbarHeight}px`);
 	}
 
-	$: if (currentScreen === 'main') {
-		if (browser) {
-			setTimeout(() => {
+	let cachedElements: {
+		header: HTMLElement | null;
+		insertConcept: HTMLElement | null;
+		arcadeScreen: HTMLElement | null;
+	} | null = null;
+
+	$: {
+		if (currentScreen === 'main' && browser) {
+			const initializeElements = () => {
 				const elements = {
 					header: document.querySelector('#header'),
 					insertConcept: document.querySelector('#insert-concept'),
 					arcadeScreen: document.querySelector('#arcade-screen')
 				};
-				startAnimations(elements);
-			}, 50);
+
+				if (elements.header && elements.insertConcept && elements.arcadeScreen) {
+					cachedElements = elements;
+					startAnimations(elements);
+				} else {
+					// Only retry once to prevent infinite loops
+					setTimeout(initializeElements, 50);
+				}
+			};
+
+			initializeElements();
+		} else if (currentScreen !== 'main') {
+			stopAnimations();
+			cachedElements = null;
 		}
-	} else {
-		stopAnimations();
+	}
+
+	export function handleScreenChange(event: CustomEvent) {
+		const newScreen = event.detail;
+		screenStore.set(newScreen);
+		currentScreen = newScreen;
+	}
+
+	function batchDomUpdates(updates) {
+		return new Promise((resolve) => {
+			requestAnimationFrame(() => {
+				updates();
+				resolve();
+			});
+		});
 	}
 
 	function startAnimations(elements: {
@@ -52,109 +92,170 @@
 		const state = get(animationState);
 		if (state.isAnimating) return;
 
+		const getOptimalFrameRate = () => {
+			if (!browser) return 16;
+			const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+			const isLowPerfDevice = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+			if (isMobile || isLowPerfDevice) {
+				return 32; // ~30fps for mobile/low-perf devices
+			}
+			return 16; // ~60fps for desktop
+		};
+
 		const { header, insertConcept, arcadeScreen } = elements;
 
+		// Create stars once and reuse
 		let starArray = animations.initStars(300);
 		animationState.update((s) => ({ ...s, stars: starArray }));
 
-		function updateStarField() {
+		// Batch star updates using requestAnimationFrame
+		const updateStarField = () => {
 			if (get(screenStore) !== 'main') return;
 
-			starArray = animations.updateStars(starArray);
-			animationState.update((s) => ({ ...s, stars: starArray }));
-			state.animationFrame = requestAnimationFrame(updateStarField);
-		}
+			if (lastAnimationFrame) {
+				cancelAnimationFrame(lastAnimationFrame);
+			}
 
-		updateStarField();
+			clearTimeout(updateTimeout);
 
-		if (!header || !insertConcept || !arcadeScreen) {
-			setTimeout(() => {
-				const updatedElements = {
-					header: document.querySelector('#header'),
-					insertConcept: document.querySelector('#insert-concept'),
-					arcadeScreen: document.querySelector('#arcade-screen')
-				};
-				if (
-					updatedElements.header &&
-					updatedElements.insertConcept &&
-					updatedElements.arcadeScreen
-				) {
-					startAnimations(updatedElements);
+			// Use optimal frame rate
+			const frameRate = getOptimalFrameRate();
+
+			updateTimeout = setTimeout(() => {
+				starArray = animations.updateStars(starArray);
+				// Batch the star updates
+				requestAnimationFrame(() => {
+					animationState.update((s) => ({ ...s, stars: [...starArray] }));
+				});
+			}, frameRate);
+
+			lastAnimationFrame = requestAnimationFrame(updateStarField);
+			state.animationFrame = lastAnimationFrame;
+
+			if (DEBUG && PERF_METRICS) {
+				const startTime = performance.now();
+				// Your existing star update code
+				const endTime = performance.now();
+				PERF_METRICS.starUpdateTimes.push(endTime - startTime);
+
+				// Log performance metrics every 5 seconds
+				if (Date.now() - PERF_METRICS.lastPerfLog > PERF_METRICS.logInterval) {
+					const avg =
+						PERF_METRICS.starUpdateTimes.reduce((a, b) => a + b, 0) /
+						PERF_METRICS.starUpdateTimes.length;
+					console.log(`Avg star update time: ${avg.toFixed(2)}ms`);
+					PERF_METRICS.starUpdateTimes = [];
+					PERF_METRICS.lastPerfLog = Date.now();
 				}
-			}, 100);
-			return;
-		}
+			}
+		};
 
-		const timeline = gsap.timeline();
-
-		timeline.to([header, insertConcept], {
-			duration: 0.1,
-			y: '+=2',
-			repeat: -1,
-			yoyo: true,
-			ease: 'power1.inOut'
+		// Create a single GSAP timeline for all animations
+		const timeline = gsap.timeline({
+			paused: true,
+			onComplete: () => timeline.restart()
 		});
 
-		timeline.to(
-			insertConcept,
-			{
-				duration: 1,
-				opacity: 0,
+		currentTimeline = timeline;
+
+		// Add all animations to the timeline
+		timeline
+			.to([header, insertConcept], {
+				duration: 0.1,
+				y: '+=2',
 				repeat: -1,
 				yoyo: true,
-				ease: 'none'
-			},
-			0
-		);
+				ease: 'power1.inOut'
+			})
+			.to(
+				insertConcept,
+				{
+					duration: 1,
+					opacity: 0,
+					repeat: -1,
+					yoyo: true,
+					ease: 'none'
+				},
+				0
+			);
 
+		// Optimize glitch effect interval
 		const glitchInterval = setInterval(() => {
-			if (get(screenStore) === 'main') {
-				animations.createGlitchEffect(header);
-				animations.createGlitchEffect(insertConcept);
+			if (get(screenStore) === 'main' && document.visibilityState === 'visible') {
+				requestAnimationFrame(() => {
+					animations.createGlitchEffect(header);
+					animations.createGlitchEffect(insertConcept);
+				});
 			}
 		}, 100);
 
-		function animateGlow() {
+		// Optimize glow animation
+		const animateGlow = async () => {
 			if (!arcadeScreen || get(screenStore) !== 'main') return;
 
 			const duration = Math.random() * 2 + 1;
-			arcadeScreen.classList.toggle('glow');
-
-			state.glowAnimation = gsap.delayedCall(duration, () => {
+			await batchDomUpdates(() => {
 				arcadeScreen.classList.toggle('glow');
+			});
+
+			state.glowAnimation = gsap.delayedCall(duration, async () => {
+				await batchDomUpdates(() => {
+					arcadeScreen.classList.toggle('glow');
+				});
 				gsap.delayedCall(Math.random() * 1 + 0.5, animateGlow);
 			});
-		}
+		};
 
+		// Start animations
+		timeline.play();
+		updateStarField();
 		animateGlow();
 
+		// Update animation state
 		animationState.set({
 			...state,
+			timeline,
 			glitchInterval,
 			isAnimating: true
 		});
 	}
 
+	// Location: Replace the stopAnimations function with this optimized version
 	function stopAnimations() {
 		const state = get(animationState);
 
-		if (state.glitchInterval) clearInterval(state.glitchInterval);
-		if (state.animationFrame) cancelAnimationFrame(state.animationFrame);
-		if (state.glowAnimation) state.glowAnimation.kill();
+		// Kill the timeline first
+		if (currentTimeline) {
+			currentTimeline.kill();
+			currentTimeline = null;
+		}
 
+		// Clear all intervals and animations
+		if (state.glitchInterval) clearInterval(state.glitchInterval);
+		if (state.animationFrame) {
+			cancelAnimationFrame(state.animationFrame);
+			state.animationFrame = null;
+		}
+		if (state.glowAnimation) {
+			state.glowAnimation.kill();
+			state.glowAnimation = null;
+		}
+		if (state.timeline) {
+			state.timeline.kill();
+			state.timeline = null;
+		}
+
+		// Kill all GSAP animations last
 		gsap.killTweensOf('*');
 
+		// Reset animation state
 		animationState.set({
 			...state,
 			stars: [],
-			isAnimating: false
+			isAnimating: false,
+			timeline: null
 		});
-	}
-
-	export function handleScreenChange(event) {
-		const newScreen = event.detail;
-		screenStore.set(newScreen);
-		currentScreen = newScreen;
 	}
 
 	function handleControlInput(event) {
@@ -196,7 +297,19 @@
 
 	onDestroy(() => {
 		if (!browser) return;
+
+		// Clear all timeouts and frames
+		clearTimeout(updateTimeout);
+		if (lastAnimationFrame) {
+			cancelAnimationFrame(lastAnimationFrame);
+		}
+
+		// Call stopAnimations to handle all animation cleanup
 		stopAnimations();
+
+		// Clear stars array and cached elements
+		stars = null;
+		cachedElements = null;
 	});
 </script>
 
@@ -418,6 +531,10 @@
 		opacity: 0.7;
 	}
 
+	.glow-effect {
+		will-change: opacity;
+	}
+
 	/* ==========================================================================
    Typography
    ========================================================================== */
@@ -496,6 +613,9 @@
 		backface-visibility: hidden;
 		perspective: 1000px;
 		will-change: transform, opacity;
+		contain: layout style paint;
+		content-visibility: auto;
+		view-transition-name: screen;
 	}
 
 	/* ==========================================================================
@@ -721,6 +841,7 @@
 		pointer-events: none;
 		transform: translateZ(0);
 		will-change: transform;
+		contain: layout style;
 	}
 
 	/* ==========================================================================
