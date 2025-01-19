@@ -414,7 +414,7 @@
 		--bezel-thickness: 0.8vmin;
 
 		/* Typography */
-		--header-font-size: 60px;
+		--header-font-size: 70px;
 		--insert-concept-font-size: 3.45vmin;
 
 		/* Colors */

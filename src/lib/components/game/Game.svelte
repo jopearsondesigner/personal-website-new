@@ -308,6 +308,7 @@
 		align-items: center;
 		position: relative;
 		padding: 0;
+		overflow: hidden;
 	}
 
 	.game-scale-wrapper {
@@ -316,6 +317,7 @@
 		position: relative;
 		width: 100%;
 		height: 100%;
+		overflow: hidden;
 	}
 
 	.game-container {
@@ -330,6 +332,12 @@
 			0 0 30px rgba(0, 0, 0, 0.3);
 		overflow: hidden;
 		transform-origin: center;
+	}
+
+	canvas {
+		display: block;
+		margin: 0 auto;
+		position: relative;
 	}
 
 	.canvas-pixel-art {

@@ -440,18 +440,6 @@
 
 		<div class="action-buttons">
 			<button
-				class="arcade-button primary-action"
-				class:active={buttons.ammo}
-				on:mousedown|preventDefault={(e) => handleButtonPress('ammo', e)}
-				on:mouseup={() => handleButtonRelease('ammo')}
-				on:touchstart|preventDefault={(e) => handleButtonPress('ammo', e)}
-				on:touchend={() => handleButtonRelease('ammo')}
-			>
-				<span class="button-face" />
-				<span class="button-label">SHOOT</span>
-			</button>
-
-			<button
 				class="arcade-button secondary-action"
 				class:active={buttons.heatseeker}
 				on:mousedown|preventDefault={(e) => handleButtonPress('heatseeker', e)}
@@ -461,6 +449,18 @@
 			>
 				<span class="button-face" />
 				<span class="button-label">MISSILE</span>
+			</button>
+
+			<button
+				class="arcade-button primary-action"
+				class:active={buttons.ammo}
+				on:mousedown|preventDefault={(e) => handleButtonPress('ammo', e)}
+				on:mouseup={() => handleButtonRelease('ammo')}
+				on:touchstart|preventDefault={(e) => handleButtonPress('ammo', e)}
+				on:touchend={() => handleButtonRelease('ammo')}
+			>
+				<span class="button-face" />
+				<span class="button-label">SHOOT</span>
 			</button>
 		</div>
 
