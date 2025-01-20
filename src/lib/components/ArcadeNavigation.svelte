@@ -297,6 +297,59 @@
 		border-radius: 4px;
 		pointer-events: auto;
 		font-size: 0.5625rem;
+		position: relative;
+		text-shadow: 0 0 4px var(--arcade-neon-green-100);
+		transition: all 0.2s ease;
+		animation: attractMode 3s infinite;
+		box-shadow: 0 0 8px rgba(39, 255, 153, 0.2);
+	}
+
+	@keyframes attractMode {
+		0% {
+			border-color: var(--arcade-neon-green-200);
+			box-shadow: 0 0 8px rgba(39, 255, 153, 0.2);
+		}
+		50% {
+			border-color: var(--arcade-neon-green-100);
+			box-shadow: 0 0 12px rgba(39, 255, 153, 0.4);
+		}
+		100% {
+			border-color: var(--arcade-neon-green-200);
+			box-shadow: 0 0 8px rgba(39, 255, 153, 0.2);
+		}
+	}
+
+	.mobile .menu-button:hover {
+		transform: scale(1.02);
+		text-shadow: 0 0 8px var(--arcade-neon-green-100);
+		box-shadow:
+			0 0 15px rgba(39, 255, 153, 0.3),
+			inset 0 0 8px rgba(39, 255, 153, 0.2);
+	}
+
+	.mobile .menu-button:active {
+		transform: scale(0.98);
+		box-shadow:
+			0 0 10px rgba(39, 255, 153, 0.2),
+			inset 0 0 12px rgba(39, 255, 153, 0.3);
+	}
+
+	/* Optional: Add scan lines effect for extra authenticity */
+	.mobile .menu-button::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: linear-gradient(
+			to bottom,
+			transparent 0%,
+			rgba(39, 255, 153, 0.05) 50%,
+			transparent 100%
+		);
+		background-size: 100% 4px;
+		pointer-events: none;
 	}
 
 	.mobile .menu-item {

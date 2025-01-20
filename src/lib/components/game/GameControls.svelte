@@ -272,13 +272,12 @@
 		buttons[button] = true;
 		triggerHaptic();
 
-		// Map buttons to keyboard events
 		let keyEvent;
 		switch (button) {
-			case 'heatseeker': // Changed from 'ammo'
+			case 'missile':
 				keyEvent = new KeyboardEvent('keydown', { key: ' ' });
 				break;
-			case 'ammo': // Changed from 'heatseeker'
+			case 'shoot':
 				keyEvent = new KeyboardEvent('keydown', { key: 'x' });
 				break;
 			case 'pause':
@@ -289,12 +288,6 @@
 				break;
 		}
 		if (keyEvent) window.dispatchEvent(keyEvent);
-
-		dispatch('control', {
-			type: 'button',
-			button,
-			value: true
-		});
 	}
 
 	function handleButtonRelease(button: keyof typeof buttons) {
@@ -441,11 +434,11 @@
 		<div class="action-buttons">
 			<button
 				class="arcade-button secondary-action"
-				class:active={buttons.heatseeker}
-				on:mousedown|preventDefault={(e) => handleButtonPress('heatseeker', e)}
-				on:mouseup={() => handleButtonRelease('heatseeker')}
-				on:touchstart|preventDefault={(e) => handleButtonPress('heatseeker', e)}
-				on:touchend={() => handleButtonRelease('heatseeker')}
+				class:active={buttons.missile}
+				on:mousedown|preventDefault={(e) => handleButtonPress('missile', e)}
+				on:mouseup={() => handleButtonRelease('missile')}
+				on:touchstart|preventDefault={(e) => handleButtonPress('missile', e)}
+				on:touchend={() => handleButtonRelease('missile')}
 			>
 				<span class="button-face" />
 				<span class="button-label">MISSILE</span>
@@ -453,11 +446,11 @@
 
 			<button
 				class="arcade-button primary-action"
-				class:active={buttons.ammo}
-				on:mousedown|preventDefault={(e) => handleButtonPress('ammo', e)}
-				on:mouseup={() => handleButtonRelease('ammo')}
-				on:touchstart|preventDefault={(e) => handleButtonPress('ammo', e)}
-				on:touchend={() => handleButtonRelease('ammo')}
+				class:active={buttons.shoot}
+				on:mousedown|preventDefault={(e) => handleButtonPress('shoot', e)}
+				on:mouseup={() => handleButtonRelease('shoot')}
+				on:touchstart|preventDefault={(e) => handleButtonPress('shoot', e)}
+				on:touchend={() => handleButtonRelease('shoot')}
 			>
 				<span class="button-face" />
 				<span class="button-label">SHOOT</span>
@@ -551,8 +544,9 @@
 		left: 50%;
 		transform: translate(-50%, -50%);
 		font-family: 'Roboto', 'Press Start 2P', monospace;
-		font-size: 0.4375rem;
-		color: rgba(245, 245, 220, 1);
+		font-weight: 600;
+		font-size: 0.75rem;
+		color: rgba(245, 245, 220, 0.55);
 		text-shadow:
 			0 0 4px rgba(39, 255, 153, 0.6),
 			0 0 16px rgba(39, 255, 153, 0.4);
@@ -568,7 +562,7 @@
 	/* Mobile optimization */
 	@media (max-width: 480px) {
 		.button-label {
-			font-size: 0.65rem;
+			font-size: 0.75rem;
 		}
 	}
 
