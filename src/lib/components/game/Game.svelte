@@ -13,12 +13,10 @@
 		showControls: false
 	});
 
-	// Add game state store
 	const gameState = writable({
 		animationFrame: null
 	});
 
-	// Add device detection function
 	function detectDevice() {
 		if (!browser) return;
 		const isMobile =
@@ -43,7 +41,6 @@
 	const GAME_WIDTH = 800;
 	const GAME_HEIGHT = 600;
 
-	// Debounce function
 	function debounce(func: Function, wait: number) {
 		let timeout: NodeJS.Timeout;
 		return function executedFunction(...args: any[]) {
@@ -63,17 +60,22 @@
 		const containerHeight = gameContainer.clientHeight;
 
 		const isMobile = get(deviceState).isTouchDevice;
-		const mobileScaleFactor = isMobile ? 0.95 : 0.8;
+		const mobileScaleFactor = isMobile ? 0.98 : 0.8; // Increased from 0.95 to 0.98 for mobile
 		const currentScaleFactor = isMobile ? mobileScaleFactor : scaleFactor;
 
-		const availableWidth = containerWidth * currentScaleFactor;
-		const availableHeight = containerHeight * currentScaleFactor;
+		// Account for padding in available space calculation
+		const padding = isMobile ? 32 : 0; // 2rem (32px) padding on mobile
+		const availableWidth = (containerWidth - padding) * currentScaleFactor;
+		const availableHeight = (containerHeight - padding) * currentScaleFactor;
 
 		const widthScale = availableWidth / GAME_WIDTH;
 		const heightScale = availableHeight / GAME_HEIGHT;
 
+		// Use the smaller scale to maintain aspect ratio
 		scale = Math.min(widthScale, heightScale);
-		scale = Math.max(scale, 0.5);
+
+		// Ensure minimum scale for visibility
+		scale = Math.max(scale, isMobile ? 0.3 : 0.5);
 
 		const wrapper = gameContainer.querySelector('.game-scale-wrapper');
 		if (wrapper) {
@@ -84,16 +86,14 @@
 		}
 	}
 
-	// Handle orientation change
 	function handleOrientation() {
 		if (!browser || !mounted) return;
 		setTimeout(handleResize, 100);
 	}
 
-	// Debounced resize handler
 	const handleResize = debounce(() => {
 		if (!browser || !mounted) return;
-		detectDevice(); // Update device state on resize
+		detectDevice();
 		calculateScale();
 	}, 100);
 
@@ -132,7 +132,6 @@
 		mounted = true;
 		console.log('[Game] Component mounted');
 
-		// Detect device on mount
 		detectDevice();
 
 		if (canvas) {
@@ -157,11 +156,9 @@
 			canvas.removeEventListener('touchend', (e) => e.preventDefault());
 		}
 
-		// Get the current device state
 		const currentDeviceState = get(deviceState);
 		const currentGameState = get(gameState);
 
-		// Remove body/html modifications if they were set
 		if (currentDeviceState.isTouchDevice) {
 			document.body.style.removeProperty('overflow');
 			document.body.style.removeProperty('position');
@@ -170,7 +167,6 @@
 			document.documentElement.style.removeProperty('width');
 		}
 
-		// Cancel any ongoing animations
 		if (currentGameState.animationFrame) {
 			cancelAnimationFrame(currentGameState.animationFrame);
 		}
@@ -188,7 +184,7 @@
 </script>
 
 <div
-	class="game-wrapper relative w-full h-full flex items-center justify-center"
+	class="game-wrapper relative w-full h-full flex items-center justify-center p-4 md:p-0"
 	bind:this={gameContainer}
 >
 	<!-- Size Control Button -->
@@ -241,6 +237,56 @@
 </div>
 
 <style>
+	/* Base Layout Styles */
+	.game-wrapper {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		position: relative;
+		overflow: hidden;
+	}
+
+	.game-scale-wrapper {
+		transform-origin: center center;
+		will-change: transform;
+		position: relative;
+		width: 100%;
+		height: 100%;
+		overflow: visible;
+	}
+
+	.game-container {
+		position: relative;
+		width: 800px;
+		height: 600px;
+		background: black;
+		border-radius: 20px;
+		outline: 6px solid rgba(34, 34, 34, 0.9);
+		box-shadow:
+			inset 0 0 50px rgba(0, 0, 0, 0.5),
+			0 0 30px rgba(0, 0, 0, 0.3);
+		overflow: hidden;
+		transform-origin: center;
+	}
+
+	/* Canvas Styles */
+	canvas {
+		display: block;
+		margin: 0 auto;
+		position: relative;
+	}
+
+	.canvas-pixel-art {
+		image-rendering: pixelated;
+		image-rendering: crisp-edges;
+		background: black;
+		position: relative;
+		z-index: 1;
+	}
+
+	/* Size Control Styles */
 	.size-control-toggle {
 		position: absolute;
 		top: 1rem;
@@ -300,55 +346,7 @@
 		color: rgb(26, 26, 26);
 	}
 
-	.game-wrapper {
-		width: 100%;
-		height: 100%;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		position: relative;
-		padding: 0;
-		overflow: hidden;
-	}
-
-	.game-scale-wrapper {
-		transform-origin: center center;
-		will-change: transform;
-		position: relative;
-		width: 100%;
-		height: 100%;
-		overflow: hidden;
-	}
-
-	.game-container {
-		position: relative;
-		width: 800px;
-		height: 600px;
-		background: black;
-		border-radius: 20px;
-		outline: 6px solid rgba(34, 34, 34, 0.9);
-		box-shadow:
-			inset 0 0 50px rgba(0, 0, 0, 0.5),
-			0 0 30px rgba(0, 0, 0, 0.3);
-		overflow: hidden;
-		transform-origin: center;
-	}
-
-	canvas {
-		display: block;
-		margin: 0 auto;
-		position: relative;
-	}
-
-	.canvas-pixel-art {
-		image-rendering: pixelated;
-		image-rendering: crisp-edges;
-		background: black;
-		position: relative;
-		z-index: 1;
-		width: 100%;
-	}
-
+	/* Visual Effects */
 	#scanline-overlay {
 		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.1) 51%);
 		background-size: 100% 4px;
@@ -373,17 +371,30 @@
 		z-index: 2;
 	}
 
+	/* Animations */
+	@keyframes scanline {
+		0% {
+			background-position: 0 0;
+		}
+		100% {
+			background-position: 0 4px;
+		}
+	}
+
+	/* Media Queries */
 	@media (max-width: 1023px) {
 		.game-container {
 			border-radius: 12px;
 			outline: 4px solid rgba(34, 34, 34, 0.9);
-			margin: 1rem;
+			margin: 0;
 			height: auto;
+			width: 100%;
 		}
 
 		.game-wrapper {
 			padding: 1rem;
 		}
+
 		.game-scale-wrapper {
 			display: flex;
 			align-items: center;
@@ -392,15 +403,6 @@
 
 		.neon-glow {
 			border-radius: 14px;
-		}
-	}
-
-	@keyframes scanline {
-		0% {
-			background-position: 0 0;
-		}
-		100% {
-			background-position: 0 4px;
 		}
 	}
 
