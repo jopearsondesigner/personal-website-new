@@ -290,51 +290,46 @@
 	}
 
 	.mobile .menu-button {
-		background-color: rgba(43, 43, 43, 0.55);
+		background-color: rgba(43, 43, 43, 0.85);
 		color: var(--arcade-neon-green-100);
-		border: 1px solid var(--arcade-neon-green-200);
+		border: 2px solid var(--arcade-neon-green-200);
 		padding: 0.45rem 0.65rem;
-		border-radius: 4px;
+		border-radius: 2px;
 		pointer-events: auto;
 		font-size: 0.5625rem;
 		position: relative;
-		text-shadow: 0 0 4px var(--arcade-neon-green-100);
-		transition: all 0.2s ease;
-		animation: attractMode 3s infinite;
-		box-shadow: 0 0 8px rgba(39, 255, 153, 0.2);
-	}
-
-	@keyframes attractMode {
-		0% {
-			border-color: var(--arcade-neon-green-200);
-			box-shadow: 0 0 8px rgba(39, 255, 153, 0.2);
-		}
-		50% {
-			border-color: var(--arcade-neon-green-100);
-			box-shadow: 0 0 12px rgba(39, 255, 153, 0.4);
-		}
-		100% {
-			border-color: var(--arcade-neon-green-200);
-			box-shadow: 0 0 8px rgba(39, 255, 153, 0.2);
-		}
-	}
-
-	.mobile .menu-button:hover {
-		transform: scale(1.02);
-		text-shadow: 0 0 8px var(--arcade-neon-green-100);
+		overflow: hidden;
+		text-shadow:
+			0 0 4px var(--arcade-neon-green-100),
+			0 0 8px rgba(39, 255, 153, 0.7);
+		animation: arcadePulse 2s infinite;
 		box-shadow:
-			0 0 15px rgba(39, 255, 153, 0.3),
+			0 0 10px rgba(39, 255, 153, 0.3),
 			inset 0 0 8px rgba(39, 255, 153, 0.2);
 	}
 
-	.mobile .menu-button:active {
-		transform: scale(0.98);
-		box-shadow:
-			0 0 10px rgba(39, 255, 153, 0.2),
-			inset 0 0 12px rgba(39, 255, 153, 0.3);
+	/* The shimmer effect overlay */
+	/* Primary shimmer effect */
+	.mobile .menu-button::before {
+		content: '';
+		position: absolute;
+		top: -100%;
+		left: -100%;
+		width: 80%;
+		height: 300%;
+		background: linear-gradient(
+			120deg,
+			transparent,
+			rgba(39, 255, 153, 0.1) 10%,
+			rgba(255, 255, 255, 0.5) 20%,
+			rgba(39, 255, 153, 0.1) 30%,
+			transparent
+		);
+		animation: arcadeShimmer 4s infinite;
+		transform: rotate(35deg);
 	}
 
-	/* Optional: Add scan lines effect for extra authenticity */
+	/* Scanline effect */
 	.mobile .menu-button::after {
 		content: '';
 		position: absolute;
@@ -342,14 +337,69 @@
 		left: 0;
 		right: 0;
 		bottom: 0;
-		background: linear-gradient(
-			to bottom,
-			transparent 0%,
-			rgba(39, 255, 153, 0.05) 50%,
-			transparent 100%
+		background: repeating-linear-gradient(
+			0deg,
+			rgba(0, 0, 0, 0.15) 0px,
+			rgba(0, 0, 0, 0.15) 1px,
+			transparent 1px,
+			transparent 2px
 		);
-		background-size: 100% 4px;
 		pointer-events: none;
+		animation: scanline 8s linear infinite;
+	}
+
+	@keyframes arcadeShimmer {
+		0% {
+			transform: translateX(-200%) rotate(35deg);
+		}
+		15%,
+		100% {
+			transform: translateX(300%) rotate(35deg);
+		}
+	}
+
+	@keyframes arcadePulse {
+		0%,
+		100% {
+			border-color: rgba(39, 255, 153, 0.6);
+			box-shadow:
+				0 0 10px rgba(39, 255, 153, 0.3),
+				inset 0 0 8px rgba(39, 255, 153, 0.2);
+		}
+		50% {
+			border-color: rgba(39, 255, 153, 1);
+			box-shadow:
+				0 0 15px rgba(39, 255, 153, 0.5),
+				inset 0 0 12px rgba(39, 255, 153, 0.3);
+		}
+	}
+
+	@keyframes scanline {
+		0% {
+			background-position: 0 0;
+		}
+		100% {
+			background-position: 0 100%;
+		}
+	}
+
+	/* Add intense hover state */
+	.mobile .menu-button:hover {
+		background-color: rgba(43, 43, 43, 0.95);
+		text-shadow:
+			0 0 8px var(--arcade-neon-green-100),
+			0 0 16px rgba(39, 255, 153, 0.8);
+		animation: arcadePulse 1s infinite;
+	}
+
+	/* Add authentic "press" effect */
+	.mobile .menu-button:active {
+		transform: scale(0.95);
+		box-shadow:
+			0 0 5px rgba(39, 255, 153, 0.2),
+			inset 0 0 15px rgba(39, 255, 153, 0.4);
+		border-color: rgba(39, 255, 153, 0.8);
+		transition: transform 0.1s;
 	}
 
 	.mobile .menu-item {
