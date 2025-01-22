@@ -1,5 +1,7 @@
 // game.js
 
+// Guardains of Lumara: Vela's Voyage
+
 function getAssetPath(path) {
 	// Remove leading slash if present
 	path = path.startsWith('/') ? path.slice(1) : path;
@@ -34,6 +36,10 @@ let difficultyIncreaseScore = 500;
 let heatseekerAmmo = [];
 let heatseekers = 0;
 let ammoDropCounter = 0;
+let deltaTime = 0;
+const FRAME_TARGET = 1000 / 60; // Target 60 FPS
+let timeMultiplier = 1;
+let lastFrameTime = 0;
 const maxHeatseekers = 3;
 const cometInterval = 2000;
 const ammoDropInterval = 3000;
@@ -235,31 +241,37 @@ function initializePlayer() {
 				// Handle dashing
 				if (this.isDashing) {
 					this.dodgeEnemyProjectiles();
-					this.x += this.dashSpeed * (this.direction === 'left' ? -1 : 1);
-					this.dashDuration--;
+					this.x += this.dashSpeed * timeMultiplier * (this.direction === 'left' ? -1 : 1);
+					this.dashDuration -= timeMultiplier;
 					if (this.dashDuration <= 0) {
 						this.isDashing = false;
 						this.dashCooldown = this.dashCooldownDuration;
 					}
 				} else if (this.dashCooldown > 0) {
-					this.dashCooldown--;
+					this.dashCooldown -= timeMultiplier;
 				}
 
 				// Handle horizontal movement with acceleration and friction
 				if (this.movingLeft) {
-					this.velocityX = Math.max(this.velocityX - this.acceleration, -this.speed);
+					this.velocityX = Math.max(
+						this.velocityX - this.acceleration * timeMultiplier,
+						-this.speed
+					);
 					this.direction = 'left';
 				} else if (this.movingRight) {
-					this.velocityX = Math.min(this.velocityX + this.acceleration, this.speed);
+					this.velocityX = Math.min(
+						this.velocityX + this.acceleration * timeMultiplier,
+						this.speed
+					);
 					this.direction = 'right';
 				} else {
-					this.velocityX *= this.friction;
+					this.velocityX *= Math.pow(this.friction, timeMultiplier);
 					if (Math.abs(this.velocityX) < 0.1) {
 						this.velocityX = 0;
 					}
 				}
 
-				this.x += this.velocityX;
+				this.x += this.velocityX * timeMultiplier;
 
 				// Wrapping logic
 				if (this.x + this.width < 0) {
@@ -279,8 +291,8 @@ function initializePlayer() {
 					this.isJumping = false;
 				}
 				if (!this.isGrounded) {
-					this.velocityY += this.gravity;
-					this.y += this.velocityY;
+					this.velocityY += this.gravity * timeMultiplier;
+					this.y += this.velocityY * timeMultiplier;
 					if (this.y + this.height > canvas.height - 5) {
 						// Ensure Vela is 5px above the bottom
 						this.y = canvas.height - this.height - 5;
@@ -292,7 +304,7 @@ function initializePlayer() {
 
 				// Handle frame animation
 				if (this.movingLeft || this.movingRight) {
-					this.frameTimer++;
+					this.frameTimer += timeMultiplier;
 					if (this.frameTimer >= this.frameInterval) {
 						this.sequenceIndex = (this.sequenceIndex + 1) % this.frameSequence.length;
 						this.currentFrame = this.frameSequence[this.sequenceIndex] - 1;
@@ -391,8 +403,8 @@ class Star {
 		this.twinkleFactor = Math.random() * 1.5 + 0.5;
 	}
 
-	update() {
-		this.twinkleFactor += (Math.random() - 0.5) * 0.2;
+	update(timeMultiplier = 1) {
+		this.twinkleFactor += (Math.random() - 0.5) * 0.2 * timeMultiplier;
 		this.twinkleFactor = Math.max(0.5, Math.min(2, this.twinkleFactor));
 	}
 
@@ -445,8 +457,8 @@ class Cloud {
 		this.height = this.width * 0.6;
 	}
 
-	update() {
-		this.x -= this.speed;
+	update(timeMultiplier = 1) {
+		this.x -= this.speed * timeMultiplier;
 		if (this.x < -this.width) {
 			this.x = canvas.width;
 			this.y = Math.random() * 150;
@@ -482,15 +494,11 @@ class TrailParticle {
 		this.isActive = true;
 	}
 
-	update() {
-		this.lifespan -= 1;
-		this.opacity = this.lifespan / 50; // Gradually decrease opacity
-		if (this.lifespan > 0) {
-			this.x += this.speedX;
-			this.y += this.speedY;
-			this.size *= 0.98; // Slight reduction in size
-		} else {
-			this.isActive = false;
+	update(timeMultiplier = 1) {
+		this.y += this.speedY * timeMultiplier;
+		this.opacity -= 0.02 * timeMultiplier;
+		if (this.opacity <= 0) {
+			this.opacity = 0;
 		}
 	}
 
@@ -526,19 +534,18 @@ class SmokeParticle {
 		this.active = true;
 	}
 
-	update() {
+	update(timeMultiplier = 1) {
 		if (!this.active) return;
-
 		// Update positions based on speed
-		this.x += this.speedX;
-		this.y += this.speedY;
+		this.x += this.speedX * timeMultiplier;
+		this.y += this.speedY * timeMultiplier;
 		// Gradually increase size to simulate smoke expansion
-		this.size += 0.05;
+		this.size += 0.05 * timeMultiplier;
 		// Reduce lifespan each frame
-		this.lifespan -= 1.5;
+		this.lifespan -= 1.5 * timeMultiplier;
 		// Check for deactivation conditions
 		if (this.lifespan <= 0 || this.size > 10) {
-			this.active = false; // Deactivate if the particle becomes too large or too faint
+			this.active = false;
 		}
 	}
 
@@ -567,14 +574,14 @@ class Particle {
 		this.isActive = true;
 	}
 
-	update() {
-		this.lifespan -= 2;
+	update(timeMultiplier = 1) {
+		this.lifespan -= 2 * timeMultiplier;
 		if (this.lifespan > 0) {
-			this.x += this.speedX;
-			this.y += this.speedY;
-			this.size *= 0.99; // Slow reduction in size to linger longer
+			this.x += this.speedX * timeMultiplier;
+			this.y += this.speedY * timeMultiplier;
+			this.size *= Math.pow(0.99, timeMultiplier); // Slow reduction in size
 		} else {
-			this.isActive = false; // Deactivate particle
+			this.isActive = false;
 		}
 	}
 
@@ -609,10 +616,10 @@ class Explosion {
 		this.isActive = true; // Explosion is initially active
 	}
 
-	update() {
-		this.size += 2; // Grow the explosion size
+	update(timeMultiplier = 1) {
+		this.size += 2 * timeMultiplier;
 		if (this.size >= this.maxSize) {
-			this.isActive = false; // Deactivate the explosion
+			this.isActive = false;
 		}
 	}
 
@@ -835,13 +842,13 @@ class ShieldEffect {
 		}
 	}
 
-	update() {
-		this.glowOpacity += this.glowDirection;
+	update(timeMultiplier = 1) {
+		this.glowOpacity += this.glowDirection * timeMultiplier;
 		if (this.glowOpacity >= 1 || this.glowOpacity <= 0.5) {
 			this.glowDirection = -this.glowDirection;
 		}
 		this.sparkles.forEach((sparkle) => {
-			sparkle.angle += this.sparkleSpeed;
+			sparkle.angle += this.sparkleSpeed * timeMultiplier;
 		});
 	}
 
@@ -927,10 +934,10 @@ class FloatingText {
 		this.blinkRate = 10;
 	}
 
-	update() {
-		this.y -= 0.5;
-		this.opacity -= 1 / this.duration;
-		this.duration -= 1;
+	update(timeMultiplier = 1) {
+		this.y -= 0.5 * timeMultiplier;
+		this.opacity -= (1 / this.duration) * timeMultiplier;
+		this.duration -= timeMultiplier;
 	}
 
 	draw(ctx) {
@@ -1498,7 +1505,7 @@ function dropPowerUps() {
 function handleHeatseekers() {
 	projectiles.forEach((projectile) => {
 		if (projectile.isHeatseeker) {
-			projectile.update(enemies); // Pass the enemies array
+			projectile.update(timeMultiplier, enemies); // Pass the enemies array
 			projectile.draw(ctx);
 		}
 	});
@@ -1520,34 +1527,6 @@ projectiles.forEach((projectile, index) => {
 function createProjectile(x, y) {
 	sounds.shoot.play();
 	return new AnimatedProjectile(x, y, false, false); // Example creation of a projectile
-}
-
-function shoot(isHeatseeker = false, isPowerUp = false) {
-	const currentTime = Date.now();
-	const currentCooldown = rapidFireMode ? velaShootingCooldown / 2 : velaShootingCooldown;
-
-	if (currentTime - lastVelaShotTime < currentCooldown) {
-		return; // Exit function if cooldown period has not passed
-	}
-
-	const projectileX = player.x + player.width / 2;
-	const projectileY = player.y;
-
-	if (isHeatseeker && (unlimitedHeatseekersMode || heatseekerCount > 0)) {
-		projectiles.push(new HeatseekerProjectile(projectileX, projectileY));
-		console.log('Heatseeker created:', projectileX, projectileY);
-		if (!unlimitedHeatseekersMode) {
-			heatseekerCount--; // Only decrement if not in unlimited heatseekers mode
-		}
-	} else if (isPowerUp) {
-		projectiles.push(new AnimatedProjectile(projectileX, projectileY, false, false, true));
-	} else {
-		projectiles.push(new AnimatedProjectile(projectileX, projectileY, false, false));
-	}
-
-	drawHUD(); // Ensure HUD is updated after shooting
-
-	lastVelaShotTime = currentTime; // Update last shot time to current time
 }
 
 function shakeScreen(duration, magnitude) {
@@ -1852,27 +1831,29 @@ class Enemy {
 		this.numberOfExplosionFrames = 3;
 	}
 
-	update() {
-		// Movement patterns (sine wave, cosine wave, vertical bobbing, diving)
+	update(timeMultiplier = 1) {
+		const adjustedSpeed = this.speed * timeMultiplier;
+		const adjustedDiveSpeed = this.diveSpeed * timeMultiplier;
 		switch (this.patternIndex) {
 			case 0: // Sine wave
-				this.y += this.speed;
-				this.x += Math.sin(gameFrame * this.curveFrequency) * this.curveAmplitude;
+				this.y += adjustedSpeed;
+				this.x += Math.sin(gameFrame * this.curveFrequency) * this.curveAmplitude * timeMultiplier;
 				break;
 			case 1: // Cosine wave
-				this.y += this.speed;
-				this.x += Math.cos(gameFrame * this.curveFrequency) * this.curveAmplitude;
+				this.y += adjustedSpeed;
+				this.x += Math.cos(gameFrame * this.curveFrequency) * this.curveAmplitude * timeMultiplier;
 				break;
 			case 2: // Vertical bobbing
-				this.y += this.speed;
-				this.y += Math.sin(gameFrame * this.verticalBobFrequency) * this.verticalBobHeight;
+				this.y += adjustedSpeed;
+				this.y +=
+					Math.sin(gameFrame * this.verticalBobFrequency) * this.verticalBobHeight * timeMultiplier;
 				break;
 			case 3: // Diving towards the player
 				if (this.y < canvas.height / 2) {
-					this.y += this.speed; // Move down until reaching halfway
+					this.y += adjustedSpeed;
 				} else {
-					this.y += this.diveSpeed; // Dive down faster towards the player
-					this.x += (this.targetX - this.x) * 0.03; // Adjust X to move towards target
+					this.y += adjustedDiveSpeed;
+					this.x += (this.targetX - this.x) * 0.03 * timeMultiplier;
 				}
 				break;
 		}
@@ -1903,7 +1884,7 @@ class Enemy {
 						this.toBeRemoved = true;
 					}
 				}
-				projectiles.splice(pIndex, 1); // Remove the projectile that caused the hit
+				projectiles.splice(pIndex, 1);
 			}
 		});
 
@@ -1958,7 +1939,7 @@ class Enemy {
 
 		// Update fire particles
 		this.fireParticles.forEach((particle, index) => {
-			particle.update();
+			particle.update(timeMultiplier);
 			if (particle.lifespan <= 0) {
 				this.fireParticles.splice(index, 1);
 			}
@@ -1973,16 +1954,16 @@ class Enemy {
 		}
 
 		// Shooting logic: enemies shoot more frequently if they are aggressive
-		if (Math.random() < (this.isAggressive ? 0.005 : 0.0025)) {
+		if (Math.random() < (this.isAggressive ? 0.005 : 0.0025) * timeMultiplier) {
 			enemyProjectiles.push(new AnimatedProjectile(this.x + this.width / 2 - 6.5, this.y, true));
 		}
 
 		// Make the enemy more aggressive if it has been hit
 		if (this.isAggressive) {
-			this.speed += 0.1; // Increase speed
-			this.diveSpeed += 0.2; // Increase dive speed
-			this.curveAmplitude += 0.5; // Increase curve amplitude
-			this.curveFrequency += 0.005; // Increase curve frequency
+			this.speed += 0.1 * timeMultiplier;
+			this.diveSpeed += 0.2 * timeMultiplier;
+			this.curveAmplitude += 0.5 * timeMultiplier;
+			this.curveFrequency += 0.005 * timeMultiplier;
 		}
 	}
 
@@ -1990,7 +1971,7 @@ class Enemy {
 		if (this.isExploding) {
 			// Corrected frame indices for explosion animation (frames 7-9 are indices 6-8)
 			let explosionFrameIndex = 6 + (this.explosionFrame - 1);
-			if (explosionFrameIndex > 8) explosionFrameIndex = 8; // Ensure we do not go out of bounds
+			if (explosionFrameIndex > 8) explosionFrameIndex = 8;
 			ctx.drawImage(
 				this.spriteImage,
 				explosionFrameIndex * this.spriteWidth,
@@ -2005,7 +1986,7 @@ class Enemy {
 		} else if (this.isAggressive) {
 			// Handle aggressive flight animation (frames 3-4)
 			// Let's cycle between frames 3-4 for aggression mode animation
-			let aggressiveFrameIndex = 2 + (this.frameX % 2); // Use frameX to toggle between 2 and 3
+			let aggressiveFrameIndex = 2 + (this.frameX % 2);
 			ctx.drawImage(
 				this.spriteImage,
 				aggressiveFrameIndex * this.spriteWidth,
@@ -2072,9 +2053,10 @@ class CityEnemy extends Enemy {
 		console.log('New CityEnemy created:', this);
 	}
 
-	update() {
+	update(timeMultiplier = 1) {
+		const adjustedSpeed = this.speed * timeMultiplier;
 		if (!this.isReady) {
-			this.y -= this.speed;
+			this.y -= adjustedSpeed;
 			if (this.y <= this.targetY) {
 				this.isReady = true;
 				this.init = true;
@@ -2082,9 +2064,9 @@ class CityEnemy extends Enemy {
 		} else {
 			if (this.init) {
 				let angle = Math.atan2(player.y - this.y, player.x - this.x);
-				this.x += Math.cos(angle) * this.speed;
-				this.y += Math.sin(angle) * this.speed;
-				this.scale = Math.min(1, this.scale + 0.01);
+				this.x += Math.cos(angle) * adjustedSpeed;
+				this.y += Math.sin(angle) * adjustedSpeed;
+				this.scale = Math.min(1, this.scale + 0.01 * timeMultiplier);
 
 				if (this.scale >= 1) {
 					this.canShoot = true;
@@ -2092,7 +2074,6 @@ class CityEnemy extends Enemy {
 
 				if (this.y < 0 || this.x < 0 || this.x > canvas.width || this.y > canvas.height) {
 					this.toBeRemoved = true;
-					console.log('CityEnemy moved out of bounds and will be removed.');
 				}
 			}
 		}
@@ -2104,7 +2085,7 @@ class CityEnemy extends Enemy {
 		}
 
 		this.fireParticles.forEach((particle, index) => {
-			particle.update();
+			particle.update(timeMultiplier);
 			if (particle.opacity <= 0) {
 				this.fireParticles.splice(index, 1);
 			}
@@ -2269,7 +2250,7 @@ class AnimatedProjectile {
 		return closestEnemy;
 	}
 
-	update(enemies) {
+	update(timeMultiplier = 1, enemies) {
 		if (this.isHeatseeker) {
 			if (!this.lockedOnTarget || !this.lockedOnTarget.isActive) {
 				this.lockedOnTarget = this.findClosestTarget(enemies);
@@ -2281,17 +2262,18 @@ class AnimatedProjectile {
 				);
 				this.angle +=
 					Math.sign(desiredAngle - this.angle) *
-					Math.min(this.turnSpeed, Math.abs(desiredAngle - this.angle));
+					Math.min(this.turnSpeed * timeMultiplier, Math.abs(desiredAngle - this.angle));
 			}
 		}
-		this.x += Math.cos(this.angle) * this.speed;
-		this.y += Math.sin(this.angle) * this.speed;
+		const adjustedSpeed = this.speed * timeMultiplier;
+		this.x += Math.cos(this.angle) * adjustedSpeed;
+		this.y += Math.sin(this.angle) * adjustedSpeed;
 
 		if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
 			this.isActive = false;
 		}
 
-		this.tick++;
+		this.tick += timeMultiplier;
 		if (this.tick > this.ticksPerFrame) {
 			this.tick = 0;
 			this.frameIndex = (this.frameIndex + 1) % this.numFrames;
@@ -2302,7 +2284,7 @@ class AnimatedProjectile {
 			this.fireballEffects.push(new FireballEffect(this.x, this.y));
 		}
 
-		this.fireballEffects.forEach((effect) => effect.update());
+		this.fireballEffects.forEach((effect) => effect.update(timeMultiplier));
 		this.fireballEffects = this.fireballEffects.filter((effect) => effect.opacity > 0);
 	}
 
@@ -2343,6 +2325,40 @@ class AnimatedProjectile {
 	}
 }
 
+function shoot(isHeatseeker = false, isPowerUp = false) {
+	const currentTime = Date.now();
+	const currentCooldown = rapidFireMode ? velaShootingCooldown / 2 : velaShootingCooldown;
+
+	if (currentTime - lastVelaShotTime < currentCooldown) {
+		return;
+	}
+
+	const projectileX = player.x + player.width / 2;
+	const projectileY = player.y;
+
+	let newProjectile;
+
+	if (isHeatseeker && (unlimitedHeatseekersMode || heatseekerCount > 0)) {
+		newProjectile = new HeatseekerProjectile(projectileX, projectileY);
+		if (!unlimitedHeatseekersMode) {
+			heatseekerCount--;
+		}
+	} else {
+		newProjectile = new AnimatedProjectile(projectileX, projectileY, false, false, isPowerUp);
+	}
+
+	// Add trail effect for player projectiles
+	if (!isHeatseeker) {
+		for (let i = 0; i < 3; i++) {
+			particles.push(new TrailParticle(projectileX, projectileY));
+		}
+	}
+
+	projectiles.push(newProjectile);
+	drawHUD();
+	lastVelaShotTime = currentTime;
+}
+
 class HeatseekerProjectile extends AnimatedProjectile {
 	constructor(x, y) {
 		super(x, y, false, true); // Ensure isHeatseeker is set to true
@@ -2352,12 +2368,19 @@ class HeatseekerProjectile extends AnimatedProjectile {
 		this.stopped = false; // Track if the heatseeker is stopped
 	}
 
-	findClosestTarget(enemies) {
+	findClosestTarget(enemies = []) {
+		if (!Array.isArray(enemies)) {
+			console.warn('Invalid enemies array provided to findClosestTarget');
+			return null;
+		}
+
 		let closestEnemy = null;
 		let closestDistance = Infinity;
+
 		enemies.forEach((enemy) => {
-			// Skip CityEnemy if it's not ready
-			if (enemy instanceof CityEnemy && !enemy.isReady) return;
+			if (!enemy || typeof enemy.x === 'undefined' || typeof enemy.y === 'undefined') {
+				return; // Skip invalid enemies
+			}
 
 			let distance = Math.hypot(enemy.x - this.x, enemy.y - this.y);
 			if (distance < closestDistance) {
@@ -2365,18 +2388,20 @@ class HeatseekerProjectile extends AnimatedProjectile {
 				closestEnemy = enemy;
 			}
 		});
+
 		return closestEnemy;
 	}
 
-	update(enemies) {
+	update(timeMultiplier = 1, enemies = []) {
 		if (this.isHeatseeker) {
 			if (!this.lockedOnTarget || !this.lockedOnTarget.isActive) {
 				this.lockedOnTarget = this.findClosestTarget(enemies);
 			}
+
 			if (this.lockedOnTarget) {
 				if (
-					this.lockedOnTarget.x !== undefined &&
-					this.lockedOnTarget.y !== undefined &&
+					typeof this.lockedOnTarget.x !== 'undefined' &&
+					typeof this.lockedOnTarget.y !== 'undefined' &&
 					this.lockedOnTarget.x >= 0 &&
 					this.lockedOnTarget.x <= canvas.width &&
 					this.lockedOnTarget.y >= 0 &&
@@ -2390,17 +2415,19 @@ class HeatseekerProjectile extends AnimatedProjectile {
 					);
 					this.angle +=
 						Math.sign(desiredAngle - this.angle) *
-						Math.min(this.turnSpeed, Math.abs(desiredAngle - this.angle));
+						Math.min(this.turnSpeed * timeMultiplier, Math.abs(desiredAngle - this.angle));
+					this.speed = Math.min(this.speed + this.acceleration * timeMultiplier, this.maxSpeed);
 
-					// Adjust speed to have variance
-					this.speed = Math.min(this.speed + this.acceleration, this.maxSpeed);
 					if (Math.random() < 0.1) {
-						this.speed = this.maxSpeed * (0.5 + Math.random() * 0.5); // Speed variance
+						this.speed = this.maxSpeed * (0.5 + Math.random() * 0.5);
 					}
 
 					// Add subtle flight patterns
-					this.x += Math.cos(this.angle) * this.speed + Math.sin(gameFrame * 0.1) * 2;
-					this.y += Math.sin(this.angle) * this.speed + Math.cos(gameFrame * 0.1) * 2;
+					const adjustedSpeed = this.speed * timeMultiplier;
+					this.x +=
+						Math.cos(this.angle) * adjustedSpeed + Math.sin(gameFrame * 0.1) * 2 * timeMultiplier;
+					this.y +=
+						Math.sin(this.angle) * adjustedSpeed + Math.cos(gameFrame * 0.1) * 2 * timeMultiplier;
 				} else {
 					// If the target goes off screen, stop the missile
 					this.stopped = true;
@@ -2425,7 +2452,7 @@ class HeatseekerProjectile extends AnimatedProjectile {
 			this.isActive = false;
 		}
 
-		this.tick++;
+		this.tick += timeMultiplier;
 		if (this.tick > this.ticksPerFrame) {
 			this.tick = 0;
 			this.frameIndex = (this.frameIndex + 1) % this.numFrames;
@@ -2434,7 +2461,7 @@ class HeatseekerProjectile extends AnimatedProjectile {
 		if (!this.stopped) {
 			this.createTrail(); // Create vapor trail particles only if not stopped
 		}
-		this.updateTrailParticles(); // Update existing particles
+		this.updateTrailParticles(timeMultiplier);
 	}
 
 	createTrail() {
@@ -2481,11 +2508,11 @@ class FireballEffect {
 		this.color = this.colors[Math.floor(Math.random() * this.colors.length)];
 	}
 
-	update() {
-		this.x += this.speedX;
-		this.y += this.speedY;
-		this.opacity -= 1 / this.lifespan;
-		this.lifespan--;
+	update(timeMultiplier = 1) {
+		this.x += this.speedX * timeMultiplier;
+		this.y += this.speedY * timeMultiplier;
+		this.opacity -= (1 / this.lifespan) * timeMultiplier;
+		this.lifespan -= timeMultiplier;
 		if (this.lifespan <= 0) {
 			this.opacity = 0;
 		}
@@ -2511,9 +2538,9 @@ class VaporTrailParticle {
 		this.opacity = 1; // Initial opacity
 	}
 
-	update() {
-		this.y += this.speedY;
-		this.opacity -= 0.02; // Gradually fade out
+	update(timeMultiplier = 1) {
+		this.y += this.speedY * timeMultiplier;
+		this.opacity -= 0.02 * timeMultiplier;
 		if (this.opacity <= 0) {
 			this.opacity = 0;
 		}
@@ -2538,9 +2565,9 @@ class ShootingStar {
 		this.speed = Math.random() * 5 + 3; // Slower speed for better visibility
 	}
 
-	update() {
-		this.x -= this.speed * 0.5; // Adjust for diagonal movement
-		this.y += this.speed;
+	update(timeMultiplier = 1) {
+		this.x -= this.speed * 0.5 * timeMultiplier;
+		this.y += this.speed * timeMultiplier;
 	}
 
 	draw(ctx) {
@@ -2646,11 +2673,11 @@ class FireParticle {
 		return colors[Math.floor(Math.random() * colors.length)];
 	}
 
-	update() {
-		this.x += this.speedX;
-		this.y += this.speedY;
-		this.lifespan--;
-		this.opacity = Math.max(0, this.lifespan / 50); // Fade out over time
+	update(timeMultiplier = 1) {
+		this.x += this.speedX * timeMultiplier;
+		this.y += this.speedY * timeMultiplier;
+		this.lifespan -= timeMultiplier;
+		this.opacity = Math.max(0, this.lifespan / 50);
 		if (this.lifespan <= 0) {
 			this.opacity = 0; // Ensure the particle is fully transparent at the end
 		}
@@ -3504,6 +3531,22 @@ export function setupGame(canvasElement) {
 function animate() {
 	if (!gameActive || isPaused) return;
 
+	const currentTime = performance.now();
+	if (!lastFrameTime) {
+		lastFrameTime = currentTime;
+		requestAnimationFrame(animate);
+		return; // Skip the first frame to establish timing
+	}
+
+	deltaTime = Math.min(currentTime - lastFrameTime, 32); // Cap at ~30fps minimum
+	lastFrameTime = currentTime;
+
+	// Calculate timeMultiplier with a smaller scale
+	timeMultiplier = (deltaTime / FRAME_TARGET) * 0.6; // Scale down by 0.6 to slow overall speed
+
+	// Limit the maximum time step to prevent huge jumps
+	const cappedMultiplier = Math.min(timeMultiplier, 1.0); // Reduced from 2.0 to 1.0
+
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 	gameFrame++;
 
@@ -3518,7 +3561,7 @@ function animate() {
 	drawHUD();
 	drawPowerUpBar();
 
-	dayNightCycle = (dayNightCycle + dayNightCycleSpeed) % 360;
+	dayNightCycle = (dayNightCycle + dayNightCycleSpeed * cappedMultiplier) % 360;
 
 	// Trigger sky flash at random intervals
 	if (!skyFlashActive && Math.random() < 0.005) {
@@ -3535,14 +3578,14 @@ function animate() {
 
 	comets.forEach((comet, index) => {
 		comet.update();
-		comet.draw(ctx);
+		comet.update(cappedMultiplier);
 		if (comet.y > canvas.height) {
 			comets.splice(index, 1);
 		}
 	});
 
 	particles.forEach((particle, index) => {
-		particle.update();
+		particle.update(cappedMultiplier);
 		if (particle.lifespan <= 0) {
 			particles.splice(index, 1);
 		} else {
@@ -3558,7 +3601,7 @@ function animate() {
 
 	projectiles.forEach((projectile, index) => {
 		if (projectile.update) {
-			projectile.update(enemies);
+			projectile.update(cappedMultiplier, enemies);
 			projectile.draw(ctx);
 			if (projectile.y > canvas.height) {
 				projectiles.splice(index, 1);
@@ -3569,18 +3612,19 @@ function animate() {
 	});
 
 	enemies.forEach((enemy, index) => {
-		enemy.update();
+		enemy.update(cappedMultiplier);
 		enemy.draw(ctx);
 		if (checkCollision(player, enemy, 14)) {
-			handlePlayerHit('collision', enemy); // Pass 'collision' and the enemy to the handlePlayerHit function
+			handlePlayerHit('collision', enemy);
 			enemies.splice(index, 1);
 		}
 	});
 
 	checkCollisions();
 
-	if (player.movingLeft && player.x > 0) player.x -= player.speed;
-	if (player.movingRight && player.x < canvas.width - player.width) player.x += player.speed;
+	if (player.movingLeft && player.x > 0) player.x -= player.speed * cappedMultiplier;
+	if (player.movingRight && player.x < canvas.width - player.width)
+		player.x += player.speed * cappedMultiplier;
 
 	if (enemies.length < maxEnemies && gameFrame % enemyInterval === 0) {
 		enemies.push(new Enemy());
@@ -3590,12 +3634,12 @@ function animate() {
 	checkPowerUpCollisions();
 
 	powerUps.forEach((powerUp) => {
-		powerUp.update();
+		powerUp.update(cappedMultiplier);
 		powerUp.draw(ctx);
 	});
 
 	extraLives.forEach((life) => {
-		life.update();
+		life.update(cappedMultiplier);
 		life.draw(ctx);
 	});
 
@@ -3611,7 +3655,7 @@ function animate() {
 	});
 
 	enemyProjectiles.forEach((projectile, index) => {
-		projectile.update();
+		projectile.update(cappedMultiplier);
 		projectile.draw(ctx);
 		if (checkCollision(player, projectile, 14)) {
 			handlePlayerHit('fire', projectile.firingEnemy); // Pass 'fire' and the firing enemy to the handlePlayerHit function
@@ -3620,7 +3664,7 @@ function animate() {
 	});
 
 	// Draw the player (Vela) last
-	player.update();
+	player.update(cappedMultiplier);
 	player.draw(ctx);
 
 	drawHUD();
@@ -3632,7 +3676,6 @@ function animate() {
 
 	requestAnimationFrame(animate);
 }
-
 // End of animate
 
 // Event Listeners
@@ -3649,7 +3692,7 @@ function setupInputListeners() {
 				animate();
 			}
 		} else if (gameOverScreen) {
-			if (event.key === 'Enter') {
+			if (event.key === 'Enter' || event.key.toUpperCase() === 'R') {
 				event.preventDefault();
 				resetGame();
 			}
