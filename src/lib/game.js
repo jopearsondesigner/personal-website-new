@@ -43,8 +43,10 @@ let timeMultiplier = 1;
 let lastFrameTime = 0;
 const maxHeatseekers = 3;
 const cometInterval = 2000;
-const ammoDropInterval = 3000;
-const powerUpDropInterval = 5000;
+const ammoDropInterval = 4000;
+const powerUpDropInterval = 6000;
+const extraLifeDropInterval = 8000;
+let playerPerformanceMetric = 0;
 const initialEnemySpawnRate = 240;
 let enemyInterval = initialEnemySpawnRate;
 
@@ -677,18 +679,23 @@ class DroppingCrate {
 		this.height = 56;
 		this.speed = 0.5;
 		this.spriteImage = new Image();
-		this.spriteImage.src = getAssetPath('assets/images/game/game_mechanics_sprite.png');
 		this.frameX = 0;
 		this.swayAngle = Math.random() * Math.PI * 2;
 		this.swaySpeed = 0.05;
 		this.swayAmplitude = 10;
 		this.loaded = false;
 
+		// Ensure the path is correct and wait for load
+		this.spriteImage.src = getAssetPath('assets/images/game/game_mechanics_sprite.png');
+
+		// Add load event handler
 		this.spriteImage.onload = () => {
+			console.log('DroppingCrate sprite loaded successfully');
 			this.loaded = true;
 		};
+
 		this.spriteImage.onerror = (error) => {
-			console.error('Failed to load DroppingCrate image', error);
+			console.error('Failed to load DroppingCrate image:', error, this.spriteImage.src);
 		};
 	}
 
@@ -696,28 +703,33 @@ class DroppingCrate {
 		this.y += this.speed;
 		this.swayAngle += this.swaySpeed;
 		this.x += Math.sin(this.swayAngle) * this.swayAmplitude * 0.1;
+
+		// Check boundaries
 		if (this.y > canvas.height) {
-			const index = comets.indexOf(this);
-			if (index !== -1) comets.splice(index, 1);
+			const index = heatseekerAmmo.indexOf(this);
+			if (index !== -1) heatseekerAmmo.splice(index, 1);
 		}
 	}
 
 	draw(ctx) {
-		if (this.loaded) {
-			ctx.drawImage(
-				this.spriteImage,
-				this.frameX * this.width,
-				0,
-				this.width,
-				this.height,
-				this.x,
-				this.y,
-				this.width,
-				this.height
-			);
-		} else {
-			console.warn('DroppingCrate image not loaded, cannot draw');
+		if (!this.loaded) {
+			// Draw a placeholder while loading
+			ctx.fillStyle = NESPalette.lightGold;
+			ctx.fillRect(this.x, this.y, this.width, this.height);
+			return;
 		}
+
+		ctx.drawImage(
+			this.spriteImage,
+			this.frameX * this.width,
+			0,
+			this.width,
+			this.height,
+			this.x,
+			this.y,
+			this.width,
+			this.height
+		);
 	}
 }
 
@@ -733,38 +745,48 @@ class ExtraLife {
 		this.frameX = 1;
 		this.loaded = false;
 
+		// Enhanced load handling
 		this.spriteImage.onload = () => {
+			console.log('Extra life sprite loaded successfully');
 			this.loaded = true;
 		};
+
 		this.spriteImage.onerror = (error) => {
-			console.error('Failed to load ExtraLife image', error);
+			console.error('Failed to load Extra life image:', error, this.spriteImage.src);
 		};
 	}
 
 	update() {
 		this.y += this.speed;
 		if (this.y > canvas.height) {
+			console.log('Extra life moved off screen');
 			const index = extraLives.indexOf(this);
-			extraLives.splice(index, 1);
+			if (index !== -1) {
+				extraLives.splice(index, 1);
+				console.log('Extra life removed from array');
+			}
 		}
 	}
 
 	draw(ctx) {
-		if (this.loaded) {
-			ctx.drawImage(
-				this.spriteImage,
-				this.frameX * this.width,
-				0,
-				this.width,
-				this.height,
-				this.x,
-				this.y,
-				this.width,
-				this.height
-			);
-		} else {
-			console.warn('ExtraLife image not loaded, cannot draw');
+		if (!this.loaded) {
+			// Draw placeholder while loading
+			ctx.fillStyle = NESPalette.lightGreen;
+			ctx.fillRect(this.x, this.y, this.width, this.height);
+			return;
 		}
+
+		ctx.drawImage(
+			this.spriteImage,
+			this.frameX * this.width,
+			0,
+			this.width,
+			this.height,
+			this.x,
+			this.y,
+			this.width,
+			this.height
+		);
 	}
 }
 
@@ -1080,76 +1102,152 @@ function handlePlayerHit(source = null, enemy = null) {
 }
 
 function scheduleRandomAmmoDrop() {
-	setTimeout(() => {
-		console.log('Scheduled random ammo drop at:', new Date().toLocaleTimeString());
-		if (heatseekerAmmo.length < 1) {
-			dropAmmoFromSky();
-		}
-		scheduleRandomAmmoDrop();
-	}, ammoDropInterval);
+	if (!allowAmmoDrop) return;
+
+	setTimeout(
+		() => {
+			// Add debug logs
+			console.log('Checking ammo drop conditions:', {
+				heatseekerAmmo: heatseekerAmmo.length,
+				enemies: enemies.length,
+				heatseekerCount: heatseekerCount
+			});
+
+			if (heatseekerAmmo.length === 0 && powerUps.length === 0 && extraLives.length === 0) {
+				if (enemies.length > 0 && heatseekerCount < 3) {
+					console.log('Conditions met, dropping ammo');
+					dropAmmoFromSky();
+				}
+			}
+			scheduleRandomAmmoDrop();
+		},
+		ammoDropInterval + Math.random() * 2000
+	);
 }
 
 function scheduleRandomExtraLifeDrop() {
-	setTimeout(() => {
-		console.log('Scheduled random extra life drop at:', new Date().toLocaleTimeString());
-		if (extraLives.length < 1) {
-			dropExtraLife();
-		}
-		scheduleRandomExtraLifeDrop();
-	}, powerUpDropInterval);
+	setTimeout(
+		() => {
+			// Debug current state
+			console.log('Checking extra life drop conditions:', {
+				currentLives: lives,
+				extraLivesOnScreen: extraLives.length,
+				otherItems: {
+					heatseekerAmmo: heatseekerAmmo.length,
+					powerUps: powerUps.length
+				}
+			});
+
+			// Only attempt to drop if no other items are on screen
+			if (heatseekerAmmo.length === 0 && powerUps.length === 0 && extraLives.length === 0) {
+				// Modified condition: Drop if lives are less than max
+				if (lives < 3) {
+					console.log('Extra life drop conditions met, dropping life');
+					dropExtraLife();
+				}
+			}
+			scheduleRandomExtraLifeDrop();
+		},
+		extraLifeDropInterval + Math.random() * 2000
+	);
 }
 
 function schedulePowerUpDrops() {
-	setTimeout(() => {
-		console.log('Scheduled power-up drop at:', new Date().toLocaleTimeString());
-		if (powerUps.length < 1) {
-			dropRandomPowerUp();
-		}
-		schedulePowerUpDrops();
-	}, powerUpDropInterval);
+	setTimeout(
+		() => {
+			// Only attempt to drop if no other items are currently on screen
+			if (heatseekerAmmo.length === 0 && powerUps.length === 0 && extraLives.length === 0) {
+				// Enhanced condition for power-up drops
+				if (score < 1000 || lives === 1 || heatseekerCount === 0) {
+					console.log('Scheduled power-up drop at:', new Date().toLocaleTimeString());
+					dropRandomPowerUp();
+				}
+			}
+			schedulePowerUpDrops();
+		},
+		powerUpDropInterval + Math.random() * 2000
+	); // Add randomization
 }
 
 function dropAmmoFromSky() {
-	console.log('dropAmmoFromSky called at:', new Date().toLocaleTimeString());
 	if (heatseekerAmmo.length < 1) {
 		const minX = 100;
 		const maxX = canvas.width - 100;
 		const ammo = new DroppingCrate();
 		ammo.x = Math.random() * (maxX - minX) + minX;
+
+		// Add debug log before pushing
+		console.log('Creating new ammo drop:', {
+			x: ammo.x,
+			y: ammo.y,
+			loaded: ammo.loaded,
+			spritePath: ammo.spriteImage.src
+		});
+
 		heatseekerAmmo.push(ammo);
-		console.log('Dropped Heatseeker Ammo at position:', ammo.x, ammo.y);
-	} else {
-		console.log('Heatseeker ammo not dropped, current count:', heatseekerAmmo.length);
+
+		// Verify ammo was added
+		console.log('Ammo array after push:', {
+			length: heatseekerAmmo.length,
+			contents: heatseekerAmmo
+		});
 	}
 }
 
 function dropExtraLife() {
-	console.log('dropExtraLife called at:', new Date().toLocaleTimeString());
-	if (extraLives.length < 1) {
-		const minX = 100;
-		const maxX = canvas.width - 100;
-		const extraLife = new ExtraLife();
-		extraLife.x = Math.random() * (maxX - minX) + minX;
-		extraLives.push(extraLife);
-		console.log('Dropped Extra Life at position:', extraLife.x, extraLife.y);
-	} else {
-		console.log('Extra life not dropped, current count:', extraLives.length);
+	// Remove restrictive conditions
+	if (extraLives.length > 0) {
+		console.log('Extra life not dropped - one already exists');
+		return;
 	}
+
+	// Create and position the extra life
+	const minX = 100;
+	const maxX = canvas.width - 100;
+	const extraLife = new ExtraLife();
+	extraLife.x = Math.random() * (maxX - minX) + minX;
+
+	// Add logging to track creation
+	console.log('Creating new extra life:', {
+		x: extraLife.x,
+		y: extraLife.y,
+		loaded: extraLife.loaded
+	});
+
+	extraLives.push(extraLife);
+
+	// Verify it was added
+	console.log('Extra lives array after push:', {
+		length: extraLives.length,
+		contents: extraLives
+	});
 }
 
 function dropRandomPowerUp() {
-	console.log('dropRandomPowerUp called at:', new Date().toLocaleTimeString());
-	if (powerUps.length < 1) {
-		const minX = 100;
-		const maxX = canvas.width - 100;
-		const types = ['invincibility', 'speedBoost', 'unlimitedHeatseekers', 'rapidFire'];
-		const type = types[Math.floor(Math.random() * types.length)];
-		const powerUp = new PowerUp(type, Math.random() * (maxX - minX) + minX, -50);
+	if (powerUps.length > 0) return;
+
+	// Increase power-up frequency when player is struggling
+	const shouldDropPowerUp = score < 1000 || lives === 1;
+
+	if (shouldDropPowerUp) {
+		const powerUp = new PowerUp(
+			getOptimalPowerUpType(),
+			Math.random() * (canvas.width - 100) + 50,
+			-50
+		);
 		powerUps.push(powerUp);
-		console.log('Dropped PowerUp:', type, 'at position:', powerUp.x, powerUp.y);
-	} else {
-		console.log('Power-up not dropped, current count:', powerUps.length);
 	}
+}
+
+function getOptimalPowerUpType() {
+	const types = ['invincibility', 'speedBoost', 'unlimitedHeatseekers', 'rapidFire'];
+
+	// Prioritize helpful power-ups based on player state
+	if (lives === 1) return 'invincibility';
+	if (heatseekerCount === 0) return 'unlimitedHeatseekers';
+	if (enemies.length > 4) return 'rapidFire';
+
+	return types[Math.floor(Math.random() * types.length)];
 }
 
 function handleExplosions() {
@@ -1439,22 +1537,44 @@ function checkAssetLoading() {
 }
 
 function handleDroppingItems() {
-	if (
-		Math.random() < 0.01 &&
-		!comets.some((comet) => comet instanceof DroppingCrate) &&
-		heatseekerCount <= 1
-	) {
-		comets.push(new DroppingCrate());
-	}
+	// Debug current state with more detail
+	console.log('Handle dropping items - Current state:', {
+		heatseekerAmmo: {
+			length: heatseekerAmmo.length,
+			items: heatseekerAmmo.map((item) => ({
+				x: item?.x,
+				y: item?.y,
+				loaded: item?.loaded
+			}))
+		},
+		powerUps: powerUps.length,
+		extraLives: extraLives.length
+	});
 
 	heatseekerAmmo.forEach((ammo, index) => {
+		// Add position logging
+		console.log(`Updating ammo ${index}:`, {
+			x: ammo.x,
+			y: ammo.y,
+			beforeUpdate: true
+		});
+
 		ammo.update();
 		ammo.draw(ctx);
+
+		console.log(`After update ammo ${index}:`, {
+			x: ammo.x,
+			y: ammo.y,
+			afterUpdate: true
+		});
+
 		if (ammo.y > canvas.height) {
+			console.log(`Removing ammo ${index} - off screen`);
 			heatseekerAmmo.splice(index, 1);
 		}
 	});
 
+	// Update and draw extra lives
 	extraLives.forEach((life, index) => {
 		life.update();
 		life.draw(ctx);
@@ -1463,6 +1583,7 @@ function handleDroppingItems() {
 		}
 	});
 
+	// Update and draw power-ups
 	powerUps.forEach((powerUp, index) => {
 		powerUp.update();
 		powerUp.draw(ctx);
@@ -1470,16 +1591,6 @@ function handleDroppingItems() {
 			powerUps.splice(index, 1);
 		}
 	});
-
-	if (heatseekerAmmo.length === 0) {
-		dropAmmoFromSky();
-	}
-
-	if (extraLives.length < 1) {
-		dropExtraLife();
-	} else if (powerUps.length < 1) {
-		dropRandomPowerUp();
-	}
 }
 
 function adjustDifficulty() {
