@@ -37,6 +37,7 @@ let heatseekerAmmo = [];
 let heatseekers = 0;
 let ammoDropCounter = 0;
 let deltaTime = 0;
+let animationFrameId = null;
 const FRAME_TARGET = 1000 / 60; // Target 60 FPS
 let timeMultiplier = 1;
 let lastFrameTime = 0;
@@ -1717,66 +1718,105 @@ function drawGameOverScreen() {
 }
 
 function resetGame() {
+	// Reset timing and animation variables
+	lastFrameTime = performance.now();
+	deltaTime = 0;
+	timeMultiplier = 1;
+	animationFrameId = null;
+
+	// Reset core game state
 	score = 0;
 	comboCounter = 0;
 	lives = 3;
+	gameSpeed = 1;
+	enemyInterval = initialEnemySpawnRate;
+	difficultyIncreaseScore = 500;
+	heatseekerCount = 3;
+
+	// Clear all arrays
 	enemies = [];
 	enemyProjectiles = [];
 	projectiles = [];
 	explosions = [];
 	comets = [];
 	shootingStars = [];
-	gameFrame = 0;
-	gameSpeed = 1;
-	titleScreen = false;
-	gameActive = true;
-	isPaused = false;
-	difficultyIncreaseScore = 500;
-	enemyInterval = initialEnemySpawnRate;
-	ammoDropCounter = 0;
-	heatseekerAmmo = [];
-	heatseekerCount = 3;
 	cityFires = [];
-	skyFlashActive = false;
-	skyFlashTimer = 0;
 	smokeParticles = [];
-	smokeParticlePool = new ParticlePool(100);
 	stars = []; // Clear the stars array
-	initializeStars(); // Re-initialize the stars
-	spaceship = new Spaceship();
 	spaceships = [];
 	clouds = [];
-	flashEffectActive = false;
-	flashColor = 'rgba(255, 0, 0, 0.5)';
 	particles = [];
-	gameOverScreen = false;
-	allowAmmoDrop = true;
 	floatingTexts = [];
 	obstacles = [];
 	extraLives = [];
+	powerUps = [];
+	heatseekerAmmo = [];
+
+	// Reset flags and timers
+	gameFrame = 0;
+	titleScreen = false;
+	gameActive = true;
+	isPaused = false;
+	gameOverScreen = false;
+	skyFlashActive = false;
+	skyFlashTimer = 0;
+	allowAmmoDrop = true;
 	dayNightCycle = 180;
 	canShoot = true;
-	powerUps = [];
+	ammoDropCounter = 0;
+	flashEffectActive = false;
+	flashColor = 'rgba(255, 0, 0, 0.5)';
+
+	// Reset power-up states
 	powerUpActive = false;
 	powerUpType = '';
 	powerUpStartTime = 0;
+	constantPowerUpMode = false;
+	unlimitedHeatseekersMode = false;
+	rapidFireMode = false;
+	// Reset player state
+	player = {
+		x: canvas.width / 2 - 32, // Assuming player width is 64px
+		y: canvas.height - 64 - 5, // Assuming player height is 64px
+		movingLeft: false,
+		movingRight: false,
+		isExploding: false,
+		width: 64, // Player width
+		height: 64, // Player height
+		explosionFrame: 0,
+		frameX: 0,
+		frameY: 0,
+		currentFrame: 0,
+		sequenceIndex: 0,
+		frameTimer: 0,
+		isInvincible: false,
+		speed: 4,
+		glowColor: null
+	};
 
-	player.x = canvas.width / 2 - player.width / 2;
-	player.y = canvas.height - player.height - 5;
-	player.movingLeft = false;
-	player.movingRight = false;
-	player.isExploding = false;
-	player.explosionFrame = 0;
-	player.frameX = 0;
-	player.frameY = 0;
-	player.currentFrame = 0;
-	player.sequenceIndex = 0;
-	player.frameTimer = 0;
-
+	// Re-initialize game components
 	initializeCityFires();
 	initializeClouds();
+	initializeStars();
+	smokeParticlePool = new ParticlePool(100);
+	spaceship = new Spaceship();
+
+	// Reset timers and cooldowns
+	lastVelaShotTime = Date.now();
+
+	// Clear and redraw HUD
 	drawHUD();
-	requestAnimationFrame(animate);
+
+	// Cancel existing animation frame if it exists
+	if (animationFrameId) {
+		cancelAnimationFrame(animationFrameId);
+		animationFrameId = null;
+	}
+
+	// Restart animation loop
+	animationFrameId = requestAnimationFrame(animate);
+
+	console.log('Game reset complete');
 }
 
 function handleFloatingTexts() {
@@ -3371,6 +3411,12 @@ export function setupGame(canvasElement) {
 		return;
 	}
 
+	// Cancel any existing animation frame
+	if (animationFrameId) {
+		cancelAnimationFrame(animationFrameId);
+		animationFrameId = null;
+	}
+
 	// Initialize base game objects
 	initializePlayer();
 	initializeTitleScreen();
@@ -3428,6 +3474,9 @@ export function setupGame(canvasElement) {
 				spaceships = [];
 
 				// Initialize timers and intervals
+				lastFrameTime = performance.now(); // Reset animation timing
+				deltaTime = 0;
+				timeMultiplier = 1;
 				lastVelaShotTime = Date.now();
 				dayNightCycle = 180;
 
@@ -3691,64 +3740,69 @@ function setupInputListeners() {
 				drawHUD();
 				animate();
 			}
-		} else if (gameOverScreen) {
-			if (event.key === 'Enter' || event.key.toUpperCase() === 'R') {
+		} else if (gameOverScreen || gameActive) {
+			// Combined state check
+			if (event.key === 'Enter' || key === 'R') {
+				// Added 'R' key handling
 				event.preventDefault();
 				resetGame();
+				return; // Prevent further processing
 			}
-		} else if (gameActive) {
-			switch (event.key) {
-				case ' ':
-					event.preventDefault();
-					if (!isPaused) {
-						shoot(true);
-					}
-					break;
-				case 'ArrowLeft':
-					event.preventDefault();
-					player.movingLeft = true;
-					break;
-				case 'ArrowRight':
-					event.preventDefault();
-					player.movingRight = true;
-					break;
-				case 'ArrowUp':
-					event.preventDefault();
-					player.jump();
-					break;
-				case 'Shift':
-					event.preventDefault();
-					player.dash();
-					break;
-				case 'x':
-				case 'X':
-					event.preventDefault();
-					if (!isPaused) {
-						shoot(false, true);
-					}
-					break;
-				case 'p':
-				case 'P':
-					event.preventDefault();
-					isPaused = !isPaused;
-					if (!isPaused) animate();
-					break;
-				default:
-					if (key === keyCombination[keyCombinationIndex]) {
-						keyCombinationIndex++;
-						if (keyCombinationIndex === keyCombination.length) {
-							constantPowerUpMode = !constantPowerUpMode;
-							if (constantPowerUpMode) {
-								activateAllPowerUps();
-							} else {
-								deactivateAllPowerUps();
-							}
-							keyCombinationIndex = 0; // Reset index after successful combination
+
+			if (gameActive) {
+				switch (event.key) {
+					case ' ':
+						event.preventDefault();
+						if (!isPaused) {
+							shoot(true);
 						}
-					} else {
-						keyCombinationIndex = 0; // Reset index if wrong key is pressed
-					}
-					break;
+						break;
+					case 'ArrowLeft':
+						event.preventDefault();
+						player.movingLeft = true;
+						break;
+					case 'ArrowRight':
+						event.preventDefault();
+						player.movingRight = true;
+						break;
+					case 'ArrowUp':
+						event.preventDefault();
+						player.jump();
+						break;
+					case 'Shift':
+						event.preventDefault();
+						player.dash();
+						break;
+					case 'x':
+					case 'X':
+						event.preventDefault();
+						if (!isPaused) {
+							shoot(false, true);
+						}
+						break;
+					case 'p':
+					case 'P':
+						event.preventDefault();
+						isPaused = !isPaused;
+						if (!isPaused) animate();
+						break;
+					default:
+						if (key === keyCombination[keyCombinationIndex]) {
+							keyCombinationIndex++;
+							if (keyCombinationIndex === keyCombination.length) {
+								constantPowerUpMode = !constantPowerUpMode;
+								if (constantPowerUpMode) {
+									activateAllPowerUps();
+								} else {
+									deactivateAllPowerUps();
+								}
+								keyCombinationIndex = 0; // Reset index after successful combination
+							}
+						} else {
+							keyCombinationIndex = 0; // Reset index if wrong key is pressed
+						}
+						break;
+				}
 			}
 		}
 	});
