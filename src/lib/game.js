@@ -32,6 +32,7 @@ let titleScreen = true;
 let gameActive = false;
 let isPaused = false;
 let difficultyIncreaseScore = 500;
+
 let heatseekerAmmo = [];
 let heatseekers = 0;
 let ammoDropCounter = 0;
@@ -42,32 +43,40 @@ let timeMultiplier = 1;
 let lastFrameTime = 0;
 const maxHeatseekers = 3;
 const cometInterval = 2000;
-const ammoDropInterval = 4000;
-const powerUpDropInterval = 6000;
-const extraLifeDropInterval = 8000;
+const ammoDropInterval = 8000;
+const powerUpDropInterval = 15000;
+const extraLifeDropInterval = 20000;
 let playerPerformanceMetric = 0;
 const initialEnemySpawnRate = 240;
+const INITIAL_DROP_DELAY = 20000;
+let gameStartTime = 0;
+let dropsEnabled = false;
 
 const ENEMY_CONFIG = {
-	// Starting values - increased initial challenge
-	INITIAL_MAX_ENEMIES: 4, // Increased from 3
-	INITIAL_SPAWN_RATE: 150, // Decreased from 180 (faster spawns)
+	// Starting values
+	INITIAL_MAX_ENEMIES: 3, // Classic arcade starting point
+	INITIAL_SPAWN_RATE: 180, // Frames between spawns (3 seconds at 60fps)
 
-	// Scaling factors - more aggressive scaling
-	MAX_ENEMIES_CAP: 12, // Increased from 8
-	MIN_SPAWN_INTERVAL: 45, // Decreased from 60 (faster spawns at high difficulty)
-	DIFFICULTY_SCALE_START: 300, // Decreased from 500 (earlier difficulty increase)
-	DIFFICULTY_SCALE_INTERVAL: 800, // Decreased from 1000 (more frequent increases)
+	// Scaling factors
+	MAX_ENEMIES_CAP: 8, // Maximum concurrent enemies
+	MIN_SPAWN_INTERVAL: 60, // Fastest spawn rate (1 second)
+	DIFFICULTY_SCALE_START: 500, // Score when scaling begins
+	DIFFICULTY_SCALE_INTERVAL: 1000, // Points between difficulty increases
 
-	// Enemy type ratios (adjusted for more aggressive enemies)
+	// Enemy type ratios (percentages)
 	ENEMY_TYPE_RATIOS: {
-		basic: 60, // Decreased from 60
-		zigzag: 45, // Increased from 25 (more erratic enemies)
-		city: 30 // Increased from 15 (more strategic enemies)
+		basic: 50, // Standard enemies
+		zigzag: 25, // Pattern-based enemies
+		city: 25 // Special enemies
 	},
 
-	// Formation patterns remain the same
-	FORMATION_PATTERNS: ['line', 'v-shape', 'circle', 'random']
+	// Pattern variations
+	FORMATION_PATTERNS: [
+		'line', // Classic line formation
+		'v-shape', // V-shaped attack pattern
+		'circle', // Circular formation
+		'random' // Random positions
+	]
 };
 
 let maxEnemies = ENEMY_CONFIG.INITIAL_MAX_ENEMIES;
@@ -767,6 +776,9 @@ class ExtraLife {
 		this.spriteImage.src = getAssetPath('assets/images/game/game_mechanics_sprite.png');
 		this.frameX = 1;
 		this.loaded = false;
+		this.rotationAngle = 0; // Track current rotation
+		this.rotationSpeed = 0.03; // Speed of rotation (adjust for faster/slower spin)
+		this.scaleX = 1; // Used to create the scaling effect for rotation
 
 		// Enhanced load handling
 		this.spriteImage.onload = () => {
@@ -789,27 +801,43 @@ class ExtraLife {
 				console.log('Extra life removed from array');
 			}
 		}
+
+		// Update rotation
+		this.rotationAngle += this.rotationSpeed;
+		// Calculate scale to simulate 3D rotation
+		this.scaleX = Math.abs(Math.cos(this.rotationAngle));
+
+		if (this.y > canvas.height) {
+			const index = extraLives.indexOf(this);
+			if (index !== -1) extraLives.splice(index, 1);
+		}
 	}
 
 	draw(ctx) {
 		if (!this.loaded) {
-			// Draw placeholder while loading
 			ctx.fillStyle = NESPalette.lightGreen;
-			ctx.fillRect(this.x, this.y, this.width, this.height);
+			ctx.fillRect(this.x, this.y, this.width * this.scaleX, this.height);
 			return;
 		}
 
+		ctx.save();
+		// Set up the rotation center point
+		ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+		// Apply the scale for the "3D" effect
+		ctx.scale(this.scaleX, 1);
+		// Draw the sprite
 		ctx.drawImage(
 			this.spriteImage,
 			this.frameX * this.width,
 			0,
 			this.width,
 			this.height,
-			this.x,
-			this.y,
+			-this.width / 2, // Offset by half width/height since we're using translate
+			-this.height / 2,
 			this.width,
 			this.height
 		);
+		ctx.restore();
 	}
 }
 
@@ -1127,6 +1155,13 @@ function handlePlayerHit(source = null, enemy = null) {
 function scheduleRandomAmmoDrop() {
 	if (!allowAmmoDrop) return;
 
+	// Check if we're still in initial delay
+	if (!dropsEnabled && Date.now() - gameStartTime < INITIAL_DROP_DELAY) {
+		setTimeout(scheduleRandomAmmoDrop, 1000);
+		return;
+	}
+	dropsEnabled = true;
+
 	setTimeout(
 		() => {
 			// Add debug logs
@@ -1176,19 +1211,28 @@ function scheduleRandomExtraLifeDrop() {
 }
 
 function schedulePowerUpDrops() {
+	if (!dropsEnabled && Date.now() - gameStartTime < INITIAL_DROP_DELAY) {
+		setTimeout(schedulePowerUpDrops, 1000);
+		return;
+	}
+	dropsEnabled = true;
+
 	setTimeout(
 		() => {
-			// Only attempt to drop if no other items are currently on screen
 			if (heatseekerAmmo.length === 0 && powerUps.length === 0 && extraLives.length === 0) {
-				// Enhanced condition for power-up drops
-				if (score < 1000 || lives === 1 || heatseekerCount === 0) {
-					console.log('Scheduled power-up drop at:', new Date().toLocaleTimeString());
+				// More stringent conditions for power-ups
+				if (
+					(score < 1000 && Math.random() < 0.3) || // 30% chance when score is low
+					(lives === 1 && Math.random() < 0.4) || // 40% chance when near death
+					(heatseekerCount === 0 && Math.random() < 0.5)
+				) {
+					// 50% chance when out of heatseekers
 					dropRandomPowerUp();
 				}
 			}
 			schedulePowerUpDrops();
 		},
-		powerUpDropInterval + Math.random() * 2000
+		powerUpDropInterval + Math.random() * 5000
 	); // Add randomization
 }
 
@@ -1642,29 +1686,6 @@ function adjustDifficulty() {
 		enemies.forEach((enemy) => {
 			enemy.speed = Math.min(enemy.speed * 1.1, 2); // Cap speed increase
 		});
-	}
-}
-
-// Enhanced enemy spawning logic - integrated with existing manageEnemies
-function manageEnemySpawning() {
-	if (enemies.length >= maxEnemies) return;
-
-	if (gameFrame % enemyInterval === 0) {
-		// Determine enemy type based on ratios
-		const roll = Math.random() * 100;
-
-		if (roll < ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic) {
-			enemies.push(new Enemy());
-		} else if (
-			roll <
-			ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic + ENEMY_CONFIG.ENEMY_TYPE_RATIOS.zigzag
-		) {
-			enemies.push(new ZigzagEnemy());
-		} else {
-			enemies.push(new CityEnemy());
-		}
-
-		console.log(`Spawned new enemy. Current count: ${enemies.length}/${maxEnemies}`);
 	}
 }
 
@@ -2254,6 +2275,13 @@ class CityEnemy extends Enemy {
 		this.toBeRemoved = false;
 		this.spriteImage = new Image();
 		this.spriteImage.src = getAssetPath('assets/images/game/void_swarm_sprite.png');
+		this.spriteImage.onload = () => {
+			console.log('CityEnemy sprite loaded successfully');
+		};
+
+		this.spriteImage.onerror = (error) => {
+			console.error('CityEnemy sprite failed to load:', error);
+		};
 		this.frameX = 0;
 		this.frameTimer = 0;
 		this.frameInterval = 8;
@@ -2264,16 +2292,31 @@ class CityEnemy extends Enemy {
 		this.shootingInterval = 100;
 		this.lastShotFrame = 0;
 		this.canShoot = false;
-		console.log('New CityEnemy created:', this);
+		console.log('=== CityEnemy Created ===', {
+			position: { x: this.x, y: this.y },
+			target: { x: this.targetX, y: this.targetY },
+			dimensions: { width: this.width, height: this.height },
+			speed: this.speed,
+			scale: this.scale
+		});
 	}
 
 	update(timeMultiplier = 1) {
 		const adjustedSpeed = this.speed * timeMultiplier;
+
+		console.log('CityEnemy update:', {
+			currentPos: { x: this.x, y: this.y },
+			isReady: this.isReady,
+			scale: this.scale,
+			speed: adjustedSpeed
+		});
+
 		if (!this.isReady) {
 			this.y -= adjustedSpeed;
 			if (this.y <= this.targetY) {
 				this.isReady = true;
 				this.init = true;
+				console.log('CityEnemy reached target position');
 			}
 		} else {
 			if (this.init) {
@@ -3499,28 +3542,90 @@ function spawnEnemy() {
 }
 
 // Manage Enemies
-// In the "manageEnemies" function, ensure that city enemies are being added and updated.
+function manageEnemySpawning() {
+	// Force spawn a basic Enemy if no enemies exist
+	if (enemies.length === 0) {
+		console.log('No enemies present - forcing basic Enemy spawn');
+		enemies.push(new Enemy()); // Basic enemy, not CityEnemy
+		return;
+	}
+
+	// Check if we have any basic Enemies
+	const hasBasicEnemy = enemies.some(
+		(enemy) =>
+			enemy instanceof Enemy && !(enemy instanceof CityEnemy || enemy instanceof ZigzagEnemy)
+	);
+
+	if (!hasBasicEnemy) {
+		console.log('No basic Enemy present - spawning one');
+		enemies.push(new Enemy());
+		return;
+	}
+
+	if (enemies.length < maxEnemies && gameFrame % enemyInterval === 0) {
+		const roll = Math.random() * 100;
+		console.log('Enemy spawn attempt:', {
+			roll,
+			thresholds: {
+				basic: ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic,
+				zigzag: ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic + ENEMY_CONFIG.ENEMY_TYPE_RATIOS.zigzag,
+				currentEnemies: enemies.length,
+				maxEnemies: maxEnemies
+			}
+		});
+
+		// Use the defined ratios from ENEMY_CONFIG
+		if (roll < ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic) {
+			console.log('Spawning Basic Enemy');
+			enemies.push(new Enemy());
+		} else if (
+			roll <
+			ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic + ENEMY_CONFIG.ENEMY_TYPE_RATIOS.zigzag
+		) {
+			console.log('Spawning Zigzag Enemy');
+			enemies.push(new ZigzagEnemy());
+		} else {
+			console.log('Spawning City Enemy');
+			enemies.push(new CityEnemy());
+		}
+
+		// Add debug logging
+		console.log('Enemy distribution after spawn:', {
+			basic: enemies.filter(
+				(e) => e instanceof Enemy && !(e instanceof CityEnemy || e instanceof ZigzagEnemy)
+			).length,
+			zigzag: enemies.filter((e) => e instanceof ZigzagEnemy).length,
+			city: enemies.filter((e) => e instanceof CityEnemy).length
+		});
+	}
+}
+
 function manageEnemies() {
-	// Update existing enemies
+	// Update and manage existing enemies
 	enemies.forEach((enemy, index) => {
 		enemy.update(timeMultiplier);
 		enemy.draw(ctx);
 
+		// Remove off-screen or destroyed enemies
 		if (enemy.y > canvas.height || enemy.toBeRemoved) {
+			if (enemy.toBeRemoved) {
+				handleEnemyDestruction(enemy);
+			}
 			enemies.splice(index, 1);
 		}
 
-		if (enemy.toBeRemoved) {
-			handleEnemyDestruction(enemy);
+		// Handle collisions with player
+		if (checkCollision(player, enemy, PLAYER_HITBOX_PADDING)) {
+			handlePlayerHit('collision', enemy);
+			enemies.splice(index, 1);
 		}
 
+		// Handle projectile collisions
 		handleEnemyCollisions(enemy, index);
 	});
 
-	// Spawn new enemies using the spawn function
-	if (enemies.length < maxEnemies && gameFrame % enemyInterval === 0) {
-		spawnEnemy();
-	}
+	// Handle enemy spawning
+	manageEnemySpawning();
 }
 
 function handleEnemyDestruction(enemy) {
@@ -3540,6 +3645,8 @@ function handleEnemyDestruction(enemy) {
 	// Screen shake for feedback
 	shakeScreen(200, 3);
 }
+
+// Helper function for enemy collisions
 function handleEnemyCollisions(enemy, enemyIndex) {
 	projectiles.forEach((projectile, projectileIndex) => {
 		if (checkCollision(projectile, enemy)) {
@@ -3600,6 +3707,8 @@ function initializeGame(canvasElement) {
 	player.speed = 4; // Reset speed in case of power-up
 	unlimitedHeatseekersMode = false;
 	shootingCooldown = 50; // Reset shooting cooldown
+	gameStartTime = Date.now();
+	dropsEnabled = false;
 
 	scheduleRandomAmmoDrop(); // Schedule the first random ammo drop
 	scheduleRandomExtraLifeDrop(); // Schedule the first random extra life drop
@@ -3866,6 +3975,17 @@ function animate() {
 	handleExplosions();
 
 	manageEnemies();
+
+	console.log('Current enemies:', {
+		total: enemies.length,
+		types: {
+			basic: enemies.filter(
+				(e) => e instanceof Enemy && !(e instanceof CityEnemy || e instanceof ZigzagEnemy)
+			).length,
+			zigzag: enemies.filter((e) => e instanceof ZigzagEnemy).length,
+			city: enemies.filter((e) => e instanceof CityEnemy).length
+		}
+	});
 
 	projectiles.forEach((projectile, index) => {
 		if (projectile.update) {
