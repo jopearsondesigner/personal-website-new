@@ -21,7 +21,6 @@ let player = {};
 let score = 0;
 let lives = 3;
 let enemies = [];
-let maxEnemies = 2;
 let enemyProjectiles = [];
 let projectiles = [];
 let explosions = [];
@@ -48,7 +47,31 @@ const powerUpDropInterval = 6000;
 const extraLifeDropInterval = 8000;
 let playerPerformanceMetric = 0;
 const initialEnemySpawnRate = 240;
-let enemyInterval = initialEnemySpawnRate;
+
+const ENEMY_CONFIG = {
+	// Starting values - increased initial challenge
+	INITIAL_MAX_ENEMIES: 4, // Increased from 3
+	INITIAL_SPAWN_RATE: 150, // Decreased from 180 (faster spawns)
+
+	// Scaling factors - more aggressive scaling
+	MAX_ENEMIES_CAP: 12, // Increased from 8
+	MIN_SPAWN_INTERVAL: 45, // Decreased from 60 (faster spawns at high difficulty)
+	DIFFICULTY_SCALE_START: 300, // Decreased from 500 (earlier difficulty increase)
+	DIFFICULTY_SCALE_INTERVAL: 800, // Decreased from 1000 (more frequent increases)
+
+	// Enemy type ratios (adjusted for more aggressive enemies)
+	ENEMY_TYPE_RATIOS: {
+		basic: 60, // Decreased from 60
+		zigzag: 45, // Increased from 25 (more erratic enemies)
+		city: 30 // Increased from 15 (more strategic enemies)
+	},
+
+	// Formation patterns remain the same
+	FORMATION_PATTERNS: ['line', 'v-shape', 'circle', 'random']
+};
+
+let maxEnemies = ENEMY_CONFIG.INITIAL_MAX_ENEMIES;
+let enemyInterval = ENEMY_CONFIG.INITIAL_SPAWN_RATE;
 
 // Constants
 const NESPalette = {
@@ -1595,13 +1618,53 @@ function handleDroppingItems() {
 
 function adjustDifficulty() {
 	if (score >= difficultyIncreaseScore) {
-		gameSpeed += 0.05; // Smoother increase
-		difficultyIncreaseScore += 500;
-		maxEnemies = Math.min(maxEnemies + 1, 10); // Gradually increase max enemies up to 10
-		enemyInterval = Math.max(enemyInterval - 10, 60); // Decrease spawn interval to a minimum value
+		// Calculate progression stage
+		const progressionStage = Math.floor(
+			(score - ENEMY_CONFIG.DIFFICULTY_SCALE_START) / ENEMY_CONFIG.DIFFICULTY_SCALE_INTERVAL
+		);
+
+		// Gradually increase enemy count
+		maxEnemies = Math.min(
+			ENEMY_CONFIG.INITIAL_MAX_ENEMIES + progressionStage,
+			ENEMY_CONFIG.MAX_ENEMIES_CAP
+		);
+
+		// Decrease spawn interval with diminishing returns
+		enemyInterval = Math.max(
+			ENEMY_CONFIG.INITIAL_SPAWN_RATE * Math.pow(0.85, progressionStage),
+			ENEMY_CONFIG.MIN_SPAWN_INTERVAL
+		);
+
+		// Update difficulty threshold
+		difficultyIncreaseScore += ENEMY_CONFIG.DIFFICULTY_SCALE_INTERVAL;
+
+		// Scale enemy attributes
 		enemies.forEach((enemy) => {
-			enemy.speed = Math.min(enemy.speed + 0.05, 1); // Gradually increase enemy speed
+			enemy.speed = Math.min(enemy.speed * 1.1, 2); // Cap speed increase
 		});
+	}
+}
+
+// Enhanced enemy spawning logic - integrated with existing manageEnemies
+function manageEnemySpawning() {
+	if (enemies.length >= maxEnemies) return;
+
+	if (gameFrame % enemyInterval === 0) {
+		// Determine enemy type based on ratios
+		const roll = Math.random() * 100;
+
+		if (roll < ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic) {
+			enemies.push(new Enemy());
+		} else if (
+			roll <
+			ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic + ENEMY_CONFIG.ENEMY_TYPE_RATIOS.zigzag
+		) {
+			enemies.push(new ZigzagEnemy());
+		} else {
+			enemies.push(new CityEnemy());
+		}
+
+		console.log(`Spawned new enemy. Current count: ${enemies.length}/${maxEnemies}`);
 	}
 }
 
@@ -3410,50 +3473,95 @@ function drawCitySilhouette(skipDrawing = false) {
 	drawFiresAndSmoke();
 }
 
+function spawnEnemy() {
+	// Roll to determine enemy type based on configured ratios
+	const roll = Math.random() * 100;
+	let newEnemy;
+
+	if (roll < ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic) {
+		newEnemy = new Enemy();
+	} else if (roll < ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic + ENEMY_CONFIG.ENEMY_TYPE_RATIOS.zigzag) {
+		newEnemy = new ZigzagEnemy();
+	} else {
+		newEnemy = new CityEnemy();
+	}
+
+	// Apply formation pattern if configured
+	const pattern =
+		ENEMY_CONFIG.FORMATION_PATTERNS[
+			Math.floor(Math.random() * ENEMY_CONFIG.FORMATION_PATTERNS.length)
+		];
+
+	// Log spawn for debugging
+	console.log(`Spawning ${newEnemy.constructor.name} with pattern: ${pattern}`);
+
+	enemies.push(newEnemy);
+}
+
 // Manage Enemies
 // In the "manageEnemies" function, ensure that city enemies are being added and updated.
 function manageEnemies() {
+	// Update existing enemies
 	enemies.forEach((enemy, index) => {
-		enemy.update();
+		enemy.update(timeMultiplier);
 		enemy.draw(ctx);
 
 		if (enemy.y > canvas.height || enemy.toBeRemoved) {
 			enemies.splice(index, 1);
 		}
+
 		if (enemy.toBeRemoved) {
-			floatingTexts.push(new FloatingText(enemy.x, enemy.y, '+100 pts'));
-			score += 100; // Increment score
-			enemies.splice(index, 1); // Remove enemy
+			handleEnemyDestruction(enemy);
 		}
 
-		projectiles.forEach((projectile, projectileIndex) => {
-			if (checkCollision(projectile, enemy)) {
-				projectiles.splice(projectileIndex, 1);
-				if (projectile.isHeatseeker) {
-					enemy.isExploding = true;
-					enemy.explosionFrame = 0;
-				} else {
-					enemy.hitsTaken++;
-					if (enemy.hitsTaken === 1) {
-						enemy.isAggressive = true;
-					} else if (enemy.hitsTaken > 1) {
-						enemy.isExploding = true;
-						enemy.explosionFrame = 0;
-					}
-				}
-			}
-		});
+		handleEnemyCollisions(enemy, index);
 	});
 
-	// Add new enemies including CityEnemy
+	// Spawn new enemies using the spawn function
 	if (enemies.length < maxEnemies && gameFrame % enemyInterval === 0) {
-		const spawnFromCity = Math.random() < 0.5; // 50% chance to spawn a CityEnemy
-		if (spawnFromCity) {
-			enemies.push(new CityEnemy());
-		} else {
-			enemies.push(new Enemy());
-		}
+		spawnEnemy();
 	}
+}
+
+function handleEnemyDestruction(enemy) {
+	// Add score
+	score += 100;
+
+	// Create floating score text
+	floatingTexts.push(new FloatingText(enemy.x, enemy.y, '+100 pts', NESPalette.lightYellow));
+
+	// Generate explosion particles
+	for (let i = 0; i < 20; i++) {
+		particles.push(
+			new Particle(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, NESPalette.orange)
+		);
+	}
+
+	// Screen shake for feedback
+	shakeScreen(200, 3);
+}
+function handleEnemyCollisions(enemy, enemyIndex) {
+	projectiles.forEach((projectile, projectileIndex) => {
+		if (checkCollision(projectile, enemy)) {
+			// Remove projectile
+			projectiles.splice(projectileIndex, 1);
+
+			// Handle heatseeker hits
+			if (projectile.isHeatseeker) {
+				enemy.isExploding = true;
+				enemy.toBeRemoved = true;
+			} else {
+				// Handle normal projectile hits
+				enemy.hitsTaken++;
+				if (enemy.hitsTaken === 1) {
+					enemy.isAggressive = true;
+				} else if (enemy.hitsTaken > 1) {
+					enemy.isExploding = true;
+					enemy.toBeRemoved = true;
+				}
+			}
+		}
+	});
 }
 
 function manageSpaceships() {
