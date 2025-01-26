@@ -85,11 +85,18 @@
 	let isLandscape = false;
 
 	// Button states
-	const buttons = {
+	const buttons: {
+		ammo: boolean;
+		heatseeker: boolean;
+		pause: boolean;
+		enter: boolean;
+		reset: boolean;
+	} = {
 		ammo: false,
 		heatseeker: false,
 		pause: false,
-		enter: false
+		enter: false,
+		reset: false
 	};
 
 	$: controlsHeight = isLandscape ? 'var(--controls-height-landscape)' : 'var(--controls-height)';
@@ -309,6 +316,12 @@
 			case 'enter':
 				keyEvent = new KeyboardEvent('keyup', { key: 'Enter' });
 				break;
+			case 'reset':
+				keyEvent = new KeyboardEvent('keydown', {
+					key: 'r',
+					ctrlKey: true
+				});
+				break;
 		}
 		if (keyEvent) window.dispatchEvent(keyEvent);
 
@@ -389,6 +402,16 @@
 	<!-- Header with utility buttons -->
 	<div class="controls-header">
 		<div class="utility-buttons">
+			<button
+				class="utility-button"
+				class:active={buttons.reset}
+				on:mousedown|preventDefault={(e) => handleButtonPress('reset', e)}
+				on:mouseup={() => handleButtonRelease('reset')}
+				on:touchstart|preventDefault={(e) => handleButtonPress('reset', e)}
+				on:touchend={() => handleButtonRelease('reset')}
+			>
+				Reset
+			</button>
 			<button
 				class="utility-button"
 				class:active={buttons.pause}

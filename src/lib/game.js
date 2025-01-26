@@ -6,10 +6,11 @@ function getAssetPath(path) {
 	// Remove leading slash if present
 	path = path.startsWith('/') ? path.slice(1) : path;
 
-	// Get the base URL from the window location
-	const baseUrl = window.location.pathname.includes('/personal-website-new')
-		? '/personal-website-new'
-		: '';
+	// Check if running in development or production
+	const baseUrl =
+		typeof window !== 'undefined' && window.location.pathname.includes('/personal-website-new')
+			? '/personal-website-new'
+			: '';
 
 	return `${baseUrl}/${path}`;
 }
@@ -51,6 +52,26 @@ const initialEnemySpawnRate = 240;
 const INITIAL_DROP_DELAY = 20000;
 let gameStartTime = 0;
 let dropsEnabled = false;
+
+const TIMING_CONFIG = {
+	TARGET_FPS: 60,
+	FRAME_TIME: 1000 / 60, // 16.67ms
+	MIN_FRAME_TIME: 1000 / 120, // 8.33ms - Cap at 120fps
+	MAX_FRAME_TIME: 1000 / 30, // 33.33ms - Don't go below 30fps
+	TIME_STEP: 1 / 60 // Fixed time step for physics
+};
+
+let cappedMultiplier = 1;
+const MAX_MULTIPLIER = 2;
+const MIN_MULTIPLIER = 0.5;
+
+const SPEED_CONFIG = {
+	BASE_ENEMY_SPEED: 0.15,
+	BASE_PROJECTILE_SPEED: 8,
+	BASE_PLAYER_SPEED: 4,
+	MIN_TIME_MULTIPLIER: 0.5,
+	MAX_TIME_MULTIPLIER: 1.5
+};
 
 const ENEMY_CONFIG = {
 	// Starting values
@@ -224,7 +245,7 @@ function initializePlayer() {
 		y: canvas.height - 87.5 - 5,
 		width: 80,
 		height: 87.5,
-		speed: 4,
+		speed: SPEED_CONFIG.BASE_PLAYER_SPEED,
 		acceleration: 0.2,
 		friction: 0.9,
 		velocityX: 0,
@@ -250,10 +271,56 @@ function initializePlayer() {
 		frameInterval: 8,
 		isExploding: false,
 		explosionFrame: 0,
-		spriteImage: new Image(),
+		spriteImage: null, // Initialize as null first
+		spriteLoaded: false,
+		loadRetries: 0,
+		maxRetries: 3,
 		direction: 'right',
 		frameSequence: [2, 3, 2, 4],
 		sequenceIndex: 0,
+
+		init: function () {
+			// Create new Image instance
+			this.spriteImage = new Image();
+
+			// Set up load handlers before setting src
+			this.spriteImage.onload = () => {
+				console.log('Vela sprite loaded successfully');
+				// Verify sprite dimensions
+				if (this.spriteImage.width === 0 || this.spriteImage.height === 0) {
+					console.error('Invalid sprite dimensions');
+					this.retryLoad();
+					return;
+				}
+				this.spriteLoaded = true;
+				// Log success with dimensions
+				console.log(`Sprite loaded: ${this.spriteImage.width}x${this.spriteImage.height}`);
+			};
+
+			this.spriteImage.onerror = (error) => {
+				console.error('Failed to load Vela sprite:', error);
+				this.retryLoad();
+			};
+
+			// Start loading sprite
+			this.loadSprite();
+		},
+
+		loadSprite: function () {
+			const spritePath = getAssetPath('assets/images/game/vela_main_sprite.png');
+			console.log('Loading sprite from:', spritePath);
+			this.spriteImage.src = spritePath;
+		},
+
+		retryLoad: function () {
+			if (this.loadRetries < this.maxRetries) {
+				this.loadRetries++;
+				console.log(`Retrying sprite load, attempt ${this.loadRetries}`);
+				setTimeout(() => this.loadSprite(), 1000 * this.loadRetries);
+			} else {
+				console.error('Max retry attempts reached for sprite loading');
+			}
+		},
 
 		update: function () {
 			if (this.isExploding) {
@@ -261,19 +328,16 @@ function initializePlayer() {
 				if (this.explosionFrame > 2) {
 					this.isExploding = false;
 					this.explosionFrame = 0;
-					// Hide Vela after explosion
 					this.x = -100;
 					this.y = -100;
-					// Transition to Game Over screen after explosion
 					setTimeout(() => {
 						if (lives <= 0) {
 							gameActive = false;
 							drawGameOverScreen();
 						}
-					}, 1000); // Delay to show explosion sequence before Game Over
+					}, 1000);
 				}
 			} else {
-				// Handle dashing
 				if (this.isDashing) {
 					this.dodgeEnemyProjectiles();
 					this.x += this.dashSpeed * timeMultiplier * (this.direction === 'left' ? -1 : 1);
@@ -286,7 +350,6 @@ function initializePlayer() {
 					this.dashCooldown -= timeMultiplier;
 				}
 
-				// Handle horizontal movement with acceleration and friction
 				if (this.movingLeft) {
 					this.velocityX = Math.max(
 						this.velocityX - this.acceleration * timeMultiplier,
@@ -308,14 +371,12 @@ function initializePlayer() {
 
 				this.x += this.velocityX * timeMultiplier;
 
-				// Wrapping logic
 				if (this.x + this.width < 0) {
 					this.x = canvas.width;
 				} else if (this.x > canvas.width) {
 					this.x = -this.width;
 				}
 
-				// Handle vertical movement and jumping
 				if (this.isJumping) {
 					this.velocityY = -10;
 					if (this.isGrounded) {
@@ -325,11 +386,11 @@ function initializePlayer() {
 					}
 					this.isJumping = false;
 				}
+
 				if (!this.isGrounded) {
 					this.velocityY += this.gravity * timeMultiplier;
 					this.y += this.velocityY * timeMultiplier;
 					if (this.y + this.height > canvas.height - 5) {
-						// Ensure Vela is 5px above the bottom
 						this.y = canvas.height - this.height - 5;
 						this.velocityY = 0;
 						this.isGrounded = true;
@@ -337,7 +398,6 @@ function initializePlayer() {
 					}
 				}
 
-				// Handle frame animation
 				if (this.movingLeft || this.movingRight) {
 					this.frameTimer += timeMultiplier;
 					if (this.frameTimer >= this.frameInterval) {
@@ -352,6 +412,70 @@ function initializePlayer() {
 					this.sequenceIndex = 0;
 				}
 			}
+		},
+
+		draw: function () {
+			if (!this.spriteImage || !this.spriteLoaded || !this.spriteImage.complete) {
+				// Enhanced debug visualization
+				ctx.save();
+				ctx.fillStyle = '#FF00FF';
+				ctx.fillRect(this.x, this.y, this.width, this.height);
+				// Add debug text
+				ctx.fillStyle = '#FFFFFF';
+				ctx.font = '12px Arial';
+				ctx.fillText('Loading...', this.x, this.y - 5);
+				ctx.restore();
+				return;
+			}
+
+			ctx.save();
+
+			if (this.direction === 'left') {
+				ctx.scale(-1, 1);
+				ctx.translate(-canvas.width, 0);
+			}
+
+			try {
+				const drawX = this.direction === 'left' ? canvas.width - this.x - this.width : this.x;
+
+				if (this.glowColor) {
+					ctx.shadowBlur = 20;
+					ctx.shadowColor = this.glowColor;
+				}
+
+				if (this.isExploding) {
+					let frameToDraw = 5 + this.explosionFrame;
+					ctx.drawImage(
+						this.spriteImage,
+						frameToDraw * this.spriteWidth,
+						0,
+						this.spriteWidth,
+						this.spriteHeight,
+						drawX,
+						this.y,
+						this.width,
+						this.height
+					);
+				} else {
+					ctx.drawImage(
+						this.spriteImage,
+						this.frameX,
+						this.frameY,
+						this.spriteWidth,
+						this.spriteHeight,
+						drawX,
+						this.y,
+						this.width,
+						this.height
+					);
+				}
+			} catch (e) {
+				console.error('Sprite drawing error:', e);
+				ctx.fillStyle = '#FF00FF';
+				ctx.fillRect(this.x, this.y, this.width, this.height);
+			}
+
+			ctx.restore();
 		},
 
 		jump: function () {
@@ -382,50 +506,11 @@ function initializePlayer() {
 					}
 				}
 			});
-		},
-
-		draw: function () {
-			ctx.save();
-			if (this.direction === 'left') {
-				ctx.scale(-1, 1);
-				ctx.translate(-canvas.width, 0);
-			}
-
-			if (this.glowColor) {
-				ctx.shadowBlur = 20;
-				ctx.shadowColor = this.glowColor;
-			}
-
-			if (this.isExploding) {
-				let frameToDraw = 5 + this.explosionFrame;
-				ctx.drawImage(
-					this.spriteImage,
-					frameToDraw * this.spriteWidth,
-					0,
-					this.spriteWidth,
-					this.spriteHeight,
-					this.direction === 'left' ? canvas.width - this.x - this.width : this.x,
-					this.y,
-					this.width,
-					this.height
-				);
-			} else {
-				ctx.drawImage(
-					this.spriteImage,
-					this.frameX,
-					this.frameY,
-					this.spriteWidth,
-					this.spriteHeight,
-					this.direction === 'left' ? canvas.width - this.x - this.width : this.x,
-					this.y,
-					this.width,
-					this.height
-				);
-			}
-
-			ctx.restore();
 		}
 	});
+
+	// Initialize the player immediately after setup
+	player.init();
 }
 
 // Class Definitions
@@ -841,64 +926,6 @@ class ExtraLife {
 	}
 }
 
-class PowerUp {
-	constructor(type, x, y) {
-		this.type = type;
-		this.x = x;
-		this.y = y;
-		this.width = 65.333; // Correct width per frame
-		this.height = 56; // Correct height of the sprite
-		this.speed = 1;
-		this.spriteImage = new Image();
-		this.spriteImage.src = getAssetPath('assets/images/game/game_mechanics_sprite.png');
-		this.frameX = 2; // Frame 3 (PowerUp)
-		this.loaded = false;
-
-		// Ensure image is loaded before drawing
-		this.spriteImage.onload = () => {
-			this.loaded = true;
-		};
-		this.spriteImage.onerror = (error) => {
-			console.error('Failed to load PowerUp image', error);
-		};
-
-		// Add the shield effect
-		this.effect = new ShieldEffect(this.x, this.y, this.width, this.height);
-	}
-
-	update() {
-		this.y += this.speed;
-		if (this.y > canvas.height) {
-			const index = powerUps.indexOf(this);
-			powerUps.splice(index, 1);
-		}
-
-		// Update the shield effect
-		this.effect.update();
-	}
-
-	draw(ctx) {
-		if (this.loaded) {
-			// Draw shield effect
-			this.effect.draw(ctx);
-
-			ctx.drawImage(
-				this.spriteImage,
-				this.frameX * this.width,
-				0,
-				this.width,
-				this.height,
-				this.x,
-				this.y,
-				this.width,
-				this.height
-			);
-		} else {
-			console.warn('PowerUp image not loaded, cannot draw');
-		}
-	}
-}
-
 class ShieldEffect {
 	constructor(x, y, width, height) {
 		this.x = x + width / 2;
@@ -917,10 +944,13 @@ class ShieldEffect {
 	}
 
 	update(timeMultiplier = 1) {
+		// Classic arcade-style pulsing effect
 		this.glowOpacity += this.glowDirection * timeMultiplier;
 		if (this.glowOpacity >= 1 || this.glowOpacity <= 0.5) {
 			this.glowDirection = -this.glowDirection;
 		}
+
+		// Rotate sparkles in classic arcade style
 		this.sparkles.forEach((sparkle) => {
 			sparkle.angle += this.sparkleSpeed * timeMultiplier;
 		});
@@ -929,14 +959,14 @@ class ShieldEffect {
 	draw(ctx) {
 		ctx.save();
 
-		// Draw pulsating glow
+		// Draw pulsating glow effect common in 80s arcade games
 		ctx.globalAlpha = this.glowOpacity;
 		ctx.fillStyle = NESPalette.lightYellow;
 		ctx.beginPath();
 		ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
 		ctx.fill();
 
-		// Draw rotating sparkles
+		// Draw rotating sparkles - a classic arcade power-up indicator
 		ctx.globalAlpha = 1;
 		ctx.fillStyle = NESPalette.white;
 		this.sparkles.forEach((sparkle) => {
@@ -951,12 +981,137 @@ class ShieldEffect {
 	}
 }
 
+class PowerUp {
+	constructor(x, y) {
+		this.x = x;
+		this.y = y;
+		this.width = 65.333;
+		this.height = 56;
+		this.speed = 1;
+		this.spriteImage = new Image();
+		this.spriteImage.src = getAssetPath('assets/images/game/game_mechanics_sprite.png');
+		this.frameX = 2;
+		this.loaded = false;
+
+		// Classic arcade pulsing effect - more subtle
+		this.pulseSize = 1.0;
+		this.pulseSpeed = 0.004; // Slower pulse
+		this.pulseMin = 0.97; // Less size reduction
+		this.pulseMax = 1.03; // Less size increase
+		this.pulseDirection = 1;
+
+		// Smooth sinusoidal interpolation
+		this.pulseAngle;
+
+		// Orbital particles system
+		this.orbitParticles = [];
+		this.orbitRadius = 40;
+		this.orbitSpeed = 0.025;
+		this.numParticles = 8;
+
+		// Energy field effect
+		this.energyFieldSize = 50;
+		this.energyFieldOpacity = 0.5;
+		this.energyFieldRotation = 0;
+
+		// Initialize orbit particles
+		for (let i = 0; i < this.numParticles; i++) {
+			this.orbitParticles.push({
+				angle: (i * Math.PI * 2) / this.numParticles,
+				size: 2 + Math.random() * 2,
+				speedMod: 0.8 + Math.random() * 0.4
+			});
+		}
+
+		this.spriteImage.onload = () => {
+			this.loaded = true;
+		};
+	}
+
+	update(timeMultiplier = 1) {
+		// Basic movement
+		this.y += this.speed * timeMultiplier;
+
+		// Pulsing effect update
+		this.pulseSize += this.pulseSpeed * this.pulseDirection * timeMultiplier;
+		if (this.pulseSize >= this.pulseMax) {
+			this.pulseDirection = -1;
+		} else if (this.pulseSize <= this.pulseMin) {
+			this.pulseDirection = 1;
+		}
+
+		// Update particle orbits
+		this.orbitParticles.forEach((particle) => {
+			particle.angle += this.orbitSpeed * particle.speedMod * timeMultiplier;
+		});
+
+		// Rotate energy field
+		this.energyFieldRotation += 0.02 * timeMultiplier;
+	}
+
+	draw(ctx) {
+		if (!this.loaded) return;
+
+		ctx.save();
+
+		// Draw energy field
+		ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+		ctx.rotate(this.energyFieldRotation);
+		ctx.globalAlpha = this.energyFieldOpacity;
+
+		// Draw pulsing energy rings
+		for (let i = 0; i < 3; i++) {
+			ctx.beginPath();
+			ctx.strokeStyle = i % 2 === 0 ? NESPalette.lightYellow : NESPalette.lightestBlue;
+			ctx.lineWidth = 2;
+			ctx.arc(0, 0, this.energyFieldSize * (0.6 + i * 0.2) * this.pulseSize, 0, Math.PI * 2);
+			ctx.stroke();
+		}
+
+		// Draw orbiting particles
+		this.orbitParticles.forEach((particle) => {
+			const x = Math.cos(particle.angle) * this.orbitRadius;
+			const y = Math.sin(particle.angle) * this.orbitRadius;
+
+			ctx.fillStyle = NESPalette.white;
+			ctx.beginPath();
+			ctx.arc(x, y, particle.size, 0, Math.PI * 2);
+			ctx.fill();
+
+			// Draw particle trails
+			ctx.globalAlpha = 0.3;
+			ctx.beginPath();
+			ctx.arc(x, y, particle.size * 1.5, 0, Math.PI * 2);
+			ctx.fill();
+		});
+
+		ctx.restore();
+
+		// Draw the power-up sprite with pulse scaling
+		ctx.save();
+		ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+		ctx.scale(this.pulseSize, this.pulseSize);
+		ctx.drawImage(
+			this.spriteImage,
+			this.frameX * this.width,
+			0,
+			this.width,
+			this.height,
+			-this.width / 2,
+			-this.height / 2,
+			this.width,
+			this.height
+		);
+		ctx.restore();
+	}
+}
+
 class Projectile {
 	constructor(x, y, speedY, color = '#FFFFFF') {
 		this.x = x;
 		this.y = y;
 		this.radius = 5;
-		this.speedY = speedY;
+		this.speedY = SPEED_CONFIG.BASE_PROJECTILE_SPEED;
 		this.color = color;
 		this.isActive = true;
 		this.lifeSpan = 100;
@@ -1040,40 +1195,6 @@ function assert(condition, message) {
 	if (!condition) {
 		console.error('Assertion failed:', message);
 	}
-}
-
-function preloadAssets(assetURLs) {
-	return new Promise((resolve, reject) => {
-		try {
-			let loadedAssets = 0;
-			const totalAssets = assetURLs.length;
-			const loadedImages = [];
-
-			assetURLs.forEach((url, index) => {
-				const img = new Image();
-				loadedImages[index] = img; // Store the image object
-
-				img.onload = () => {
-					loadedAssets++;
-					console.log(`Loaded asset ${loadedAssets}/${totalAssets}: ${url}`);
-					if (loadedAssets === totalAssets) {
-						console.log('All assets loaded successfully');
-						resolve(loadedImages);
-					}
-				};
-
-				img.onerror = (error) => {
-					console.error(`Failed to load image: ${url}`, error);
-					reject(error);
-				};
-
-				img.src = url; // Set the source after setting up event handlers
-			});
-		} catch (error) {
-			console.error('Error in preloadAssets:', error);
-			reject(error);
-		}
-	});
 }
 
 function drawParticle(particle) {
@@ -1297,11 +1418,7 @@ function dropRandomPowerUp() {
 	const shouldDropPowerUp = score < 1000 || lives === 1;
 
 	if (shouldDropPowerUp) {
-		const powerUp = new PowerUp(
-			getOptimalPowerUpType(),
-			Math.random() * (canvas.width - 100) + 50,
-			-50
-		);
+		const powerUp = new PowerUp(Math.random() * (canvas.width - 100) + 50, -50);
 		powerUps.push(powerUp);
 	}
 }
@@ -1350,47 +1467,45 @@ function triggerRedFlash() {
 	}, 200);
 }
 
-function activatePowerUp(type) {
+function activatePowerUp() {
 	powerUpActive = true;
-	powerUpType = type;
 	powerUpStartTime = Date.now();
 
-	switch (type) {
-		case 'invincibility':
-			player.isInvincible = true;
-			break;
-		case 'speedBoost':
-			player.speed = 8; // Double the default speed
-			break;
-		case 'unlimitedHeatseekers':
-			unlimitedHeatseekersMode = true;
-			break;
-		case 'rapidFire':
-			rapidFireMode = true;
-			break;
-	}
+	// Store original values
+	const originalSpeed = player.speed;
+	const originalHeatseekerCount = heatseekerCount;
 
-	activateGlowEffect(); // Ensure this function is called
-	floatingTexts.push(
-		new FloatingText(player.x, player.y, `+${type.toUpperCase()}`, NESPalette.lightGreen)
+	// Activate all power-up effects
+	player.isInvincible = true;
+	player.speed = 8; // Double speed
+	unlimitedHeatseekersMode = true;
+	rapidFireMode = true;
+
+	// Add the same explosion effect used in cheat code
+	createExplosion(
+		player.x + player.width / 2,
+		player.y + player.height / 2,
+		NESPalette.lightYellow,
+		50
 	);
-}
 
-function activateAllPowerUps() {
-	activatePowerUp('invincibility');
-	activatePowerUp('speedBoost');
-	activatePowerUp('unlimitedHeatseekers');
-	activatePowerUp('rapidFire');
-	activateGlowEffect(); // Ensure glow effect is activated
-}
+	// Activate visual effects
+	activateGlowEffect();
+	floatingTexts.push(new FloatingText(player.x, player.y, 'POWER SURGE!', NESPalette.lightGreen));
 
-function deactivateAllPowerUps() {
-	player.isInvincible = false;
-	player.speed = 4; // Reset to default speed
-	unlimitedHeatseekersMode = false;
-	rapidFireMode = false; // Ensure rapid fire mode is reset
-	powerUpActive = false;
-	player.glowColor = null; // Reset glow effect
+	// Set up deactivation timer
+	if (!constantPowerUpMode) {
+		setTimeout(() => {
+			// Reset all power-up effects
+			player.isInvincible = false;
+			player.speed = originalSpeed;
+			unlimitedHeatseekersMode = false;
+			rapidFireMode = false;
+			powerUpActive = false;
+			player.glowColor = null;
+			heatseekerCount = originalHeatseekerCount;
+		}, powerUpDuration);
+	}
 }
 
 function activateGlowEffect() {
@@ -1421,6 +1536,7 @@ function activateGlowEffect() {
 
 function drawPowerUpBar() {
 	if (!powerUpActive) return;
+
 	const currentTime = Date.now();
 	const elapsedTime = currentTime - powerUpStartTime;
 	const remainingTime = powerUpDuration - elapsedTime;
@@ -1431,68 +1547,55 @@ function drawPowerUpBar() {
 
 	if (remainingTime <= 0) {
 		powerUpActive = false;
+		return;
 	}
 
-	const fillWidth = (barWidth * remainingTime) / powerUpDuration;
-	ctx.fillStyle = NESPalette.darkGray; // NES gray
+	// Background bar
+	ctx.fillStyle = NESPalette.darkGray;
 	ctx.fillRect(x, y, barWidth, barHeight);
 
-	let fillColor;
-	switch (powerUpType) {
-		case 'invincibility':
-			fillColor = NESPalette.pink; // NES pink
-			break;
-		case 'speedBoost':
-			fillColor = NESPalette.yellow; // NES yellow
-			break;
-		case 'unlimitedHeatseekers':
-			fillColor = NESPalette.lightBlue; // NES blue
-			break;
-		case 'rapidFire':
-			fillColor = NESPalette.orange; // NES red
-			break;
-		default:
-			fillColor = NESPalette.white; // NES white
-	}
-
-	ctx.fillStyle = fillColor;
+	// Progress bar
+	const fillWidth = (barWidth * remainingTime) / powerUpDuration;
+	ctx.fillStyle = NESPalette.lightGold;
 	ctx.fillRect(x, y, fillWidth, barHeight);
-	ctx.strokeStyle = NESPalette.darkBlue; // NES blue
+
+	// Border
+	ctx.strokeStyle = NESPalette.darkBlue;
 	ctx.lineWidth = 2;
 	ctx.strokeRect(x, y, barWidth, barHeight);
-	ctx.fillStyle = NESPalette.white; // NES white
+
+	// Text
+	ctx.fillStyle = NESPalette.white;
 	ctx.font = "16px 'Press Start 2P', cursive";
-	ctx.fillText(powerUpType.toUpperCase(), x + 10, y + 15);
+
+	// Add pulsing effect when near end
+	if (remainingTime < 3000) {
+		// Last 3 seconds
+		const pulseIntensity = Math.sin(Date.now() / 100) * 0.3 + 0.7;
+		ctx.globalAlpha = pulseIntensity;
+		ctx.strokeRect(x, y, barWidth, barHeight);
+		ctx.globalAlpha = 1.0;
+	}
 }
 
 function checkPowerUpCollisions() {
 	powerUps.forEach((powerUp, index) => {
 		if (checkCollision(player, powerUp)) {
-			activatePowerUp(powerUp.type);
+			activatePowerUp();
 			powerUps.splice(index, 1);
 			floatingTexts.push(
-				new FloatingText(
-					powerUp.x,
-					powerUp.y,
-					`+${powerUp.type.toUpperCase()}`,
-					NESPalette.lightGreen
-				)
+				new FloatingText(powerUp.x, powerUp.y, 'POWER SURGE!', NESPalette.lightGreen)
 			);
 			createGoldExplosion(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
 			drawHUD();
 		} else {
 			projectiles.forEach((projectile, pIndex) => {
 				if (checkCollision(projectile, powerUp)) {
-					activatePowerUp(powerUp.type);
+					activatePowerUp();
 					powerUps.splice(index, 1);
 					projectiles.splice(pIndex, 1);
 					floatingTexts.push(
-						new FloatingText(
-							powerUp.x,
-							powerUp.y,
-							`+${powerUp.type.toUpperCase()}`,
-							NESPalette.lightGreen
-						)
+						new FloatingText(powerUp.x, powerUp.y, 'POWER SURGE!', NESPalette.lightGreen)
 					);
 					createGoldExplosion(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
 					drawHUD();
@@ -1913,54 +2016,39 @@ function drawGameOverScreen() {
 }
 
 function resetGame() {
-	// Reset timing and animation variables
-	lastFrameTime = performance.now();
-	deltaTime = 0;
-	timeMultiplier = 1;
-	animationFrameId = null;
+	console.log('Initiating game reset...');
+
+	// Cancel existing animation frame
+	if (animationFrameId) {
+		cancelAnimationFrame(animationFrameId);
+		animationFrameId = null;
+	}
 
 	// Reset core game state
 	score = 0;
-	comboCounter = 0;
 	lives = 3;
+	gameFrame = 0;
 	gameSpeed = 1;
 	enemyInterval = initialEnemySpawnRate;
 	difficultyIncreaseScore = 500;
 	heatseekerCount = 3;
+	gameActive = true;
+	titleScreen = false;
+	gameOverScreen = false;
+	isPaused = false;
 
-	// Clear all arrays
+	// Clear all game arrays
 	enemies = [];
-	enemyProjectiles = [];
 	projectiles = [];
 	explosions = [];
 	comets = [];
 	shootingStars = [];
-	cityFires = [];
-	smokeParticles = [];
-	stars = []; // Clear the stars array
-	spaceships = [];
-	clouds = [];
+	enemyProjectiles = [];
+	heatseekerAmmo = [];
+	powerUps = [];
+	extraLives = [];
 	particles = [];
 	floatingTexts = [];
-	obstacles = [];
-	extraLives = [];
-	powerUps = [];
-	heatseekerAmmo = [];
-
-	// Reset flags and timers
-	gameFrame = 0;
-	titleScreen = false;
-	gameActive = true;
-	isPaused = false;
-	gameOverScreen = false;
-	skyFlashActive = false;
-	skyFlashTimer = 0;
-	allowAmmoDrop = true;
-	dayNightCycle = 180;
-	canShoot = true;
-	ammoDropCounter = 0;
-	flashEffectActive = false;
-	flashColor = 'rgba(255, 0, 0, 0.5)';
 
 	// Reset power-up states
 	powerUpActive = false;
@@ -1969,47 +2057,37 @@ function resetGame() {
 	constantPowerUpMode = false;
 	unlimitedHeatseekersMode = false;
 	rapidFireMode = false;
-	// Reset player state
-	player = {
-		x: canvas.width / 2 - 32, // Assuming player width is 64px
-		y: canvas.height - 64 - 5, // Assuming player height is 64px
-		movingLeft: false,
-		movingRight: false,
-		isExploding: false,
-		width: 64, // Player width
-		height: 64, // Player height
-		explosionFrame: 0,
-		frameX: 0,
-		frameY: 0,
-		currentFrame: 0,
-		sequenceIndex: 0,
-		frameTimer: 0,
-		isInvincible: false,
-		speed: 4,
-		glowColor: null
-	};
 
-	// Re-initialize game components
+	// Reset player state
+	player.x = canvas.width / 2 - player.width / 2;
+	player.y = canvas.height - player.height - 5;
+	player.isInvincible = false;
+	player.speed = 4;
+	player.glowColor = null;
+
+	// Reset timers and intervals
+	lastFrameTime = performance.now();
+	deltaTime = TIMING_CONFIG.FRAME_TIME;
+	timeMultiplier = 1;
+	lastVelaShotTime = Date.now();
+	dayNightCycle = 180;
+
+	// Reinitialize game components
 	initializeCityFires();
 	initializeClouds();
 	initializeStars();
 	smokeParticlePool = new ParticlePool(100);
-	spaceship = new Spaceship();
 
-	// Reset timers and cooldowns
-	lastVelaShotTime = Date.now();
+	// Reschedule game events
+	gameStartTime = Date.now();
+	dropsEnabled = false;
+	scheduleRandomAmmoDrop();
+	scheduleRandomExtraLifeDrop();
+	schedulePowerUpDrops();
 
-	// Clear and redraw HUD
+	// Update HUD and start animation
 	drawHUD();
-
-	// Cancel existing animation frame if it exists
-	if (animationFrameId) {
-		cancelAnimationFrame(animationFrameId);
-		animationFrameId = null;
-	}
-
-	// Restart animation loop
-	animationFrameId = requestAnimationFrame(animate);
+	animate();
 
 	console.log('Game reset complete');
 }
@@ -2039,7 +2117,7 @@ class Enemy {
 		this.y = -65;
 		this.width = 65;
 		this.height = 65;
-		this.speed = Math.random() * 0.2 + 0.15;
+		this.speed = SPEED_CONFIG.BASE_ENEMY_SPEED;
 		this.shootingInterval = 150;
 		this.lastShotFrame = 0;
 		this.descentSpeed = 1.0;
@@ -2092,36 +2170,6 @@ class Enemy {
 				}
 				break;
 		}
-
-		projectiles.forEach((projectile, pIndex) => {
-			if (checkCollision(this, projectile)) {
-				if (projectile.isHeatseeker) {
-					// If hit by a heatseeker, trigger explosion and screen shake
-					this.isExploding = true;
-					this.toBeRemoved = true;
-					shakeScreen(200, 5);
-					// Generate explosion particles
-					for (let i = 0; i < 20; i++) {
-						particles.push(
-							new Particle(this.x + this.width / 2, this.y + this.height / 2, '#ff4757')
-						);
-					}
-				} else {
-					// Increment hits taken for non-heatseeker projectiles
-					this.hitsTaken++;
-					if (this.hitsTaken >= 1) {
-						// Make enemy aggressive after 1 hit
-						this.isAggressive = true;
-					}
-					if (this.hitsTaken >= 2) {
-						// Enemy dies after 2 hits
-						this.isExploding = true;
-						this.toBeRemoved = true;
-					}
-				}
-				projectiles.splice(pIndex, 1);
-			}
-		});
 
 		if (this.isExploding) {
 			this.explosionFrame++;
@@ -2374,31 +2422,6 @@ class CityEnemy extends Enemy {
 				this.lastShotFrame = gameFrame;
 			}
 		}
-
-		projectiles.forEach((projectile, pIndex) => {
-			if (checkCollision(this, projectile)) {
-				if (projectile.isHeatseeker) {
-					this.isExploding = true;
-					this.toBeRemoved = true;
-					shakeScreen(200, 5);
-					for (let i = 0; i < 20; i++) {
-						particles.push(
-							new Particle(this.x + this.width / 2, this.y + this.height / 2, NESPalette.red)
-						);
-					}
-				} else {
-					this.hitsTaken++;
-					if (this.hitsTaken >= 1) {
-						this.isAggressive = true;
-					}
-					if (this.hitsTaken >= 2) {
-						this.isExploding = true;
-						this.toBeRemoved = true;
-					}
-				}
-				projectiles.splice(pIndex, 1);
-			}
-		});
 
 		if (this.isAggressive) {
 			this.speed += 0.1;
@@ -3642,14 +3665,20 @@ function handleEnemyDestruction(enemy) {
 		);
 	}
 
-	// Screen shake for feedback
-	shakeScreen(200, 3);
+	// Screen shake for feedback (matching original behavior)
+	shakeScreen(200, 5); // Changed back to magnitude of 5
 }
 
 // Helper function for enemy collisions
 function handleEnemyCollisions(enemy, enemyIndex) {
 	projectiles.forEach((projectile, projectileIndex) => {
 		if (checkCollision(projectile, enemy)) {
+			console.log('Projectile hit enemy:', {
+				enemyType: enemy.constructor.name,
+				projectileType: projectile.isHeatseeker ? 'heatseeker' : 'normal',
+				position: { x: enemy.x, y: enemy.y }
+			});
+
 			// Remove projectile
 			projectiles.splice(projectileIndex, 1);
 
@@ -3662,10 +3691,15 @@ function handleEnemyCollisions(enemy, enemyIndex) {
 				enemy.hitsTaken++;
 				if (enemy.hitsTaken === 1) {
 					enemy.isAggressive = true;
-				} else if (enemy.hitsTaken > 1) {
+				} else if (enemy.hitsTaken >= 2) {
 					enemy.isExploding = true;
 					enemy.toBeRemoved = true;
 				}
+			}
+
+			// If enemy is to be removed, handle destruction effects
+			if (enemy.toBeRemoved) {
+				handleEnemyDestruction(enemy);
 			}
 		}
 	});
@@ -3724,15 +3758,66 @@ function initializeGame(canvasElement) {
 	}, 1000);
 }
 
+async function loadGameAssets() {
+	const loadingScreen = {
+		draw: () => {
+			ctx.fillStyle = NESPalette.black;
+			ctx.fillRect(0, 0, canvas.width, canvas.height);
+			ctx.fillStyle = NESPalette.white;
+			ctx.font = "20px 'Press Start 2P'";
+			ctx.textAlign = 'center';
+			ctx.fillText('LOADING...', canvas.width / 2, canvas.height / 2);
+		}
+	};
+
+	const loadingInterval = setInterval(() => loadingScreen.draw(), 16);
+
+	try {
+		const assetUrls = [
+			'assets/images/game/void_swarm_sprite.png',
+			'assets/images/game/vela_main_sprite.png',
+			'assets/images/game/projectile_main_sprite.png',
+			'assets/images/game/game_mechanics_sprite.png',
+			'assets/images/game/main_logo_title_screen-01.svg'
+		];
+
+		const assetPromises = assetUrls.map((url) => {
+			return new Promise((resolve, reject) => {
+				const img = new Image();
+				img.onload = () => {
+					console.log(`Loaded: ${url}`);
+					resolve(img);
+				};
+				img.onerror = () => {
+					console.error(`Failed to load: ${url}`);
+					reject(new Error(`Failed to load: ${url}`));
+				};
+				img.src = getAssetPath(url);
+			});
+		});
+
+		const loadedAssets = await Promise.all(assetPromises);
+		clearInterval(loadingInterval);
+		return loadedAssets;
+	} catch (error) {
+		clearInterval(loadingInterval);
+		console.error('Asset loading failed:', error);
+		ctx.fillStyle = NESPalette.red;
+		ctx.fillText('PRESS START TO RETRY', canvas.width / 2, canvas.height / 2 + 40);
+		throw error;
+	}
+}
+
 // Complete setupGame function with error handling and all initializations
+// Complete setupGame function
 export function setupGame(canvasElement) {
-	// Canvas setup
-	canvas = canvasElement;
-	if (!canvas) {
-		console.error('Canvas element not found');
+	// Canvas setup and validation
+	if (!canvasElement || !canvasElement.getContext) {
+		console.error('Invalid canvas element');
 		return;
 	}
 
+	canvas = canvasElement;
 	ctx = canvas.getContext('2d');
 	if (!ctx) {
 		console.error('Unable to get 2D context');
@@ -3744,10 +3829,6 @@ export function setupGame(canvasElement) {
 		cancelAnimationFrame(animationFrameId);
 		animationFrameId = null;
 	}
-
-	// Initialize base game objects
-	initializePlayer();
-	initializeTitleScreen();
 
 	// Reset game state
 	score = 0;
@@ -3773,159 +3854,213 @@ export function setupGame(canvasElement) {
 	particles = [];
 	floatingTexts = [];
 
-	// Load game mechanics sprite first
-	newGameMechanicsSprite = new Image();
-	newGameMechanicsSprite.src = getAssetPath('assets/images/game/game_mechanics_sprite.png');
+	// Initialize loading screen
+	function drawLoadingScreen() {
+		if (!ctx) return;
+		ctx.fillStyle = NESPalette.black;
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		ctx.fillStyle = NESPalette.white;
+		ctx.font = "20px 'Press Start 2P'";
+		ctx.textAlign = 'center';
+		ctx.fillText('LOADING...', canvas.width / 2, canvas.height / 2);
 
-	newGameMechanicsSprite.onload = function () {
-		console.log('Game mechanics sprite loaded successfully');
+		// Arcade-style "Insert Coin" blink
+		if (Math.floor(Date.now() / 500) % 2 === 0) {
+			ctx.fillText('INSERT COIN', canvas.width / 2, canvas.height / 2 + 40);
+		}
+	}
 
-		// Preload all game assets
-		preloadAssets([
-			'./assets/images/game/void_swarm_sprite.png',
-			'./assets/images/game/vela_main_sprite.png',
-			'./assets/images/game/projectile_main_sprite.png',
-			'./assets/images/game/game_mechanics_sprite.png',
-			'./assets/images/game/main_logo_title_screen-01.svg'
-		])
-			.then((loadedImages) => {
-				console.log('All assets loaded, initializing game components...');
+	const loadingInterval = setInterval(() => drawLoadingScreen(), 16);
 
-				// Initialize player sprite
-				player.spriteImage.src = getAssetPath('assets/images/game/vela_main_sprite.png');
-				// Initialize game components
-				smokeParticlePool = new ParticlePool(100);
-				initializeCityFires();
-				initializeClouds();
-				initializeStars();
-				spaceship = new Spaceship();
-				spaceships = [];
+	return loadGameAssets()
+		.then((loadedImages) => {
+			console.log('All assets loaded, initializing game components...');
+			clearInterval(loadingInterval);
 
-				// Initialize timers and intervals
-				lastFrameTime = performance.now(); // Reset animation timing
-				deltaTime = 0;
-				timeMultiplier = 1;
-				lastVelaShotTime = Date.now();
-				dayNightCycle = 180;
-
-				// Set up power-up state
-				powerUpActive = false;
-				powerUpType = '';
-				powerUpStartTime = 0;
-				constantPowerUpMode = false;
-				unlimitedHeatseekersMode = false;
-				rapidFireMode = false;
-
-				// Set up input handlers
-				setupInputListeners();
-
-				// Schedule game events
-				scheduleRandomAmmoDrop();
-				scheduleRandomExtraLifeDrop();
-				schedulePowerUpDrops();
-
-				// Verify all assets are loaded
-				checkAssetLoading();
-
-				console.log('Game initialization complete');
-
-				// Start the game
-				if (titleScreen) {
-					console.log('Starting title screen');
-					drawTitleScreen();
-				} else {
-					console.log('Starting game');
-					gameActive = true;
-					drawHUD();
-					animate();
+			// Add the asset verification here, after initialization
+			const assetVerification = setInterval(() => {
+				if (player.spriteImage.complete) {
+					console.log(
+						'Vela sprite dimensions:',
+						player.spriteImage.width,
+						player.spriteImage.height
+					);
+					clearInterval(assetVerification);
 				}
-			})
-			.catch((error) => {
-				console.error('Error loading game assets:', error);
-				// Handle error - maybe show error message to user
-				ctx.fillStyle = 'red';
-				ctx.font = '24px Arial';
+			}, 100);
+
+			// Initialize all game components with loaded assets
+			initializeGameWithAssets(loadedImages);
+
+			// Initialize base game components
+			initializePlayer();
+			initializeTitleScreen();
+			smokeParticlePool = new ParticlePool(100);
+			initializeCityFires();
+			initializeClouds();
+			initializeStars();
+			spaceship = new Spaceship();
+			spaceships = [];
+
+			// Initialize timers and intervals
+			lastFrameTime = performance.now();
+			deltaTime = TIMING_CONFIG.FRAME_TIME;
+			timeMultiplier = 1;
+			lastVelaShotTime = Date.now();
+			dayNightCycle = 180;
+
+			// Set up power-up state
+			powerUpActive = false;
+			powerUpType = '';
+			powerUpStartTime = 0;
+			constantPowerUpMode = false;
+			unlimitedHeatseekersMode = false;
+			rapidFireMode = false;
+
+			// Initialize title screen state
+			titleScreen = true;
+			gameActive = false;
+			gameOverScreen = false;
+
+			// Set up title screen logo
+			titleScreenState.logoLoaded = false;
+			titleScreenState.logoImage = new Image();
+			titleScreenState.logoImage.src = getAssetPath(
+				'assets/images/game/main_logo_title_screen-01.svg'
+			);
+			titleScreenState.logoImage.onload = () => {
+				titleScreenState.logoLoaded = true;
+				console.log('Logo loaded successfully');
+			};
+
+			// Initialize enhanced stars for title screen
+			titleScreenState.enhancedStars = createStarField(numberOfStars);
+
+			// Set up input handlers
+			setupInputListeners();
+
+			// Schedule game events
+			gameStartTime = Date.now();
+			dropsEnabled = false;
+			scheduleRandomAmmoDrop();
+			scheduleRandomExtraLifeDrop();
+			schedulePowerUpDrops();
+
+			// Verify all assets are loaded
+			checkAssetLoading();
+
+			console.log('Game initialization complete');
+			console.log('Starting title screen');
+
+			// Start with title screen animation
+			requestAnimationFrame(drawTitleScreen);
+
+			// Error handling listeners
+			window.addEventListener('error', function (e) {
+				console.error('Game initialization error:', e.error);
+				if (ctx) {
+					ctx.fillStyle = NESPalette.red;
+					ctx.font = "16px 'Press Start 2P'";
+					ctx.fillText(
+						'Game initialization error. Please refresh.',
+						canvas.width / 2 - 200,
+						canvas.height / 2
+					);
+				}
+			});
+
+			// Handle window resize
+			window.addEventListener('resize', function () {
+				// Resize handling preserved for future implementation
+			});
+
+			// Set up title screen to game transition
+			window.addEventListener('keydown', function (event) {
+				if (event.key === 'Enter') {
+					if (titleScreen) {
+						console.log('Transitioning from title to gameplay');
+						titleScreen = false;
+						gameActive = true;
+						animate();
+					} else if (gameOverScreen) {
+						resetGame();
+					}
+				}
+			});
+
+			// Return game control interface
+			return {
+				start: () => {
+					if (!titleScreen) {
+						gameActive = true;
+						animate();
+					}
+				},
+				pause: () => {
+					isPaused = true;
+				},
+				resume: () => {
+					isPaused = false;
+					animate();
+				},
+				reset: () => {
+					resetGame();
+				}
+			};
+		})
+		.catch((error) => {
+			clearInterval(loadingInterval);
+			console.error('Error loading game assets:', error);
+			if (ctx) {
+				ctx.fillStyle = NESPalette.red;
+				ctx.font = "16px 'Press Start 2P'";
 				ctx.fillText(
 					'Error loading game assets. Please refresh.',
 					canvas.width / 2 - 200,
 					canvas.height / 2
 				);
-			});
-	};
+			}
+			throw error;
+		});
+}
 
-	newGameMechanicsSprite.onerror = function (error) {
-		console.error('Failed to load game mechanics sprite:', error);
-		// Handle error - maybe show error message to user
-		ctx.fillStyle = 'red';
-		ctx.font = '24px Arial';
-		ctx.fillText(
-			'Error loading game sprites. Please refresh.',
-			canvas.width / 2 - 200,
-			canvas.height / 2
-		);
-	};
+// Place initializeGameWithAssets function right after setupGame
+function initializeGameWithAssets(loadedImages) {
+	// Initialize player sprite with loaded image
+	player.spriteImage = loadedImages[1]; // Index matches asset loading order in loadGameAssets
 
-	// Error handling for canvas initialization
-	window.addEventListener('error', function (e) {
-		console.error('Game initialization error:', e.error);
-		// Handle any initialization errors
-		if (ctx) {
-			ctx.fillStyle = 'red';
-			ctx.font = '24px Arial';
-			ctx.fillText(
-				'Game initialization error. Please refresh.',
-				canvas.width / 2 - 200,
-				canvas.height / 2
-			);
-		}
-	});
+	// Initialize enemy sprites
+	newGameMechanicsSprite = loadedImages[3];
 
-	// Handle window resize
-	window.addEventListener('resize', function () {
-		// Implement resize handling if needed
-		// This might involve updating canvas dimensions and re-initializing some components
-	});
+	// Log successful asset initialization
+	console.log('Game assets initialized successfully');
+}
 
-	return {
-		// Return any necessary game control methods
-		start: () => {
-			gameActive = true;
-			animate();
-		},
-		pause: () => {
-			isPaused = true;
-		},
-		resume: () => {
-			isPaused = false;
-			animate();
-		},
-		reset: () => {
-			resetGame();
-		}
-	};
+function updateTimingSystem() {
+	// Calculate frame timing
+	const currentTime = performance.now();
+	deltaTime = currentTime - lastFrameTime;
+	lastFrameTime = currentTime;
+
+	// Cap maximum frame time to prevent huge jumps
+	if (deltaTime > TIMING_CONFIG.MAX_FRAME_TIME) {
+		deltaTime = TIMING_CONFIG.MAX_FRAME_TIME;
+	}
+
+	// Calculate time multiplier with arcade-accurate boundaries
+	timeMultiplier = deltaTime / TIMING_CONFIG.FRAME_TIME;
+	cappedMultiplier = Math.min(Math.max(timeMultiplier, MIN_MULTIPLIER), MAX_MULTIPLIER);
+
+	// Update game speed for consistent gameplay feel
+	gameSpeed = Math.min(Math.max(1.0, cappedMultiplier), 1.5);
 }
 
 function animate() {
 	if (!gameActive || isPaused) return;
 
-	const currentTime = performance.now();
-	if (!lastFrameTime) {
-		lastFrameTime = currentTime;
-		requestAnimationFrame(animate);
-		return; // Skip the first frame to establish timing
-	}
-
-	deltaTime = Math.min(currentTime - lastFrameTime, 32); // Cap at ~30fps minimum
-	lastFrameTime = currentTime;
-
-	// Calculate timeMultiplier with a smaller scale
-	timeMultiplier = (deltaTime / FRAME_TARGET) * 0.6; // Scale down by 0.6 to slow overall speed
-
-	// Limit the maximum time step to prevent huge jumps
-	const cappedMultiplier = Math.min(timeMultiplier, 1.0); // Reduced from 2.0 to 1.0
-
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 	gameFrame++;
+	updateTimingSystem();
 
 	drawDynamicGradientSky();
 	drawClouds();
@@ -4068,81 +4203,133 @@ function animate() {
 
 // Event Listeners
 function setupInputListeners() {
+	// Track input state
+	const keyState = {
+		left: false,
+		right: false,
+		up: false,
+		shoot: false,
+		special: false
+	};
+
+	// Input buffer for combo moves (8 frame buffer)
+	const inputBuffer = [];
+	const BUFFER_SIZE = 8;
+
+	// Track last input time for rate limiting
+	let lastShootTime = 0;
+	const SHOOT_COOLDOWN = 250; // ms between shots
+
 	window.addEventListener('keydown', function (event) {
 		const key = event.key.toUpperCase();
 
+		// Prevent default browser actions
+		if (['ArrowLeft', 'ArrowRight', 'ArrowUp', ' ', 'x', 'X', 'p', 'P'].includes(event.key)) {
+			event.preventDefault();
+		}
+
+		// Title screen handling
 		if (titleScreen) {
 			if (event.key === 'Enter') {
-				event.preventDefault();
 				titleScreen = false;
 				gameActive = true;
 				drawHUD();
 				animate();
 			}
-		} else if (gameOverScreen || gameActive) {
-			// Combined state check
-			if (event.key === 'Enter' || key === 'R') {
-				// Added 'R' key handling
-				event.preventDefault();
-				resetGame();
-				return; // Prevent further processing
-			}
+			return;
+		}
 
-			if (gameActive) {
-				switch (event.key) {
-					case ' ':
-						event.preventDefault();
-						if (!isPaused) {
-							shoot(true);
-						}
-						break;
-					case 'ArrowLeft':
-						event.preventDefault();
-						player.movingLeft = true;
-						break;
-					case 'ArrowRight':
-						event.preventDefault();
-						player.movingRight = true;
-						break;
-					case 'ArrowUp':
-						event.preventDefault();
-						player.jump();
-						break;
-					case 'Shift':
-						event.preventDefault();
-						player.dash();
-						break;
-					case 'x':
-					case 'X':
-						event.preventDefault();
-						if (!isPaused) {
-							shoot(false, true);
-						}
-						break;
-					case 'p':
-					case 'P':
-						event.preventDefault();
-						isPaused = !isPaused;
-						if (!isPaused) animate();
-						break;
-					default:
+		// Game over screen handling
+		if (gameOverScreen) {
+			if (event.key === 'Enter') {
+				resetGame();
+			}
+			return;
+		}
+
+		// Active gameplay input handling
+		if (gameActive && !isPaused) {
+			switch (event.key) {
+				case ' ': // Heatseeker shot
+					const currentTime = Date.now();
+					if (currentTime - lastShootTime >= SHOOT_COOLDOWN) {
+						shoot(true);
+						lastShootTime = currentTime;
+					}
+					break;
+
+				case 'ArrowLeft':
+					keyState.left = true;
+					player.movingLeft = true;
+					player.direction = 'left';
+					// Buffer input for combos
+					inputBuffer.push({ input: 'left', time: Date.now() });
+					if (inputBuffer.length > BUFFER_SIZE) {
+						inputBuffer.shift();
+					}
+					break;
+
+				case 'ArrowRight':
+					keyState.right = true;
+					player.movingRight = true;
+					player.direction = 'right';
+					inputBuffer.push({ input: 'right', time: Date.now() });
+					if (inputBuffer.length > BUFFER_SIZE) {
+						inputBuffer.shift();
+					}
+					break;
+
+				case 'ArrowUp':
+					keyState.up = true;
+					player.jump();
+					inputBuffer.push({ input: 'up', time: Date.now() });
+					if (inputBuffer.length > BUFFER_SIZE) {
+						inputBuffer.shift();
+					}
+					break;
+
+				case 'Shift':
+					player.dash();
+					break;
+
+				case 'x':
+				case 'X':
+					shoot(false, true);
+					break;
+
+				case 'p':
+				case 'P':
+					isPaused = !isPaused;
+					if (!isPaused) animate();
+					break;
+
+				default:
+					// Handle cheat code sequence
+					if (key.length === 1) {
 						if (key === keyCombination[keyCombinationIndex]) {
 							keyCombinationIndex++;
 							if (keyCombinationIndex === keyCombination.length) {
-								constantPowerUpMode = !constantPowerUpMode;
-								if (constantPowerUpMode) {
-									activateAllPowerUps();
-								} else {
-									deactivateAllPowerUps();
-								}
-								keyCombinationIndex = 0; // Reset index after successful combination
+								handleCheatCode();
+								keyCombinationIndex = 0;
 							}
+						} else if (key === 'S') {
+							keyCombinationIndex = 1;
 						} else {
-							keyCombinationIndex = 0; // Reset index if wrong key is pressed
+							keyCombinationIndex = 0;
 						}
-						break;
-				}
+					}
+					break;
 			}
+
+			// Check for special move combinations
+			checkSpecialMoves(inputBuffer);
+		}
+
+		// Handle reload command
+		if (key === 'R' && (event.ctrlKey || event.metaKey)) {
+			event.preventDefault();
+			resetGame();
+			return;
 		}
 	});
 
@@ -4150,18 +4337,151 @@ function setupInputListeners() {
 		if (gameActive) {
 			switch (event.key) {
 				case 'ArrowLeft':
+					keyState.left = false;
 					player.movingLeft = false;
 					break;
+
 				case 'ArrowRight':
+					keyState.right = false;
 					player.movingRight = false;
+					break;
+
+				case 'ArrowUp':
+					keyState.up = false;
 					break;
 			}
 		}
 	});
 
-	window.addEventListener('click', function () {
-		if (!isPaused) {
-			shoot(false); // Fire regular projectile with click
+	// Mouse/touch input for shooting
+	window.addEventListener('click', function (event) {
+		if (gameActive && !isPaused) {
+			const currentTime = Date.now();
+			if (currentTime - lastShootTime >= SHOOT_COOLDOWN) {
+				shoot(false);
+				lastShootTime = currentTime;
+			}
 		}
 	});
+
+	// Touch events for mobile support
+	let touchStartX = 0;
+	const TOUCH_THRESHOLD = 30;
+
+	window.addEventListener('touchstart', function (event) {
+		if (gameActive && !isPaused) {
+			touchStartX = event.touches[0].clientX;
+			// Shoot on tap
+			shoot(false);
+		}
+	});
+
+	window.addEventListener('touchmove', function (event) {
+		if (gameActive && !isPaused) {
+			const touchX = event.touches[0].clientX;
+			const diff = touchX - touchStartX;
+
+			if (Math.abs(diff) > TOUCH_THRESHOLD) {
+				if (diff > 0) {
+					player.movingRight = true;
+					player.movingLeft = false;
+				} else {
+					player.movingLeft = true;
+					player.movingRight = false;
+				}
+			}
+		}
+	});
+
+	window.addEventListener('touchend', function () {
+		if (gameActive) {
+			player.movingLeft = false;
+			player.movingRight = false;
+		}
+	});
+
+	// Handle window blur/focus
+	window.addEventListener('blur', function () {
+		if (gameActive) {
+			isPaused = true;
+		}
+	});
+
+	window.addEventListener('focus', function () {
+		// Don't auto-unpause for better user experience
+		// Player must explicitly unpause
+	});
+
+	// Helper function to check for special move combinations
+	function checkSpecialMoves(buffer) {
+		const now = Date.now();
+		const COMBO_WINDOW = 500; // ms window for combo inputs
+
+		// Check for double-tap dash
+		const recentInputs = buffer.filter((input) => now - input.time < COMBO_WINDOW);
+		if (recentInputs.length >= 2) {
+			const lastTwo = recentInputs.slice(-2);
+			if (
+				lastTwo[0].input === lastTwo[1].input &&
+				(lastTwo[0].input === 'left' || lastTwo[0].input === 'right')
+			) {
+				player.dash();
+			}
+		}
+	}
+}
+window.addEventListener('keyup', function (event) {
+	if (gameActive) {
+		switch (event.key) {
+			case 'ArrowLeft':
+				player.movingLeft = false;
+				break;
+			case 'ArrowRight':
+				player.movingRight = false;
+				break;
+		}
+	}
+});
+
+window.addEventListener('click', function () {
+	if (!isPaused) {
+		shoot(false);
+	}
+});
+
+function handleCheatCode() {
+	constantPowerUpMode = !constantPowerUpMode;
+
+	if (constantPowerUpMode) {
+		// Activate power-up mode with visual effects
+		activatePowerUp();
+		shakeScreen(200, 5);
+		floatingTexts.push(
+			new FloatingText(
+				canvas.width / 2,
+				canvas.height / 2 - 40,
+				'★ POWER MODE ON ★',
+				NESPalette.lightYellow
+			)
+		);
+	} else {
+		// Deactivate all power-up effects
+		player.isInvincible = false;
+		player.speed = 4;
+		unlimitedHeatseekersMode = false;
+		rapidFireMode = false;
+		powerUpActive = false;
+		player.glowColor = null;
+		heatseekerCount = 3;
+
+		// Show deactivation message
+		floatingTexts.push(
+			new FloatingText(
+				canvas.width / 2,
+				canvas.height / 2 - 40,
+				'POWER MODE OFF',
+				NESPalette.lightGray
+			)
+		);
+	}
 }
