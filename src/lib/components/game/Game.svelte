@@ -3,7 +3,7 @@
 	import { browser } from '$app/environment';
 	import { fade } from 'svelte/transition';
 	import { Cog } from 'lucide-svelte';
-	import { setupGame } from '$lib/game.js';
+	import { setupGame } from './game.js';
 	import { get } from 'svelte/store';
 	import { writable } from 'svelte/store';
 
