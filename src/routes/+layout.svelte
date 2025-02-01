@@ -13,7 +13,7 @@
 	import { browser } from '$app/environment';
 	import { writable } from 'svelte/store';
 	import { layoutStore } from '$lib/stores/store';
-	import ArcadeNavMenu from '$lib/components/ArcadeNavMenu.svelte';
+	import MobileNavMenu from '$lib/components/MobileNavMenu.svelte';
 
 	// Use ResizeObserver instead of window resize event
 	let resizeObserver: ResizeObserver;
@@ -169,7 +169,7 @@
 			</Tooltip>
 
 			<div class="lg:hidden">
-				<ArcadeNavMenu bind:isOpen={isMenuOpen} />
+				<MobileNavMenu bind:isOpen={isMenuOpen} />
 			</div>
 		</div>
 
@@ -182,7 +182,10 @@
 					class:active={$activeNavItem === path}
 					on:click={() => handleNavLinkClick(path)}
 				>
-					{path === '/' ? 'Home' : path.slice(2).charAt(0).toUpperCase() + path.slice(3)}
+					{path === '/'
+						? 'Home'
+						: path.replace(/\/$/, '').slice(2).charAt(0).toUpperCase() +
+							path.replace(/\/$/, '').slice(3)}
 				</a>
 			{/each}
 		</div>

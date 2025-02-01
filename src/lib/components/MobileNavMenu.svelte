@@ -1,4 +1,4 @@
-<!-- ArcadeNavMenu.svelte -->
+<!-- MobileNavMenu.svelte -->
 <script lang="ts">
 	import { fly, fade } from 'svelte/transition';
 	import { cubicInOut } from 'svelte/easing';
