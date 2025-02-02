@@ -58,7 +58,8 @@ const TIMING_CONFIG = {
 	FRAME_TIME: 1000 / 60, // 16.67ms
 	MIN_FRAME_TIME: 1000 / 120, // 8.33ms - Cap at 120fps
 	MAX_FRAME_TIME: 1000 / 30, // 33.33ms - Don't go below 30fps
-	TIME_STEP: 1 / 60 // Fixed time step for physics
+	TIME_STEP: 1 / 60, // Fixed time step for physics
+	RESET_DELAY: 100 // Small buffer when resetting timing
 };
 
 let cappedMultiplier = 1;
@@ -2684,20 +2685,28 @@ function drawGameOverScreen() {
 	}
 }
 
-function resetGame() {
-	console.log('Initiating game reset...');
+function initializeTimingSystem() {
+	// Reset all timing-related variables
+	lastFrameTime = performance.now();
+	deltaTime = TIMING_CONFIG.FRAME_TIME;
+	timeMultiplier = 1;
+	cappedMultiplier = 1;
+	gameSpeed = 1;
 
-	// Cancel existing animation frame
+	// Clear any existing animation frame
 	if (animationFrameId) {
 		cancelAnimationFrame(animationFrameId);
 		animationFrameId = null;
 	}
+}
+
+function resetGame() {
+	initializeTimingSystem();
 
 	// Reset core game state
 	score = 0;
 	lives = 3;
 	gameFrame = 0;
-	gameSpeed = 1;
 	enemyInterval = initialEnemySpawnRate;
 	difficultyIncreaseScore = 500;
 	heatseekerCount = 3;
@@ -2705,6 +2714,18 @@ function resetGame() {
 	titleScreen = false;
 	gameOverScreen = false;
 	isPaused = false;
+
+	if (animationFrameId) {
+		cancelAnimationFrame(animationFrameId);
+		animationFrameId = null;
+	}
+
+	// Single timing system reset - moved outside the if block
+	lastFrameTime = performance.now();
+	deltaTime = TIMING_CONFIG.FRAME_TIME;
+	timeMultiplier = 1;
+	cappedMultiplier = 1;
+	gameSpeed = 1;
 
 	// Clear all game arrays
 	enemies = [];
@@ -2734,10 +2755,7 @@ function resetGame() {
 	player.speed = 4;
 	player.glowColor = null;
 
-	// Reset timers and intervals
-	lastFrameTime = performance.now();
-	deltaTime = TIMING_CONFIG.FRAME_TIME;
-	timeMultiplier = 1;
+	// Reset game cycle timers
 	lastVelaShotTime = Date.now();
 	dayNightCycle = 180;
 
@@ -2759,6 +2777,18 @@ function resetGame() {
 	animate();
 
 	console.log('Game reset complete');
+
+	if (gameActive && !isPaused) {
+		// Ensure we're starting fresh
+		if (animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+		}
+		// Request a new frame after a short delay to ensure timing system is stable
+		setTimeout(() => {
+			lastFrameTime = performance.now();
+			animationFrameId = requestAnimationFrame(animate);
+		}, 16); // One frame duration
+	}
 }
 
 function handleFloatingTexts() {
@@ -4706,39 +4736,80 @@ function initializeGameWithAssets(loadedImages) {
 }
 
 function updateTimingSystem() {
-	// Calculate frame timing
 	const currentTime = performance.now();
+
+	// Add frame time validation
+	if (!lastFrameTime) {
+		lastFrameTime = currentTime;
+		return;
+	}
+
+	// Handle case where game has been inactive (tab switched, etc)
+	if (currentTime - lastFrameTime > TIMING_CONFIG.RESET_DELAY) {
+		lastFrameTime = currentTime - TIMING_CONFIG.FRAME_TIME;
+		return; // Skip this frame to stabilize
+	}
+
 	deltaTime = currentTime - lastFrameTime;
 	lastFrameTime = currentTime;
 
-	// Cap maximum frame time to prevent huge jumps
+	// Enhanced frame time clamping
+	if (deltaTime < 1) deltaTime = TIMING_CONFIG.FRAME_TIME;
 	if (deltaTime > TIMING_CONFIG.MAX_FRAME_TIME) {
 		deltaTime = TIMING_CONFIG.MAX_FRAME_TIME;
 	}
 
-	// Calculate time multiplier with arcade-accurate boundaries
+	// Calculate time multiplier with additional validation
 	timeMultiplier = deltaTime / TIMING_CONFIG.FRAME_TIME;
-	cappedMultiplier = Math.min(Math.max(timeMultiplier, MIN_MULTIPLIER), MAX_MULTIPLIER);
+	if (isNaN(timeMultiplier) || !isFinite(timeMultiplier)) {
+		timeMultiplier = 1;
+	}
 
-	// Update game speed for consistent gameplay feel
+	cappedMultiplier = Math.min(Math.max(timeMultiplier, MIN_MULTIPLIER), MAX_MULTIPLIER);
 	gameSpeed = Math.min(Math.max(1.0, cappedMultiplier), 1.5);
 }
 
 function animate() {
-	if (!gameActive) return;
+	if (!gameActive) {
+		if (animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+			animationFrameId = null;
+		}
+		return;
+	}
 
 	if (isPaused) {
-		// Preserve the last frame and just draw the pause text over it
+		if (animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+			animationFrameId = null;
+		}
+
+		// Draw the paused game state in the background
 		ctx.save();
-		ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Add semi-transparent overlay
+		// Add a semi-transparent overlay
+		ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+		// Draw PAUSED text
 		ctx.fillStyle = NESPalette.white;
-		ctx.font = "32px 'Press Start 2P'";
+		ctx.font = "20px 'Press Start 2P'";
 		ctx.textAlign = 'center';
 		ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+
+		// Add instruction text
+		ctx.font = "16px 'Press Start 2P'";
+		ctx.fillText('Press P to Resume', canvas.width / 2, canvas.height / 2 + 40);
+
 		ctx.restore();
+
+		// Keep rendering the pause screen
 		requestAnimationFrame(animate);
 		return;
+	}
+
+	// Validate timing state before proceeding
+	if (!lastFrameTime) {
+		lastFrameTime = performance.now();
 	}
 
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -4751,6 +4822,17 @@ function animate() {
 	handleShootingStars();
 	let moonPos = calculateMoonPosition();
 	drawCelestialBody(moonPos.x, moonPos.y);
+
+	// First draw background enemies
+	const backgroundEnemies = enemies.filter(
+		(enemy) => enemy instanceof CityEnemy && enemy.scale < 1
+	);
+	backgroundEnemies.forEach((enemy) => {
+		enemy.update(cappedMultiplier);
+		enemy.draw(ctx);
+	});
+
+	// Draw cityscape after background enemies but before foreground elements
 	drawCitySilhouette();
 	drawFiresAndSmoke();
 	drawHUD();
@@ -4817,6 +4899,15 @@ function animate() {
 		}
 	});
 
+	// Draw foreground enemies last
+	const foregroundEnemies = enemies.filter(
+		(enemy) => !(enemy instanceof CityEnemy && enemy.scale < 1)
+	);
+	foregroundEnemies.forEach((enemy) => {
+		enemy.update(cappedMultiplier);
+		enemy.draw(ctx);
+	});
+
 	enemies.forEach((enemy, index) => {
 		enemy.update(cappedMultiplier);
 		enemy.draw(ctx);
@@ -4880,9 +4971,26 @@ function animate() {
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
 	}
 
-	requestAnimationFrame(animate);
+	if (gameActive && !isPaused) {
+		if (animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+		}
+		animationFrameId = requestAnimationFrame(animate);
+	}
 }
 // End of animate
+
+// 5. Add Debug Verification (optional but recommended)
+function verifyTimingSystem() {
+	console.log('Timing System State:', {
+		lastFrameTime,
+		deltaTime,
+		timeMultiplier,
+		cappedMultiplier,
+		gameSpeed,
+		animationFrameId
+	});
+}
 
 // Event Listeners
 function setupInputListeners() {
@@ -4984,8 +5092,11 @@ function setupInputListeners() {
 				case 'P':
 					isPaused = !isPaused;
 					if (!isPaused && gameActive) {
-						lastFrameTime = performance.now();
-						requestAnimationFrame(animate);
+						lastFrameTime = performance.now(); // Reset timing
+						animationFrameId = requestAnimationFrame(animate);
+					} else if (isPaused) {
+						cancelAnimationFrame(animationFrameId);
+						animationFrameId = null;
 					}
 					break;
 
