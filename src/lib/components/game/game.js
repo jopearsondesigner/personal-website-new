@@ -2560,6 +2560,11 @@ function checkCollision(rect1, rect2, padding = 22) {
 		rect1.y + rect1.height - padding > rect2.y
 	);
 }
+function hasVisibleEnemies() {
+	return enemies.some(
+		(enemy) => enemy.y >= 0 && enemy.y <= canvas.height && enemy.x >= 0 && enemy.x <= canvas.width
+	);
+}
 
 function interpolateColor(color1, color2, factor) {
 	// Ensure the colors exist in the NESPalette
@@ -3010,11 +3015,11 @@ class CityEnemy extends Enemy {
 	constructor() {
 		super();
 		this.x = Math.random() * canvas.width;
-		this.y = canvas.height;
+		this.y = canvas.height + 65; // Start below the canvas
 		this.width = 65;
 		this.height = 65;
 		this.speed = 0.5;
-		this.scale = 0.5;
+		this.scale = 0.2; // Start smaller for better background effect
 		this.targetX = Math.random() * canvas.width;
 		this.targetY = Math.random() * (canvas.height / 2);
 		this.isReady = false;
@@ -3039,6 +3044,7 @@ class CityEnemy extends Enemy {
 		this.shootingInterval = 100;
 		this.lastShotFrame = 0;
 		this.canShoot = false;
+
 		console.log('=== CityEnemy Created ===', {
 			position: { x: this.x, y: this.y },
 			target: { x: this.targetX, y: this.targetY },
@@ -4265,53 +4271,36 @@ function spawnEnemy() {
 
 // Manage Enemies
 function manageEnemySpawning() {
-	// Force spawn a basic Enemy if no enemies exist
-	if (enemies.length === 0) {
-		console.log('No enemies present - forcing basic Enemy spawn');
-		enemies.push(new Enemy()); // Basic enemy, not CityEnemy
-		return;
-	}
-
-	// Check if we have any basic Enemies
-	const hasBasicEnemy = enemies.some(
-		(enemy) =>
-			enemy instanceof Enemy && !(enemy instanceof CityEnemy || enemy instanceof ZigzagEnemy)
-	);
-
-	if (!hasBasicEnemy) {
-		console.log('No basic Enemy present - spawning one');
-		enemies.push(new Enemy());
+	// First check if we have any visible enemies
+	if (!hasVisibleEnemies()) {
+		console.log('No visible enemies - spawning new enemy');
+		// Spawn in upper portion of visible screen
+		const newEnemy = new Enemy();
+		newEnemy.y = canvas.height * 0.2; // 20% down from top
+		newEnemy.x = Math.random() * (canvas.width - newEnemy.width);
+		enemies.push(newEnemy);
 		return;
 	}
 
 	if (enemies.length < maxEnemies && gameFrame % enemyInterval === 0) {
 		const roll = Math.random() * 100;
-		console.log('Enemy spawn attempt:', {
-			roll,
-			thresholds: {
-				basic: ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic,
-				zigzag: ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic + ENEMY_CONFIG.ENEMY_TYPE_RATIOS.zigzag,
-				currentEnemies: enemies.length,
-				maxEnemies: maxEnemies
-			}
-		});
 
-		// Use the defined ratios from ENEMY_CONFIG
-		if (roll < ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic) {
-			console.log('Spawning Basic Enemy');
+		// Adjust spawn probabilities to ensure CityEnemy appears
+		if (roll < 40) {
+			// 40% chance for basic enemy
 			enemies.push(new Enemy());
-		} else if (
-			roll <
-			ENEMY_CONFIG.ENEMY_TYPE_RATIOS.basic + ENEMY_CONFIG.ENEMY_TYPE_RATIOS.zigzag
-		) {
-			console.log('Spawning Zigzag Enemy');
+		} else if (roll < 70) {
+			// 30% chance for zigzag
 			enemies.push(new ZigzagEnemy());
 		} else {
-			console.log('Spawning City Enemy');
-			enemies.push(new CityEnemy());
+			// 30% chance for city enemy
+			const cityEnemy = new CityEnemy();
+			// Ensure CityEnemy starts from bottom of screen
+			cityEnemy.y = canvas.height;
+			cityEnemy.targetY = Math.random() * (canvas.height / 2);
+			enemies.push(cityEnemy);
 		}
 
-		// Add debug logging
 		console.log('Enemy distribution after spawn:', {
 			basic: enemies.filter(
 				(e) => e instanceof Enemy && !(e instanceof CityEnemy || e instanceof ZigzagEnemy)
@@ -4824,6 +4813,7 @@ function animate() {
 	drawCelestialBody(moonPos.x, moonPos.y);
 
 	// First draw background enemies
+	// Draw background enemies first
 	const backgroundEnemies = enemies.filter(
 		(enemy) => enemy instanceof CityEnemy && enemy.scale < 1
 	);
@@ -4887,6 +4877,17 @@ function animate() {
 		}
 	});
 
+	console.log('Current enemies:', {
+		total: enemies.length,
+		types: {
+			basic: enemies.filter(
+				(e) => e instanceof Enemy && !(e instanceof CityEnemy || e instanceof ZigzagEnemy)
+			).length,
+			zigzag: enemies.filter((e) => e instanceof ZigzagEnemy).length,
+			city: enemies.filter((e) => e instanceof CityEnemy).length
+		}
+	});
+
 	projectiles.forEach((projectile, index) => {
 		if (projectile.update) {
 			projectile.update(cappedMultiplier, enemies);
@@ -4908,14 +4909,14 @@ function animate() {
 		enemy.draw(ctx);
 	});
 
-	enemies.forEach((enemy, index) => {
-		enemy.update(cappedMultiplier);
-		enemy.draw(ctx);
-		if (checkCollision(player, enemy, 14)) {
-			handlePlayerHit('collision', enemy);
-			enemies.splice(index, 1);
-		}
-	});
+	// enemies.forEach((enemy, index) => {
+	// 	enemy.update(cappedMultiplier);
+	// 	enemy.draw(ctx);
+	// 	if (checkCollision(player, enemy, 14)) {
+	// 		handlePlayerHit('collision', enemy);
+	// 		enemies.splice(index, 1);
+	// 	}
+	// });
 
 	checkCollisions();
 
@@ -4955,7 +4956,7 @@ function animate() {
 		projectile.update(cappedMultiplier);
 		projectile.draw(ctx);
 		if (checkCollision(player, projectile, 14)) {
-			handlePlayerHit('fire', projectile.firingEnemy); // Pass 'fire' and the firing enemy to the handlePlayerHit function
+			handlePlayerHit('fire', projectile.firingEnemy); // Pass 'fire' and the firing enemy
 			enemyProjectiles.splice(index, 1);
 		}
 	});
@@ -4978,7 +4979,6 @@ function animate() {
 		animationFrameId = requestAnimationFrame(animate);
 	}
 }
-// End of animate
 
 // 5. Add Debug Verification (optional but recommended)
 function verifyTimingSystem() {
