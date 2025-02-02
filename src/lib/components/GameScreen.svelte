@@ -4,33 +4,45 @@
 	import { writable } from 'svelte/store';
 	import Game from '$components/game/Game.svelte';
 	import { onMount, onDestroy } from 'svelte';
+	import Instructions from './Instructions.svelte';
 
 	// Define the store
 	const deviceState = writable({
 		isTouchDevice: false,
 		windowWidth: 0,
-		showControls: false
+		showControls: false,
+		isDesktop: false // Add this to track desktop state
 	});
 
+	let showInstructions = true; // Show initially
+	let hasPlayedBefore = false; // Track first-time players
+
+	// Modify your decorativeText array to include controls reference
 	let decorativeText = [
 		{ text: 'HIGH SCORE', value: '000000', side: 'left' },
+		{ text: 'CONTROLS', value: '← → MOVE\n↑ JUMP\nX SHOOT', side: 'left' },
 		{ text: '1UP', value: '0', side: 'right' }
 	];
 
+	// Add help toggle function
+	function toggleInstructions() {
+		showInstructions = !showInstructions;
+		if (typeof window !== 'undefined') {
+			window.isPaused = showInstructions;
+		}
+	}
+
 	function initializeDeviceState() {
 		if (browser) {
-			// Check if we're on a touch device
 			const isTouchDevice =
-				'ontouchstart' in window ||
-				navigator.maxTouchPoints > 0 ||
-				// @ts-ignore
-				navigator.msMaxTouchPoints > 0;
+				'ontouchstart' in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0;
 
 			// Update device state
 			const deviceInfo = {
 				isTouchDevice,
 				windowWidth: window.innerWidth,
-				showControls: isTouchDevice || window.innerWidth < 1024
+				showControls: isTouchDevice || window.innerWidth < 1024,
+				isDesktop: window.innerWidth >= 1024 // Add desktop check
 			};
 
 			deviceState.set(deviceInfo);
@@ -51,6 +63,32 @@
 		}
 	});
 </script>
+
+<!-- Only show instructions and help button on desktop -->
+<!-- {#if $deviceState.isDesktop}
+	{#if showInstructions}
+		<Instructions
+			on:close={() => {
+				showInstructions = false;
+				if (typeof window !== 'undefined') {
+					window.isPaused = false;
+				}
+			}}
+		/>
+	{/if}
+
+	<button
+		class="help-button"
+		on:click={() => {
+			showInstructions = true;
+			if (typeof window !== 'undefined') {
+				window.isPaused = true;
+			}
+		}}
+	>
+		HELP
+	</button>
+{/if} -->
 
 <div id="game-screen" class="flex items-center justify-center w-full h-full p-[1vmin]">
 	<div class="game-background">
@@ -186,9 +224,36 @@
 		opacity: 0.8;
 	}
 
-	.arcade-text .value {
+	/* .arcade-text .value {
 		font-size: 1rem;
 		text-shadow: 0 0 5px var(--arcade-neon-green-100);
+	} */
+
+	.arcade-text .value {
+		font-size: 0.8rem;
+		text-shadow: 0 0 5px var(--arcade-neon-green-100);
+		white-space: pre-line;
+		line-height: 1.5;
+	}
+
+	.help-button {
+		position: absolute;
+		top: 1rem;
+		right: 1rem;
+		font-family: 'Press Start 2P', monospace;
+		background: transparent;
+		border: 2px solid var(--arcade-neon-green-100);
+		color: var(--arcade-neon-green-100);
+		padding: 0.5rem 1rem;
+		cursor: pointer;
+		z-index: 40;
+		transition: all 0.2s ease;
+	}
+
+	.help-button:hover {
+		background: var(--arcade-neon-green-100);
+		color: black;
+		text-shadow: none;
 	}
 
 	.neon-line {
