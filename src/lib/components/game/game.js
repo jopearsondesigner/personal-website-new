@@ -2857,28 +2857,45 @@ class Enemy {
 	update(timeMultiplier = 1) {
 		const adjustedSpeed = this.speed * timeMultiplier;
 		const adjustedDiveSpeed = this.diveSpeed * timeMultiplier;
-		switch (this.patternIndex) {
-			case 0: // Sine wave
-				this.y += adjustedSpeed;
-				this.x += Math.sin(gameFrame * this.curveFrequency) * this.curveAmplitude * timeMultiplier;
-				break;
-			case 1: // Cosine wave
-				this.y += adjustedSpeed;
-				this.x += Math.cos(gameFrame * this.curveFrequency) * this.curveAmplitude * timeMultiplier;
-				break;
-			case 2: // Vertical bobbing
-				this.y += adjustedSpeed;
-				this.y +=
-					Math.sin(gameFrame * this.verticalBobFrequency) * this.verticalBobHeight * timeMultiplier;
-				break;
-			case 3: // Diving towards the player
-				if (this.y < canvas.height / 2) {
+
+		// Add smooth entry pattern for first 1.5 seconds
+		if (this.y < 0) {
+			const entrySpeed = 2;
+			if (this.x < canvas.width / 2) {
+				this.x += entrySpeed * timeMultiplier;
+			} else if (this.x > canvas.width / 2) {
+				this.x -= entrySpeed * timeMultiplier;
+			}
+			this.y += entrySpeed * timeMultiplier;
+		} else {
+			// Normal movement patterns
+			switch (this.patternIndex) {
+				case 0: // Sine wave
 					this.y += adjustedSpeed;
-				} else {
-					this.y += adjustedDiveSpeed;
-					this.x += (this.targetX - this.x) * 0.03 * timeMultiplier;
-				}
-				break;
+					this.x +=
+						Math.sin(gameFrame * this.curveFrequency) * this.curveAmplitude * timeMultiplier;
+					break;
+				case 1: // Cosine wave
+					this.y += adjustedSpeed;
+					this.x +=
+						Math.cos(gameFrame * this.curveFrequency) * this.curveAmplitude * timeMultiplier;
+					break;
+				case 2: // Vertical bobbing
+					this.y += adjustedSpeed;
+					this.y +=
+						Math.sin(gameFrame * this.verticalBobFrequency) *
+						this.verticalBobHeight *
+						timeMultiplier;
+					break;
+				case 3: // Diving towards the player
+					if (this.y < canvas.height / 2) {
+						this.y += adjustedSpeed;
+					} else {
+						this.y += adjustedDiveSpeed;
+						this.x += (this.targetX - this.x) * 0.03 * timeMultiplier;
+					}
+					break;
+			}
 		}
 
 		if (this.isExploding) {
@@ -2898,33 +2915,29 @@ class Enemy {
 		// Check if the enemy is in aggressive mode and then generate fire particles
 		if (this.isAggressive) {
 			// Reduced particle count for a more subtle effect
-			const particleCount = Math.floor(Math.random() * 3) + 8; // Reduced from (5) + 15 to (3) + 8
+			const particleCount = Math.floor(Math.random() * 3) + 8;
 
 			for (let i = 0; i < particleCount; i++) {
-				// Keep the same great color variation
 				const colors = [
-					NESPalette.orange, // Base orange
-					NESPalette.darkOrange, // Darker orange
-					NESPalette.lightOrange, // Lighter orange
-					NESPalette.darkGold, // Dark gold for depth
-					NESPalette.gold // Gold for highlights
+					NESPalette.orange,
+					NESPalette.darkOrange,
+					NESPalette.lightOrange,
+					NESPalette.darkGold,
+					NESPalette.gold
 				];
 
 				const color = colors[Math.floor(Math.random() * colors.length)];
 
-				// Create new particle with slightly reduced position randomization
 				const particle = new Particle(
-					// Reduced position randomization from 10 to 6
 					this.x + this.width / 2 + (Math.random() - 0.5) * 6,
 					this.y + this.height / 2 + (Math.random() - 0.5) * 6,
 					color
 				);
 
-				// Adjusted particle properties for more subtle effect
-				particle.size = Math.random() * 1.2 + 0.6; // Reduced from 1.8 + 0.8
-				particle.speedX = (Math.random() - 0.5) * 2; // Reduced from 3
-				particle.speedY = (Math.random() - 0.5) * 2; // Reduced from 3
-				particle.lifespan = 80 + Math.random() * 40; // Reduced from 100 + 50
+				particle.size = Math.random() * 1.2 + 0.6;
+				particle.speedX = (Math.random() - 0.5) * 2;
+				particle.speedY = (Math.random() - 0.5) * 2;
+				particle.lifespan = 80 + Math.random() * 40;
 
 				particles.push(particle);
 			}
@@ -2959,7 +2972,6 @@ class Enemy {
 			this.curveFrequency += 0.005 * timeMultiplier;
 		}
 	}
-
 	draw(ctx) {
 		if (this.isExploding) {
 			// Corrected frame indices for explosion animation (frames 7-9 are indices 6-8)
@@ -4278,13 +4290,13 @@ function spawnEnemy() {
 // Manage Enemies
 function manageEnemySpawning() {
 	// First check if we have any visible enemies
-	if (!hasVisibleEnemies()) {
+	if (!hasVisibleEnemies() && enemies.length < maxEnemies) {
 		console.log('No visible enemies - spawning new enemy');
-		// Spawn in upper portion of visible screen
-		const newEnemy = new Enemy();
-		newEnemy.y = canvas.height * 0.2; // 20% down from top
-		newEnemy.x = Math.random() * (canvas.width - newEnemy.width);
-		enemies.push(newEnemy);
+		// Spawn just one enemy above the screen
+		const enemy = new Enemy();
+		enemy.x = Math.random() * (canvas.width - enemy.width);
+		enemy.y = -50; // Start above screen
+		enemies.push(enemy);
 		return;
 	}
 
@@ -4742,7 +4754,6 @@ function initializeGameWithAssets(loadedImages) {
 function updateTimingSystem() {
 	const currentTime = performance.now();
 	const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-	const currentTime = performance.now();
 
 	// Add frame time validation
 	if (!lastFrameTime) {
@@ -4779,23 +4790,18 @@ function updateTimingSystem() {
 		}
 	}
 
-	// Enhanced frame time clamping
-	if (deltaTime < 1) deltaTime = TIMING_CONFIG.FRAME_TIME;
-	if (deltaTime > TIMING_CONFIG.MAX_FRAME_TIME) {
-		deltaTime = TIMING_CONFIG.MAX_FRAME_TIME;
-	}
-
 	// Calculate time multiplier with additional validation
 	timeMultiplier = deltaTime / TIMING_CONFIG.FRAME_TIME;
 	if (isNaN(timeMultiplier) || !isFinite(timeMultiplier)) {
 		timeMultiplier = 1;
 	}
 
+	cappedMultiplier = Math.min(Math.max(timeMultiplier, MIN_MULTIPLIER), MAX_MULTIPLIER);
+
 	if (isMobile) {
 		cappedMultiplier *= 0.85; // Additional 15% slowdown for mobile
 	}
 
-	cappedMultiplier = Math.min(Math.max(timeMultiplier, MIN_MULTIPLIER), MAX_MULTIPLIER);
 	gameSpeed = Math.min(Math.max(1.0, cappedMultiplier), 1.5);
 }
 
