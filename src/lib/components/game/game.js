@@ -330,6 +330,9 @@ function initializePlayer() {
 		},
 
 		update: function () {
+			// Frame sync for movement (4-frame cycle typical in classics)
+			const shouldMove = gameFrame % 4 === 0;
+
 			if (this.isExploding) {
 				this.explosionFrame++;
 				if (this.explosionFrame > 2) {
@@ -357,26 +360,28 @@ function initializePlayer() {
 					this.dashCooldown -= timeMultiplier;
 				}
 
-				if (this.movingLeft) {
-					this.velocityX = Math.max(
-						this.velocityX - this.acceleration * timeMultiplier,
-						-this.speed
-					);
-					this.direction = 'left';
-				} else if (this.movingRight) {
-					this.velocityX = Math.min(
-						this.velocityX + this.acceleration * timeMultiplier,
-						this.speed
-					);
-					this.direction = 'right';
-				} else {
-					this.velocityX *= Math.pow(this.friction, timeMultiplier);
-					if (Math.abs(this.velocityX) < 0.1) {
-						this.velocityX = 0;
+				if (shouldMove) {
+					if (this.movingLeft) {
+						this.velocityX = Math.max(
+							this.velocityX - this.acceleration * timeMultiplier,
+							-this.speed
+						);
+						this.direction = 'left';
+					} else if (this.movingRight) {
+						this.velocityX = Math.min(
+							this.velocityX + this.acceleration * timeMultiplier,
+							this.speed
+						);
+						this.direction = 'right';
+					} else {
+						this.velocityX *= Math.pow(this.friction, timeMultiplier);
+						if (Math.abs(this.velocityX) < 0.1) {
+							this.velocityX = 0;
+						}
 					}
-				}
 
-				this.x += this.velocityX * timeMultiplier;
+					this.x += this.velocityX * timeMultiplier;
+				}
 
 				if (this.x + this.width < 0) {
 					this.x = canvas.width;
@@ -1769,15 +1774,24 @@ class Projectile {
 		this.color = color;
 		this.isActive = true;
 		this.lifeSpan = 100;
+		// Add frame offset for staggered projectile movement
+		this.moveDelay = gameFrame % 2; // 2-frame cycle for projectiles
 	}
 
 	update() {
+		// Classic arcade 2-frame movement cycle for projectiles
+		const shouldMove = gameFrame % 2 === this.moveDelay;
+
 		this.radius *= 0.95;
 		this.lifeSpan--;
 		if (this.lifeSpan <= 0) {
 			this.isActive = false;
 		}
-		this.y += this.speedY;
+
+		// Move only on specific frames for that classic arcade feel
+		if (shouldMove) {
+			this.y += this.speedY * 2; // Multiply by 2 since we're moving every other frame
+		}
 	}
 
 	draw(ctx) {
@@ -2858,46 +2872,42 @@ class Enemy {
 		const adjustedSpeed = this.speed * timeMultiplier;
 		const adjustedDiveSpeed = this.diveSpeed * timeMultiplier;
 
-		// Add smooth entry pattern for first 1.5 seconds
+		// Remove the early return and make the frame sync only affect movement
+		const shouldMove = gameFrame % (4 + (this.moveDelay || 0)) === 0;
+
 		if (this.y < 0) {
-			const entrySpeed = 2;
-			if (this.x < canvas.width / 2) {
-				this.x += entrySpeed * timeMultiplier;
-			} else if (this.x > canvas.width / 2) {
-				this.x -= entrySpeed * timeMultiplier;
-			}
-			this.y += entrySpeed * timeMultiplier;
-		} else {
-			// Normal movement patterns
+			// Initial entry movement is smooth and always happens
+			this.y += 2 * timeMultiplier;
+		} else if (shouldMove) {
 			switch (this.patternIndex) {
-				case 0: // Sine wave
+				case 0: // Classic Galaga-style curved entry
 					this.y += adjustedSpeed;
-					this.x +=
-						Math.sin(gameFrame * this.curveFrequency) * this.curveAmplitude * timeMultiplier;
+					this.x += Math.sin(gameFrame * 0.02) * 2 * timeMultiplier;
 					break;
-				case 1: // Cosine wave
-					this.y += adjustedSpeed;
-					this.x +=
-						Math.cos(gameFrame * this.curveFrequency) * this.curveAmplitude * timeMultiplier;
+				case 1: // Figure-8 pattern
+					const t = gameFrame * 0.02;
+					this.x += Math.sin(t) * 2 * timeMultiplier;
+					this.y += Math.sin(t * 2) * timeMultiplier;
 					break;
-				case 2: // Vertical bobbing
-					this.y += adjustedSpeed;
-					this.y +=
-						Math.sin(gameFrame * this.verticalBobFrequency) *
-						this.verticalBobHeight *
-						timeMultiplier;
+				case 2: // Gradius-style wave pattern
+					this.y += adjustedSpeed * 0.5;
+					this.x += Math.sin(this.y * 0.02) * 3 * timeMultiplier;
 					break;
-				case 3: // Diving towards the player
-					if (this.y < canvas.height / 2) {
+				case 3: // R-Type dive attack
+					if (this.y < canvas.height / 3) {
 						this.y += adjustedSpeed;
 					} else {
-						this.y += adjustedDiveSpeed;
-						this.x += (this.targetX - this.x) * 0.03 * timeMultiplier;
+						const dx = player.x - this.x;
+						const dy = player.y - this.y;
+						const angle = Math.atan2(dy, dx);
+						this.x += Math.cos(angle) * adjustedSpeed * 1.5;
+						this.y += Math.sin(angle) * adjustedSpeed * 1.5;
 					}
 					break;
 			}
 		}
 
+		// Rest of the existing update code remains exactly the same...
 		if (this.isExploding) {
 			this.explosionFrame++;
 			if (this.explosionFrame > this.numberOfExplosionFrames) {
@@ -2912,9 +2922,7 @@ class Enemy {
 			shakeScreen(300, 10);
 		}
 
-		// Check if the enemy is in aggressive mode and then generate fire particles
 		if (this.isAggressive) {
-			// Reduced particle count for a more subtle effect
 			const particleCount = Math.floor(Math.random() * 3) + 8;
 
 			for (let i = 0; i < particleCount; i++) {
@@ -2943,7 +2951,6 @@ class Enemy {
 			}
 		}
 
-		// Update fire particles
 		this.fireParticles.forEach((particle, index) => {
 			particle.update(timeMultiplier);
 			if (particle.lifespan <= 0) {
@@ -2951,7 +2958,6 @@ class Enemy {
 			}
 		});
 
-		// Animate enemy flapping
 		if (this.flapSpeed === 0) {
 			this.flapSpeed = Math.floor(Math.random() * 10 + 5);
 			this.frameX = (this.frameX + 1) % this.maxFrames;
@@ -2959,12 +2965,10 @@ class Enemy {
 			this.flapSpeed--;
 		}
 
-		// Shooting logic: enemies shoot more frequently if they are aggressive
 		if (Math.random() < (this.isAggressive ? 0.005 : 0.0025) * timeMultiplier) {
 			enemyProjectiles.push(new AnimatedProjectile(this.x + this.width / 2 - 6.5, this.y, true));
 		}
 
-		// Make the enemy more aggressive if it has been hit
 		if (this.isAggressive) {
 			this.speed += 0.1 * timeMultiplier;
 			this.diveSpeed += 0.2 * timeMultiplier;
@@ -2972,6 +2976,7 @@ class Enemy {
 			this.curveFrequency += 0.005 * timeMultiplier;
 		}
 	}
+
 	draw(ctx) {
 		if (this.isExploding) {
 			// Corrected frame indices for explosion animation (frames 7-9 are indices 6-8)
