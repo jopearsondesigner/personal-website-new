@@ -71,7 +71,13 @@ const SPEED_CONFIG = {
 	BASE_PROJECTILE_SPEED: 8,
 	BASE_PLAYER_SPEED: 4,
 	MIN_TIME_MULTIPLIER: 0.5,
-	MAX_TIME_MULTIPLIER: 1.5
+	MAX_TIME_MULTIPLIER: 1.5,
+	// Add mobile-specific speeds
+	MOBILE: {
+		BASE_ENEMY_SPEED: 0.12, // 20% slower
+		BASE_PROJECTILE_SPEED: 6, // 25% slower
+		BASE_PLAYER_SPEED: 3 // 25% slower
+	}
 };
 
 const ENEMY_CONFIG = {
@@ -4505,6 +4511,15 @@ export function setupGame(canvasElement) {
 		return;
 	}
 
+	const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+	// If mobile, adjust base speeds
+	if (isMobile) {
+		SPEED_CONFIG.BASE_ENEMY_SPEED = SPEED_CONFIG.MOBILE.BASE_ENEMY_SPEED;
+		SPEED_CONFIG.BASE_PROJECTILE_SPEED = SPEED_CONFIG.MOBILE.BASE_PROJECTILE_SPEED;
+		SPEED_CONFIG.BASE_PLAYER_SPEED = SPEED_CONFIG.MOBILE.BASE_PLAYER_SPEED;
+	}
+
 	canvas = canvasElement;
 	ctx = canvas.getContext('2d');
 	if (!ctx) {
@@ -4726,6 +4741,8 @@ function initializeGameWithAssets(loadedImages) {
 
 function updateTimingSystem() {
 	const currentTime = performance.now();
+	const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+	const currentTime = performance.now();
 
 	// Add frame time validation
 	if (!lastFrameTime) {
@@ -4742,6 +4759,26 @@ function updateTimingSystem() {
 	deltaTime = currentTime - lastFrameTime;
 	lastFrameTime = currentTime;
 
+	// Mobile-specific frame time capping
+	if (isMobile) {
+		if (deltaTime < TIMING_CONFIG.MIN_FRAME_TIME * 1.5) {
+			// More aggressive capping for mobile
+			deltaTime = TIMING_CONFIG.FRAME_TIME * 1.5;
+		}
+		if (deltaTime > TIMING_CONFIG.MAX_FRAME_TIME * 0.75) {
+			// Prevent too much slowdown
+			deltaTime = TIMING_CONFIG.MAX_FRAME_TIME * 0.75;
+		}
+	} else {
+		// Original desktop timing logic
+		if (deltaTime < TIMING_CONFIG.MIN_FRAME_TIME) {
+			deltaTime = TIMING_CONFIG.FRAME_TIME;
+		}
+		if (deltaTime > TIMING_CONFIG.MAX_FRAME_TIME) {
+			deltaTime = TIMING_CONFIG.MAX_FRAME_TIME;
+		}
+	}
+
 	// Enhanced frame time clamping
 	if (deltaTime < 1) deltaTime = TIMING_CONFIG.FRAME_TIME;
 	if (deltaTime > TIMING_CONFIG.MAX_FRAME_TIME) {
@@ -4752,6 +4789,10 @@ function updateTimingSystem() {
 	timeMultiplier = deltaTime / TIMING_CONFIG.FRAME_TIME;
 	if (isNaN(timeMultiplier) || !isFinite(timeMultiplier)) {
 		timeMultiplier = 1;
+	}
+
+	if (isMobile) {
+		cappedMultiplier *= 0.85; // Additional 15% slowdown for mobile
 	}
 
 	cappedMultiplier = Math.min(Math.max(timeMultiplier, MIN_MULTIPLIER), MAX_MULTIPLIER);
