@@ -21,8 +21,6 @@
 	let keys = {
 		ArrowLeft: false,
 		ArrowRight: false,
-		ArrowUp: false,
-		ArrowDown: false,
 		' ': false, // Space
 		x: false,
 		p: false,
@@ -46,10 +44,10 @@
 		// Calculate distance from center
 		const distance = Math.sqrt(rawX * rawX + rawY * rawY);
 
-		// Normalize values
+		// For horizontal movement only, ignore Y axis
 		return {
 			x: rawX / Math.max(rect.width / 2, distance),
-			y: rawY / Math.max(rect.height / 2, distance),
+			y: 0, // Set Y to 0 to disable vertical movement
 			distance: distance
 		};
 	}
@@ -66,12 +64,12 @@
 		return sign * Math.pow(absValue, ACCELERATION_CURVE);
 	}
 
-	// Spring animation for smooth joystick movement
+	// Spring animation for smooth joystick movement (horizontal only)
 	let joystickPos = spring(
 		{ x: 0, y: 0 },
 		{
-			stiffness: 0.55, // Increased for faster response
-			damping: 0.45 // Reduced for less lag
+			stiffness: 0.55,
+			damping: 0.45
 		}
 	);
 
@@ -145,43 +143,11 @@
 		}
 	};
 
-	// Enhanced movement calculation with progressive zones
-	function calculateMovement(normalizedValue, distance) {
-		const absValue = Math.abs(normalizedValue);
-		const sign = Math.sign(normalizedValue);
-
-		// Apply progressive acceleration based on movement zones
-		let acceleration;
-		let multiplier;
-
-		if (distance < JOYSTICK_CONFIG.MOVEMENT_ZONES.PRECISE) {
-			acceleration = JOYSTICK_CONFIG.ACCELERATION.PRECISE;
-			multiplier = 0.7;
-		} else if (distance < JOYSTICK_CONFIG.MOVEMENT_ZONES.NORMAL) {
-			acceleration = JOYSTICK_CONFIG.ACCELERATION.NORMAL;
-			multiplier = 0.85;
-		} else {
-			acceleration = JOYSTICK_CONFIG.ACCELERATION.RAPID;
-			multiplier = 1.0;
-		}
-
-		// Enhanced smoothing for low-speed precision
-		if (absValue < JOYSTICK_CONFIG.MIN_MOVEMENT_THRESHOLD) {
-			return 0;
-		}
-
-		// Apply smoothed acceleration curve
-		const acceleratedValue = sign * Math.pow(absValue, acceleration) * multiplier;
-
-		// Add subtle easing for more natural feel
-		return acceleratedValue * (0.95 + Math.sin(absValue * Math.PI) * 0.05);
-	}
-
 	// State management for movement zones
 	let currentMovementZone = 'PRECISE'; // Initialize with the most precise zone
 	let previousMovementZone = 'PRECISE';
 
-	// Enhanced joystick position handling with improved precision
+	// Enhanced joystick position handling (horizontal only)
 	function handleJoystickMove(event) {
 		if (!browser || !mounted || !isJoystickActive) return;
 
@@ -190,36 +156,32 @@
 		if (!touch) return;
 
 		const rect = joystickBase.getBoundingClientRect();
-		const { x: normalizedX, y: normalizedY, distance } = calculateNormalizedPosition(touch, rect);
+		const { x: normalizedX, distance } = calculateNormalizedPosition(touch, rect);
 
-		// Apply enhanced sensitivity for mobile
+		// Apply enhanced sensitivity for mobile (horizontal only)
 		const sensitivity = distance < JOYSTICK_MAX_DISTANCE * 0.5 ? 1.2 : 1.5;
 		let adjustedX = normalizedX * JOYSTICK_MAX_DISTANCE * sensitivity;
-		let adjustedY = normalizedY * JOYSTICK_MAX_DISTANCE * sensitivity;
 
 		// Apply smoother deadzone
 		const deadzoneValue = Math.min(JOYSTICK_DEADZONE, (distance / JOYSTICK_MAX_DISTANCE) * 0.1);
 		if (Math.abs(adjustedX) < deadzoneValue) adjustedX = 0;
-		if (Math.abs(adjustedY) < deadzoneValue) adjustedY = 0;
 
-		// Update visual position with dynamic constraint
+		// Update visual position with dynamic constraint (horizontal only)
 		const maxDistance = Math.min(JOYSTICK_MAX_DISTANCE, rect.width * 0.4);
-		if (distance > maxDistance) {
-			const angle = Math.atan2(adjustedY, adjustedX);
-			adjustedX = Math.cos(angle) * maxDistance;
-			adjustedY = Math.sin(angle) * maxDistance;
+		if (Math.abs(adjustedX) > maxDistance) {
+			adjustedX = Math.sign(adjustedX) * maxDistance;
 		}
 
 		joystickPos.set({
 			x: adjustedX,
-			y: adjustedY
+			y: 0 // Keep Y at 0
 		});
 
 		dispatch('control', {
 			type: 'joystick',
 			value: {
 				x: Math.max(-1, Math.min(1, adjustedX / maxDistance)),
-				y: Math.max(-1, Math.min(1, adjustedY / maxDistance))
+				y: 0 // Always send 0 for Y axis
 			}
 		});
 	}
@@ -251,7 +213,7 @@
 		currentMovementZone = 'PRECISE';
 		previousMovementZone = 'PRECISE';
 
-		// Release all held keys
+		// Release horizontal movement keys only
 		if (keys.ArrowLeft) {
 			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
 			keys.ArrowLeft = false;
@@ -260,10 +222,6 @@
 		if (keys.ArrowRight) {
 			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
 			keys.ArrowRight = false;
-		}
-		if (keys.ArrowUp) {
-			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowUp' }));
-			keys.ArrowUp = false;
 		}
 
 		dispatch('control', {
@@ -378,7 +336,7 @@
 		window.removeEventListener('orientationchange', updateLayoutOrientation);
 
 		// Release any held keys
-		const heldKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', ' ', 'x', 'p', 'Enter'];
+		const heldKeys = ['ArrowLeft', 'ArrowRight', ' ', 'x', 'p', 'Enter'];
 		heldKeys.forEach((key) => {
 			if (keys[key]) {
 				window.dispatchEvent(new KeyboardEvent('keyup', { key }));
@@ -464,7 +422,7 @@
 				on:touchend={() => handleButtonRelease('missile')}
 			>
 				<span class="button-face" />
-				<span class="button-label">MISSILE</span>
+				<span class="button-label">HEAT<br />SEEKER</span>
 			</button>
 
 			<button
@@ -479,10 +437,10 @@
 				<span class="button-label">SHOOT</span>
 			</button>
 		</div>
-
-		<!-- Footer spacing -->
-		<div class="controls-footer" />
 	</div>
+
+	<!-- Footer spacing -->
+	<div class="controls-footer" />
 </div>
 
 <style>
@@ -568,7 +526,7 @@
 		transform: translate(-50%, -50%);
 		font-family: 'Roboto', 'Press Start 2P', monospace;
 		font-weight: 600;
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 		color: rgba(245, 245, 220, 0.55);
 		text-shadow:
 			0 0 4px rgba(39, 255, 153, 0.6),
@@ -712,7 +670,6 @@
 		background: var(--controls-background);
 		border: 1px solid var(--neon-color-dim);
 		border-radius: 4px;
-		/* color: rgba(39, 255, 153, 0.8); */
 		color: rgba(245, 245, 220, 1);
 		font-family: 'Roboto', 'Press Start 2P', monospace;
 		font-weight: 600;
@@ -807,7 +764,6 @@
 	}
 
 	/* Touch optimizations */
-
 	@media (hover: none) and (pointer: coarse) {
 		.joystick-base {
 			transform: scale(1.1); /* Slightly larger on mobile */
