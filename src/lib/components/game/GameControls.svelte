@@ -237,13 +237,20 @@
 		buttons[button] = true;
 		triggerHaptic();
 
+		// Dispatch control event immediately
+		dispatch('control', {
+			type: 'button',
+			button,
+			value: true
+		});
+
 		let keyEvent;
 		switch (button) {
-			case 'missile':
-				keyEvent = new KeyboardEvent('keydown', { key: ' ' });
-				break;
 			case 'shoot':
 				keyEvent = new KeyboardEvent('keydown', { key: 'x' });
+				break;
+			case 'missile':
+				keyEvent = new KeyboardEvent('keydown', { key: ' ' });
 				break;
 			case 'pause':
 				keyEvent = new KeyboardEvent('keydown', { key: 'p' });

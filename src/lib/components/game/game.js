@@ -285,6 +285,13 @@ function initializePlayer() {
 		direction: 'right',
 		frameSequence: [2, 3, 2, 4],
 		sequenceIndex: 0,
+		isShootingWithControls: false,
+		lastControlShootTime: 0,
+
+		canShootWithControls() {
+            const currentTime = Date.now();
+            return currentTime - this.lastControlShootTime >= velaShootingCooldown;
+        }
 
 		init: function () {
 			// Create new Image instance
