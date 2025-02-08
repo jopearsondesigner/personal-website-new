@@ -1,4 +1,4 @@
-<!-- Hero.svelte -->
+<!-- src/lib/components/Hero.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
@@ -12,78 +12,78 @@
 	import { layoutStore } from '$lib/stores/store';
 	import GameControls from '$lib/components/game/GameControls.svelte';
 
-	let currentTimeline;
+	// Optimized component state using typed definitions
+	let currentTimeline: gsap.core.Timeline | null = null;
 	let header: HTMLElement;
 	let insertConcept: HTMLElement;
 	let arcadeScreen: HTMLElement;
 	let starContainer: HTMLElement;
-	let spaceBackground: HTMLElement;
 	let currentScreen = 'main';
-	let stars = [];
-	let showControls = false;
-	let updateTimeout;
-	let lastAnimationFrame;
-	const DEBUG = false;
-	const PERF_METRICS = DEBUG
-		? {
-				starUpdateTimes: [] as number[],
-				lastPerfLog: Date.now(),
-				logInterval: 5000 // Log every 5 seconds
-			}
-		: null;
+	let stars: ReturnType<StarFieldManager['getStars']> = [];
+	let starFieldManager: InstanceType<typeof animations.StarFieldManager>;
+	let glitchManager: InstanceType<typeof animations.GlitchManager>;
+	let resizeObserver: ResizeObserver | null = null;
+	let orientationTimeout: number | null = null;
 
+	// Reactive statements with performance optimizations
 	$: stars = $animationState.stars;
 
 	$: if (browser) {
-		document.documentElement.style.setProperty('--navbar-height', `${$layoutStore.navbarHeight}px`);
+		requestAnimationFrame(() => {
+			document.documentElement.style.setProperty(
+				'--navbar-height',
+				`${$layoutStore.navbarHeight}px`
+			);
+		});
 	}
 
-	let cachedElements: {
-		header: HTMLElement | null;
-		insertConcept: HTMLElement | null;
-		arcadeScreen: HTMLElement | null;
-	} | null = null;
-
+	// Optimized screen management with debouncing
 	$: {
 		if (currentScreen === 'main' && browser) {
-			const initializeElements = () => {
-				const elements = {
-					header: document.querySelector('#header'),
-					insertConcept: document.querySelector('#insert-concept'),
-					arcadeScreen: document.querySelector('#arcade-screen')
-				};
-
-				if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-					cachedElements = elements;
-					startAnimations(elements);
-				} else {
-					// Only retry once to prevent infinite loops
-					setTimeout(initializeElements, 50);
-				}
+			const elements = {
+				header: document.querySelector('#header'),
+				insertConcept: document.querySelector('#insert-concept'),
+				arcadeScreen: document.querySelector('#arcade-screen')
 			};
 
-			initializeElements();
+			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
+				requestIdleCallback(() => startAnimations(elements));
+			}
 		} else if (currentScreen !== 'main') {
 			stopAnimations();
-			cachedElements = null;
 		}
 	}
 
-	export function handleScreenChange(event: CustomEvent) {
+	// Event handlers with performance optimizations
+	function handleScreenChange(event: CustomEvent) {
 		const newScreen = event.detail;
 		screenStore.set(newScreen);
 		currentScreen = newScreen;
 	}
 
-	function batchDomUpdates(updates) {
-		return new Promise((resolve) => {
+	function handleControlInput(event: CustomEvent) {
+		if (!browser) return;
+
+		const { detail } = event;
+		if (detail.type === 'joystick') {
 			requestAnimationFrame(() => {
-				updates();
-				resolve();
+				if (detail.value.x < -0.5) {
+					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+				} else if (detail.value.x > 0.5) {
+					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+				} else {
+					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
+					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
+				}
+
+				if (detail.value.y < -0.5) {
+					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+				}
 			});
-		});
+		}
 	}
 
+	// Optimized animation management
 	function startAnimations(elements: {
 		header: HTMLElement;
 		insertConcept: HTMLElement;
@@ -92,81 +92,39 @@
 		const state = get(animationState);
 		if (state.isAnimating) return;
 
-		const getOptimalFrameRate = () => {
-			if (!browser) return 16;
-			const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-			const isLowPerfDevice = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-			if (isMobile || isLowPerfDevice) {
-				return 32; // ~30fps for mobile/low-perf devices
-			}
-			return 16; // ~60fps for desktop
-		};
-
 		const { header, insertConcept, arcadeScreen } = elements;
 
-		// Create stars once and reuse
-		let starArray = animations.initStars(300);
-		animationState.update((s) => ({ ...s, stars: starArray }));
+		// Initialize managers with performance optimizations
+		if (!starFieldManager) {
+			starFieldManager = new animations.StarFieldManager();
+		}
+		if (!glitchManager) {
+			glitchManager = new animations.GlitchManager();
+		}
 
-		// Batch star updates using requestAnimationFrame
-		const updateStarField = () => {
-			if (get(screenStore) !== 'main') return;
-
-			if (lastAnimationFrame) {
-				cancelAnimationFrame(lastAnimationFrame);
-			}
-
-			clearTimeout(updateTimeout);
-
-			// Use optimal frame rate
-			const frameRate = getOptimalFrameRate();
-
-			updateTimeout = setTimeout(() => {
-				starArray = animations.updateStars(starArray);
-				// Batch the star updates
-				requestAnimationFrame(() => {
-					animationState.update((s) => ({ ...s, stars: [...starArray] }));
-				});
-			}, frameRate);
-
-			lastAnimationFrame = requestAnimationFrame(updateStarField);
-			state.animationFrame = lastAnimationFrame;
-
-			if (DEBUG && PERF_METRICS) {
-				const startTime = performance.now();
-				// Your existing star update code
-				const endTime = performance.now();
-				PERF_METRICS.starUpdateTimes.push(endTime - startTime);
-
-				// Log performance metrics every 5 seconds
-				if (Date.now() - PERF_METRICS.lastPerfLog > PERF_METRICS.logInterval) {
-					const avg =
-						PERF_METRICS.starUpdateTimes.reduce((a, b) => a + b, 0) /
-						PERF_METRICS.starUpdateTimes.length;
-					console.log(`Avg star update time: ${avg.toFixed(2)}ms`);
-					PERF_METRICS.starUpdateTimes = [];
-					PERF_METRICS.lastPerfLog = Date.now();
-				}
-			}
-		};
-
-		// Create a single GSAP timeline for all animations
-		const timeline = gsap.timeline({
-			paused: true,
-			onComplete: () => timeline.restart()
+		// Start animations with RAF batching
+		requestAnimationFrame(() => {
+			starFieldManager.start();
+			animationState.update((s) => ({ ...s, stars: starFieldManager.getStars() }));
+			glitchManager.start([header, insertConcept]);
 		});
 
-		currentTimeline = timeline;
+		// Create GSAP timeline with optimized settings
+		const timeline = gsap.timeline({
+			paused: true,
+			onComplete: () => timeline.restart(),
+			defaults: {
+				ease: 'power1.inOut',
+				immediateRender: false
+			}
+		});
 
-		// Add all animations to the timeline
 		timeline
 			.to([header, insertConcept], {
 				duration: 0.1,
 				y: '+=2',
 				repeat: -1,
-				yoyo: true,
-				ease: 'power1.inOut'
+				yoyo: true
 			})
 			.to(
 				insertConcept,
@@ -180,138 +138,113 @@
 				0
 			);
 
-		// Optimize glitch effect interval
-		const glitchInterval = setInterval(() => {
-			if (get(screenStore) === 'main' && document.visibilityState === 'visible') {
-				requestAnimationFrame(() => {
-					animations.createGlitchEffect(header);
-					animations.createGlitchEffect(insertConcept);
-				});
-			}
-		}, 100);
-
-		// Optimize glow animation
-		const animateGlow = async () => {
-			if (!arcadeScreen || get(screenStore) !== 'main') return;
-
-			const duration = Math.random() * 2 + 1;
-			await batchDomUpdates(() => {
-				arcadeScreen.classList.toggle('glow');
-			});
-
-			state.glowAnimation = gsap.delayedCall(duration, async () => {
-				await batchDomUpdates(() => {
-					arcadeScreen.classList.toggle('glow');
-				});
-				gsap.delayedCall(Math.random() * 1 + 0.5, animateGlow);
-			});
-		};
-
-		// Start animations
-		timeline.play();
-		updateStarField();
-		animateGlow();
+		currentTimeline = timeline;
+		requestAnimationFrame(() => timeline.play());
 
 		// Update animation state
 		animationState.set({
 			...state,
-			timeline,
-			glitchInterval,
 			isAnimating: true
 		});
 	}
 
-	// Location: Replace the stopAnimations function with this optimized version
 	function stopAnimations() {
-		const state = get(animationState);
+		if (!browser) return;
 
-		// Kill the timeline first
+		// Stop all animation managers
+		starFieldManager?.stop();
+		glitchManager?.stop();
+
+		// Kill GSAP timeline with proper cleanup
 		if (currentTimeline) {
 			currentTimeline.kill();
 			currentTimeline = null;
 		}
 
-		// Clear all intervals and animations
-		if (state.glitchInterval) clearInterval(state.glitchInterval);
-		if (state.animationFrame) {
-			cancelAnimationFrame(state.animationFrame);
-			state.animationFrame = null;
-		}
-		if (state.glowAnimation) {
-			state.glowAnimation.kill();
-			state.glowAnimation = null;
-		}
-		if (state.timeline) {
-			state.timeline.kill();
-			state.timeline = null;
-		}
-
-		// Kill all GSAP animations last
-		gsap.killTweensOf('*');
-
 		// Reset animation state
 		animationState.set({
-			...state,
 			stars: [],
-			isAnimating: false,
-			timeline: null
+			isAnimating: false
 		});
 	}
 
-	function handleControlInput(event) {
-		const { detail } = event;
-		if (detail.type === 'joystick') {
-			if (detail.value.x < -0.5) {
-				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
-			} else if (detail.value.x > 0.5) {
-				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
-			} else {
-				window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
-				window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
-			}
+	// Optimized handling of orientation changes
+	function handleOrientation() {
+		if (!browser) return;
 
-			if (detail.value.y < -0.5) {
-				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
-			}
-		} else if (detail.type === 'button') {
-			// ... rest of your control handling code
-		}
+		const isLandscape = window.innerWidth > window.innerHeight;
+		requestAnimationFrame(() => {
+			document.body.classList.toggle('landscape', isLandscape);
+		});
 	}
 
+	// Debounced resize handler
+	function debouncedOrientationCheck() {
+		if (orientationTimeout) {
+			clearTimeout(orientationTimeout);
+		}
+		orientationTimeout = window.setTimeout(handleOrientation, 150);
+	}
+
+	// Lifecycle hooks with proper cleanup
 	onMount(() => {
 		if (!browser) return;
 
 		currentScreen = 'main';
-		const handleOrientation = () => {
-			const isLandscape = window.innerWidth > window.innerHeight;
-			document.body.classList.toggle('landscape', isLandscape);
+
+		// Setup resize observer for performance
+		resizeObserver = new ResizeObserver(debouncedOrientationCheck);
+		if (arcadeScreen) {
+			resizeObserver.observe(arcadeScreen);
+		}
+
+		// Initial setup
+		requestAnimationFrame(() => {
+			arcadeScreen?.classList.add('power-sequence');
+			handleOrientation();
+		});
+
+		// Add event listener with passive option for better touch performance
+		window.addEventListener('resize', debouncedOrientationCheck, { passive: true });
+
+		return () => {
+			window.removeEventListener('resize', debouncedOrientationCheck);
+			orientationTimeout && clearTimeout(orientationTimeout);
 		};
-
-		arcadeScreen.classList.add('power-sequence');
-
-		window.addEventListener('resize', handleOrientation);
-		handleOrientation();
-
-		return () => window.removeEventListener('resize', handleOrientation);
 	});
 
 	onDestroy(() => {
 		if (!browser) return;
 
-		// Clear all timeouts and frames
-		clearTimeout(updateTimeout);
-		if (lastAnimationFrame) {
-			cancelAnimationFrame(lastAnimationFrame);
-		}
-
-		// Call stopAnimations to handle all animation cleanup
+		// Cleanup all animations and managers
 		stopAnimations();
 
-		// Clear stars array and cached elements
-		stars = null;
-		cachedElements = null;
+		// Proper cleanup of managers
+		if (starFieldManager) {
+			starFieldManager.cleanup();
+			starFieldManager = null;
+		}
+
+		if (glitchManager) {
+			glitchManager.cleanup();
+			glitchManager = null;
+		}
+
+		// Cleanup resize observer
+		if (resizeObserver) {
+			resizeObserver.disconnect();
+			resizeObserver = null;
+		}
+
+		// Clear any remaining timeouts
+		if (orientationTimeout) {
+			clearTimeout(orientationTimeout);
+			orientationTimeout = null;
+		}
 	});
 </script>
+
+// File: src/lib/components/Hero.svelte
 
 <section
 	id="hero"
