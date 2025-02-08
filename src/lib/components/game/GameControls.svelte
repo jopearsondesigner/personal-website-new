@@ -33,6 +33,9 @@
 		MAX_DELTA: 1.5 // Maximum change per update
 	};
 
+	let isShootingWithControls = false;
+	let lastShootTime = 0;
+
 	function calculateNormalizedPosition(touch, rect) {
 		const centerX = rect.width / 2;
 		const centerY = rect.height / 2;
@@ -158,30 +161,21 @@
 		const rect = joystickBase.getBoundingClientRect();
 		const { x: normalizedX, distance } = calculateNormalizedPosition(touch, rect);
 
-		// Apply enhanced sensitivity for mobile (horizontal only)
+		// Calculate adjusted position (keeping existing code)
 		const sensitivity = distance < JOYSTICK_MAX_DISTANCE * 0.5 ? 1.2 : 1.5;
 		let adjustedX = normalizedX * JOYSTICK_MAX_DISTANCE * sensitivity;
 
-		// Apply smoother deadzone
-		const deadzoneValue = Math.min(JOYSTICK_DEADZONE, (distance / JOYSTICK_MAX_DISTANCE) * 0.1);
-		if (Math.abs(adjustedX) < deadzoneValue) adjustedX = 0;
-
-		// Update visual position with dynamic constraint (horizontal only)
-		const maxDistance = Math.min(JOYSTICK_MAX_DISTANCE, rect.width * 0.4);
-		if (Math.abs(adjustedX) > maxDistance) {
-			adjustedX = Math.sign(adjustedX) * maxDistance;
-		}
-
+		// Update visual position and dispatch control event even if shooting
 		joystickPos.set({
 			x: adjustedX,
-			y: 0 // Keep Y at 0
+			y: 0
 		});
 
 		dispatch('control', {
 			type: 'joystick',
 			value: {
-				x: Math.max(-1, Math.min(1, adjustedX / maxDistance)),
-				y: 0 // Always send 0 for Y axis
+				x: Math.max(-1, Math.min(1, adjustedX / JOYSTICK_MAX_DISTANCE)),
+				y: 0
 			}
 		});
 	}
@@ -234,32 +228,26 @@
 		if (!browser || !mounted) return;
 
 		event.preventDefault();
+		event.stopPropagation(); // Prevent event from bubbling
 		buttons[button] = true;
 		triggerHaptic();
 
-		// Dispatch control event immediately
-		dispatch('control', {
-			type: 'button',
-			button,
-			value: true
-		});
+		// Don't affect joystick state when shooting
+		if (button === 'shoot' || button === 'missile') {
+			dispatch('control', {
+				type: 'button',
+				button,
+				value: true
+			});
 
-		let keyEvent;
-		switch (button) {
-			case 'shoot':
+			let keyEvent;
+			if (button === 'shoot') {
 				keyEvent = new KeyboardEvent('keydown', { key: 'x' });
-				break;
-			case 'missile':
+			} else if (button === 'missile') {
 				keyEvent = new KeyboardEvent('keydown', { key: ' ' });
-				break;
-			case 'pause':
-				keyEvent = new KeyboardEvent('keydown', { key: 'p' });
-				break;
-			case 'enter':
-				keyEvent = new KeyboardEvent('keydown', { key: 'Enter' });
-				break;
+			}
+			if (keyEvent) window.dispatchEvent(keyEvent);
 		}
-		if (keyEvent) window.dispatchEvent(keyEvent);
 	}
 
 	function handleButtonRelease(button: keyof typeof buttons) {

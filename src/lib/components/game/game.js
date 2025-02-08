@@ -3336,8 +3336,13 @@ function shoot(isHeatseeker = false, isPowerUp = false) {
 	const currentTime = Date.now();
 	const currentCooldown = rapidFireMode ? velaShootingCooldown / 2 : velaShootingCooldown;
 
-	if (currentTime - lastVelaShotTime < currentCooldown) {
-		return;
+	// Check the appropriate cooldown based on input source
+	if (player.isShootingWithControls) {
+		if (!player.canShootWithControls()) return;
+		player.lastControlShootTime = currentTime;
+	} else {
+		if (currentTime - lastVelaShotTime < currentCooldown) return;
+		lastVelaShotTime = currentTime;
 	}
 
 	const projectileX = player.x + player.width / 2;
@@ -5022,9 +5027,15 @@ function animate() {
 
 	checkCollisions();
 
-	if (player.movingLeft && player.x > 0) player.x -= player.speed * cappedMultiplier;
-	if (player.movingRight && player.x < canvas.width - player.width)
+	if (player.movingLeft && player.x > 0) {
+		player.x -= player.speed * cappedMultiplier;
+	}
+	if (player.movingRight && player.x < canvas.width - player.width) {
 		player.x += player.speed * cappedMultiplier;
+	}
+
+	player.update(cappedMultiplier);
+	player.draw(ctx);
 
 	if (enemies.length < maxEnemies && gameFrame % enemyInterval === 0) {
 		enemies.push(new Enemy());
