@@ -5016,15 +5016,6 @@ function animate() {
 		enemy.draw(ctx);
 	});
 
-	// enemies.forEach((enemy, index) => {
-	// 	enemy.update(cappedMultiplier);
-	// 	enemy.draw(ctx);
-	// 	if (checkCollision(player, enemy, 14)) {
-	// 		handlePlayerHit('collision', enemy);
-	// 		enemies.splice(index, 1);
-	// 	}
-	// });
-
 	checkCollisions();
 
 	if (player.movingLeft && player.x > 0) {
