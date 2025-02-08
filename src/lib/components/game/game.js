@@ -247,6 +247,7 @@ const assetURLs = [
 ];
 
 function initializePlayer() {
+	player = {};
 	Object.assign(player, {
 		x: canvas.width / 2 - 27.5,
 		y: canvas.height - 87.5 - 5,
@@ -278,7 +279,7 @@ function initializePlayer() {
 		frameInterval: 8,
 		isExploding: false,
 		explosionFrame: 0,
-		spriteImage: null, // Initialize as null first
+		spriteImage: null,
 		spriteLoaded: false,
 		loadRetries: 0,
 		maxRetries: 3,
@@ -288,26 +289,17 @@ function initializePlayer() {
 		isShootingWithControls: false,
 		lastControlShootTime: 0,
 
-		canShootWithControls() {
-            const currentTime = Date.now();
-            return currentTime - this.lastControlShootTime >= velaShootingCooldown;
-        }
-
-		init: function () {
-			// Create new Image instance
+		init() {
 			this.spriteImage = new Image();
 
-			// Set up load handlers before setting src
 			this.spriteImage.onload = () => {
 				console.log('Vela sprite loaded successfully');
-				// Verify sprite dimensions
 				if (this.spriteImage.width === 0 || this.spriteImage.height === 0) {
 					console.error('Invalid sprite dimensions');
 					this.retryLoad();
 					return;
 				}
 				this.spriteLoaded = true;
-				// Log success with dimensions
 				console.log(`Sprite loaded: ${this.spriteImage.width}x${this.spriteImage.height}`);
 			};
 
@@ -316,17 +308,16 @@ function initializePlayer() {
 				this.retryLoad();
 			};
 
-			// Start loading sprite
 			this.loadSprite();
 		},
 
-		loadSprite: function () {
+		loadSprite() {
 			const spritePath = getAssetPath('assets/images/game/vela_main_sprite.png');
 			console.log('Loading sprite from:', spritePath);
 			this.spriteImage.src = spritePath;
 		},
 
-		retryLoad: function () {
+		retryLoad() {
 			if (this.loadRetries < this.maxRetries) {
 				this.loadRetries++;
 				console.log(`Retrying sprite load, attempt ${this.loadRetries}`);
@@ -336,10 +327,7 @@ function initializePlayer() {
 			}
 		},
 
-		update: function () {
-			// Frame sync for movement (4-frame cycle typical in classics)
-			const shouldMove = gameFrame % 4 === 0;
-
+		update() {
 			if (this.isExploding) {
 				this.explosionFrame++;
 				if (this.explosionFrame > 2) {
@@ -366,6 +354,8 @@ function initializePlayer() {
 				} else if (this.dashCooldown > 0) {
 					this.dashCooldown -= timeMultiplier;
 				}
+
+				const shouldMove = gameFrame % 4 === 0;
 
 				if (shouldMove) {
 					if (this.movingLeft) {
@@ -433,13 +423,11 @@ function initializePlayer() {
 			}
 		},
 
-		draw: function () {
+		draw() {
 			if (!this.spriteImage || !this.spriteLoaded || !this.spriteImage.complete) {
-				// Enhanced debug visualization
 				ctx.save();
 				ctx.fillStyle = '#FF00FF';
 				ctx.fillRect(this.x, this.y, this.width, this.height);
-				// Add debug text
 				ctx.fillStyle = '#FFFFFF';
 				ctx.font = '12px Arial';
 				ctx.fillText('Loading...', this.x, this.y - 5);
@@ -497,20 +485,20 @@ function initializePlayer() {
 			ctx.restore();
 		},
 
-		jump: function () {
+		jump() {
 			if (this.isGrounded || this.canDoubleJump) {
 				this.isJumping = true;
 			}
 		},
 
-		dash: function () {
+		dash() {
 			if (!this.isDashing && this.dashCooldown <= 0) {
 				this.isDashing = true;
 				this.dashDuration = 10;
 			}
 		},
 
-		dodgeEnemyProjectiles: function () {
+		dodgeEnemyProjectiles() {
 			enemyProjectiles.forEach((projectile) => {
 				if (
 					projectile.x > this.x - this.width &&
@@ -525,10 +513,14 @@ function initializePlayer() {
 					}
 				}
 			});
+		},
+
+		canShootWithControls() {
+			const currentTime = Date.now();
+			return currentTime - this.lastControlShootTime >= velaShootingCooldown;
 		}
 	});
 
-	// Initialize the player immediately after setup
 	player.init();
 }
 
@@ -3396,12 +3388,21 @@ class HeatseekerProjectile extends AnimatedProjectile {
 			return null;
 		}
 
+		// Filter for valid targets only
+		const validTargets = enemies.filter(
+			(enemy) =>
+				// Basic enemies are always valid targets
+				enemy.constructor.name === 'Enemy' ||
+				// CityEnemies are only valid when fully scaled (in foreground)
+				(enemy.constructor.name === 'CityEnemy' && enemy.scale >= 1)
+		);
+
 		let closestEnemy = null;
 		let closestDistance = Infinity;
 
-		enemies.forEach((enemy) => {
+		validTargets.forEach((enemy) => {
 			if (!enemy || typeof enemy.x === 'undefined' || typeof enemy.y === 'undefined') {
-				return; // Skip invalid enemies
+				return;
 			}
 
 			let distance = Math.hypot(enemy.x - this.x, enemy.y - this.y);
