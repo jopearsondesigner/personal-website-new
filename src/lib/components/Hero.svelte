@@ -18,12 +18,14 @@
 	let insertConcept: HTMLElement;
 	let arcadeScreen: HTMLElement;
 	let starContainer: HTMLElement;
+	let spaceBackground: HTMLElement;
 	let currentScreen = 'main';
 	let stars: ReturnType<StarFieldManager['getStars']> = [];
 	let starFieldManager: InstanceType<typeof animations.StarFieldManager>;
 	let glitchManager: InstanceType<typeof animations.GlitchManager>;
 	let resizeObserver: ResizeObserver | null = null;
 	let orientationTimeout: number | null = null;
+	let hasError = false;
 
 	// Reactive statements with performance optimizations
 	$: stars = $animationState.stars;
@@ -41,9 +43,9 @@
 	$: {
 		if (currentScreen === 'main' && browser) {
 			const elements = {
-				header: document.querySelector('#header'),
-				insertConcept: document.querySelector('#insert-concept'),
-				arcadeScreen: document.querySelector('#arcade-screen')
+				header, // Use bound element
+				insertConcept, // Use bound element
+				arcadeScreen // Use bound element
 			};
 
 			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
@@ -89,63 +91,72 @@
 		insertConcept: HTMLElement;
 		arcadeScreen: HTMLElement;
 	}) {
-		const state = get(animationState);
-		if (state.isAnimating) return;
+		try {
+			const state = get(animationState);
+			if (state.isAnimating) return;
 
-		const { header, insertConcept, arcadeScreen } = elements;
+			const { header, insertConcept, arcadeScreen } = elements;
 
-		// Initialize managers with performance optimizations
-		if (!starFieldManager) {
-			starFieldManager = new animations.StarFieldManager();
-		}
-		if (!glitchManager) {
-			glitchManager = new animations.GlitchManager();
-		}
-
-		// Start animations with RAF batching
-		requestAnimationFrame(() => {
-			starFieldManager.start();
-			animationState.update((s) => ({ ...s, stars: starFieldManager.getStars() }));
-			glitchManager.start([header, insertConcept]);
-		});
-
-		// Create GSAP timeline with optimized settings
-		const timeline = gsap.timeline({
-			paused: true,
-			onComplete: () => timeline.restart(),
-			defaults: {
-				ease: 'power1.inOut',
-				immediateRender: false
+			// Initialize star field manager
+			if (!starFieldManager) {
+				starFieldManager = new animations.StarFieldManager(animationState);
+				requestAnimationFrame(() => {
+					starFieldManager.start();
+				});
 			}
-		});
 
-		timeline
-			.to([header, insertConcept], {
-				duration: 0.1,
-				y: '+=2',
-				repeat: -1,
-				yoyo: true
-			})
-			.to(
-				insertConcept,
-				{
-					duration: 1,
-					opacity: 0,
+			// Initialize glitch manager with performance optimizations
+			if (!glitchManager) {
+				requestAnimationFrame(() => {
+					glitchManager = new animations.GlitchManager();
+					glitchManager.start([header]); // Only apply to header for better performance
+				});
+			}
+
+			// Create GSAP timeline with optimized settings
+			const timeline = gsap.timeline({
+				paused: true,
+				onComplete: () => timeline.restart(),
+				defaults: {
+					ease: 'power1.inOut',
+					immediateRender: false
+				}
+			});
+
+			timeline
+				.to([header, insertConcept], {
+					duration: 0.1,
+					y: '+=2',
 					repeat: -1,
-					yoyo: true,
-					ease: 'none'
-				},
-				0
-			);
+					yoyo: true
+				})
+				.to(
+					insertConcept,
+					{
+						duration: 1,
+						opacity: 0,
+						repeat: -1,
+						yoyo: true,
+						ease: 'none'
+					},
+					0
+				);
 
-		currentTimeline = timeline;
-		requestAnimationFrame(() => timeline.play());
+			currentTimeline = timeline;
+			requestAnimationFrame(() => timeline.play());
 
-		// Update animation state
-		animationState.set({
-			...state,
-			isAnimating: true
-		});
+			// Update animation state
+			animationState.set({
+				...state,
+				isAnimating: true
+			});
+		} catch (error) {
+			console.error('Animation initialization failed:', error);
+			animationState.set({
+				stars: [],
+				isAnimating: false
+			});
+		}
 	}
 
 	function stopAnimations() {
@@ -298,7 +309,7 @@
 								class="star-container absolute inset-0 pointer-events-none"
 								bind:this={starContainer}
 							>
-								{#each stars as star (star)}
+								{#each $animationState.stars as star (star.id)}
 									<div class="star absolute" style={star.style}></div>
 								{/each}
 							</div>
@@ -485,6 +496,44 @@
 			0 0 4vmin rgba(245, 245, 220, 0.5),
 			0 0 7vmin rgba(245, 245, 220, 0.3),
 			0 0 8vmin rgba(245, 245, 220, 0.1);
+		position: relative;
+		isolation: isolate;
+		will-change: transform, filter;
+		transition:
+			transform 50ms ease-out,
+			filter 50ms ease-out;
+	}
+
+	#header::before {
+		content: '';
+		position: absolute;
+		inset: -2px;
+		background: linear-gradient(
+			90deg,
+			transparent 0%,
+			rgba(39, 255, 153, 0.2) 15%,
+			transparent 25%
+		);
+		opacity: 0;
+		animation: glitch-scan 4s linear infinite;
+		pointer-events: none;
+		mix-blend-mode: overlay;
+	}
+
+	@keyframes glitch-scan {
+		0% {
+			opacity: 0;
+			transform: translateX(-100%);
+		}
+		10%,
+		15% {
+			opacity: 0.5;
+		}
+		50%,
+		100% {
+			opacity: 0;
+			transform: translateX(100%);
+		}
 	}
 
 	/* ==========================================================================
