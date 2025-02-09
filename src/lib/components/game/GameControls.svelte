@@ -18,6 +18,11 @@
 	const ACCELERATION_CURVE = 0.7;
 	const BUTTON_HAPTIC_DURATION = 50;
 
+	const preventDefaultTouch = (e: TouchEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+	};
+
 	let keys = {
 		ArrowLeft: false,
 		ArrowRight: false,
@@ -228,26 +233,35 @@
 		if (!browser || !mounted) return;
 
 		event.preventDefault();
-		event.stopPropagation(); // Prevent event from bubbling
+		event.stopPropagation(); // Prevent event bubbling
 		buttons[button] = true;
 		triggerHaptic();
 
-		// Don't affect joystick state when shooting
-		if (button === 'shoot' || button === 'missile') {
-			dispatch('control', {
-				type: 'button',
-				button,
-				value: true
-			});
-
-			let keyEvent;
-			if (button === 'shoot') {
-				keyEvent = new KeyboardEvent('keydown', { key: 'x' });
-			} else if (button === 'missile') {
+		let keyEvent;
+		switch (button) {
+			case 'missile':
 				keyEvent = new KeyboardEvent('keydown', { key: ' ' });
-			}
-			if (keyEvent) window.dispatchEvent(keyEvent);
+				break;
+			case 'shoot':
+				keyEvent = new KeyboardEvent('keydown', { key: 'x' });
+				break;
+			case 'pause':
+				keyEvent = new KeyboardEvent('keydown', { key: 'p' });
+				break;
+			case 'enter':
+				keyEvent = new KeyboardEvent('keydown', { key: 'Enter' });
+				break;
+			case 'reset':
+				keyEvent = new KeyboardEvent('keydown', { key: 'r', ctrlKey: true });
+				break;
 		}
+		if (keyEvent) window.dispatchEvent(keyEvent);
+
+		dispatch('control', {
+			type: 'button',
+			button,
+			value: true
+		});
 	}
 
 	function handleButtonRelease(button: keyof typeof buttons) {
@@ -257,10 +271,10 @@
 
 		let keyEvent;
 		switch (button) {
-			case 'heatseeker': // Changed from 'ammo'
+			case 'heatseeker':
 				keyEvent = new KeyboardEvent('keyup', { key: ' ' });
 				break;
-			case 'ammo': // Changed from 'heatseeker'
+			case 'ammo':
 				keyEvent = new KeyboardEvent('keyup', { key: 'x' });
 				break;
 			case 'pause':
@@ -270,10 +284,7 @@
 				keyEvent = new KeyboardEvent('keyup', { key: 'Enter' });
 				break;
 			case 'reset':
-				keyEvent = new KeyboardEvent('keydown', {
-					key: 'r',
-					ctrlKey: true
-				});
+				keyEvent = new KeyboardEvent('keyup', { key: 'r' });
 				break;
 		}
 		if (keyEvent) window.dispatchEvent(keyEvent);
@@ -296,6 +307,12 @@
 
 		updateLayoutOrientation();
 
+		if (controlsContainer) {
+			controlsContainer.addEventListener('touchstart', preventDefaultTouch, { passive: false });
+			controlsContainer.addEventListener('touchmove', preventDefaultTouch, { passive: false });
+			controlsContainer.addEventListener('touchend', preventDefaultTouch, { passive: false });
+		}
+
 		window.addEventListener('resize', updateLayoutOrientation);
 		window.addEventListener('orientationchange', updateLayoutOrientation);
 		window.addEventListener('mousemove', handleJoystickMove);
@@ -315,6 +332,9 @@
 
 		// Clean up all event listeners
 		if (controlsContainer) {
+			controlsContainer.removeEventListener('touchstart', preventDefaultTouch);
+			controlsContainer.removeEventListener('touchmove', preventDefaultTouch);
+			controlsContainer.removeEventListener('touchend', preventDefaultTouch);
 			controlsContainer.removeEventListener('touchmove', (e) => e.preventDefault());
 		}
 
