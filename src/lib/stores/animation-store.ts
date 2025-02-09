@@ -23,7 +23,6 @@ interface AnimationState {
 
 function createAnimationStore() {
 	const { subscribe, set, update } = writable<AnimationState>({
-		// Use the imported animations.initStars() instead
 		stars: animations.initStars(),
 		glitchInterval: null,
 		animationFrame: null,
@@ -43,6 +42,12 @@ function createAnimationStore() {
 				glitchInterval: null,
 				animationFrame: null,
 				glowAnimation: null
+			})),
+		// Add this new method
+		resetAnimationState: () =>
+			update((state) => ({
+				...state,
+				isAnimating: false
 			}))
 	};
 }

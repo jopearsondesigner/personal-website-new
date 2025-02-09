@@ -77,14 +77,61 @@ class GlitchManager {
 	private elements: HTMLElement[] = [];
 	private interval: number | null = null;
 	private frameId: number | null = null;
+	private isRunning: boolean = false;
 
 	start(elements: HTMLElement[]) {
 		this.elements = elements;
+		this.isRunning = true;
 
 		const glitchLoop = () => {
-			this.elements.forEach(createGlitchEffect);
-			// Random interval between 50ms and 250ms for more natural effect
-			const nextFrame = 50 + Math.random() * 200;
+			if (!this.isRunning) return;
+
+			this.elements.forEach((element) => {
+				if (!element) return;
+
+				// Increase probability of glitch effect
+				const intensity = Math.random();
+				if (intensity > 0.85) {
+					// Increased from 0.92 to 0.85 for more frequent glitches
+					const offsetX = (Math.random() * 8 - 4) | 0; // Increased range
+					const offsetY = (Math.random() * 8 - 4) | 0;
+					const blur = (Math.random() * 2) | 0;
+					const opacity = Math.random() * 0.3 + 0.7;
+
+					// Apply multiple transformations for a more intense effect
+					element.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+					element.style.filter = `blur(${blur}px) brightness(${1 + Math.random() * 0.4})`;
+					element.style.opacity = `${opacity}`;
+
+					// Add color shift occasionally
+					if (Math.random() > 0.7) {
+						const rgb = [0, 1, 2].map(() => Math.random() * 10 - 5);
+						element.style.textShadow = `
+				${rgb[0]}px 0 rgba(255,0,0,0.5),
+				${rgb[1]}px 0 rgba(0,255,0,0.5),
+				${rgb[2]}px 0 rgba(0,0,255,0.5)
+			  `;
+					}
+
+					// Reset after a short delay
+					requestAnimationFrame(() => {
+						setTimeout(
+							() => {
+								if (element && this.isRunning) {
+									element.style.transform = '';
+									element.style.filter = '';
+									element.style.opacity = '';
+									element.style.textShadow = '';
+								}
+							},
+							50 + Math.random() * 50
+						); // Randomized reset timing
+					});
+				}
+			});
+
+			// Randomize the interval between glitches
+			const nextFrame = 30 + Math.random() * 100; // More frequent updates
 			this.frameId = requestAnimationFrame(() => {
 				setTimeout(glitchLoop, nextFrame);
 			});
@@ -94,6 +141,7 @@ class GlitchManager {
 	}
 
 	stop() {
+		this.isRunning = false;
 		if (this.frameId) {
 			cancelAnimationFrame(this.frameId);
 			this.frameId = null;
@@ -106,6 +154,8 @@ class GlitchManager {
 			if (element) {
 				element.style.transform = '';
 				element.style.filter = '';
+				element.style.opacity = '';
+				element.style.textShadow = '';
 			}
 		});
 		this.elements = [];

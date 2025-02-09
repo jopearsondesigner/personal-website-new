@@ -34,13 +34,13 @@
 	--font-press-start: 'Press Start 2P', cursive;
 
 	/* Screen size variables */
-	--arcade-screen-width: 90vw;
+	/* --arcade-screen-width: 90vw;
 	--arcade-screen-height: 70vh;
 	--header-font-size: 8vmin;
 	--insert-concept-font-size: 4.5vmin;
 
 	--controls-height: 120px;
-	--controls-height-landscape: 120px;
+	--controls-height-landscape: 120px; */
 
 	transition: all 0.3s ease;
 }
@@ -64,14 +64,14 @@
 	transition: all 0.3s ease !important;
 }
 
-@media (min-width: 768px) {
+/* @media (min-width: 768px) {
 	:root {
 		--arcade-screen-width: 80vw;
 		--arcade-screen-height: 600px;
 		--header-font-size: 5.6rem;
 		--insert-concept-font-size: 2.33vmin;
 	}
-}
+} */
 
 /* Global styles */
 html {

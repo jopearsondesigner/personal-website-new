@@ -49,11 +49,16 @@
 			};
 
 			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
+				// Reset animation state before starting new animations
+				animationState.resetAnimationState();
+
 				// Initialize starFieldManager if it doesn't exist
 				if (!starFieldManager) {
 					starFieldManager = new animations.StarFieldManager(animationState);
 				}
-				requestIdleCallback(() => {
+
+				// Use Promise.resolve().then to ensure DOM is ready
+				Promise.resolve().then(() => {
 					starFieldManager?.start();
 					startAnimations(elements);
 				});
@@ -100,25 +105,24 @@
 	}) {
 		try {
 			const state = get(animationState);
-			if (state.isAnimating) return;
+			if (state.isAnimating) {
+				stopAnimations(); // Stop existing animations first
+			}
 
 			const { header, insertConcept, arcadeScreen } = elements;
 
 			// Initialize star field manager
 			if (!starFieldManager) {
 				starFieldManager = new animations.StarFieldManager(animationState);
-				requestAnimationFrame(() => {
-					starFieldManager.start();
-				});
+				starFieldManager.start();
 			}
 
-			// Initialize glitch manager with performance optimizations
-			if (!glitchManager) {
-				requestAnimationFrame(() => {
-					glitchManager = new animations.GlitchManager();
-					glitchManager.start([header]); // Only apply to header for better performance
-				});
+			// Initialize glitch manager with enhanced settings
+			if (glitchManager) {
+				glitchManager.cleanup();
 			}
+			glitchManager = new animations.GlitchManager();
+			glitchManager.start([header]); // Apply only to header
 
 			// Create GSAP timeline with optimized settings
 			const timeline = gsap.timeline({
@@ -129,6 +133,11 @@
 					immediateRender: false
 				}
 			});
+
+			// Clear any existing timelines
+			if (currentTimeline) {
+				currentTimeline.kill();
+			}
 
 			timeline
 				.to([header, insertConcept], {
@@ -150,19 +159,16 @@
 				);
 
 			currentTimeline = timeline;
-			requestAnimationFrame(() => timeline.play());
+			timeline.play();
 
 			// Update animation state
-			animationState.set({
+			animationState.update((state) => ({
 				...state,
 				isAnimating: true
-			});
+			}));
 		} catch (error) {
 			console.error('Animation initialization failed:', error);
-			animationState.set({
-				stars: [],
-				isAnimating: false
-			});
+			animationState.reset();
 		}
 	}
 
@@ -236,6 +242,9 @@
 		// Cleanup all animations and managers
 		stopAnimations();
 
+		// Reset animation state
+		animationState.reset();
+
 		// Proper cleanup of managers
 		if (starFieldManager) {
 			starFieldManager.cleanup();
@@ -261,13 +270,11 @@
 	});
 </script>
 
-// File: src/lib/components/Hero.svelte
-
 <section
 	id="hero"
 	class="w-full relative overflow-hidden flex items-center justify-center"
 	style="
-        margin-top: calc(-{$layoutStore.navbarHeight}px);
+        margin-top: calc(-.5 * {$layoutStore.navbarHeight}px);
         height: calc(100vh + {$layoutStore.navbarHeight}px);
     "
 >
