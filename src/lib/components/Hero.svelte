@@ -43,13 +43,20 @@
 	$: {
 		if (currentScreen === 'main' && browser) {
 			const elements = {
-				header, // Use bound element
-				insertConcept, // Use bound element
-				arcadeScreen // Use bound element
+				header,
+				insertConcept,
+				arcadeScreen
 			};
 
 			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-				requestIdleCallback(() => startAnimations(elements));
+				// Initialize starFieldManager if it doesn't exist
+				if (!starFieldManager) {
+					starFieldManager = new animations.StarFieldManager(animationState);
+				}
+				requestIdleCallback(() => {
+					starFieldManager?.start();
+					startAnimations(elements);
+				});
 			}
 		} else if (currentScreen !== 'main') {
 			stopAnimations();
@@ -162,8 +169,7 @@
 	function stopAnimations() {
 		if (!browser) return;
 
-		// Stop all animation managers
-		starFieldManager?.stop();
+		// Only stop glitch manager, keep star field running
 		glitchManager?.stop();
 
 		// Kill GSAP timeline with proper cleanup
@@ -172,11 +178,11 @@
 			currentTimeline = null;
 		}
 
-		// Reset animation state
-		animationState.set({
-			stars: [],
+		// Don't reset animation state entirely, just update isAnimating
+		animationState.update((state) => ({
+			...state,
 			isAnimating: false
-		});
+		}));
 	}
 
 	// Optimized handling of orientation changes

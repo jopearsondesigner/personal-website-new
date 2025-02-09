@@ -1,4 +1,5 @@
 // File: src/lib/utils/animation-utils.ts
+import type { Star } from '$lib/types/animation';
 
 interface Star {
 	id: number; // Add this line
@@ -116,6 +117,7 @@ class StarFieldManager {
 	private stars: Star[];
 	private animationFrame: number | null = null;
 	private store: typeof animationState;
+	private isRunning: boolean = false;
 
 	constructor(store: typeof animationState) {
 		this.stars = initStars();
@@ -123,7 +125,11 @@ class StarFieldManager {
 	}
 
 	start() {
+		if (this.isRunning) return;
+		this.isRunning = true;
+
 		const animate = () => {
+			if (!this.isRunning) return;
 			this.stars = updateStars(this.stars);
 			this.store.updateStars(this.stars);
 			this.animationFrame = requestAnimationFrame(animate);
@@ -132,6 +138,7 @@ class StarFieldManager {
 	}
 
 	stop() {
+		this.isRunning = false;
 		if (this.animationFrame) {
 			cancelAnimationFrame(this.animationFrame);
 			this.animationFrame = null;
@@ -145,6 +152,7 @@ class StarFieldManager {
 	cleanup() {
 		this.stop();
 		this.stars = [];
+		this.isRunning = false;
 	}
 }
 
