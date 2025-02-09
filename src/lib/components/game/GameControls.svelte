@@ -18,11 +18,6 @@
 	const ACCELERATION_CURVE = 0.7;
 	const BUTTON_HAPTIC_DURATION = 50;
 
-	const preventDefaultTouch = (e: TouchEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-	};
-
 	let keys = {
 		ArrowLeft: false,
 		ArrowRight: false,
@@ -37,9 +32,6 @@
 		INITIAL_DELAY: 50, // ms
 		MAX_DELTA: 1.5 // Maximum change per update
 	};
-
-	let isShootingWithControls = false;
-	let lastShootTime = 0;
 
 	function calculateNormalizedPosition(touch, rect) {
 		const centerX = rect.width / 2;
@@ -166,21 +158,30 @@
 		const rect = joystickBase.getBoundingClientRect();
 		const { x: normalizedX, distance } = calculateNormalizedPosition(touch, rect);
 
-		// Calculate adjusted position (keeping existing code)
+		// Apply enhanced sensitivity for mobile (horizontal only)
 		const sensitivity = distance < JOYSTICK_MAX_DISTANCE * 0.5 ? 1.2 : 1.5;
 		let adjustedX = normalizedX * JOYSTICK_MAX_DISTANCE * sensitivity;
 
-		// Update visual position and dispatch control event even if shooting
+		// Apply smoother deadzone
+		const deadzoneValue = Math.min(JOYSTICK_DEADZONE, (distance / JOYSTICK_MAX_DISTANCE) * 0.1);
+		if (Math.abs(adjustedX) < deadzoneValue) adjustedX = 0;
+
+		// Update visual position with dynamic constraint (horizontal only)
+		const maxDistance = Math.min(JOYSTICK_MAX_DISTANCE, rect.width * 0.4);
+		if (Math.abs(adjustedX) > maxDistance) {
+			adjustedX = Math.sign(adjustedX) * maxDistance;
+		}
+
 		joystickPos.set({
 			x: adjustedX,
-			y: 0
+			y: 0 // Keep Y at 0
 		});
 
 		dispatch('control', {
 			type: 'joystick',
 			value: {
-				x: Math.max(-1, Math.min(1, adjustedX / JOYSTICK_MAX_DISTANCE)),
-				y: 0
+				x: Math.max(-1, Math.min(1, adjustedX / maxDistance)),
+				y: 0 // Always send 0 for Y axis
 			}
 		});
 	}
@@ -233,7 +234,6 @@
 		if (!browser || !mounted) return;
 
 		event.preventDefault();
-		event.stopPropagation(); // Prevent event bubbling
 		buttons[button] = true;
 		triggerHaptic();
 
@@ -251,17 +251,8 @@
 			case 'enter':
 				keyEvent = new KeyboardEvent('keydown', { key: 'Enter' });
 				break;
-			case 'reset':
-				keyEvent = new KeyboardEvent('keydown', { key: 'r', ctrlKey: true });
-				break;
 		}
 		if (keyEvent) window.dispatchEvent(keyEvent);
-
-		dispatch('control', {
-			type: 'button',
-			button,
-			value: true
-		});
 	}
 
 	function handleButtonRelease(button: keyof typeof buttons) {
@@ -271,10 +262,10 @@
 
 		let keyEvent;
 		switch (button) {
-			case 'heatseeker':
+			case 'heatseeker': // Changed from 'ammo'
 				keyEvent = new KeyboardEvent('keyup', { key: ' ' });
 				break;
-			case 'ammo':
+			case 'ammo': // Changed from 'heatseeker'
 				keyEvent = new KeyboardEvent('keyup', { key: 'x' });
 				break;
 			case 'pause':
@@ -284,7 +275,10 @@
 				keyEvent = new KeyboardEvent('keyup', { key: 'Enter' });
 				break;
 			case 'reset':
-				keyEvent = new KeyboardEvent('keyup', { key: 'r' });
+				keyEvent = new KeyboardEvent('keydown', {
+					key: 'r',
+					ctrlKey: true
+				});
 				break;
 		}
 		if (keyEvent) window.dispatchEvent(keyEvent);
@@ -307,12 +301,6 @@
 
 		updateLayoutOrientation();
 
-		if (controlsContainer) {
-			controlsContainer.addEventListener('touchstart', preventDefaultTouch, { passive: false });
-			controlsContainer.addEventListener('touchmove', preventDefaultTouch, { passive: false });
-			controlsContainer.addEventListener('touchend', preventDefaultTouch, { passive: false });
-		}
-
 		window.addEventListener('resize', updateLayoutOrientation);
 		window.addEventListener('orientationchange', updateLayoutOrientation);
 		window.addEventListener('mousemove', handleJoystickMove);
@@ -332,9 +320,6 @@
 
 		// Clean up all event listeners
 		if (controlsContainer) {
-			controlsContainer.removeEventListener('touchstart', preventDefaultTouch);
-			controlsContainer.removeEventListener('touchmove', preventDefaultTouch);
-			controlsContainer.removeEventListener('touchend', preventDefaultTouch);
 			controlsContainer.removeEventListener('touchmove', (e) => e.preventDefault());
 		}
 
