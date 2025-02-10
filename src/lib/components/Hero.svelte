@@ -488,6 +488,30 @@
 		opacity: 0.7;
 	}
 
+	:global(html.light) .screen-reflection {
+		opacity: 0.4;
+		background: linear-gradient(
+			35deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.03) 25%,
+			rgba(255, 255, 255, 0.06) 47%,
+			rgba(255, 255, 255, 0.03) 50%,
+			transparent 100%
+		);
+	}
+
+	:global(html.light) #arcade-screen.glow::after {
+		opacity: 0.15;
+		filter: blur(8px);
+		background: linear-gradient(
+			45deg,
+			rgba(0, 255, 255, 0.4),
+			rgba(0, 0, 255, 0.4),
+			rgba(255, 0, 255, 0.4),
+			rgba(255, 0, 0, 0.4)
+		);
+	}
+
 	.glow-effect {
 		will-change: opacity;
 	}
@@ -531,6 +555,11 @@
 		animation: glitch-scan 4s linear infinite;
 		pointer-events: none;
 		mix-blend-mode: overlay;
+	}
+
+	:global(html.light) .arcade-text {
+		color: var(--arcade-black-500);
+		opacity: 0.8;
 	}
 
 	@keyframes glitch-scan {
@@ -713,6 +742,18 @@
 		mix-blend-mode: overlay;
 		opacity: 0.8;
 		z-index: 2;
+	}
+
+	:global(html.light) .screen-glass {
+		background: linear-gradient(
+			35deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.01) 25%,
+			rgba(255, 255, 255, 0.02) 47%,
+			rgba(255, 255, 255, 0.01) 50%,
+			transparent 100%
+		);
+		opacity: 0.6;
 	}
 
 	/* ==========================================================================
@@ -927,18 +968,13 @@
 	}
 
 	:global(html.light) .screen-bezel {
-		background: repeating-linear-gradient(
-				45deg,
-				rgba(180, 180, 180, 0.1) 0px,
-				rgba(180, 180, 180, 0.1) 1px,
-				transparent 1px,
-				transparent 2px
-			),
-			linear-gradient(to bottom, rgba(160, 160, 160, 1), rgba(140, 140, 140, 1));
+		background: linear-gradient(to bottom, rgba(210, 210, 210, 1) 0%, rgba(190, 190, 190, 1) 100%);
 		box-shadow:
-			inset 0 0 25px rgba(0, 0, 0, 0.5),
-			0 0 2px rgba(255, 255, 255, 0.4),
-			0 0 20px rgba(39, 255, 153, 0.15);
+        /* Inner shadow for depth */
+			inset 0 2px 4px rgba(0, 0, 0, 0.15),
+			/* Subtle outer glow */ 0 0 1px rgba(255, 255, 255, 0.8),
+			/* Gentle ambient shadow */ 0 4px 6px rgba(0, 0, 0, 0.06);
+		border-radius: calc(var(--border-radius) + 0.5vmin);
 	}
 
 	:global(html.light) .t-molding::before {
@@ -969,37 +1005,34 @@
 	/* Cabinet Materials Light Theme */
 	:global(html.light) .cabinet-metal {
 		background: linear-gradient(
-				180deg,
-				rgba(255, 255, 255, 1) 0%,
-				rgba(255, 255, 255, 0.3) 8%,
-				transparent 15%
-			),
-			linear-gradient(
-				90deg,
-				rgba(120, 120, 120, 1) 0%,
-				rgba(180, 180, 180, 0) 15%,
-				rgba(180, 180, 180, 0) 85%,
-				rgba(120, 120, 120, 1) 100%
-			),
-			linear-gradient(170deg, #f0f0f0 0%, #d0d0d0 30%, #a0a0a0 60%, #808080 100%);
+			180deg,
+			rgba(255, 255, 255, 1) 0%,
+			rgba(240, 240, 240, 1) 15%,
+			rgba(230, 230, 230, 1) 85%,
+			rgba(220, 220, 220, 1) 100%
+		);
 		box-shadow:
-			0 20px 40px rgba(0, 0, 0, 0.4),
-			0 10px 30px rgba(0, 0, 0, 0.3),
+			0 20px 40px rgba(0, 0, 0, 0.1),
+			0 10px 30px rgba(0, 0, 0, 0.05),
 			inset 0 2px 4px rgba(255, 255, 255, 1),
-			inset -3px 0 10px rgba(0, 0, 0, 0.2),
-			inset 3px 0 10px rgba(0, 0, 0, 0.2),
-			inset 0 -5px 15px rgba(0, 0, 0, 0.3);
+			inset -3px 0 10px rgba(0, 0, 0, 0.03),
+			inset 3px 0 10px rgba(0, 0, 0, 0.03),
+			inset 0 -5px 15px rgba(0, 0, 0, 0.05);
 	}
-
 	:global(html.light) .cabinet-plastic {
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, transparent 15%),
-			linear-gradient(170deg, #d8d8d8 0%, #b8b8b8 40%, #989898 70%, #787878 100%);
+		background: linear-gradient(
+			180deg,
+			rgba(240, 240, 240, 1) 0%,
+			rgba(230, 230, 230, 1) 50%,
+			rgba(225, 225, 225, 1) 100%
+		);
 		box-shadow:
-			inset 0 2px 4px rgba(255, 255, 255, 0.95),
-			inset 0 15px 35px rgba(0, 0, 0, 0.25),
-			inset -8px 0 20px rgba(0, 0, 0, 0.2),
-			inset 8px 0 20px rgba(0, 0, 0, 0.2),
-			inset 0 -8px 20px rgba(0, 0, 0, 0.25);
+        /* Top highlight */
+			inset 0 1px 2px rgba(255, 255, 255, 0.95),
+			/* Subtle depth shadows */ inset 0 10px 20px rgba(0, 0, 0, 0.02),
+			inset -4px 0 15px rgba(0, 0, 0, 0.01),
+			inset 4px 0 15px rgba(0, 0, 0, 0.01),
+			inset 0 -4px 15px rgba(0, 0, 0, 0.02);
 	}
 
 	:global(html.light) .cabinet-background {
@@ -1056,6 +1089,10 @@
 		border-radius: 0;
 	}
 
+	:global(html.light) .side-panel {
+		border-color: rgba(0, 0, 0, 0.06);
+	}
+
 	/* ==========================================================================
    Screen Effects and Overlays
    ========================================================================== */
@@ -1065,6 +1102,11 @@
 		animation: scanline 0.2s linear infinite;
 		border-radius: calc(var(--border-radius) - 0.5vmin);
 		z-index: 1;
+	}
+
+	:global(html.light) #scanline-overlay {
+		opacity: 0.4;
+		background-size: 100% 3px;
 	}
 
 	#arcade-screen.glow::after {
@@ -1154,16 +1196,20 @@
 	/* ==========================================================================
    Additional Theme-Specific Adjustments
    ========================================================================== */
-	:global(html.light) #arcade-screen::before {
-		background: linear-gradient(
-			145deg,
-			rgba(30, 30, 30, 1) 0%,
-			rgba(50, 50, 50, 1) 50%,
-			rgba(30, 30, 30, 1) 100%
-		);
+	:global(html.light) #arcade-screen {
 		box-shadow:
-			inset 0 0 40px rgba(0, 0, 0, 0.95),
-			0 0 25px rgba(0, 0, 0, 0.9),
-			inset 0 1px 2px rgba(255, 255, 255, 0.15);
+			0 0 30px rgba(0, 0, 0, 0.1),
+			inset 0 0 50px rgba(0, 0, 0, 0.2),
+			inset 0 0 2px rgba(255, 255, 255, 0.5),
+			inset 0 0 100px rgba(0, 0, 0, 0.1);
+	}
+
+	:global(html.light) #arcade-screen {
+		background: linear-gradient(145deg, #111 0%, #222 100%);
+		box-shadow:
+        /* Screen recess shadow */
+			0 0 20px rgba(0, 0, 0, 0.08),
+			/* Inner screen shadow */ inset 0 0 40px rgba(0, 0, 0, 0.25),
+			/* Subtle glass effect */ inset 0 0 2px rgba(255, 255, 255, 0.4);
 	}
 </style>

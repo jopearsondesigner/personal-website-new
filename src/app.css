@@ -33,6 +33,16 @@
 	--header-text: 'Gruppo', sans-serif;
 	--font-press-start: 'Press Start 2P', cursive;
 
+	:root {
+		/* Light theme specific variables */
+		--light-cabinet-primary: #f5f5f5;
+		--light-cabinet-secondary: #e8e8e8;
+		--light-cabinet-tertiary: #dedede;
+		--light-shadow-subtle: rgba(0, 0, 0, 0.05);
+		--light-shadow-medium: rgba(0, 0, 0, 0.1);
+		--light-highlight: rgba(255, 255, 255, 0.9);
+	}
+
 	/* Screen size variables */
 	/* --arcade-screen-width: 90vw;
 	--arcade-screen-height: 70vh;
@@ -90,6 +100,18 @@ html.light {
 		linear-gradient(45deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
 		linear-gradient(315deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%);
 	background-size: 4px 4px;
+}
+
+.light-theme-cabinet {
+	--cabinet-depth: 1.5vmin;
+	--screen-recess: 1.2vmin;
+	--bezel-thickness: 0.6vmin;
+	--screen-glow-opacity: 0.3;
+}
+
+/* Enhance transitions */
+.theme-transition * {
+	transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Utility classes */
