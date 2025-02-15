@@ -1,3 +1,4 @@
+<!-- src/lib/components/GameScreen.svelte -->
 <script lang="ts">
 	import { fade, fly } from 'svelte/transition';
 	import { browser } from '$app/environment';
@@ -153,6 +154,7 @@
 	/* ==========================================================================
    Game Background Base Styles
    ========================================================================== */
+
 	.game-background {
 		position: relative;
 		width: 100%;
@@ -163,38 +165,47 @@
 		align-items: center;
 		overflow: hidden;
 		background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
-		border: 1px solid rgba(255, 255, 255, 0.2);
-		box-shadow:
-			0 0 10px rgba(255, 0, 255, 0.3),
-			0 0 20px rgba(0, 255, 255, 0.2);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		/* Add light tube container padding */
+		padding: 2px;
 	}
 
-	/* Corner Glow Effects */
 	.game-background::before {
 		content: '';
 		position: absolute;
-		inset: -2px;
-		border-radius: 3vmin;
-		background: radial-gradient(circle at 0 0, rgba(0, 255, 255, 0.4) 0%, transparent 20%),
-			radial-gradient(circle at 100% 0, rgba(255, 0, 255, 0.4) 0%, transparent 20%),
-			radial-gradient(circle at 0 100%, rgba(255, 0, 255, 0.4) 0%, transparent 20%),
-			radial-gradient(circle at 100% 100%, rgba(0, 255, 255, 0.4) 0%, transparent 20%);
-		filter: blur(3px);
-		z-index: -1;
-		opacity: 0.8;
-		animation: cornerGlow 4s ease-in-out infinite;
+		inset: -3px;
+		border-radius: 4vmin;
+		/* Simulate fluorescent tube behind diffuser */
+		background: linear-gradient(
+			90deg,
+			rgba(220, 230, 255, 0.3) 0%,
+			rgba(255, 255, 255, 0.4) 15%,
+			rgba(220, 230, 255, 0.5) 50%,
+			rgba(255, 255, 255, 0.4) 85%,
+			rgba(220, 230, 255, 0.3) 100%
+		);
+		box-shadow:
+        /* Inner tube glow */
+			inset 0 0 2px rgba(255, 255, 255, 0.5),
+			/* Tube housing shadow */ inset 0 0 4px rgba(0, 0, 0, 0.3),
+			/* Outer diffused glow */ 0 0 8px rgba(200, 220, 255, 0.2);
+		opacity: 0.7;
+		z-index: 1;
+		animation:
+			tubeFlicker 0.1s steps(2, end) infinite,
+			tubeBallast 15s linear infinite;
 	}
 
 	.game-background::after {
-		content: '';
-		position: absolute;
-		inset: -1px;
-		border-radius: 3vmin;
-		background: radial-gradient(circle at 0 0, rgba(255, 255, 255, 0.2) 0%, transparent 15%),
-			radial-gradient(circle at 100% 0, rgba(255, 255, 255, 0.2) 0%, transparent 15%),
-			radial-gradient(circle at 0 100%, rgba(255, 255, 255, 0.2) 0%, transparent 15%),
-			radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.2) 0%, transparent 15%);
-		pointer-events: none;
+		display: none;
+	}
+
+	/* Add dark theme enhancement */
+	:global(html.dark) .game-background::before {
+		box-shadow:
+			0 0 15px rgba(120, 220, 255, 0.4),
+			0 0 30px rgba(120, 220, 255, 0.2),
+			inset 0 0 20px rgba(255, 255, 255, 0.3);
 	}
 
 	/* ==========================================================================
@@ -306,19 +317,30 @@
 			0 0 20px rgba(255, 0, 255, 0.15);
 	}
 
-	:global(html.light) .game-background::before {
+	.game-background::before {
+		content: '';
+		position: absolute;
+		inset: -3px;
+		border-radius: 4vmin;
+		/* Simulate fluorescent tube behind diffuser */
 		background: linear-gradient(
 			90deg,
-			rgba(255, 0, 102, 0.7),
-			rgba(255, 0, 255, 0.7),
-			rgba(0, 255, 255, 0.7),
-			rgba(255, 0, 102, 0.7)
+			rgba(220, 230, 255, 0.3) 0%,
+			rgba(255, 255, 255, 0.4) 15%,
+			rgba(220, 230, 255, 0.5) 50%,
+			rgba(255, 255, 255, 0.4) 85%,
+			rgba(220, 230, 255, 0.3) 100%
 		);
-		opacity: 0.4;
-		filter: blur(3px);
 		box-shadow:
-			inset 0 0 20px rgba(255, 255, 255, 0.5),
-			0 0 15px rgba(255, 0, 255, 0.2);
+        /* Inner tube glow */
+			inset 0 0 2px rgba(255, 255, 255, 0.5),
+			/* Tube housing shadow */ inset 0 0 4px rgba(0, 0, 0, 0.3),
+			/* Outer diffused glow */ 0 0 8px rgba(200, 220, 255, 0.2);
+		opacity: 0.7;
+		z-index: 1;
+		animation:
+			tubeFlicker 0.1s steps(2, end) infinite,
+			tubeBallast 15s linear infinite;
 	}
 
 	:global(html.light) .game-background::after {
@@ -339,6 +361,54 @@
 		);
 		pointer-events: none;
 		border-radius: 3vmin 3vmin 0 0;
+	}
+
+	:global(html.light) .game-background::before {
+		background: linear-gradient(
+			90deg,
+			rgba(200, 210, 255, 0.4) 0%,
+			rgba(255, 255, 255, 0.5) 15%,
+			rgba(200, 210, 255, 0.6) 50%,
+			rgba(255, 255, 255, 0.5) 85%,
+			rgba(200, 210, 255, 0.4) 100%
+		);
+		box-shadow:
+			inset 0 0 2px rgba(255, 255, 255, 0.6),
+			inset 0 0 4px rgba(0, 0, 0, 0.15),
+			0 0 8px rgba(200, 220, 255, 0.15);
+		opacity: 0.5;
+	}
+
+	@keyframes tubeFlicker {
+		0%,
+		100% {
+			opacity: 0.7;
+		}
+		50% {
+			opacity: 0.65;
+		}
+	}
+
+	@keyframes tubeBallast {
+		0%,
+		100% {
+			filter: brightness(1);
+		}
+		15% {
+			filter: brightness(0.97);
+		}
+		35% {
+			filter: brightness(1.02);
+		}
+		55% {
+			filter: brightness(0.98);
+		}
+		75% {
+			filter: brightness(1.01);
+		}
+		95% {
+			filter: brightness(0.99);
+		}
 	}
 
 	:global(html.light) .game-view-container {

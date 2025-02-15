@@ -1,10 +1,13 @@
-/* app.css */
+/* src/lib/app.css  */
+
+/* Tailwind Imports */
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
+/* Root Variables */
 :root {
-	/* Color variables */
+	/* Colors */
 	--arcade-red-500: #ff5426;
 	--arcade-black-200: #d5d5d5;
 	--arcade-black-500: #2b2b2b;
@@ -19,71 +22,37 @@
 	--arcade-neon-green-100: #c7ffdd;
 	--arcade-neon-green-200: #9fffbf;
 	--arcade-neon-green-500: #27ff99;
-
 	--arcade-magenta-500: #ff00ff;
 	--teal-500: #00a8a8;
 
-	/* Theme variables */
+	/* Theme */
 	--dark-mode-bg: #1a1a1a;
 	--light-mode-bg: #d0d0d0;
 	--light-mode-text: #2b2b2b;
 
-	/* Font variables */
+	/* Fonts */
 	--body-text: 'Roboto', sans-serif;
 	--header-text: 'Gruppo', sans-serif;
 	--font-press-start: 'Press Start 2P', cursive;
 
-	:root {
-		/* Light theme specific variables */
-		--light-cabinet-primary: #f5f5f5;
-		--light-cabinet-secondary: #e8e8e8;
-		--light-cabinet-tertiary: #dedede;
-		--light-shadow-subtle: rgba(0, 0, 0, 0.05);
-		--light-shadow-medium: rgba(0, 0, 0, 0.1);
-		--light-highlight: rgba(255, 255, 255, 0.9);
-	}
+	/* Light Theme Cabinet */
+	--light-cabinet-primary: #f5f5f5;
+	--light-cabinet-secondary: #e8e8e8;
+	--light-cabinet-tertiary: #dedede;
+	--light-shadow-subtle: rgba(0, 0, 0, 0.05);
+	--light-shadow-medium: rgba(0, 0, 0, 0.1);
+	--light-highlight: rgba(255, 255, 255, 0.9);
 
-	/* Screen size variables */
-	/* --arcade-screen-width: 90vw;
-	--arcade-screen-height: 70vh;
-	--header-font-size: 8vmin;
-	--insert-concept-font-size: 4.5vmin;
-
-	--controls-height: 120px;
-	--controls-height-landscape: 120px; */
-
-	transition: all 0.3s ease;
+	/* Loading Animation */
+	--loading-duration: 1500ms;
 }
 
-@media (orientation: landscape) and (max-width: 1023px) {
-	:root {
-		--controls-height: var(--controls-height-landscape);
-	}
-
-	.game-wrapper {
-		padding-bottom: 0 !important;
-	}
-
-	.controls-container {
-		height: var(--controls-height-landscape);
-	}
-}
-
-/* Disable transitions during theme switch to prevent flickering */
+/* Theme Transition - Instant Switch */
 .theme-transition * {
-	transition: all 0.3s ease !important;
+	transition: none !important;
 }
 
-/* @media (min-width: 768px) {
-	:root {
-		--arcade-screen-width: 80vw;
-		--arcade-screen-height: 600px;
-		--header-font-size: 5.6rem;
-		--insert-concept-font-size: 2.33vmin;
-	}
-} */
-
-/* Global styles */
+/* Global Styles */
 html {
 	@apply bg-[var(--dark-mode-bg)];
 	background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
@@ -102,6 +71,7 @@ html.light {
 	background-size: 4px 4px;
 }
 
+/* Cabinet Styles */
 .light-theme-cabinet {
 	--cabinet-depth: 1.5vmin;
 	--screen-recess: 1.2vmin;
@@ -109,16 +79,12 @@ html.light {
 	--screen-glow-opacity: 0.3;
 }
 
-/* Enhance transitions */
-.theme-transition * {
-	transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Utility classes */
+/* Utility Classes */
 .header-text {
 	font-family: var(--header-text), sans-serif;
 }
 
+/* Navbar Backgrounds */
 .navbar-background-dark {
 	@apply bg-[var(--dark-mode-bg)] overflow-hidden;
 	background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
@@ -137,9 +103,11 @@ html.light {
 	background-size: 4px 4px;
 }
 
-/* Component styles */
+/* Navigation Button Styles */
 .nav-button {
-	@apply bg-gradient-to-br from-[var(--arcade-black-200)] to-[#505050] text-[var(--arcade-white-300)] border border-[#333] py-3 px-5 font-body text-link text-center cursor-pointer relative transition-all  shadow-md;
+	@apply bg-gradient-to-br from-[var(--arcade-black-200)] to-[#505050] text-[var(--arcade-white-300)]
+         border border-[#333] py-3 px-5 font-body text-link text-center cursor-pointer relative
+         transition-all shadow-md;
 }
 
 .nav-button:first-child {
@@ -159,7 +127,8 @@ html.light {
 }
 
 .nav-button::before {
-	@apply content-[''] absolute top-1.5 right-1.5 w-1 h-1 bg-gray-500 rounded-full shadow-[0_0_8px_rgba(0,255,0,0.5)] transition-colors duration-300 ease-in;
+	@apply content-[''] absolute top-1.5 right-1.5 w-1 h-1 bg-gray-500 rounded-full
+         shadow-[0_0_8px_rgba(0,255,0,0.5)] transition-colors duration-300 ease-in;
 }
 
 .nav-button.active::before {
@@ -170,9 +139,10 @@ html.light {
 	@apply text-[var(--arcade-neon-green-500)] shadow-[0_0_8px_rgba(152,251,152,0.8)];
 }
 
-/* Light mode specific styles */
+/* Light Mode Button Styles */
 html.light .nav-button {
-	@apply bg-gradient-to-br from-[#e0e0e0] to-[#f0f0f0] shadow-md text-[var(--arcade-black-500)] border-[#d0d0d0];
+	@apply bg-gradient-to-br from-[#e0e0e0] to-[#f0f0f0] shadow-md text-[var(--arcade-black-500)]
+         border-[#d0d0d0];
 }
 
 html.light .nav-button:hover {
@@ -183,7 +153,7 @@ html.light .nav-button:active {
 	@apply transform translate-y-1 shadow-sm bg-gradient-to-br from-[#c0c0c0] to-[#d0d0d0];
 }
 
-/* Dark mode specific styles */
+/* Dark Mode Button Styles */
 html.dark .nav-button {
 	@apply bg-gradient-to-br from-[var(--arcade-black-500)] to-[#505050] shadow-md;
 }
@@ -196,13 +166,7 @@ html.dark .nav-button:active {
 	@apply transform translate-y-1 shadow-sm bg-gradient-to-br from-[#2c2c2c] to-[#444444];
 }
 
-@layer base {
-	:root {
-		--loading-duration: 1500ms;
-	}
-}
-
-/* Add to existing transitions */
+/* Transitions */
 .fade-enter-active,
 .fade-leave-active {
 	transition: opacity 0.3s ease;
@@ -213,7 +177,7 @@ html.dark .nav-button:active {
 	opacity: 0;
 }
 
-/* Landscape mode adjustments */
+/* Responsive Layouts */
 @media (orientation: landscape) {
 	.game-wrapper {
 		padding-bottom: var(--controls-height-landscape);
@@ -225,7 +189,6 @@ html.dark .nav-button:active {
 	}
 }
 
-/* Portrait mode */
 @media (orientation: portrait) {
 	.game-wrapper {
 		padding-bottom: var(--controls-height);
@@ -237,7 +200,6 @@ html.dark .nav-button:active {
 	}
 }
 
-/* Hide controls when not needed */
 @media (min-width: 1024px) {
 	.controls-container {
 		display: none;
