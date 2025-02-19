@@ -788,7 +788,7 @@
 	}
 
 	:global(html.light) .button-label {
-		color: rgba(30, 30, 30, 0.9);
+		color: rgba(245, 245, 220, 1);
 	}
 
 	:global(html.light) .joystick-base,

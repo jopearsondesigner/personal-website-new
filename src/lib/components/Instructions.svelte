@@ -199,4 +199,28 @@
 			font-size: 0.75rem;
 		}
 	}
+	:global(html.light) .instruction-modal {
+		background-color: rgba(195, 210, 229, 0.95);
+		border: 1px solid rgba(100, 130, 180, 0.2);
+	}
+
+	:global(html.light) .title {
+		color: rgba(30, 40, 60, 0.95);
+		text-shadow: 0 0 2px rgba(100, 130, 180, 0.3);
+	}
+
+	:global(html.light) .key,
+	:global(html.light) .value {
+		color: rgba(30, 40, 60, 0.9);
+		text-shadow: 0 0 1px rgba(100, 130, 180, 0.3);
+	}
+
+	:global(html.light) .nav-button:not(:disabled) {
+		color: rgba(30, 40, 60, 0.9);
+	}
+
+	:global(html.light) .nav-button:not(:disabled):hover {
+		color: rgba(20, 30, 50, 1);
+		text-shadow: 0 0 2px rgba(100, 130, 180, 0.4);
+	}
 </style>

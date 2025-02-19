@@ -91,7 +91,7 @@
 	</button>
 {/if} -->
 
-<div id="game-screen" class="flex items-center justify-center w-full h-full p-[1vmin]">
+<div id="game-screen" class="flex items-center justify-center w-full h-full p-[.75vmin]">
 	<div class="game-background">
 		<!-- Left side panel - only show on desktop -->
 		<div class="hidden lg:block">
@@ -133,12 +133,18 @@
    Layout & Container Styles
    ========================================================================== */
 	#game-screen {
+		background: linear-gradient(
+			90deg,
+			rgb(0, 183, 255) 0%,
+			rgb(123, 97, 255) 33%,
+			rgb(183, 61, 255) 66%,
+			rgb(255, 56, 100) 100%
+		);
 		position: relative;
 		height: 100%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		/* padding-bottom: env(safe-area-inset-bottom); */
 	}
 
 	.game-view-container {
@@ -154,28 +160,25 @@
 	/* ==========================================================================
    Game Background Base Styles
    ========================================================================== */
-
 	.game-background {
 		position: relative;
 		width: 100%;
 		height: 100%;
-		border-radius: 3vmin;
+		border-radius: 3.5vmin;
 		display: flex;
 		justify-content: center;
 		align-items: center;
 		overflow: hidden;
-		background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		/* Add light tube container padding */
+		background: #000000;
 		padding: 2px;
 	}
 
+	/* Tube effect around border */
 	.game-background::before {
 		content: '';
 		position: absolute;
 		inset: -3px;
 		border-radius: 4vmin;
-		/* Simulate fluorescent tube behind diffuser */
 		background: linear-gradient(
 			90deg,
 			rgba(220, 230, 255, 0) 0%,
@@ -185,19 +188,32 @@
 			rgba(220, 230, 255, 0) 100%
 		);
 		box-shadow:
-        /* Inner tube glow */
 			inset 0 0 2px rgba(255, 255, 255, 0.5),
-			/* Tube housing shadow */ inset 0 0 4px rgba(0, 0, 0, 0.3),
-			/* Outer diffused glow */ 0 0 8px rgba(200, 220, 255, 0.2);
+			inset 0 0 4px rgba(0, 0, 0, 0.3),
+			0 0 8px rgba(200, 220, 255, 0.2);
 		opacity: 0.2;
 		z-index: 1;
+		pointer-events: none;
 		animation:
 			tubeFlicker 0.1s steps(2, end) infinite,
 			tubeBallast 15s linear infinite;
 	}
 
+	/* Screen glare effect */
 	.game-background::after {
-		display: none;
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			135deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.03) 15%,
+			rgba(255, 255, 255, 0.05) 30%,
+			transparent 60%
+		);
+		border-radius: 3vmin;
+		pointer-events: none;
+		z-index: 10;
 	}
 
 	/* ==========================================================================
@@ -299,6 +315,16 @@
 	/* ==========================================================================
    Light Theme Overrides
    ========================================================================== */
+	:global(html.light) #game-screen {
+		background: linear-gradient(
+			90deg,
+			rgba(0, 183, 255, 0.85) 0%,
+			rgba(123, 97, 255, 0.85) 33%,
+			rgba(183, 61, 255, 0.85) 66%,
+			rgba(255, 56, 100, 0.85) 100%
+		);
+	}
+
 	:global(html.light) .game-background {
 		background: linear-gradient(135deg, rgba(245, 245, 245, 1) 0%, rgba(240, 240, 240, 1) 100%);
 		border: 1px solid rgba(0, 0, 0, 0.08);
@@ -309,56 +335,15 @@
 			0 0 20px rgba(255, 0, 255, 0.15);
 	}
 
-	:global(html.light) .game-background::after {
-		opacity: 0.4;
-		filter: blur(2px);
-		content: '';
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: 1px;
-		background: linear-gradient(
-			90deg,
-			transparent,
-			rgba(255, 255, 255, 0.5) 20%,
-			rgba(255, 255, 255, 0.5) 80%,
-			transparent
-		);
-		pointer-events: none;
-		border-radius: 3vmin 3vmin 0 0;
-	}
-
-	@keyframes tubeFlicker {
-		0%,
-		100% {
-			opacity: 0.7;
-		}
-		50% {
-			opacity: 0.65;
-		}
-	}
-
-	@keyframes tubeBallast {
-		0%,
-		100% {
-			filter: brightness(1);
-		}
-		15% {
-			filter: brightness(0.97);
-		}
-		35% {
-			filter: brightness(1.02);
-		}
-		55% {
-			filter: brightness(0.98);
-		}
-		75% {
-			filter: brightness(1.01);
-		}
-		95% {
-			filter: brightness(0.99);
-		}
+	:global(html.light) .game-background {
+		background: #c3d2e5; /* Slightly blue-tinted base for phosphor glow */
+		border: 1px solid rgba(140, 150, 170, 0.3);
+		box-shadow:
+			inset 0 0 20px rgba(0, 40, 80, 0.1),
+			/* Inner screen glow */ inset 0 0 10px rgba(120, 160, 220, 0.2),
+			/* Phosphor effect */ 0 0 15px rgba(100, 130, 200, 0.15); /* Outer glow */
+		position: relative;
+		overflow: hidden;
 	}
 
 	:global(html.light) .game-view-container {
@@ -371,14 +356,14 @@
 	:global(html.light) .side-panel {
 		background: linear-gradient(
 			to bottom,
-			rgba(250, 250, 250, 0.7) 0%,
-			rgba(245, 245, 245, 0.7) 100%
+			rgba(185, 200, 220, 0.8) 0%,
+			rgba(175, 190, 210, 0.8) 100%
 		);
 		backdrop-filter: blur(8px);
-		border: none;
+		border: 1px solid rgba(140, 160, 190, 0.2);
 		box-shadow:
-			inset 0 1px 1px rgba(255, 255, 255, 0.95),
-			0 4px 6px rgba(0, 0, 0, 0.03);
+			inset 0 1px 2px rgba(255, 255, 255, 0.3),
+			0 2px 4px rgba(0, 20, 40, 0.05);
 		border-radius: 3vmin 0 0 3vmin;
 	}
 
@@ -392,7 +377,10 @@
 	}
 
 	:global(html.light) .arcade-text {
-		color: var(--arcade-black-500);
+		color: rgba(20, 30, 50, 0.9);
+		text-shadow:
+			0 0 1px rgba(100, 130, 180, 0.3),
+			0 0 2px rgba(120, 150, 200, 0.2);
 	}
 
 	:global(html.light) .arcade-text .label {
@@ -402,27 +390,27 @@
 	}
 
 	:global(html.light) .arcade-text .value {
-		color: var(--arcade-black-700);
-		text-shadow: none;
+		color: rgba(60, 76, 108, 0.95);
+		text-shadow:
+			0 0 1px rgba(80, 110, 160, 0.4),
+			0 0 2px rgba(100, 130, 180, 0.3);
 	}
 
 	:global(html.light) .neon-line {
-		height: 1px;
 		background: linear-gradient(
 			90deg,
 			transparent,
-			rgba(0, 0, 0, 0.08) 20%,
-			rgba(0, 0, 0, 0.08) 80%,
+			rgba(100, 130, 180, 0.2) 20%,
+			rgba(100, 130, 180, 0.2) 80%,
 			transparent
 		);
-		box-shadow: none;
-		opacity: 1;
+		box-shadow: 0 0 4px rgba(100, 130, 180, 0.15);
 	}
 
 	:global(html.light) .pixel-decoration {
-		background-image: linear-gradient(45deg, rgba(0, 0, 0, 0.03) 25%, transparent 25%),
-			linear-gradient(-45deg, rgba(0, 0, 0, 0.03) 25%, transparent 25%);
-		opacity: 0.5;
+		background-image: linear-gradient(45deg, rgba(100, 130, 180, 0.1) 25%, transparent 25%),
+			linear-gradient(-45deg, rgba(100, 130, 180, 0.1) 25%, transparent 25%);
+		opacity: 0.6;
 	}
 
 	:global(html.light) Game {
@@ -471,6 +459,38 @@
 		}
 	}
 
+	@keyframes tubeFlicker {
+		0%,
+		100% {
+			opacity: 0.7;
+		}
+		50% {
+			opacity: 0.65;
+		}
+	}
+
+	@keyframes tubeBallast {
+		0%,
+		100% {
+			filter: brightness(1);
+		}
+		15% {
+			filter: brightness(0.97);
+		}
+		35% {
+			filter: brightness(1.02);
+		}
+		55% {
+			filter: brightness(0.98);
+		}
+		75% {
+			filter: brightness(1.01);
+		}
+		95% {
+			filter: brightness(0.99);
+		}
+	}
+
 	/* ==========================================================================
    Media Queries
    ========================================================================== */
@@ -480,11 +500,11 @@
 		}
 	}
 
-	@media (max-width: 1023px) {
+	/* @media (max-width: 1023px) {
 		:global(html.light) .game-background {
 			background: linear-gradient(135deg, rgba(248, 248, 248, 1) 0%, rgba(242, 242, 242, 1) 100%);
 		}
-	}
+	} */
 
 	/* ==========================================================================
    Transitions
