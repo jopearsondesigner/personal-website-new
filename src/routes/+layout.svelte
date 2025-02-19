@@ -1,3 +1,4 @@
+<!-- +layout.svelte -->
 <script lang="ts">
 	import '../app.css';
 	import { Navbar, NavBrand, Drawer, Button, CloseButton } from 'flowbite-svelte';

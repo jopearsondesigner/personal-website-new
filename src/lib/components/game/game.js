@@ -62,6 +62,26 @@ const TIMING_CONFIG = {
 	RESET_DELAY: 100 // Small buffer when resetting timing
 };
 
+const MOBILE_CONFIG = {
+	HEATSEEKER: {
+		MIN_SPEED: 3,
+		MAX_SPEED: 8,
+		TURN_RATE: 0.06,
+		VERTICAL_BIAS: 0.7,
+		TRAIL_DENSITY: 0.7,
+		MIN_VERTICAL_SPEED: -3
+	},
+	PERFORMANCE: {
+		FRAME_CAP: 1000 / 45, // Cap at 45fps on mobile
+		SMOOTHING: 0.85,
+		PHYSICS_ITERATIONS: 2
+	},
+	CONTROLS: {
+		TOUCH_DEADZONE: 0.15,
+		ACCELERATION_CURVE: 0.8
+	}
+};
+
 let cappedMultiplier = 1;
 const MAX_MULTIPLIER = 2;
 const MIN_MULTIPLIER = 0.5;
@@ -3385,6 +3405,17 @@ class HeatseekerProjectile extends AnimatedProjectile {
 		this.stopped = false; // Track if the heatseeker is stopped
 		this.lockOnDelay = 10; // Frames before active tracking
 		this.lockOnTimer = 0;
+		this.isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+		// Mobile-specific adjustments
+		if (this.isMobile) {
+			this.baseSpeed = 4;
+			this.maxSpeed = 8;
+			this.acceleration = 0.2;
+			this.targetLockSpeed = 0.06;
+			this.searchTurnSpeed = 0.02;
+			this.maxTurnRate = Math.PI / 48;
+		}
 	}
 
 	findClosestTarget(enemies = []) {
@@ -3421,10 +3452,13 @@ class HeatseekerProjectile extends AnimatedProjectile {
 	}
 
 	update(timeMultiplier = 1, enemies = []) {
+		// Initial startup delay
 		if (this.lockOnTimer < this.lockOnDelay) {
 			this.lockOnTimer++;
-			this.y -= 2; // Initial upward movement
-			this.createTrail(); // Still create trail during startup
+			// Ensure initial movement even on mobile
+			const initialSpeed = this.isMobile ? 4 : 6;
+			this.y -= initialSpeed * timeMultiplier;
+			this.createTrail();
 			this.updateTrailParticles(timeMultiplier);
 			return;
 		}
@@ -3444,14 +3478,15 @@ class HeatseekerProjectile extends AnimatedProjectile {
 					this.lockedOnTarget.y >= 0 &&
 					this.lockedOnTarget.y <= canvas.height
 				) {
-					// If the target is on screen, continue tracking
 					this.stopped = false;
 					this.turnSpeed = this.targetLockSpeed;
 
-					// Calculate distance to target
 					const dx = this.lockedOnTarget.x - this.x;
 					const dy = this.lockedOnTarget.y - this.y;
 					const distance = Math.sqrt(dx * dx + dy * dy);
+
+					// Guaranteed minimum vertical movement for mobile
+					const minVerticalSpeed = this.isMobile ? -3 : -2;
 
 					// Dynamic speed based on distance
 					if (distance < this.distanceThreshold) {
@@ -3463,63 +3498,54 @@ class HeatseekerProjectile extends AnimatedProjectile {
 						this.speed = Math.min(this.speed + this.acceleration * timeMultiplier, this.baseSpeed);
 					}
 
-					let desiredAngle = Math.atan2(
-						this.lockedOnTarget.y - this.y,
-						this.lockedOnTarget.x - this.x
-					);
-
-					// Smoother turning with max turn rate
+					let desiredAngle = Math.atan2(dy, dx);
 					let angleDiff = desiredAngle - this.angle;
 					angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+
+					// Smoother turning with max turn rate
 					const turnAmount =
 						Math.min(Math.abs(angleDiff), this.maxTurnRate * timeMultiplier) * Math.sign(angleDiff);
-
 					this.angle += turnAmount;
 
-					if (Math.random() < 0.1) {
-						this.speed = this.maxSpeed * (0.5 + Math.random() * 0.5);
+					// Calculate movement with minimum vertical component
+					const moveX = Math.cos(this.angle) * this.speed * timeMultiplier;
+					let moveY = Math.sin(this.angle) * this.speed * timeMultiplier;
+
+					// Ensure minimum upward movement on mobile
+					if (this.isMobile && moveY > minVerticalSpeed) {
+						moveY = minVerticalSpeed;
 					}
 
-					// Add subtle flight patterns
-					const adjustedSpeed = this.speed * timeMultiplier;
-					this.x +=
-						Math.cos(this.angle) * adjustedSpeed + Math.sin(gameFrame * 0.1) * 2 * timeMultiplier;
-					this.y +=
-						Math.sin(this.angle) * adjustedSpeed + Math.cos(gameFrame * 0.1) * 2 * timeMultiplier;
+					this.x += moveX;
+					this.y += moveY;
 				} else {
-					// If the target goes off screen, stop the missile
+					// If target goes off screen, continue upward movement
+					this.y += minVerticalSpeed * timeMultiplier;
 					this.stopped = true;
 				}
+			} else {
+				// No target found, continue upward movement
+				this.y -= this.baseSpeed * timeMultiplier;
 			}
 		}
 
-		if (this.stopped) {
-			// If stopped, wait for the target to come back on screen
-			if (
-				this.lockedOnTarget &&
-				this.lockedOnTarget.x >= 0 &&
-				this.lockedOnTarget.x <= canvas.width &&
-				this.lockedOnTarget.y >= 0 &&
-				this.lockedOnTarget.y <= canvas.height
-			) {
-				this.stopped = false; // Resume tracking if the target is back on screen
-			}
-		}
-
-		if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
-			this.isActive = false;
-		}
-
+		// Update animation
 		this.tick += timeMultiplier;
 		if (this.tick > this.ticksPerFrame) {
 			this.tick = 0;
 			this.frameIndex = (this.frameIndex + 1) % this.numFrames;
 		}
 
+		// Create trail effects
 		if (!this.stopped) {
-			this.createTrail(); // Create vapor trail particles only if not stopped
+			this.createTrail();
 		}
 		this.updateTrailParticles(timeMultiplier);
+
+		// Check bounds
+		if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+			this.isActive = false;
+		}
 	}
 
 	createTrail() {
