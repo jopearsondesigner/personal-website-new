@@ -3372,15 +3372,8 @@ class HeatseekerProjectile extends AnimatedProjectile {
 		super(x, y, false, true); // Ensure isHeatseeker is set to true
 		this.trailParticles = []; // Initialize the array for trail particles
 		this.maxSpeed = 12; // Maximum speed for heatseeker
-		this.baseSpeed = 5; // Initial speed
 		this.acceleration = 0.3; // Acceleration rate
-		this.targetLockSpeed = 0.08; // Turning speed when locked
-		this.searchTurnSpeed = 0.03; // Turning speed when searching
-		this.distanceThreshold = 150; // Distance threshold for speed boost
-		this.maxTurnRate = Math.PI / 32; // Maximum turn rate per frame
 		this.stopped = false; // Track if the heatseeker is stopped
-		this.lockOnDelay = 10; // Frames before active tracking
-		this.lockOnTimer = 0;
 	}
 
 	findClosestTarget(enemies = []) {
@@ -3408,18 +3401,9 @@ class HeatseekerProjectile extends AnimatedProjectile {
 	}
 
 	update(timeMultiplier = 1, enemies = []) {
-		if (this.lockOnTimer < this.lockOnDelay) {
-			this.lockOnTimer++;
-			this.y -= 2; // Initial upward movement
-			this.createTrail(); // Still create trail during startup
-			this.updateTrailParticles(timeMultiplier);
-			return;
-		}
-
 		if (this.isHeatseeker) {
 			if (!this.lockedOnTarget || !this.lockedOnTarget.isActive) {
 				this.lockedOnTarget = this.findClosestTarget(enemies);
-				this.turnSpeed = this.searchTurnSpeed;
 			}
 
 			if (this.lockedOnTarget) {
@@ -3433,35 +3417,14 @@ class HeatseekerProjectile extends AnimatedProjectile {
 				) {
 					// If the target is on screen, continue tracking
 					this.stopped = false;
-					this.turnSpeed = this.targetLockSpeed;
-
-					// Calculate distance to target
-					const dx = this.lockedOnTarget.x - this.x;
-					const dy = this.lockedOnTarget.y - this.y;
-					const distance = Math.sqrt(dx * dx + dy * dy);
-
-					// Dynamic speed based on distance
-					if (distance < this.distanceThreshold) {
-						this.speed = Math.min(
-							this.speed + this.acceleration * 2 * timeMultiplier,
-							this.maxSpeed
-						);
-					} else {
-						this.speed = Math.min(this.speed + this.acceleration * timeMultiplier, this.baseSpeed);
-					}
-
 					let desiredAngle = Math.atan2(
 						this.lockedOnTarget.y - this.y,
 						this.lockedOnTarget.x - this.x
 					);
-
-					// Smoother turning with max turn rate
-					let angleDiff = desiredAngle - this.angle;
-					angleDiff = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-					const turnAmount =
-						Math.min(Math.abs(angleDiff), this.maxTurnRate * timeMultiplier) * Math.sign(angleDiff);
-
-					this.angle += turnAmount;
+					this.angle +=
+						Math.sign(desiredAngle - this.angle) *
+						Math.min(this.turnSpeed * timeMultiplier, Math.abs(desiredAngle - this.angle));
+					this.speed = Math.min(this.speed + this.acceleration * timeMultiplier, this.maxSpeed);
 
 					if (Math.random() < 0.1) {
 						this.speed = this.maxSpeed * (0.5 + Math.random() * 0.5);
@@ -3519,16 +3482,11 @@ class HeatseekerProjectile extends AnimatedProjectile {
 			];
 			const color = trailColors[Math.floor(Math.random() * trailColors.length)];
 			this.trailParticles.push(new VaporTrailParticle(this.x, this.y, color));
-
-			// Add extra particles when at high speed
-			if (this.speed > this.baseSpeed) {
-				this.trailParticles.push(new VaporTrailParticle(this.x, this.y, color));
-			}
 		}
 	}
 
-	updateTrailParticles(timeMultiplier = 1) {
-		this.trailParticles.forEach((particle) => particle.update(timeMultiplier));
+	updateTrailParticles() {
+		this.trailParticles.forEach((particle) => particle.update());
 		this.trailParticles = this.trailParticles.filter((particle) => particle.opacity > 0);
 	}
 
@@ -3536,7 +3494,7 @@ class HeatseekerProjectile extends AnimatedProjectile {
 		// Draw vapor trails before drawing the missile
 		this.trailParticles.forEach((particle) => {
 			if (particle.opacity > 0) {
-				particle.draw(ctx);
+				particle.draw(ctx); // Draw each particle
 			}
 		});
 
