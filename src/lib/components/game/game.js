@@ -3393,8 +3393,14 @@ class HeatseekerProjectile extends AnimatedProjectile {
 		let closestDistance = Infinity;
 
 		enemies.forEach((enemy) => {
-			if (!enemy || typeof enemy.x === 'undefined' || typeof enemy.y === 'undefined') {
-				return; // Skip invalid enemies
+			// Skip invalid enemies or background CityEnemy instances
+			if (
+				!enemy ||
+				typeof enemy.x === 'undefined' ||
+				typeof enemy.y === 'undefined' ||
+				(enemy instanceof CityEnemy && enemy.scale < 1)
+			) {
+				return;
 			}
 
 			let distance = Math.hypot(enemy.x - this.x, enemy.y - this.y);
@@ -3410,14 +3416,19 @@ class HeatseekerProjectile extends AnimatedProjectile {
 	update(timeMultiplier = 1, enemies = []) {
 		if (this.lockOnTimer < this.lockOnDelay) {
 			this.lockOnTimer++;
-			this.y -= 2; // Initial upward movement
-			this.createTrail(); // Still create trail during startup
+			this.y -= 2;
+			this.createTrail();
 			this.updateTrailParticles(timeMultiplier);
 			return;
 		}
 
 		if (this.isHeatseeker) {
-			if (!this.lockedOnTarget || !this.lockedOnTarget.isActive) {
+			// Refresh target if current one is invalid or in background
+			if (
+				!this.lockedOnTarget ||
+				!this.lockedOnTarget.isActive ||
+				(this.lockedOnTarget instanceof CityEnemy && this.lockedOnTarget.scale < 1)
+			) {
 				this.lockedOnTarget = this.findClosestTarget(enemies);
 				this.turnSpeed = this.searchTurnSpeed;
 			}
