@@ -10,6 +10,20 @@
 
 	const dispatch = createEventDispatcher();
 
+	let touchControlState = {
+		movement: {
+			active: false,
+			direction: { x: 0, y: 0 }
+		},
+		buttons: {
+			shoot: false,
+			missile: false,
+			pause: false,
+			enter: false,
+			reset: false
+		}
+	};
+
 	// Constants for joystick configuration
 	const JOYSTICK_DEADZONE = 0.08;
 	const JOYSTICK_MAX_DISTANCE = 40;
@@ -147,7 +161,6 @@
 	let currentMovementZone = 'PRECISE'; // Initialize with the most precise zone
 	let previousMovementZone = 'PRECISE';
 
-	// Enhanced joystick position handling (horizontal only)
 	function handleJoystickMove(event) {
 		if (!browser || !mounted || !isJoystickActive) return;
 
@@ -164,7 +177,43 @@
 
 		// Apply smoother deadzone
 		const deadzoneValue = Math.min(JOYSTICK_DEADZONE, (distance / JOYSTICK_MAX_DISTANCE) * 0.1);
-		if (Math.abs(adjustedX) < deadzoneValue) adjustedX = 0;
+		if (Math.abs(adjustedX) < deadzoneValue) {
+			adjustedX = 0;
+			touchControlState.movement.direction.x = 0;
+
+			// Release both direction keys when in deadzone
+			if (keys.ArrowLeft) {
+				window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
+				keys.ArrowLeft = false;
+			}
+			if (keys.ArrowRight) {
+				window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
+				keys.ArrowRight = false;
+			}
+		} else {
+			// Update movement state and simulate keyboard events
+			const direction = Math.sign(adjustedX);
+			touchControlState.movement.direction.x = direction;
+
+			// Handle left movement
+			if (direction < 0 && !keys.ArrowLeft) {
+				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+				keys.ArrowLeft = true;
+				if (keys.ArrowRight) {
+					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
+					keys.ArrowRight = false;
+				}
+			}
+			// Handle right movement
+			else if (direction > 0 && !keys.ArrowRight) {
+				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+				keys.ArrowRight = true;
+				if (keys.ArrowLeft) {
+					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
+					keys.ArrowLeft = false;
+				}
+			}
+		}
 
 		// Update visual position with dynamic constraint (horizontal only)
 		const maxDistance = Math.min(JOYSTICK_MAX_DISTANCE, rect.width * 0.4);
@@ -177,11 +226,12 @@
 			y: 0 // Keep Y at 0
 		});
 
+		// Dispatch movement without affecting button states
 		dispatch('control', {
 			type: 'joystick',
 			value: {
 				x: Math.max(-1, Math.min(1, adjustedX / maxDistance)),
-				y: 0 // Always send 0 for Y axis
+				y: 0
 			}
 		});
 	}
@@ -235,61 +285,81 @@
 
 		event.preventDefault();
 		buttons[button] = true;
+		touchControlState.buttons[button] = true;
 		triggerHaptic();
 
-		let keyEvent;
+		// Map button to key
+		let key: string;
 		switch (button) {
 			case 'missile':
-				keyEvent = new KeyboardEvent('keydown', { key: ' ' });
+				key = ' '; // Space
+				keys[' '] = true;
 				break;
 			case 'shoot':
-				keyEvent = new KeyboardEvent('keydown', { key: 'x' });
+				key = 'x';
+				keys.x = true;
 				break;
 			case 'pause':
-				keyEvent = new KeyboardEvent('keydown', { key: 'p' });
+				key = 'p';
+				keys.p = true;
 				break;
 			case 'enter':
-				keyEvent = new KeyboardEvent('keydown', { key: 'Enter' });
+				key = 'Enter';
+				keys.Enter = true;
 				break;
 		}
-		if (keyEvent) window.dispatchEvent(keyEvent);
+
+		// Dispatch button event without interrupting movement
+		if (key) {
+			window.dispatchEvent(new KeyboardEvent('keydown', { key }));
+			dispatch('control', {
+				type: 'button',
+				button,
+				value: true
+			});
+		}
 	}
 
 	function handleButtonRelease(button: keyof typeof buttons) {
 		if (!browser || !mounted) return;
 
 		buttons[button] = false;
+		touchControlState.buttons[button] = false;
 
-		let keyEvent;
+		// Map button to key
+		let key: string;
 		switch (button) {
-			case 'heatseeker': // Changed from 'ammo'
-				keyEvent = new KeyboardEvent('keyup', { key: ' ' });
+			case 'missile':
+				key = ' '; // Space
+				keys[' '] = false;
 				break;
-			case 'ammo': // Changed from 'heatseeker'
-				keyEvent = new KeyboardEvent('keyup', { key: 'x' });
+			case 'shoot':
+				key = 'x';
+				keys.x = false;
 				break;
 			case 'pause':
-				keyEvent = new KeyboardEvent('keyup', { key: 'p' });
+				key = 'p';
+				keys.p = false;
 				break;
 			case 'enter':
-				keyEvent = new KeyboardEvent('keyup', { key: 'Enter' });
+				key = 'Enter';
+				keys.Enter = false;
 				break;
 			case 'reset':
-				keyEvent = new KeyboardEvent('keydown', {
-					key: 'r',
-					ctrlKey: true
-				});
-				break;
+				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', ctrlKey: true }));
+				return;
 		}
-		if (keyEvent) window.dispatchEvent(keyEvent);
 
-		dispatch('control', {
-			type: 'button',
-			button,
-			value: false
-		});
+		// Dispatch release events
+		if (key) {
+			window.dispatchEvent(new KeyboardEvent('keyup', { key }));
+			dispatch('control', {
+				type: 'button',
+				button,
+				value: false
+			});
+		}
 	}
-
 	function updateLayoutOrientation() {
 		if (!browser || !mounted) return;
 		isLandscape = window.innerWidth > window.innerHeight;
