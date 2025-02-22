@@ -1,4 +1,4 @@
-<!-- +layout.svelte -->
+<!-- src/routes/+layout.svelte -->
 <script lang="ts">
 	import '../app.css';
 	import { Navbar, NavBrand, Drawer, Button, CloseButton } from 'flowbite-svelte';
@@ -90,8 +90,9 @@
 		// Theme initialization
 		const savedTheme = localStorage.getItem('theme') || 'dark';
 		theme.set(savedTheme);
-		document.documentElement.classList.add(savedTheme);
-
+		document.fonts.ready.then(() => {
+			document.documentElement.classList.add('fonts-loaded');
+		});
 		// Initialize ResizeObserver
 		if (navbarElement) {
 			resizeObserver = new ResizeObserver(updateNavHeight);
@@ -145,7 +146,7 @@
 		<NavBrand href="/">
 			<img src={logo} alt="Jo Pearson Logo" class="h-9 w-9 mr-[8px] pt-1 header-logo-pulse" />
 			<span
-				class="hidden lg:inline-block text-[16px] header-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[24.96px] mt-[5px]"
+				class="hidden lg:inline-block text-[16px] font-gruppo header-text text-arcadeWhite-300 dark:text-arcadeWhite-300 uppercase tracking-[24.96px] mt-[5px]"
 			>
 				Jo Pearson
 			</span>
@@ -183,10 +184,13 @@
 					class:active={$activeNavItem === path}
 					on:click={() => handleNavLinkClick(path)}
 				>
-					{path === '/'
-						? 'Home'
-						: path.replace(/\/$/, '').slice(2).charAt(0).toUpperCase() +
-							path.replace(/\/$/, '').slice(3)}
+					{#if path === '/'}
+						Home
+					{:else if path.startsWith('/#')}
+						{path.slice(2).charAt(0).toUpperCase() + path.slice(3)}
+					{:else}
+						{path.slice(1).charAt(0).toUpperCase() + path.slice(1).substring(1)}
+					{/if}
 				</a>
 			{/each}
 		</div>
@@ -223,7 +227,13 @@
 					toggleDrawer();
 				}}
 			>
-				{path === '/' ? 'Home' : path.slice(2).charAt(0).toUpperCase() + path.slice(3)}
+				{#if path === '/'}
+					Home
+				{:else if path.startsWith('/#')}
+					{path.slice(2).charAt(0).toUpperCase() + path.slice(3)}
+				{:else}
+					{path.slice(1).charAt(0).toUpperCase() + path.slice(1).substring(1)}
+				{/if}
 			</a>
 		{/each}
 
