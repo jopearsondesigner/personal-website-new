@@ -376,7 +376,7 @@
 
 		/* Typography */
 		--header-font-size: 70px;
-		--insert-concept-font-size: 3.45vmin;
+		--insert-concept-font-size: 4.45vmin;
 
 		/* Colors */
 		--screen-border-color: rgba(226, 226, 189, 1);
