@@ -274,52 +274,56 @@
 	id="hero"
 	class="w-full relative overflow-hidden flex items-center justify-center"
 	style="
-        margin-top: calc(-.5 * {$layoutStore.navbarHeight}px);
-        height: calc(100vh + {$layoutStore.navbarHeight}px);
-    "
+    margin-top: calc(-.5 * {$layoutStore.navbarHeight}px);
+    height: calc(100vh + {$layoutStore.navbarHeight}px);
+  "
 >
 	<div
 		id="arcade-cabinet"
-		class="cabinet-metal w-full h-full relative flex items-center justify-center"
+		class="cabinet-metal w-full h-full relative flex items-center justify-center overflow-hidden"
 	>
-		<div class="cabinet-plastic">
+		<div class="cabinet-plastic overflow-hidden">
 			<div class="cabinet-background absolute inset-0"></div>
 			<div class="cabinet-wear absolute inset-0"></div>
 
 			<div
-				class="arcade-screen-wrapper relative"
+				class="arcade-screen-wrapper relative overflow-hidden"
 				style="margin-top: calc(-2 * var(--navbar-height, 64px));"
 			>
 				<div class="navigation-wrapper relative z-50">
 					<ArcadeNavigation on:changeScreen={handleScreenChange} />
 				</div>
 
-				<!-- Screen Bezel Layer -->
-				<div class="screen-bezel"></div>
+				<!-- Add explicit border-radius and overflow-hidden -->
+				<div class="screen-bezel rounded-[3vmin] overflow-hidden"></div>
 				<div
 					id="arcade-screen"
-					class="crt-screen hardware-accelerated relative w-[90vw] h-[70vh] md:w-[80vw] md:h-[600px] glow"
+					class="crt-screen hardware-accelerated relative w-[90vw] h-[70vh] md:w-[80vw] md:h-[600px] glow rounded-[3vmin] overflow-hidden"
 					bind:this={arcadeScreen}
 				>
-					<div class="phosphor-decay"></div>
-					<div class="shadow-mask"></div>
-					<div class="interlace"></div>
-					<!-- Screen Effects -->
-					<div class="screen-reflection"></div>
-					<div class="screen-glare"></div>
-					<div class="screen-glass"></div>
-					<div class="glow-effect"></div>
+					<div class="phosphor-decay rounded-[3vmin]"></div>
+					<div class="shadow-mask rounded-[3vmin]"></div>
+					<div class="interlace rounded-[3vmin]"></div>
 
-					<div id="scanline-overlay" class="absolute inset-0 pointer-events-none z-10"></div>
+					<!-- Update all screen effects to include border radius -->
+					<div class="screen-reflection rounded-[3vmin]"></div>
+					<div class="screen-glare rounded-[3vmin]"></div>
+					<div class="screen-glass rounded-[3vmin]"></div>
+					<div class="glow-effect rounded-[3vmin]"></div>
+
+					<div
+						id="scanline-overlay"
+						class="absolute inset-0 pointer-events-none z-10 rounded-[3vmin]"
+					></div>
 
 					{#if currentScreen === 'main'}
 						<div
 							id="space-background"
-							class="absolute inset-0 overflow-hidden pointer-events-none"
+							class="absolute inset-0 overflow-hidden pointer-events-none rounded-[3vmin]"
 							bind:this={spaceBackground}
 						>
 							<div
-								class="star-container absolute inset-0 pointer-events-none"
+								class="star-container absolute inset-0 pointer-events-none rounded-[3vmin]"
 								bind:this={starContainer}
 							>
 								{#each $animationState.stars as star (star.id)}
@@ -327,6 +331,7 @@
 								{/each}
 							</div>
 						</div>
+						<!-- Content wrapper -->
 						<div
 							id="text-wrapper"
 							class="absolute inset-0 flex flex-col items-center justify-center z-0 p-2 mt-12 box-border"
@@ -351,7 +356,6 @@
 	</div>
 	{#if currentScreen === 'game'}
 		<div class="fixed-game-controls lg:hidden">
-			<!-- Added lg:hidden class -->
 			<GameControls on:control={handleControlInput} />
 		</div>
 	{/if}
@@ -453,6 +457,8 @@
 		width: fit-content;
 		height: fit-content;
 		margin: 0 auto;
+		border-radius: calc(var(--border-radius) + 8px);
+		overflow: hidden;
 	}
 
 	#arcade-screen {
@@ -467,11 +473,28 @@
 		box-shadow: var(--screen-shadow);
 		background: linear-gradient(145deg, #111 0%, #444 100%);
 		transform-style: preserve-3d;
+		overflow: hidden;
 	}
 
 	/* ==========================================================================
    Visual Effects
    ========================================================================== */
+	.screen-reflection,
+	.screen-glare,
+	.screen-glass,
+	.glow-effect,
+	.phosphor-decay,
+	.shadow-mask,
+	.interlace {
+		border-radius: var(--border-radius);
+	}
+
+	/* Additional helper class for consistent border radius */
+	.rounded-arcade {
+		border-radius: var(--border-radius);
+		overflow: hidden;
+	}
+
 	.screen-reflection {
 		position: absolute;
 		inset: 0;
@@ -654,6 +677,8 @@
 		position: relative;
 		overflow: hidden;
 		background: #000;
+		border-radius: var(--border-radius);
+		overflow: hidden;
 	}
 
 	.phosphor-decay {
@@ -709,6 +734,7 @@
 			linear-gradient(to bottom, rgba(40, 40, 40, 1), rgba(60, 60, 60, 1));
 		transform: translateZ(-1px);
 		box-shadow: var(--bezel-shadow);
+		overflow: hidden;
 	}
 
 	.screen-glare {
@@ -867,6 +893,7 @@
 		perspective: 500px;
 		transform-style: preserve-3d;
 		z-index: 1;
+		border-radius: var(--border-radius);
 	}
 
 	.star {
@@ -1060,7 +1087,8 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		border-radius: 0;
+		border-radius: var(--border-radius);
+		overflow: hidden;
 		background: linear-gradient(180deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
 		box-shadow:
 			inset 0 10px 30px rgba(0, 0, 0, 0.4),
