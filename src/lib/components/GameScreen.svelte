@@ -91,8 +91,12 @@
 	</button>
 {/if} -->
 
-<div id="game-screen" class="flex items-center justify-center w-full h-full p-[.75vmin]">
-	<div class="game-background">
+<div
+	id="game-screen"
+	class="flex items-center justify-center w-full h-full p-[.75vmin] overflow-hidden"
+>
+	<!-- Add overflow-hidden to game-background -->
+	<div class="game-background overflow-hidden">
 		<!-- Left side panel - only show on desktop -->
 		<div class="hidden lg:block">
 			<div class="side-panel left" in:fly={{ x: -50, duration: 1000 }}>
@@ -108,7 +112,7 @@
 		</div>
 
 		<!-- Game container -->
-		<div class="game-view-container w-full lg:max-w-[calc(100%-300px)]">
+		<div class="game-view-container w-full lg:max-w-[calc(100%-300px)] overflow-hidden">
 			<Game />
 		</div>
 
@@ -145,6 +149,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		border-radius: 3.5vmin;
 	}
 
 	.game-view-container {
