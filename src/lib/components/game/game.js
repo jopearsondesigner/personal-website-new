@@ -45,7 +45,7 @@ let lastFrameTime = 0;
 const maxHeatseekers = 3;
 const cometInterval = 2000;
 const ammoDropInterval = 8000;
-const powerUpDropInterval = 15000;
+const powerUpDropInterval = 8000;
 const extraLifeDropInterval = 20000;
 let playerPerformanceMetric = 0;
 const initialEnemySpawnRate = 240;
@@ -227,7 +227,7 @@ let constantPowerUpMode = false;
 let unlimitedHeatseekersMode = false;
 let powerUpActive = false;
 let powerUpType = '';
-let powerUpDuration = 10000;
+let powerUpDuration = 15000;
 let powerUpStartTime = 0;
 let keyCombination = ['S', 'T', 'A', 'R'];
 let keyCombinationIndex = 0;
@@ -2009,20 +2009,20 @@ function schedulePowerUpDrops() {
 	setTimeout(
 		() => {
 			if (heatseekerAmmo.length === 0 && powerUps.length === 0 && extraLives.length === 0) {
-				// More stringent conditions for power-ups
+				// Increased drop chances
 				if (
-					(score < 1000 && Math.random() < 0.3) || // 30% chance when score is low
-					(lives === 1 && Math.random() < 0.4) || // 40% chance when near death
-					(heatseekerCount === 0 && Math.random() < 0.5)
+					(score < 1000 && Math.random() < 0.5) || // Increased from 0.3 to 0.5 for low scores
+					(lives === 1 && Math.random() < 0.6) || // Increased from 0.4 to 0.6 when near death
+					(heatseekerCount === 0 && Math.random() < 0.7) || // Increased from 0.5 to 0.7 when out of heatseekers
+					Math.random() < 0.3 // Added base chance for random drops
 				) {
-					// 50% chance when out of heatseekers
 					dropRandomPowerUp();
 				}
 			}
 			schedulePowerUpDrops();
 		},
-		powerUpDropInterval + Math.random() * 5000
-	); // Add randomization
+		powerUpDropInterval + Math.random() * 3000
+	); // Reduced randomization from 5000 to 3000
 }
 
 function dropAmmoFromSky() {
@@ -2080,10 +2080,8 @@ function dropExtraLife() {
 }
 
 function dropRandomPowerUp() {
-	if (powerUps.length > 0) return;
-
-	// Increase power-up frequency when player is struggling
-	const shouldDropPowerUp = score < 1000 || lives === 1;
+	// Remove the powerUps length check to allow multiple power-ups
+	const shouldDropPowerUp = score < 1000 || lives === 1 || Math.random() < 0.4; // Added random chance
 
 	if (shouldDropPowerUp) {
 		const powerUp = new PowerUp(Math.random() * (canvas.width - 100) + 50, -50);
@@ -2145,11 +2143,11 @@ function activatePowerUp() {
 
 	// Activate all power-up effects
 	player.isInvincible = true;
-	player.speed = 8; // Double speed
+	player.speed = 8;
 	unlimitedHeatseekersMode = true;
 	rapidFireMode = true;
 
-	// Add the same explosion effect used in cheat code
+	// Add explosion effect
 	createExplosion(
 		player.x + player.width / 2,
 		player.y + player.height / 2,
@@ -2161,10 +2159,9 @@ function activatePowerUp() {
 	activateGlowEffect();
 	floatingTexts.push(new FloatingText(player.x, player.y, 'POWER SURGE!', NESPalette.lightGreen));
 
-	// Set up deactivation timer
+	// Set up deactivation timer with longer duration
 	if (!constantPowerUpMode) {
 		setTimeout(() => {
-			// Reset all power-up effects
 			player.isInvincible = false;
 			player.speed = originalSpeed;
 			unlimitedHeatseekersMode = false;
