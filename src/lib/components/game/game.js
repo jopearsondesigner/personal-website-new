@@ -5101,11 +5101,27 @@ function verifyTimingSystem() {
 function setupInputListeners() {
 	// Track input state
 	const keyState = {
-		left: false,
-		right: false,
-		up: false,
-		shoot: false,
-		special: false
+		ArrowLeft: false,
+		ArrowRight: false,
+		' ': false, // Space
+		x: false,
+		p: false,
+		Enter: false
+	};
+
+	// Touch control state
+	let touchControlState = {
+		movement: {
+			active: false,
+			direction: { x: 0, y: 0 }
+		},
+		buttons: {
+			shoot: false,
+			missile: false,
+			pause: false,
+			enter: false,
+			reset: false
+		}
 	};
 
 	// Input buffer for combo moves (8 frame buffer)
@@ -5116,10 +5132,49 @@ function setupInputListeners() {
 	let lastShootTime = 0;
 	const SHOOT_COOLDOWN = 250; // ms between shots
 
+	// Joystick and movement configuration
+	const JOYSTICK_CONFIG = {
+		DEADZONE: 0.12,
+		MAX_DISTANCE: 60,
+		MIN_MOVEMENT_THRESHOLD: 0.05,
+		MOVEMENT_ZONES: {
+			PRECISE: 0.3,
+			NORMAL: 0.6,
+			RAPID: 1.0
+		},
+		ACCELERATION: {
+			PRECISE: 1.2,
+			NORMAL: 1.5,
+			RAPID: 1.8
+		},
+		SPRING: {
+			STIFFNESS: 0.25,
+			DAMPING: 0.85
+		},
+		HAPTIC: {
+			DURATION: {
+				TAP: 50,
+				ZONE_CHANGE: 20
+			},
+			INTENSITY: {
+				LIGHT: 0.3,
+				MEDIUM: 0.5,
+				STRONG: 0.8
+			}
+		}
+	};
+
+	const TOUCH_CONFIG = {
+		SAMPLING_RATE: 16,
+		INITIAL_DELAY: 50,
+		MAX_DELTA: 1.5
+	};
+
+	// Handle keyboard events
 	window.addEventListener('keydown', function (event) {
 		const key = event.key.toUpperCase();
 
-		// Prevent default browser actions
+		// Prevent default browser actions for game controls
 		if (['ArrowLeft', 'ArrowRight', 'ArrowUp', ' ', 'x', 'X', 'p', 'P'].includes(event.key)) {
 			event.preventDefault();
 		}
@@ -5146,42 +5201,41 @@ function setupInputListeners() {
 		// Active gameplay input handling
 		if (gameActive) {
 			switch (event.key) {
-				case ' ': // Heatseeker shot
-					const currentTime = Date.now();
-					if (currentTime - lastShootTime >= SHOOT_COOLDOWN) {
-						shoot(true);
-						lastShootTime = currentTime;
+				case ' ': // Heatseeker missile
+					if (unlimitedHeatseekersMode || heatseekerCount > 0) {
+						const currentTime = Date.now();
+						if (currentTime - lastShootTime >= SHOOT_COOLDOWN) {
+							shoot(true);
+							lastShootTime = currentTime;
+							if (!unlimitedHeatseekersMode) {
+								heatseekerCount--;
+							}
+							drawHUD();
+						}
 					}
+					keyState[' '] = true;
 					break;
 
 				case 'ArrowLeft':
-					keyState.left = true;
+					keyState.ArrowLeft = true;
 					player.movingLeft = true;
 					player.direction = 'left';
-					// Buffer input for combos
 					inputBuffer.push({ input: 'left', time: Date.now() });
-					if (inputBuffer.length > BUFFER_SIZE) {
-						inputBuffer.shift();
-					}
+					if (inputBuffer.length > BUFFER_SIZE) inputBuffer.shift();
 					break;
 
 				case 'ArrowRight':
-					keyState.right = true;
+					keyState.ArrowRight = true;
 					player.movingRight = true;
 					player.direction = 'right';
 					inputBuffer.push({ input: 'right', time: Date.now() });
-					if (inputBuffer.length > BUFFER_SIZE) {
-						inputBuffer.shift();
-					}
+					if (inputBuffer.length > BUFFER_SIZE) inputBuffer.shift();
 					break;
 
 				case 'ArrowUp':
-					keyState.up = true;
 					player.jump();
 					inputBuffer.push({ input: 'up', time: Date.now() });
-					if (inputBuffer.length > BUFFER_SIZE) {
-						inputBuffer.shift();
-					}
+					if (inputBuffer.length > BUFFER_SIZE) inputBuffer.shift();
 					break;
 
 				case 'Shift':
@@ -5190,19 +5244,29 @@ function setupInputListeners() {
 
 				case 'x':
 				case 'X':
-					shoot(false, true);
+					keyState.x = true;
+					const shootTime = Date.now();
+					if (shootTime - lastShootTime >= (rapidFireMode ? SHOOT_COOLDOWN / 2 : SHOOT_COOLDOWN)) {
+						shoot(false, true);
+						lastShootTime = shootTime;
+					}
 					break;
 
 				case 'p':
 				case 'P':
+					keyState.p = true;
 					isPaused = !isPaused;
 					if (!isPaused && gameActive) {
-						lastFrameTime = performance.now(); // Reset timing
+						lastFrameTime = performance.now();
 						animationFrameId = requestAnimationFrame(animate);
-					} else if (isPaused) {
+					} else if (isPaused && animationFrameId) {
 						cancelAnimationFrame(animationFrameId);
 						animationFrameId = null;
 					}
+					break;
+
+				case 'Enter':
+					keyState.Enter = true;
 					break;
 
 				default:
@@ -5239,82 +5303,216 @@ function setupInputListeners() {
 		if (gameActive) {
 			switch (event.key) {
 				case 'ArrowLeft':
-					keyState.left = false;
+					keyState.ArrowLeft = false;
 					player.movingLeft = false;
 					break;
 
 				case 'ArrowRight':
-					keyState.right = false;
+					keyState.ArrowRight = false;
 					player.movingRight = false;
 					break;
 
-				case 'ArrowUp':
-					keyState.up = false;
+				case ' ':
+					keyState[' '] = false;
+					break;
+
+				case 'x':
+				case 'X':
+					keyState.x = false;
+					break;
+
+				case 'p':
+				case 'P':
+					keyState.p = false;
+					break;
+
+				case 'Enter':
+					keyState.Enter = false;
 					break;
 			}
 		}
 	});
 
-	// Mouse/touch input for shooting
-	window.addEventListener('click', function (event) {
-		if (gameActive && !isPaused) {
-			const currentTime = Date.now();
-			if (currentTime - lastShootTime >= SHOOT_COOLDOWN) {
-				shoot(false);
-				lastShootTime = currentTime;
-			}
-		}
-	});
-
-	// Touch events for mobile support
+	// Touch input handling
 	let touchStartX = 0;
+	let touchStartY = 0;
 	const TOUCH_THRESHOLD = 30;
+	let isTouchMove = false;
+	let lastTouchTime = 0;
+	let activeTouches = new Map();
 
-	window.addEventListener('touchstart', function (event) {
-		if (gameActive && !isPaused) {
-			touchStartX = event.touches[0].clientX;
-			// Shoot on tap
-			shoot(false);
-		}
-	});
+	// Only initialize touch controls on touch-capable devices
+	if ('ontouchstart' in window) {
+		const handleButtonInteraction = (button, isPress) => {
+			if (!gameActive || isPaused) return;
 
-	window.addEventListener('touchmove', function (event) {
-		if (gameActive && !isPaused) {
-			const touchX = event.touches[0].clientX;
-			const diff = touchX - touchStartX;
-
-			if (Math.abs(diff) > TOUCH_THRESHOLD) {
-				if (diff > 0) {
-					player.movingRight = true;
-					player.movingLeft = false;
-				} else {
-					player.movingLeft = true;
-					player.movingRight = false;
+			touchControlState.buttons[button] = isPress;
+			if (isPress) {
+				if (button === 'shoot') {
+					const currentTime = Date.now();
+					if (
+						currentTime - lastShootTime >=
+						(rapidFireMode ? SHOOT_COOLDOWN / 2 : SHOOT_COOLDOWN)
+					) {
+						shoot(false, false);
+						lastShootTime = currentTime;
+					}
+				} else if (button === 'missile' && (unlimitedHeatseekersMode || heatseekerCount > 0)) {
+					const currentTime = Date.now();
+					if (currentTime - lastShootTime >= SHOOT_COOLDOWN) {
+						shoot(true);
+						lastShootTime = currentTime;
+						if (!unlimitedHeatseekersMode) {
+							heatseekerCount--;
+						}
+						drawHUD();
+					}
 				}
 			}
-		}
-	});
 
-	window.addEventListener('touchend', function () {
-		if (gameActive) {
-			player.movingLeft = false;
-			player.movingRight = false;
-		}
-	});
+			// Trigger haptic feedback if available
+			if ('vibrate' in navigator) {
+				navigator.vibrate(JOYSTICK_CONFIG.HAPTIC.DURATION.TAP);
+			}
+		};
+
+		const processTouch = (touch, touchStartData) => {
+			if (!touchStartData) return;
+
+			const deltaX = touch.clientX - touchStartData.x;
+			const deltaY = touch.clientY - touchStartData.y;
+			const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+			// Update touch control state
+			touchControlState.movement.active = distance > TOUCH_THRESHOLD;
+			if (touchControlState.movement.active) {
+				touchControlState.movement.direction = {
+					x: deltaX / distance,
+					y: deltaY / distance
+				};
+			}
+
+			return {
+				deltaX,
+				deltaY,
+				distance
+			};
+		};
+
+		window.addEventListener(
+			'touchstart',
+			function (event) {
+				if (!gameActive || isPaused) return;
+
+				const touch = event.touches[0];
+				touchStartX = touch.clientX;
+				touchStartY = touch.clientY;
+				isTouchMove = false;
+				lastTouchTime = Date.now();
+
+				// Store initial touch data
+				activeTouches.set(touch.identifier, {
+					x: touchStartX,
+					y: touchStartY,
+					timestamp: lastTouchTime
+				});
+
+				// Prevent default behavior only for game controls
+				if (event.target.closest('.game-controls')) {
+					event.preventDefault();
+				}
+			},
+			{ passive: false }
+		);
+
+		window.addEventListener(
+			'touchmove',
+			function (event) {
+				if (!gameActive || isPaused) return;
+
+				const touch = event.touches[0];
+				const touchStartData = activeTouches.get(touch.identifier);
+				if (!touchStartData) return;
+
+				isTouchMove = true;
+				const touchData = processTouch(touch, touchStartData);
+
+				if (touchData && touchData.distance > TOUCH_THRESHOLD) {
+					// Handle joystick movement
+					if (touchControlState.movement.active) {
+						const normalizedX = touchData.deltaX / JOYSTICK_CONFIG.MAX_DISTANCE;
+						if (Math.abs(normalizedX) > JOYSTICK_CONFIG.DEADZONE) {
+							player.movingLeft = normalizedX < 0;
+							player.movingRight = normalizedX > 0;
+						} else {
+							player.movingLeft = player.movingRight = false;
+						}
+					}
+				}
+
+				// Prevent default behavior only for game controls
+				if (event.target.closest('.game-controls')) {
+					event.preventDefault();
+				}
+			},
+			{ passive: false }
+		);
+
+		window.addEventListener('touchend', function (event) {
+			if (!gameActive) return;
+
+			const touch = event.changedTouches[0];
+			const touchStartData = activeTouches.get(touch.identifier);
+			if (!touchStartData) return;
+
+			// Clean up touch data
+			activeTouches.delete(touch.identifier);
+
+			// Reset movement state
+			touchControlState.movement.active = false;
+			touchControlState.movement.direction = { x: 0, y: 0 };
+			player.movingLeft = player.movingRight = false;
+
+			// Handle quick tap for shooting only if it wasn't a move
+			if (!isTouchMove) {
+				const touchEndTime = Date.now();
+				const touchDuration = touchEndTime - touchStartData.timestamp;
+
+				// Only trigger shoot if it was a quick tap on a shoot button
+				if (touchDuration < 300 && event.target.closest('.shoot-button')) {
+					handleButtonInteraction('shoot', true);
+					setTimeout(() => handleButtonInteraction('shoot', false), 50);
+				}
+			}
+		});
+
+		// Prevent default touch behavior for game controls
+		window.addEventListener('touchcancel', function (event) {
+			const touch = event.changedTouches[0];
+			activeTouches.delete(touch.identifier);
+
+			// Reset all movement states
+			touchControlState.movement.active = false;
+			touchControlState.movement.direction = { x: 0, y: 0 };
+			player.movingLeft = player.movingRight = false;
+		});
+	}
 
 	// Handle window blur/focus
 	window.addEventListener('blur', function () {
 		if (gameActive) {
 			isPaused = true;
+			// Reset all input states
+			Object.keys(keyState).forEach((key) => (keyState[key] = false));
+			player.movingLeft = player.movingRight = false;
+			touchControlState.movement.active = false;
+			touchControlState.movement.direction = { x: 0, y: 0 };
+			Object.keys(touchControlState.buttons).forEach(
+				(button) => (touchControlState.buttons[button] = false)
+			);
 		}
 	});
 
-	window.addEventListener('focus', function () {
-		// Don't auto-unpause for better user experience
-		// Player must explicitly unpause
-	});
-
-	// Helper function to check for special move combinations
 	function checkSpecialMoves(buffer) {
 		const now = Date.now();
 		const COMBO_WINDOW = 500; // ms window for combo inputs

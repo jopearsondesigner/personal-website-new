@@ -177,11 +177,14 @@
 
 		// Apply smoother deadzone
 		const deadzoneValue = Math.min(JOYSTICK_DEADZONE, (distance / JOYSTICK_MAX_DISTANCE) * 0.1);
+
+		// Only handle movement keys, don't interfere with other controls
 		if (Math.abs(adjustedX) < deadzoneValue) {
 			adjustedX = 0;
+			// Only reset movement-related state
 			touchControlState.movement.direction.x = 0;
 
-			// Release both direction keys when in deadzone
+			// Only release movement keys
 			if (keys.ArrowLeft) {
 				window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
 				keys.ArrowLeft = false;
@@ -191,7 +194,7 @@
 				keys.ArrowRight = false;
 			}
 		} else {
-			// Update movement state and simulate keyboard events
+			// Update only movement state and simulate keyboard events
 			const direction = Math.sign(adjustedX);
 			touchControlState.movement.direction.x = direction;
 
@@ -226,7 +229,7 @@
 			y: 0 // Keep Y at 0
 		});
 
-		// Dispatch movement without affecting button states
+		// Only dispatch movement data
 		dispatch('control', {
 			type: 'joystick',
 			value: {
@@ -263,17 +266,18 @@
 		currentMovementZone = 'PRECISE';
 		previousMovementZone = 'PRECISE';
 
-		// Release horizontal movement keys only
+		// Only release movement keys
 		if (keys.ArrowLeft) {
 			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
 			keys.ArrowLeft = false;
 		}
-
 		if (keys.ArrowRight) {
 			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
 			keys.ArrowRight = false;
 		}
 
+		// Reset only movement state
+		touchControlState.movement.direction.x = 0;
 		dispatch('control', {
 			type: 'joystick',
 			value: { x: 0, y: 0 }
@@ -284,11 +288,13 @@
 		if (!browser || !mounted) return;
 
 		event.preventDefault();
+		event.stopPropagation(); // Prevent event from bubbling to joystick handlers
+
 		buttons[button] = true;
 		touchControlState.buttons[button] = true;
 		triggerHaptic();
 
-		// Map button to key
+		// Map button to key without affecting movement keys
 		let key: string;
 		switch (button) {
 			case 'missile':
@@ -309,7 +315,6 @@
 				break;
 		}
 
-		// Dispatch button event without interrupting movement
 		if (key) {
 			window.dispatchEvent(new KeyboardEvent('keydown', { key }));
 			dispatch('control', {
