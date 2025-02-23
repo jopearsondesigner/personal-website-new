@@ -3343,16 +3343,23 @@ function shoot(isHeatseeker = false, isPowerUp = false) {
 
 	let newProjectile;
 
-	if (isHeatseeker && (unlimitedHeatseekersMode || heatseekerCount > 0)) {
-		newProjectile = new HeatseekerProjectile(projectileX, projectileY);
-		if (!unlimitedHeatseekersMode) {
-			heatseekerCount--;
+	if (isHeatseeker) {
+		// Only create heatseeker if we have ammo or unlimited mode
+		if (unlimitedHeatseekersMode || heatseekerCount > 0) {
+			newProjectile = new HeatseekerProjectile(projectileX, projectileY);
+			// Only deduct ammo if not in unlimited mode
+			if (!unlimitedHeatseekersMode) {
+				heatseekerCount = Math.max(0, heatseekerCount - 1); // Prevent negative count
+				drawHUD(); // Update HUD when ammo changes
+			}
+		} else {
+			return; // Exit if no heatseekers available
 		}
 	} else {
 		newProjectile = new AnimatedProjectile(projectileX, projectileY, false, false, isPowerUp);
 	}
 
-	// Add trail effect for player projectiles
+	// Add trail effect for regular shots
 	if (!isHeatseeker) {
 		for (let i = 0; i < 3; i++) {
 			particles.push(new TrailParticle(projectileX, projectileY));
@@ -3360,24 +3367,24 @@ function shoot(isHeatseeker = false, isPowerUp = false) {
 	}
 
 	projectiles.push(newProjectile);
-	drawHUD();
 	lastVelaShotTime = currentTime;
 }
 
 class HeatseekerProjectile extends AnimatedProjectile {
 	constructor(x, y) {
-		super(x, y, false, true); // Ensure isHeatseeker is set to true
-		this.trailParticles = []; // Initialize the array for trail particles
-		this.maxSpeed = 12; // Maximum speed for heatseeker
-		this.baseSpeed = 5; // Initial speed
-		this.acceleration = 0.3; // Acceleration rate
-		this.targetLockSpeed = 0.08; // Turning speed when locked
-		this.searchTurnSpeed = 0.03; // Turning speed when searching
-		this.distanceThreshold = 150; // Distance threshold for speed boost
-		this.maxTurnRate = Math.PI / 32; // Maximum turn rate per frame
-		this.stopped = false; // Track if the heatseeker is stopped
-		this.lockOnDelay = 10; // Frames before active tracking
+		super(x, y, false, true);
+		this.trailParticles = [];
+		this.maxSpeed = 12;
+		this.baseSpeed = 5;
+		this.acceleration = 0.3;
+		this.targetLockSpeed = 0.08;
+		this.searchTurnSpeed = 0.03;
+		this.distanceThreshold = 150;
+		this.maxTurnRate = Math.PI / 32;
+		this.stopped = false;
+		this.lockOnDelay = 10;
 		this.lockOnTimer = 0;
+		this.heatseekerCounted = false; // Flag to ensure ammo is only counted once
 	}
 
 	findClosestTarget(enemies = []) {
@@ -5199,18 +5206,15 @@ function setupInputListeners() {
 		if (gameActive) {
 			switch (event.key) {
 				case ' ': // Heatseeker missile
-					if (unlimitedHeatseekersMode || heatseekerCount > 0) {
+					if (!keyState[' ']) {
+						// Only trigger if key wasn't already pressed
+						keyState[' '] = true;
 						const currentTime = Date.now();
 						if (currentTime - lastShootTime >= SHOOT_COOLDOWN) {
 							shoot(true);
 							lastShootTime = currentTime;
-							if (!unlimitedHeatseekersMode) {
-								heatseekerCount--;
-							}
-							drawHUD();
 						}
 					}
-					keyState[' '] = true;
 					break;
 
 				case 'ArrowLeft':
@@ -5264,6 +5268,67 @@ function setupInputListeners() {
 
 				case 'Enter':
 					keyState.Enter = true;
+					break;
+
+				default:
+					// Handle cheat code sequence
+					if (key.length === 1) {
+						if (key === keyCombination[keyCombinationIndex]) {
+							keyCombinationIndex++;
+							if (keyCombinationIndex === keyCombination.length) {
+								handleCheatCode();
+								keyCombinationIndex = 0;
+							}
+						} else if (key === 'S') {
+							keyCombinationIndex = 1;
+						} else {
+							keyCombinationIndex = 0;
+						}
+					}
+					break;
+			}
+
+			// Check for special move combinations
+			checkSpecialMoves(inputBuffer);
+		}
+
+		// Handle reload command
+		if (key === 'R' && (event.ctrlKey || event.metaKey)) {
+			event.preventDefault();
+			resetGame();
+			return;
+		}
+	});
+
+	window.addEventListener('keyup', function (event) {
+		if (gameActive) {
+			switch (event.key) {
+				case 'ArrowLeft':
+					keyState.ArrowLeft = false;
+					player.movingLeft = false;
+					break;
+
+				case 'ArrowRight':
+					keyState.ArrowRight = false;
+					player.movingRight = false;
+					break;
+
+				case ' ':
+					keyState[' '] = false;
+					break;
+
+				case 'x':
+				case 'X':
+					keyState.x = false;
+					break;
+
+				case 'p':
+				case 'P':
+					keyState.p = false;
+					break;
+
+				case 'Enter':
+					keyState.Enter = false;
 					break;
 
 				default:
