@@ -1,4 +1,4 @@
-<!-- src/routes/+layout.svelte -->
+<!-- +layout.svelte -->
 <script lang="ts">
 	import '../app.css';
 	import { Navbar, NavBrand, Drawer, Button, CloseButton } from 'flowbite-svelte';
@@ -90,9 +90,8 @@
 		// Theme initialization
 		const savedTheme = localStorage.getItem('theme') || 'dark';
 		theme.set(savedTheme);
-		document.fonts.ready.then(() => {
-			document.documentElement.classList.add('fonts-loaded');
-		});
+		document.documentElement.classList.add(savedTheme);
+
 		// Initialize ResizeObserver
 		if (navbarElement) {
 			resizeObserver = new ResizeObserver(updateNavHeight);
@@ -146,7 +145,7 @@
 		<NavBrand href="/">
 			<img src={logo} alt="Jo Pearson Logo" class="h-9 w-9 mr-[8px] pt-1 header-logo-pulse" />
 			<span
-				class="hidden lg:inline-block text-[16px] font-gruppo header-text text-arcadeWhite-300 dark:text-arcadeWhite-300 uppercase tracking-[24.96px] mt-[5px]"
+				class="hidden lg:inline-block text-[16px] header-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[24.96px] mt-[5px]"
 			>
 				Jo Pearson
 			</span>
