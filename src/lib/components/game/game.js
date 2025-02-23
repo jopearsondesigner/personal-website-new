@@ -3350,9 +3350,58 @@ function shoot(isHeatseeker = false, isPowerUp = false) {
 			// Only deduct ammo if not in unlimited mode
 			if (!unlimitedHeatseekersMode) {
 				heatseekerCount = Math.max(0, heatseekerCount - 1); // Prevent negative count
+
+				// Add floating text for remaining heatseekers
+				if (heatseekerCount === 0) {
+					floatingTexts.push(
+						new FloatingText(
+							player.x + player.width / 2,
+							player.y - 20,
+							'Out of Heat Seekers!',
+							NESPalette.red,
+							NESPalette.white,
+							90
+						)
+					);
+				} else {
+					floatingTexts.push(
+						new FloatingText(
+							player.x + player.width / 2,
+							player.y - 20,
+							`Heat Seekers: ${heatseekerCount}`,
+							NESPalette.lightOrange,
+							NESPalette.white,
+							90
+						)
+					);
+				}
+
 				drawHUD(); // Update HUD when ammo changes
+			} else {
+				// Show "Unlimited" text when in unlimited mode
+				floatingTexts.push(
+					new FloatingText(
+						player.x + player.width / 2,
+						player.y - 20,
+						'Heat Seeker',
+						NESPalette.lightGold,
+						NESPalette.white,
+						60
+					)
+				);
 			}
 		} else {
+			// Add floating text when out of heat seekers
+			floatingTexts.push(
+				new FloatingText(
+					player.x + player.width / 2,
+					player.y - 20,
+					'No Heat Seekers!',
+					NESPalette.red,
+					NESPalette.white,
+					60
+				)
+			);
 			return; // Exit if no heatseekers available
 		}
 	} else {
