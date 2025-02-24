@@ -264,7 +264,7 @@
 		height: 600px;
 		background: black;
 		border-radius: 20px;
-		outline: 6px solid rgba(34, 34, 34, 0.9);
+		outline: 6px solid var(--light-mode-bg);
 		box-shadow:
 			inset 0 0 50px rgba(0, 0, 0, 0.5),
 			0 0 30px rgba(0, 0, 0, 0.3);
@@ -386,7 +386,7 @@
 	@media (max-width: 1023px) {
 		.game-container {
 			border-radius: 12px;
-			outline: 4px solid rgba(34, 34, 34, 0.9);
+			outline: 6px solid var(--light-mode-bg);
 			margin: 0;
 			height: auto;
 			width: 100%;
