@@ -450,7 +450,7 @@
    Screen Components
    ========================================================================== */
 	.arcade-screen-wrapper {
-		position: relative;
+		position: absolute;
 		padding: var(--screen-recess);
 		transform: perspective(1000px) rotateX(2deg);
 		transform-style: preserve-3d;
@@ -1087,7 +1087,7 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		border-radius: var(--border-radius);
+		border-radius: 0;
 		overflow: hidden;
 		background: linear-gradient(180deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
 		box-shadow:
