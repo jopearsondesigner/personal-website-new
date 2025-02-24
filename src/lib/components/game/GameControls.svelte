@@ -5,6 +5,7 @@
 	import { fade } from 'svelte/transition';
 	import { browser } from '$app/environment';
 	import { writable } from 'svelte/store';
+	import { RotateCcw, Pause, Play, Crosshair, Rocket } from 'lucide-svelte';
 
 	export const menuOpen = writable(false);
 
@@ -442,9 +443,11 @@
 				on:mouseup={() => handleButtonRelease('reset')}
 				on:touchstart|preventDefault={(e) => handleButtonPress('reset', e)}
 				on:touchend={() => handleButtonRelease('reset')}
+				aria-label="Reset"
 			>
-				Reset
+				<RotateCcw class="w-4 h-4" />
 			</button>
+
 			<button
 				class="utility-button"
 				class:active={buttons.pause}
@@ -452,8 +455,9 @@
 				on:mouseup={() => handleButtonRelease('pause')}
 				on:touchstart|preventDefault={(e) => handleButtonPress('pause', e)}
 				on:touchend={() => handleButtonRelease('pause')}
+				aria-label="Pause"
 			>
-				Pause
+				<Pause class="w-4 h-4" />
 			</button>
 
 			<button
@@ -463,8 +467,9 @@
 				on:mouseup={() => handleButtonRelease('enter')}
 				on:touchstart|preventDefault={(e) => handleButtonPress('enter', e)}
 				on:touchend={() => handleButtonRelease('enter')}
+				aria-label="Start"
 			>
-				Start
+				<Play class="w-4 h-4" />
 			</button>
 		</div>
 	</div>
@@ -495,9 +500,10 @@
 				on:mouseup={() => handleButtonRelease('missile')}
 				on:touchstart|preventDefault={(e) => handleButtonPress('missile', e)}
 				on:touchend={() => handleButtonRelease('missile')}
+				aria-label="Heat Seeker"
 			>
 				<span class="button-face" />
-				<span class="button-label">HEAT<br />SEEKER</span>
+				<Crosshair class="button-icon" aria-hidden="true" />
 			</button>
 
 			<button
@@ -507,9 +513,10 @@
 				on:mouseup={() => handleButtonRelease('shoot')}
 				on:touchstart|preventDefault={(e) => handleButtonPress('shoot', e)}
 				on:touchend={() => handleButtonRelease('shoot')}
+				aria-label="Shoot"
 			>
 				<span class="button-face" />
-				<span class="button-label">SHOOT</span>
+				<Rocket class="button-icon" aria-hidden="true" />
 			</button>
 		</div>
 	</div>
@@ -594,50 +601,6 @@
 		position: relative;
 	}
 
-	.button-label {
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		font-family: 'Roboto', 'Press Start 2P', monospace;
-		font-weight: 600;
-		font-size: 0.6875rem;
-		color: rgba(245, 245, 220, 0.55);
-		text-shadow:
-			0 0 4px rgba(39, 255, 153, 0.6),
-			0 0 16px rgba(39, 255, 153, 0.4);
-		pointer-events: none;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		white-space: nowrap;
-		text-align: center;
-		width: 100%;
-		padding: 0 4px;
-	}
-
-	/* Mobile optimization */
-	@media (max-width: 480px) {
-		.button-label {
-			font-size: 0.75rem;
-		}
-	}
-
-	/* Active state animation */
-	.arcade-button.active .button-label {
-		transform: translate(-50%, -50%) scale(0.95);
-		text-shadow:
-			0 0 12px rgba(39, 255, 153, 0.8),
-			0 0 24px rgba(39, 255, 153, 0.6);
-	}
-
-	/* High contrast for light theme */
-	:global(html.light) .button-label {
-		color: rgba(0, 0, 0, 0.9);
-		text-shadow:
-			0 0 8px rgba(39, 255, 153, 0.8),
-			0 0 16px rgba(39, 255, 153, 0.6);
-	}
-
 	/* Joystick styles */
 	.joystick-container {
 		flex: 0 0 var(--joystick-size);
@@ -720,7 +683,7 @@
 		position: absolute;
 		top: 0;
 		left: 0;
-		transition: transform 0.1s ease;
+		transition: all 0.1s ease;
 		will-change: transform;
 		backface-visibility: hidden;
 		transform-style: preserve-3d;
@@ -730,6 +693,29 @@
 		transform: scale(0.95);
 		background: rgba(39, 255, 153, 0.2);
 		box-shadow: 0 0 15px rgba(39, 255, 153, 0.4);
+	}
+
+	.arcade-button :global(.button-icon) {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		width: 32px;
+		height: 32px;
+		color: rgba(245, 245, 220, 0.9);
+		transition: all 0.2s ease;
+	}
+
+	.arcade-button.active .button-face {
+		transform: scale(0.95);
+		background: rgba(39, 255, 153, 0.2);
+		box-shadow: 0 0 15px rgba(39, 255, 153, 0.4);
+	}
+
+	.arcade-button:hover :global(.button-icon),
+	.arcade-button.active :global(.button-icon) {
+		color: var(--neon-color);
+		filter: drop-shadow(0 0 8px rgba(39, 255, 153, 0.6));
 	}
 
 	/* Utility buttons */
@@ -745,11 +731,9 @@
 		background: var(--controls-background);
 		border: 1px solid var(--neon-color-dim);
 		border-radius: 4px;
-		color: rgba(245, 245, 220, 1);
-		font-family: 'Roboto', 'Press Start 2P', monospace;
-		font-weight: 600;
-		text-transform: uppercase;
-		font-size: 0.75rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		transition: all 0.1s ease;
 	}
 
@@ -757,6 +741,17 @@
 		transform: scale(0.95);
 		background: rgba(39, 255, 153, 0.2);
 		box-shadow: 0 0 10px rgba(39, 255, 153, 0.3);
+	}
+
+	.utility-button :global(svg) {
+		color: rgba(245, 245, 220, 0.9);
+		transition: color 0.2s ease;
+	}
+
+	.utility-button:hover :global(svg),
+	.utility-button.active :global(svg) {
+		color: var(--neon-color);
+		filter: drop-shadow(0 0 4px rgba(39, 255, 153, 0.6));
 	}
 
 	/* Responsive styles */
@@ -860,10 +855,6 @@
 	/* Theme adjustments */
 	:global(html.light) .controls-container {
 		--controls-background: rgba(43, 43, 43, 0.45);
-	}
-
-	:global(html.light) .button-label {
-		color: rgba(245, 245, 220, 1);
 	}
 
 	:global(html.light) .joystick-base,
