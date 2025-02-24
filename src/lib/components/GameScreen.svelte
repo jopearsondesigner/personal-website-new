@@ -174,7 +174,7 @@
 		justify-content: center;
 		align-items: center;
 		overflow: hidden;
-		background: #000000;
+		background-color: var(--dark-mode-bg);
 		padding: 2px;
 	}
 
@@ -341,7 +341,7 @@
 	}
 
 	:global(html.light) .game-background {
-		background: #c3d2e5; /* Slightly blue-tinted base for phosphor glow */
+		background-color: var(--light-mode-bg);
 		border: 1px solid rgba(140, 150, 170, 0.3);
 		box-shadow:
 			inset 0 0 20px rgba(0, 40, 80, 0.1),
