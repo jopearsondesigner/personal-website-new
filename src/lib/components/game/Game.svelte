@@ -34,7 +34,6 @@
 	let canvas: HTMLCanvasElement;
 	let gameContainer: HTMLDivElement;
 	let scale = 1;
-	let showSizeControl = false;
 	let scaleFactor = 0.9;
 	let controlsPosition = { x: 0, y: 0 };
 	let mounted = false;
@@ -177,50 +176,12 @@
 
 		mounted = false;
 	});
-
-	function adjustSize(size: number) {
-		scaleFactor = size;
-		calculateScale();
-	}
 </script>
 
 <div
 	class="game-wrapper relative w-full h-full flex items-center justify-center p-4 md:p-0"
 	bind:this={gameContainer}
 >
-	<!-- Size Control Button -->
-	<button
-		class="size-control-toggle hidden lg:block"
-		on:click={() => (showSizeControl = !showSizeControl)}
-		in:fade={{ duration: 300 }}
-	>
-		<span class="arcade-text flex items-center justify-center">
-			<Cog class="mr-2" size={12} />
-			<p class="mt-1">SIZE</p>
-		</span>
-	</button>
-
-	<!-- Size Control Panel -->
-	{#if showSizeControl}
-		<div
-			class="size-control-panel hidden lg:block"
-			in:fade={{ duration: 300 }}
-			out:fade={{ duration: 200 }}
-		>
-			<div class="size-options">
-				{#each [0.5, 0.6, 0.7, 0.8, 0.9] as size}
-					<button
-						class="size-option"
-						class:active={scaleFactor === size}
-						on:click={() => adjustSize(size)}
-					>
-						{size * 100}%
-					</button>
-				{/each}
-			</div>
-		</div>
-	{/if}
-
 	<div class="game-scale-wrapper flex justify-center items-center">
 		<div class="game-container" in:fade={{ duration: 800 }}>
 			<div id="reflection" class="absolute inset-0 pointer-events-none z-[3]" />
@@ -290,66 +251,6 @@
 		background: black;
 		position: relative;
 		z-index: 1;
-	}
-
-	/* Size Control Styles */
-	.size-control-toggle {
-		position: absolute;
-		top: 1rem;
-		right: 1rem;
-		background: rgba(43, 43, 43, 0.7);
-		border: 1px solid var(--arcade-neon-green-200);
-		border-radius: 4px;
-		padding: 0.45rem 0.65rem;
-		color: var(--arcade-neon-green-100);
-		font-family: 'Press Start 2P', monospace;
-		font-size: 0.5625rem;
-		cursor: pointer;
-		z-index: 100;
-		transition: all 0.3s ease;
-	}
-
-	.size-control-toggle:hover {
-		background: rgba(39, 255, 153, 0.1);
-		box-shadow: 0 0 10px rgba(39, 255, 153, 0.3);
-	}
-
-	.size-control-panel {
-		position: absolute;
-		top: 4rem;
-		right: 1rem;
-		background: rgba(43, 43, 43, 0.7);
-		border: 1px solid var(--arcade-neon-green-200);
-		border-radius: 4px;
-		padding: 0.65rem;
-		z-index: 100;
-		box-shadow: 0 0 20px rgba(39, 255, 153, 0.2);
-	}
-
-	.size-options {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.size-option {
-		font-family: 'Press Start 2P', monospace;
-		font-size: 0.625rem;
-		padding: 0.45rem 0.65rem;
-		background: transparent;
-		border: 1px solid var(--arcade-neon-green-100);
-		color: var(--arcade-neon-green-100);
-		cursor: pointer;
-		transition: all 0.3s ease;
-	}
-
-	.size-option:hover {
-		background: rgba(39, 255, 153, 0.1);
-	}
-
-	.size-option.active {
-		background: var(--arcade-neon-green-200);
-		color: rgb(26, 26, 26);
 	}
 
 	/* Visual Effects */
