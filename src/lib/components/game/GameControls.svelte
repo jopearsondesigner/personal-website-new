@@ -493,31 +493,37 @@
 		</div>
 
 		<div class="action-buttons">
-			<button
-				class="arcade-button secondary-action"
-				class:active={buttons.missile}
-				on:mousedown|preventDefault={(e) => handleButtonPress('missile', e)}
-				on:mouseup={() => handleButtonRelease('missile')}
-				on:touchstart|preventDefault={(e) => handleButtonPress('missile', e)}
-				on:touchend={() => handleButtonRelease('missile')}
-				aria-label="Heat Seeker"
-			>
-				<span class="button-face" />
-				<Crosshair class="button-icon" aria-hidden="true" />
-			</button>
+			<div class="button-group">
+				<span class="button-label">HEATSEEKER</span>
+				<button
+					class="arcade-button secondary-action"
+					class:active={buttons.missile}
+					on:mousedown|preventDefault={(e) => handleButtonPress('missile', e)}
+					on:mouseup={() => handleButtonRelease('missile')}
+					on:touchstart|preventDefault={(e) => handleButtonPress('missile', e)}
+					on:touchend={() => handleButtonRelease('missile')}
+					aria-label="Heat Seeker"
+				>
+					<span class="button-face" />
+					<Crosshair class="button-icon" aria-hidden="true" />
+				</button>
+			</div>
 
-			<button
-				class="arcade-button primary-action"
-				class:active={buttons.shoot}
-				on:mousedown|preventDefault={(e) => handleButtonPress('shoot', e)}
-				on:mouseup={() => handleButtonRelease('shoot')}
-				on:touchstart|preventDefault={(e) => handleButtonPress('shoot', e)}
-				on:touchend={() => handleButtonRelease('shoot')}
-				aria-label="Shoot"
-			>
-				<span class="button-face" />
-				<Rocket class="button-icon" aria-hidden="true" />
-			</button>
+			<div class="button-group">
+				<span class="button-label">SHOOT</span>
+				<button
+					class="arcade-button primary-action"
+					class:active={buttons.shoot}
+					on:mousedown|preventDefault={(e) => handleButtonPress('shoot', e)}
+					on:mouseup={() => handleButtonRelease('shoot')}
+					on:touchstart|preventDefault={(e) => handleButtonPress('shoot', e)}
+					on:touchend={() => handleButtonRelease('shoot')}
+					aria-label="Shoot"
+				>
+					<span class="button-face" />
+					<Rocket class="button-icon" aria-hidden="true" />
+				</button>
+			</div>
 		</div>
 	</div>
 
@@ -663,8 +669,9 @@
 
 	.action-buttons {
 		display: flex;
-		gap: 1rem; /* Reduced from 1.5rem */
+		gap: 1rem;
 		justify-content: flex-end;
+		align-items: flex-end; /* Changed to align-items: flex-end to align the buttons */
 	}
 
 	.arcade-button {
@@ -687,6 +694,36 @@
 		will-change: transform;
 		backface-visibility: hidden;
 		transform-style: preserve-3d;
+	}
+
+	.button-group {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.button-label {
+		font-size: 0.6rem;
+		color: rgba(245, 245, 220, 0.9);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		margin-bottom: 4px;
+		text-align: center;
+		font-weight: 500;
+		user-select: none;
+		text-shadow: 0 0 4px rgba(39, 255, 153, 0.4);
+	}
+
+	@media (max-width: 480px) {
+		.button-label {
+			font-size: 0.55rem;
+			margin-bottom: 6px;
+		}
+	}
+
+	.arcade-button.active + .button-label,
+	.arcade-button:hover + .button-label {
+		color: var(--neon-color);
 	}
 
 	.arcade-button.active .button-face {
@@ -862,5 +899,10 @@
 	:global(html.light) .utility-button {
 		background: rgba(200, 200, 200, 0.2);
 		border-color: rgba(39, 255, 153, 0.25);
+	}
+
+	:global(html.light) .button-label {
+		color: rgba(245, 245, 220, 0.9);
+		text-shadow: 0 0 4px rgba(39, 255, 153, 0.4);
 	}
 </style>
