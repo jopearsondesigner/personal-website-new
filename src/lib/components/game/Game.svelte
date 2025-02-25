@@ -264,12 +264,17 @@
 		height: 600px;
 		background: black;
 		border-radius: 20px;
-		outline: 6px solid var(--light-mode-bg);
+		outline: 6px solid var(--dark-mode-bg);
 		box-shadow:
 			inset 0 0 50px rgba(0, 0, 0, 0.5),
 			0 0 30px rgba(0, 0, 0, 0.3);
 		overflow: hidden;
 		transform-origin: center;
+	}
+
+	/* Add light mode styles */
+	:global(.light) .game-container {
+		outline: 6px solid var(--light-mode-bg);
 	}
 
 	/* Canvas Styles */
@@ -386,10 +391,14 @@
 	@media (max-width: 1023px) {
 		.game-container {
 			border-radius: 12px;
-			outline: 6px solid var(--light-mode-bg);
+			outline: 6px solid var(--dark-mode-bg);
 			margin: 0;
 			height: auto;
 			width: 100%;
+		}
+
+		:global(.light) .game-container {
+			outline: 6px solid var(--light-mode-bg);
 		}
 
 		.game-wrapper {

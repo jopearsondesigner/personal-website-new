@@ -359,63 +359,62 @@
 	}
 
 	:global(html.light) .side-panel {
-		background: linear-gradient(
-			to bottom,
-			rgba(185, 200, 220, 0.8) 0%,
-			rgba(175, 190, 210, 0.8) 100%
-		);
+		/* Use a semi-transparent version of the same gradient as the game screen */
+		background: linear-gradient(90deg, rgba(0, 183, 255, 0.75) 0%, rgba(123, 97, 255, 0.75) 100%);
 		backdrop-filter: blur(8px);
-		border: 1px solid rgba(140, 160, 190, 0.2);
+		border: 1px solid rgba(255, 255, 255, 0.2);
 		box-shadow:
 			inset 0 1px 2px rgba(255, 255, 255, 0.3),
 			0 2px 4px rgba(0, 20, 40, 0.05);
-		border-radius: 3vmin 0 0 3vmin;
 	}
 
 	:global(html.light) .side-panel.left {
-		border-right: 1px solid rgba(0, 0, 0, 0.04);
+		/* Gradient direction adjusted for left panel */
+		background: linear-gradient(90deg, rgba(0, 183, 255, 0.75) 0%, rgba(123, 97, 255, 0.75) 100%);
+		border-right: 1px solid rgba(255, 255, 255, 0.15);
 	}
 
 	:global(html.light) .side-panel.right {
-		border-left: 1px solid rgba(0, 0, 0, 0.04);
-		border-radius: 0 3vmin 3vmin 0;
+		/* Gradient direction adjusted for right panel */
+		background: linear-gradient(90deg, rgba(123, 97, 255, 0.75) 0%, rgba(183, 61, 255, 0.75) 100%);
+		border-left: 1px solid rgba(255, 255, 255, 0.15);
 	}
 
 	:global(html.light) .arcade-text {
-		color: rgba(20, 30, 50, 0.9);
+		color: rgba(255, 255, 255, 0.9);
 		text-shadow:
-			0 0 1px rgba(100, 130, 180, 0.3),
-			0 0 2px rgba(120, 150, 200, 0.2);
+			0 0 1px rgba(0, 0, 0, 0.3),
+			0 0 2px rgba(0, 0, 0, 0.2);
 	}
 
 	:global(html.light) .arcade-text .label {
-		opacity: 0.7;
+		opacity: 0.9;
 		font-weight: 500;
 		letter-spacing: 0.5px;
 	}
 
 	:global(html.light) .arcade-text .value {
-		color: rgba(60, 76, 108, 0.95);
+		color: rgba(255, 255, 255, 0.95);
 		text-shadow:
-			0 0 1px rgba(80, 110, 160, 0.4),
-			0 0 2px rgba(100, 130, 180, 0.3);
+			0 0 1px rgba(0, 0, 0, 0.4),
+			0 0 2px rgba(0, 0, 0, 0.3);
 	}
 
 	:global(html.light) .neon-line {
 		background: linear-gradient(
 			90deg,
 			transparent,
-			rgba(100, 130, 180, 0.2) 20%,
-			rgba(100, 130, 180, 0.2) 80%,
+			rgba(255, 255, 255, 0.4) 20%,
+			rgba(255, 255, 255, 0.4) 80%,
 			transparent
 		);
-		box-shadow: 0 0 4px rgba(100, 130, 180, 0.15);
+		box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
 	}
 
 	:global(html.light) .pixel-decoration {
-		background-image: linear-gradient(45deg, rgba(100, 130, 180, 0.1) 25%, transparent 25%),
-			linear-gradient(-45deg, rgba(100, 130, 180, 0.1) 25%, transparent 25%);
-		opacity: 0.6;
+		background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.2) 25%, transparent 25%),
+			linear-gradient(-45deg, rgba(255, 255, 255, 0.2) 25%, transparent 25%);
+		opacity: 0.3;
 	}
 
 	:global(html.light) Game {
