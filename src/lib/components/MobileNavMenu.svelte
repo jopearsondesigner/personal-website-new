@@ -4,6 +4,7 @@
 	import { cubicInOut } from 'svelte/easing';
 	import { Sun, Moon } from 'svelte-bootstrap-icons';
 	import { theme } from '$lib/stores/theme';
+	import { onMount, onDestroy } from 'svelte';
 
 	export let isOpen = false;
 
@@ -28,6 +29,8 @@
 	function toggleTheme() {
 		theme.update((currentTheme) => {
 			const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+			document.documentElement.classList.toggle('dark', newTheme === 'dark');
+			document.documentElement.classList.toggle('light', newTheme === 'light');
 			localStorage.setItem('theme', newTheme);
 			return newTheme;
 		});
@@ -36,41 +39,51 @@
 	function closeMenu() {
 		isOpen = false;
 	}
+
+	// Lock body scroll when menu is open
+	$: if (typeof document !== 'undefined') {
+		if (isOpen) {
+			document.body.classList.add('menu-open');
+		} else {
+			document.body.classList.remove('menu-open');
+		}
+	}
+
+	// Clean up on component destroy
+	onDestroy(() => {
+		if (typeof document !== 'undefined') {
+			document.body.classList.remove('menu-open');
+		}
+	});
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
 
-<!-- Hamburger Button -->
-<button
-	on:click={toggleMenu}
-	class="relative z-50 p-2 rounded-full transition-colors duration-200
-           text-arcadeBlack-500 dark:text-arcadeWhite-300
-           hover:bg-arcadeBlack-100/50 dark:hover:bg-arcadeBlack-700/50"
-	aria-label="Toggle Menu"
-	aria-expanded={isOpen}
->
-	<div class="w-6 h-6 flex items-center justify-center">
-		<div class="relative w-5 h-4">
-			<span
-				class="absolute w-full h-0.5 bg-current transform transition-all duration-200
-                       {isOpen ? 'rotate-45 top-1.5' : 'rotate-0 top-0'}"
-			></span>
-			<span
-				class="absolute w-full h-0.5 bg-current top-1.5 transition-opacity duration-200
-                       {isOpen ? 'opacity-0' : 'opacity-100'}"
-			></span>
-			<span
-				class="absolute w-full h-0.5 bg-current transform transition-all duration-200
-                       {isOpen ? '-rotate-45 top-1.5' : 'rotate-0 top-3'}"
-			></span>
+<!-- Hamburger Button (only shown when menu is closed) -->
+{#if !isOpen}
+	<button
+		on:click={toggleMenu}
+		class="relative z-50 p-2 rounded-full
+			text-arcadeBlack-500 dark:text-arcadeWhite-300
+			hover:bg-arcadeBlack-100/50 dark:hover:bg-arcadeBlack-700/50"
+		aria-label="Open Menu"
+		aria-expanded="false"
+		aria-controls="mobile-menu"
+	>
+		<div class="w-6 h-6 flex items-center justify-center">
+			<div class="relative w-5 h-4">
+				<span class="absolute w-full h-0.5 bg-current top-0"></span>
+				<span class="absolute w-full h-0.5 bg-current top-1.5"></span>
+				<span class="absolute w-full h-0.5 bg-current top-3"></span>
+			</div>
 		</div>
-	</div>
-</button>
+	</button>
+{/if}
 
 {#if isOpen}
 	<!-- Backdrop -->
 	<div
-		class="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+		class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
 		on:click={closeMenu}
 		on:keydown={(e) => e.key === 'Enter' && closeMenu()}
 		transition:fade={{ duration: 200 }}
@@ -78,25 +91,20 @@
 	>
 		<!-- Menu Panel -->
 		<div
-			class="fixed inset-y-0 right-0 z-50 w-full max-w-sm bg-white/95 dark:bg-arcadeBlack-900/95
-                   shadow-2xl flex flex-col overflow-y-auto"
+			id="mobile-menu"
+			class="fixed inset-y-0 right-0 z-50 w-full max-w-xs
+				bg-[var(--light-mode-bg)] dark:bg-[var(--dark-mode-bg)]
+				shadow-xl flex flex-col overflow-y-auto"
 			transition:fly={{ x: 300, duration: 300, easing: cubicInOut }}
 			on:click|stopPropagation
 		>
-			<!-- Header -->
-			<div
-				class="sticky top-0 px-6 py-4 border-b border-arcadeBlack-200/10
-                       dark:border-arcadeWhite-300/10 backdrop-blur-sm
-                       bg-white/80 dark:bg-arcadeBlack-900/80
-                       flex items-center justify-between"
-			>
-				<h2 class="text-lg font-medium text-arcadeBlack-800 dark:text-arcadeWhite-300">
-					Navigation
-				</h2>
+			<!-- Top area with close button (no header label) -->
+			<div class="px-4 py-4 flex justify-end">
 				<button
 					on:click={closeMenu}
-					class="p-2 rounded-full hover:bg-arcadeBlack-100/50
-                           dark:hover:bg-arcadeBlack-700/50 transition-colors duration-200"
+					class="p-2 rounded-full
+						hover:bg-arcadeBlack-100 dark:hover:bg-arcadeBlack-600
+						text-arcadeBlack-500 dark:text-arcadeWhite-300"
 					aria-label="Close menu"
 				>
 					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -111,69 +119,42 @@
 			</div>
 
 			<!-- Navigation Links -->
-			<nav class="flex-1 px-6 py-8">
-				<div class="space-y-6">
+			<nav class="flex-1 px-6 py-2">
+				<div class="space-y-5">
 					{#each menuItems as item, index}
 						<a
 							href={item.href}
-							class="group block text-xl font-medium transform transition-all duration-200
-							   text-arcadeBlack-700 dark:text-arcadeWhite-300
-							   hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500"
-							style="transition-delay: {100 + index * 50}ms"
+							class="block text-base
+								text-arcadeBlack-500 dark:text-arcadeWhite-300
+								hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500"
 							on:click={closeMenu}
-							transition:fly={{ x: 30, duration: 200, delay: 100 + index * 50 }}
 						>
-							<div class="flex items-center space-x-2">
-								<span
-									class="transform transition-transform duration-200
-									   group-hover:translate-x-2"
-								>
-									{item.label}
-								</span>
-								<svg
-									class="w-4 h-4 opacity-0 -translate-x-2 transition-all duration-200
-									   group-hover:opacity-100 group-hover:translate-x-0"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M9 5l7 7-7 7"
-									/>
-								</svg>
-							</div>
+							{item.label}
 						</a>
 					{/each}
 				</div>
 			</nav>
 
 			<!-- Footer -->
-			<div
-				class="sticky bottom-0 px-6 py-4 border-t border-arcadeBlack-200/10
-                       dark:border-arcadeWhite-300/10 backdrop-blur-sm
-                       bg-white/80 dark:bg-arcadeBlack-900/80"
-			>
+			<div class="px-6 py-4 border-t border-arcadeBlack-200 dark:border-arcadeBlack-600">
 				<button
 					on:click={toggleTheme}
 					class="flex items-center justify-between w-full p-3 rounded-lg
-                           text-arcadeBlack-700 dark:text-arcadeWhite-300
-                           hover:bg-arcadeBlack-100/50 dark:hover:bg-arcadeWhite-300/5
-                           transition-colors duration-200"
+						text-arcadeBlack-500 dark:text-arcadeWhite-300
+						hover:bg-arcadeBlack-100 dark:hover:bg-arcadeBlack-600"
+					aria-label={$theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
 				>
 					<div class="flex items-center space-x-3">
 						{#if $theme === 'dark'}
-							<Sun class="w-5 h-5" />
-							<span>Light Mode</span>
+							<Sun class="w-4 h-4" />
+							<span>{$theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
 						{:else}
-							<Moon class="w-5 h-5" />
-							<span>Dark Mode</span>
+							<Moon class="w-4 h-4" />
+							<span>{$theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
 						{/if}
 					</div>
 					<svg
-						class="w-4 h-4 text-arcadeBlack-400 dark:text-arcadeWhite-500"
+						class="w-3 h-3 text-arcadeBlack-400 dark:text-arcadeWhite-300"
 						fill="none"
 						stroke="currentColor"
 						viewBox="0 0 24 24"
@@ -182,7 +163,7 @@
 							stroke-linecap="round"
 							stroke-linejoin="round"
 							stroke-width="2"
-							d="M19 9l-7 7-7-7"
+							d="M9 5l5 5-5 5"
 						/>
 					</svg>
 				</button>
@@ -215,31 +196,6 @@
 		overflow: hidden;
 		position: fixed;
 		width: 100%;
-	}
-
-	/* Optional: Add subtle hover animation for menu items */
-	a {
-		position: relative;
-	}
-
-	a::after {
-		content: '';
-		position: absolute;
-		bottom: -2px;
-		left: 0;
-		width: 0;
-		height: 1px;
-		background-color: theme(colors.arcadeNeonGreen.500);
-		transition: width 0.2s ease;
-	}
-
-	a:hover::after {
-		width: 100%;
-	}
-
-	/* Ensure smooth animations */
-	* {
-		backface-visibility: hidden;
-		-webkit-backface-visibility: hidden;
+		height: 100%;
 	}
 </style>

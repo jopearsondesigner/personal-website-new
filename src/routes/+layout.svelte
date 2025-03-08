@@ -1,12 +1,11 @@
 <!-- +layout.svelte -->
 <script lang="ts">
 	import '../app.css';
-	import { Navbar, NavBrand, Drawer, Button, CloseButton } from 'flowbite-svelte';
+	import { Navbar, NavBrand } from 'flowbite-svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import { loadingStore } from '$lib/stores/loading';
 	import logo from '$lib/assets/images/logo-black.svg';
-	import { sineIn } from 'svelte/easing';
 	import { Sun, Moon } from 'svelte-bootstrap-icons';
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import { theme } from '$lib/stores/theme';
@@ -21,18 +20,10 @@
 	let navbarElement: HTMLElement;
 	let contentWrapper: HTMLElement;
 	let isMenuOpen = false;
-	let hidden = true;
 
 	// Create stores with initial values
 	export const navbarHeight = writable(0);
 	const activeNavItem = writable('/');
-
-	// Memoize transition parameters
-	const transitionParamsRight = {
-		x: 320,
-		duration: 200,
-		easing: sineIn
-	};
 
 	// Debounced navbar height update function
 	const updateNavHeight = (() => {
@@ -79,10 +70,6 @@
 	// Simplified nav link click handler
 	function handleNavLinkClick(path: string) {
 		activeNavItem.set(path);
-	}
-
-	function toggleDrawer() {
-		hidden = !hidden;
 	}
 
 	// Initialization and cleanup logic
@@ -141,7 +128,9 @@
 		? 'navbar-background-dark'
 		: 'navbar-background-light'} p-container-padding box-border md:shadow-header"
 >
-	<Navbar class="container max-w-screen-xl mx-auto px-4 flex justify-between items-center">
+	<Navbar
+		class="container max-w-screen-xl mx-auto px-4 flex justify-between items-center bg-transparent"
+	>
 		<NavBrand href="/">
 			<img src={logo} alt="Jo Pearson Logo" class="h-9 w-9 mr-[8px] pt-1 header-logo-pulse" />
 			<span
@@ -195,61 +184,6 @@
 		</div>
 	</Navbar>
 </nav>
-
-<!-- Mobile Drawer -->
-<Drawer
-	placement="right"
-	transitionType="fly"
-	transitionParams={transitionParamsRight}
-	bind:hidden
-	id="sidebar"
-	class="{$theme === 'dark' ? 'navbar-background-dark' : 'navbar-background-light'} p-4"
->
-	<div class="flex items-center justify-between">
-		<h5
-			id="drawer-label"
-			class="inline-flex items-center mb-4 text-base font-semibold text-gray-500 dark:text-gray-400"
-		>
-			Navigation Menu
-		</h5>
-		<CloseButton on:click={toggleDrawer} class="mb-4 text-[color:var(--arcade-white-300)]" />
-	</div>
-
-	<div class="nav-button-group-mobile">
-		{#each ['/', '/#work', '/#about', '/#contact', '/blog'] as path}
-			<a
-				href={path}
-				class="nav-button-mobile"
-				class:active={$activeNavItem === path}
-				on:click={() => {
-					handleNavLinkClick(path);
-					toggleDrawer();
-				}}
-			>
-				{#if path === '/'}
-					Home
-				{:else if path.startsWith('/#')}
-					{path.slice(2).charAt(0).toUpperCase() + path.slice(3)}
-				{:else}
-					{path.slice(1).charAt(0).toUpperCase() + path.slice(1).substring(1)}
-				{/if}
-			</a>
-		{/each}
-
-		<button
-			on:click={toggleTheme}
-			class="nav-button-mobile flex items-center"
-			aria-label="Toggle Dark Mode"
-		>
-			{#if $theme === 'dark'}
-				<Sun class="mr-2" />
-			{:else}
-				<Moon class="mr-2" />
-			{/if}
-			Theme
-		</button>
-	</div>
-</Drawer>
 
 <main bind:this={contentWrapper} class="content-wrapper">
 	<slot />
