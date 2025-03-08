@@ -107,6 +107,8 @@ const ENEMY_CONFIG = {
 	]
 };
 
+const SHOW_DEBUG_VISUALS = true; // Set to true to see physics debugging
+
 let maxEnemies = ENEMY_CONFIG.INITIAL_MAX_ENEMIES;
 let enemyInterval = ENEMY_CONFIG.INITIAL_SPAWN_RATE;
 
@@ -252,17 +254,25 @@ function initializePlayer() {
 		y: canvas.height - 87.5 - 5,
 		width: 80,
 		height: 87.5,
-		speed: SPEED_CONFIG.BASE_PLAYER_SPEED,
-		acceleration: 0.2,
-		friction: 0.9,
+		// Physics parameters tuned for Mario-style movement
+		speed: 4, // Maximum horizontal speed
+		acceleration: 0.4, // Acceleration rate (higher than before for snappier response)
+		friction: 0.85, // Friction when not pressing movement keys (lower for more slide)
 		velocityX: 0,
 		velocityY: 0,
-		gravity: 0.5,
+		jumpForce: 10, // Initial jump velocity
+		gravity: 0.5, // Gravity pulling down
+		fallMultiplier: 1.5, // Makes falling faster than rising (Mario-like)
+		jumpCutMultiplier: 1.8, // For variable jump height based on button hold time
+		terminalVelocity: 12, // Maximum falling speed
 		isGrounded: false,
 		movingLeft: false,
 		movingRight: false,
 		isJumping: false,
+		jumpPressed: false, // Track if jump button is held
 		canDoubleJump: true,
+		skidding: false, // New property for skid effect
+		skidThreshold: 2, // Speed threshold to trigger skidding
 		dashSpeed: 10,
 		isDashing: false,
 		dashCooldown: 0,
@@ -273,9 +283,12 @@ function initializePlayer() {
 		spriteWidth: 80,
 		spriteHeight: 87.5,
 		currentFrame: 0,
-		frameCount: 4,
+		frameCount: 6, // Updated for the complete animation sequence
 		frameTimer: 0,
-		frameInterval: 8,
+		// Animation timing varies by movement state
+		frameInterval: 8, // Base frame interval
+		runningFrameInterval: 6, // Faster animation when running at full speed
+		skidFrameInterval: 4, // Even faster animation during skidding
 		isExploding: false,
 		explosionFrame: 0,
 		spriteImage: null, // Initialize as null first
@@ -283,8 +296,10 @@ function initializePlayer() {
 		loadRetries: 0,
 		maxRetries: 3,
 		direction: 'right',
-		frameSequence: [2, 3, 2, 4],
+		// Specific Mario-style frame sequence
+		frameSequence: [0, 1, 2, 1, 3, 1], // C1→C2→C3→C2→C4→C2 sequence
 		sequenceIndex: 0,
+		runAnimationStarted: false, // Track if running animation has started
 
 		init: function () {
 			// Create new Image instance
@@ -330,99 +345,242 @@ function initializePlayer() {
 		},
 
 		update: function () {
-			// Frame sync for movement (4-frame cycle typical in classics)
-			const shouldMove = gameFrame % 4 === 0;
-
+			// Handle explosion animation separately
 			if (this.isExploding) {
-				this.explosionFrame++;
-				if (this.explosionFrame > 2) {
-					this.isExploding = false;
-					this.explosionFrame = 0;
-					this.x = -100;
-					this.y = -100;
-					setTimeout(() => {
-						if (lives <= 0) {
-							gameActive = false;
-							drawGameOverScreen();
-						}
-					}, 1000);
-				}
+				this.handleExplosionAnimation();
+				return;
+			}
+
+			// Movement and physics update
+			this.updateMovement();
+
+			// Collision handling with ground
+			this.handleGroundCollision();
+
+			// Update animation states
+			this.updateAnimation();
+
+			// Handle dash cooldown
+			if (this.dashCooldown > 0) {
+				this.dashCooldown -= timeMultiplier;
+			}
+		},
+
+		updateMovement: function () {
+			// Horizontal movement with acceleration/deceleration
+			if (this.isDashing) {
+				this.handleDashing();
 			} else {
-				if (this.isDashing) {
-					this.dodgeEnemyProjectiles();
-					this.x += this.dashSpeed * timeMultiplier * (this.direction === 'left' ? -1 : 1);
-					this.dashDuration -= timeMultiplier;
-					if (this.dashDuration <= 0) {
-						this.isDashing = false;
-						this.dashCooldown = this.dashCooldownDuration;
-					}
-				} else if (this.dashCooldown > 0) {
-					this.dashCooldown -= timeMultiplier;
+				this.handleHorizontalMovement();
+			}
+
+			// Apply friction when not actively moving
+			if (!this.movingLeft && !this.movingRight && !this.isDashing) {
+				this.applyFriction();
+			}
+
+			// Screen wrapping
+			this.handleScreenWrapping();
+
+			// Jump physics
+			this.handleJumpPhysics();
+		},
+
+		handleHorizontalMovement: function () {
+			const wasMovingFast = Math.abs(this.velocityX) > this.speed * 0.8;
+
+			// Detect direction change for skidding effect
+			if (
+				(this.velocityX > this.skidThreshold && this.movingLeft) ||
+				(this.velocityX < -this.skidThreshold && this.movingRight)
+			) {
+				this.skidding = true;
+			} else {
+				this.skidding = false;
+			}
+
+			// Apply acceleration based on input
+			if (this.movingLeft) {
+				// Faster deceleration when changing direction (skidding)
+				if (this.velocityX > 0 && this.skidding) {
+					this.velocityX -= this.acceleration * 1.5 * timeMultiplier;
+				} else {
+					this.velocityX = Math.max(
+						this.velocityX - this.acceleration * timeMultiplier,
+						-this.speed
+					);
+				}
+				this.direction = 'left';
+			} else if (this.movingRight) {
+				// Faster deceleration when changing direction (skidding)
+				if (this.velocityX < 0 && this.skidding) {
+					this.velocityX += this.acceleration * 1.5 * timeMultiplier;
+				} else {
+					this.velocityX = Math.min(
+						this.velocityX + this.acceleration * timeMultiplier,
+						this.speed
+					);
+				}
+				this.direction = 'right';
+			}
+
+			// Update x position based on velocity
+			this.x += this.velocityX * timeMultiplier;
+		},
+
+		applyFriction: function () {
+			// Apply friction to gradually slow down
+			this.velocityX *= Math.pow(this.friction, timeMultiplier);
+
+			// Stop completely if moving very slowly
+			if (Math.abs(this.velocityX) < 0.1) {
+				this.velocityX = 0;
+				// Reset animation when stopped
+				if (this.runAnimationStarted) {
+					this.runAnimationStarted = false;
+					this.sequenceIndex = 0;
+					this.currentFrame = this.frameSequence[0];
+					this.frameX = this.currentFrame * this.spriteWidth;
+				}
+			}
+		},
+
+		handleScreenWrapping: function () {
+			// Screen wrapping logic
+			if (this.x + this.width < 0) {
+				this.x = canvas.width;
+			} else if (this.x > canvas.width) {
+				this.x = -this.width;
+			}
+		},
+
+		handleJumpPhysics: function () {
+			// Handle jump initiation
+			if (this.isJumping) {
+				this.velocityY = -this.jumpForce;
+
+				if (this.isGrounded) {
+					this.isGrounded = false;
+				} else if (this.canDoubleJump) {
+					this.canDoubleJump = false;
 				}
 
-				if (shouldMove) {
-					if (this.movingLeft) {
-						this.velocityX = Math.max(
-							this.velocityX - this.acceleration * timeMultiplier,
-							-this.speed
-						);
-						this.direction = 'left';
-					} else if (this.movingRight) {
-						this.velocityX = Math.min(
-							this.velocityX + this.acceleration * timeMultiplier,
-							this.speed
-						);
-						this.direction = 'right';
-					} else {
-						this.velocityX *= Math.pow(this.friction, timeMultiplier);
-						if (Math.abs(this.velocityX) < 0.1) {
-							this.velocityX = 0;
-						}
-					}
+				this.isJumping = false;
+				this.jumpPressed = true;
+			}
 
-					this.x += this.velocityX * timeMultiplier;
+			// Variable jump height based on button release
+			if (!this.jumpPressed && this.velocityY < 0) {
+				// Cut the jump short if button is released during upward motion
+				this.velocityY *= 0.5;
+			}
+
+			// Apply gravity with Mario-style faster falling
+			if (!this.isGrounded) {
+				// Apply stronger gravity when falling for Mario-like feel
+				if (this.velocityY > 0) {
+					this.velocityY += this.gravity * this.fallMultiplier * timeMultiplier;
+				} else {
+					this.velocityY += this.gravity * timeMultiplier;
 				}
 
-				if (this.x + this.width < 0) {
-					this.x = canvas.width;
-				} else if (this.x > canvas.width) {
-					this.x = -this.width;
-				}
+				// Apply terminal velocity cap
+				this.velocityY = Math.min(this.velocityY, this.terminalVelocity);
 
-				if (this.isJumping) {
-					this.velocityY = -10;
-					if (this.isGrounded) {
-						this.isGrounded = false;
-					} else if (this.canDoubleJump) {
-						this.canDoubleJump = false;
-					}
-					this.isJumping = false;
-				}
+				// Update position based on velocity
+				this.y += this.velocityY * timeMultiplier;
+			}
+		},
+
+		handleGroundCollision: function () {
+			// Ground collision detection
+			if (this.y + this.height > canvas.height - 5) {
+				this.y = canvas.height - this.height - 5;
+				this.velocityY = 0;
 
 				if (!this.isGrounded) {
-					this.velocityY += this.gravity * timeMultiplier;
-					this.y += this.velocityY * timeMultiplier;
-					if (this.y + this.height > canvas.height - 5) {
-						this.y = canvas.height - this.height - 5;
-						this.velocityY = 0;
-						this.isGrounded = true;
-						this.canDoubleJump = true;
-					}
-				}
+					this.isGrounded = true;
+					this.canDoubleJump = true;
 
-				if (this.movingLeft || this.movingRight) {
-					this.frameTimer += timeMultiplier;
-					if (this.frameTimer >= this.frameInterval) {
-						this.sequenceIndex = (this.sequenceIndex + 1) % this.frameSequence.length;
-						this.currentFrame = this.frameSequence[this.sequenceIndex] - 1;
-						this.frameX = this.currentFrame * this.spriteWidth;
-						this.frameTimer = 0;
+					// Landing animation reset
+					if (Math.abs(this.velocityX) < 0.5) {
+						this.currentFrame = 0;
+						this.frameX = 0;
+						this.sequenceIndex = 0;
+						this.runAnimationStarted = false;
 					}
-				} else {
-					this.currentFrame = 0;
-					this.frameX = this.currentFrame * this.spriteWidth;
-					this.sequenceIndex = 0;
 				}
+			}
+		},
+
+		handleDashing: function () {
+			this.dodgeEnemyProjectiles();
+			this.x += this.dashSpeed * timeMultiplier * (this.direction === 'left' ? -1 : 1);
+			this.dashDuration -= timeMultiplier;
+
+			if (this.dashDuration <= 0) {
+				this.isDashing = false;
+				this.dashCooldown = this.dashCooldownDuration;
+			}
+		},
+
+		updateAnimation: function () {
+			// Determine the appropriate frame interval based on movement state
+			let currentFrameInterval = this.frameInterval;
+
+			if (this.skidding) {
+				currentFrameInterval = this.skidFrameInterval;
+			} else if (Math.abs(this.velocityX) > this.speed * 0.7) {
+				currentFrameInterval = this.runningFrameInterval;
+			}
+
+			// Update animation frames for running
+			if (this.movingLeft || this.movingRight || Math.abs(this.velocityX) > 0.5) {
+				this.runAnimationStarted = true;
+				this.frameTimer += timeMultiplier;
+
+				if (this.frameTimer >= currentFrameInterval) {
+					// Progress through the frame sequence
+					this.sequenceIndex = (this.sequenceIndex + 1) % this.frameSequence.length;
+					this.currentFrame = this.frameSequence[this.sequenceIndex];
+					this.frameX = this.currentFrame * this.spriteWidth;
+					this.frameTimer = 0;
+				}
+			} else if (!this.isGrounded) {
+				// Jump/fall frame
+				this.currentFrame = 2; // Use jump frame
+				this.frameX = this.currentFrame * this.spriteWidth;
+			} else {
+				// Standing still
+				this.currentFrame = 0;
+				this.frameX = 0;
+				this.sequenceIndex = 0;
+			}
+		},
+
+		handleExplosionAnimation: function () {
+			// Death/explosion animation sequence
+			const explosionSequence = [4, 5, 6]; // C5→C6→C7 (frames 5, 6, 7 in sprite sheet)
+			this.explosionFrame++;
+
+			// Update the visual frame based on explosion progress
+			const explosionIndex = Math.min(Math.floor(this.explosionFrame / 10), 2);
+			this.currentFrame = explosionSequence[explosionIndex];
+			this.frameX = this.currentFrame * this.spriteWidth;
+
+			// End the explosion sequence
+			if (this.explosionFrame > 30) {
+				this.isExploding = false;
+				this.explosionFrame = 0;
+				this.x = -100;
+				this.y = -100;
+
+				setTimeout(() => {
+					if (lives <= 0) {
+						gameActive = false;
+						drawGameOverScreen();
+					}
+				}, 1000);
 			}
 		},
 
@@ -455,31 +613,23 @@ function initializePlayer() {
 					ctx.shadowColor = this.glowColor;
 				}
 
-				if (this.isExploding) {
-					let frameToDraw = 5 + this.explosionFrame;
-					ctx.drawImage(
-						this.spriteImage,
-						frameToDraw * this.spriteWidth,
-						0,
-						this.spriteWidth,
-						this.spriteHeight,
-						drawX,
-						this.y,
-						this.width,
-						this.height
-					);
-				} else {
-					ctx.drawImage(
-						this.spriteImage,
-						this.frameX,
-						this.frameY,
-						this.spriteWidth,
-						this.spriteHeight,
-						drawX,
-						this.y,
-						this.width,
-						this.height
-					);
+				// Draw the appropriate sprite frame
+				ctx.drawImage(
+					this.spriteImage,
+					this.frameX,
+					this.frameY,
+					this.spriteWidth,
+					this.spriteHeight,
+					drawX,
+					this.y,
+					this.width,
+					this.height
+				);
+
+				// Visual debug for skidding state (optional)
+				if (this.skidding && SHOW_DEBUG_VISUALS) {
+					ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+					ctx.fillRect(drawX, this.y + this.height - 5, this.width, 5);
 				}
 			} catch (e) {
 				console.error('Sprite drawing error:', e);
@@ -493,7 +643,12 @@ function initializePlayer() {
 		jump: function () {
 			if (this.isGrounded || this.canDoubleJump) {
 				this.isJumping = true;
+				this.jumpPressed = true;
 			}
+		},
+
+		releaseJump: function () {
+			this.jumpPressed = false;
 		},
 
 		dash: function () {
@@ -5249,6 +5404,11 @@ function setupInputListeners() {
 				resetGame();
 			}
 			return;
+		}
+
+		if (event.key === 'ArrowUp') {
+			player.jump();
+			// Other jump-related code
 		}
 
 		// Active gameplay input handling
