@@ -707,7 +707,7 @@
 		color: rgba(245, 245, 220, 0.9);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
-		margin-bottom: 4px;
+		margin-bottom: 6px;
 		text-align: center;
 		font-weight: 500;
 		user-select: none;
