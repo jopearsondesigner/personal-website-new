@@ -340,7 +340,7 @@
 								Power-up Your Brand!
 							</div>
 
-							<div class="mt-12">
+							<div class="mt-6">
 								<ArcadeCtaButton />
 							</div>
 							<div id="insert-concept" class="text-center mt-3" bind:this={insertConcept}>
