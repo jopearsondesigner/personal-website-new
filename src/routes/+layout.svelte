@@ -141,24 +141,19 @@
 		</NavBrand>
 
 		<div class="flex md:order-2 items-center gap-4">
-			<Tooltip
-				text={$theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-				position="bottom"
+			<button
+				on:click={toggleTheme}
+				class="md:flex items-center justify-center w-10 h-10 rounded-full bg-opacity-20 hover:bg-opacity-30 transition-all duration-300 ease-in dark:text-[var(--arcade-white-300)] text-[var(--arcade-black-500)]"
+				aria-label="Toggle Dark Mode"
 			>
-				<button
-					on:click={toggleTheme}
-					class="md:flex items-center justify-center w-10 h-10 rounded-full bg-opacity-20 hover:bg-opacity-30 transition-all duration-300 ease-in dark:text-[var(--arcade-white-300)] text-[var(--arcade-black-500)]"
-					aria-label="Toggle Dark Mode"
-				>
-					{#if $theme === 'dark'}
-						<Sun size={20} />
-					{:else}
-						<Moon size={20} />
-					{/if}
-				</button>
-			</Tooltip>
+				{#if $theme === 'dark'}
+					<Sun size={20} />
+				{:else}
+					<Moon size={20} />
+				{/if}
+			</button>
 
-			<div class="lg:hidden">
+			<div class="lg:hidden flex items-center">
 				<MobileNavMenu bind:isOpen={isMenuOpen} />
 			</div>
 		</div>

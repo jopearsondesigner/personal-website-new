@@ -59,29 +59,41 @@
 
 <svelte:window on:keydown={handleKeydown} />
 
-<!-- Hamburger Button (only shown when menu is closed) -->
-{#if !isOpen}
-	<button
-		on:click={toggleMenu}
-		class="relative z-50 p-2 rounded-full
-			text-arcadeBlack-500 dark:text-arcadeWhite-300
-			hover:bg-arcadeBlack-100/50 dark:hover:bg-arcadeBlack-700/50"
-		aria-label="Open Menu"
-		aria-expanded="false"
-		aria-controls="mobile-menu"
-	>
-		<div class="w-6 h-6 flex items-center justify-center">
-			<div class="relative w-5 h-4">
-				<span class="absolute w-full h-0.5 bg-current top-0"></span>
-				<span class="absolute w-full h-0.5 bg-current top-1.5"></span>
-				<span class="absolute w-full h-0.5 bg-current top-3"></span>
-			</div>
+<!-- Menu toggle button - stays inline in the navbar -->
+<button
+	on:click={toggleMenu}
+	class="inline-flex z-50 p-2
+		text-arcadeBlack-500 dark:text-arcadeWhite-300
+		hover:bg-arcadeBlack-100/50 dark:hover:bg-arcadeBlack-700/50
+		transition-all duration-300 items-center justify-center"
+	aria-label={isOpen ? 'Close Menu' : 'Open Menu'}
+	aria-expanded={isOpen}
+	aria-controls="mobile-menu"
+>
+	<div class="w-6 h-6 flex items-center justify-center">
+		<div class="relative w-5 h-4">
+			<!-- Hamburger to X animation -->
+			<span
+				class="absolute w-full h-0.5 bg-current transform transition-transform duration-300 origin-center {isOpen
+					? 'rotate-45 top-1.5'
+					: 'top-0'}"
+			></span>
+			<span
+				class="absolute w-full h-0.5 bg-current transition-opacity duration-300 top-1.5 {isOpen
+					? 'opacity-0'
+					: 'opacity-100'}"
+			></span>
+			<span
+				class="absolute w-full h-0.5 bg-current transform transition-transform duration-300 origin-center {isOpen
+					? '-rotate-45 top-1.5'
+					: 'top-3'}"
+			></span>
 		</div>
-	</button>
-{/if}
+	</div>
+</button>
 
 {#if isOpen}
-	<!-- Backdrop -->
+	<!-- Fixed overlay for when menu is open -->
 	<div
 		class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
 		on:click={closeMenu}
@@ -92,31 +104,15 @@
 		<!-- Menu Panel -->
 		<div
 			id="mobile-menu"
-			class="fixed inset-y-0 right-0 z-50 w-full max-w-xs
-				bg-[var(--light-mode-bg)] dark:bg-[var(--dark-mode-bg)]
-				shadow-xl flex flex-col overflow-y-auto"
+			class="fixed inset-y-0 right-0 z-40 w-full max-w-xs
+			bg-[var(--light-mode-bg)] dark:bg-[var(--dark-mode-bg)]
+			shadow-xl flex flex-col overflow-y-auto
+			transform will-change-transform"
 			transition:fly={{ x: 300, duration: 300, easing: cubicInOut }}
 			on:click|stopPropagation
 		>
-			<!-- Top area with close button (no header label) -->
-			<div class="px-4 py-4 flex justify-end">
-				<button
-					on:click={closeMenu}
-					class="p-2 rounded-full
-						hover:bg-arcadeBlack-100 dark:hover:bg-arcadeBlack-600
-						text-arcadeBlack-500 dark:text-arcadeWhite-300"
-					aria-label="Close menu"
-				>
-					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M6 18L18 6M6 6l12 12"
-						/>
-					</svg>
-				</button>
-			</div>
+			<!-- Top spacing area - no button here -->
+			<div class="px-4 py-4 h-16"></div>
 
 			<!-- Navigation Links -->
 			<nav class="flex-1 px-6 py-2">
@@ -147,10 +143,10 @@
 					<div class="flex items-center space-x-3">
 						{#if $theme === 'dark'}
 							<Sun class="w-4 h-4" />
-							<span>{$theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+							<span>Light Mode</span>
 						{:else}
 							<Moon class="w-4 h-4" />
-							<span>{$theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+							<span>Dark Mode</span>
 						{/if}
 					</div>
 					<svg
@@ -182,13 +178,18 @@
 		user-select: none;
 	}
 
-	/* Smooth scrolling for menu panel */
+	/* Smooth scrolling for menu panel with hardware acceleration */
 	div {
 		scrollbar-width: none;
 		-ms-overflow-style: none;
 		&::-webkit-scrollbar {
 			display: none;
 		}
+
+		/* Enable hardware acceleration for smoother animations */
+		transform: translateZ(0);
+		backface-visibility: hidden;
+		perspective: 1000px;
 	}
 
 	/* Prevent body scroll when menu is open */
