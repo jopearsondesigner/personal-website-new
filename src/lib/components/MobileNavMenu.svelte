@@ -70,23 +70,23 @@
 	aria-expanded={isOpen}
 	aria-controls="mobile-menu"
 >
-	<div class="w-6 h-6 flex items-center justify-center">
-		<div class="relative w-5 h-4">
-			<!-- Hamburger to X animation -->
+	<div class="flex items-center justify-center w-6 h-6">
+		<div class="relative w-5 h-4 flex flex-col justify-between">
+			<!-- Hamburger to X animation - simplified structure -->
 			<span
-				class="absolute w-full h-0.5 bg-current transform transition-transform duration-300 origin-center {isOpen
-					? 'rotate-45 top-1.5'
-					: 'top-0'}"
+				class="block w-full h-0.5 bg-current transform transition-transform duration-300 origin-center {isOpen
+					? 'absolute rotate-45 top-1.5'
+					: ''}"
 			></span>
 			<span
-				class="absolute w-full h-0.5 bg-current transition-opacity duration-300 top-1.5 {isOpen
-					? 'opacity-0'
-					: 'opacity-100'}"
+				class="block w-full h-0.5 bg-current transition-opacity duration-300 {isOpen
+					? 'absolute opacity-0 top-1.5'
+					: ''}"
 			></span>
 			<span
-				class="absolute w-full h-0.5 bg-current transform transition-transform duration-300 origin-center {isOpen
-					? '-rotate-45 top-1.5'
-					: 'top-3'}"
+				class="block w-full h-0.5 bg-current transform transition-transform duration-300 origin-center {isOpen
+					? 'absolute -rotate-45 top-1.5'
+					: ''}"
 			></span>
 		</div>
 	</div>
@@ -110,6 +110,9 @@
 			transform will-change-transform"
 			transition:fly={{ x: 300, duration: 300, easing: cubicInOut }}
 			on:click|stopPropagation
+			on:keydown={(e) => e.key === 'Enter' && closeMenu()}
+			role="dialog"
+			tabindex="0"
 		>
 			<!-- Top spacing area - no button here -->
 			<div class="px-4 py-4 h-16"></div>
