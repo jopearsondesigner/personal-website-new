@@ -20,6 +20,9 @@
 	let navbarElement: HTMLElement;
 	let contentWrapper: HTMLElement;
 	let isMenuOpen = false;
+	let logoWrapper: HTMLElement;
+	let viewportWidth = 0;
+	let viewportHeight = 0;
 
 	// Create stores with initial values
 	export const navbarHeight = writable(0);
@@ -43,6 +46,47 @@
 			});
 		};
 	})();
+
+	// Update logo position based on viewport width and orientation
+	const updateLogoPosition = () => {
+		if (browser && logoWrapper && navbarElement) {
+			viewportWidth = window.innerWidth;
+			viewportHeight = window.innerHeight;
+
+			// Only apply custom positioning on mobile layouts
+			if (viewportWidth < 768) {
+				const logoWidth = logoWrapper.offsetWidth;
+
+				// Force reapplication of the position by adding a custom data attribute
+				// that we can target with CSS
+				logoWrapper.setAttribute(
+					'data-orientation',
+					window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
+				);
+
+				// Base position calculation for portrait
+				let offsetPosition = viewportWidth * 0.2 - logoWidth / 2;
+
+				// For landscape, explicitly check dimensions and override the position
+				if (window.innerWidth > window.innerHeight) {
+					offsetPosition = viewportWidth * 0.3 - logoWidth / 2;
+				}
+
+				// Apply the calculated position
+				logoWrapper.style.transform = `translateX(${offsetPosition}px) translateY(-50%)`;
+				logoWrapper.style.position = 'absolute';
+				logoWrapper.style.top = '50%';
+				logoWrapper.style.height = 'auto';
+			} else {
+				// Reset positioning for larger screens
+				logoWrapper.style.transform = 'none';
+				logoWrapper.style.position = 'relative';
+				logoWrapper.style.top = 'auto';
+				logoWrapper.style.height = 'auto';
+				logoWrapper.removeAttribute('data-orientation');
+			}
+		}
+	};
 
 	// Optimized theme toggle with minimal reflows
 	function toggleTheme() {
@@ -79,10 +123,24 @@
 		theme.set(savedTheme);
 		document.documentElement.classList.add(savedTheme);
 
-		// Initialize ResizeObserver
+		// Initialize ResizeObserver for navbar height
 		if (navbarElement) {
 			resizeObserver = new ResizeObserver(updateNavHeight);
 			resizeObserver.observe(navbarElement);
+		}
+
+		// Setup logo positioning - only in browser
+		if (browser) {
+			updateLogoPosition();
+
+			// Add multiple event listeners to catch all possible triggers
+			window.addEventListener('resize', updateLogoPosition);
+			window.addEventListener('orientationchange', updateLogoPosition);
+
+			// Force repaint on orientation change with a slight delay
+			window.addEventListener('orientationchange', () => {
+				setTimeout(updateLogoPosition, 100);
+			});
 		}
 
 		// Loading screen handling
@@ -103,6 +161,11 @@
 	onDestroy(() => {
 		if (resizeObserver) {
 			resizeObserver.disconnect();
+		}
+		// Remove event listeners only if in browser
+		if (browser) {
+			window.removeEventListener('resize', updateLogoPosition);
+			window.removeEventListener('orientationchange', updateLogoPosition);
 		}
 	});
 </script>
@@ -133,14 +196,27 @@
 	<Navbar
 		class="container max-w-screen-xl mx-auto px-4 flex justify-between items-center bg-transparent"
 	>
-		<NavBrand href="/">
-			<img src={logo} alt="Jo Pearson Logo" class="h-9 w-9 mr-[8px] pt-1 header-logo-pulse" />
-			<span
-				class="hidden lg:inline-block text-[16px] header-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[24.96px] mt-[5px]"
-			>
-				Jo Pearson
-			</span>
-		</NavBrand>
+		<!-- Empty div for spacing on mobile -->
+		<div class="w-9 h-9 md:hidden"></div>
+
+		<!-- Logo wrapper with binding for positioning -->
+		<div bind:this={logoWrapper} class="logo-wrapper md:hidden absolute z-30">
+			<NavBrand href="/">
+				<img src={logo} alt="Jo Pearson Logo" class="h-9 w-9 mr-[8px] pt-1 header-logo-pulse" />
+			</NavBrand>
+		</div>
+
+		<!-- Desktop logo that remains left-aligned -->
+		<div class="hidden md:block">
+			<NavBrand href="/">
+				<img src={logo} alt="Jo Pearson Logo" class="h-9 w-9 mr-[8px] pt-1 header-logo-pulse" />
+				<span
+					class="hidden lg:inline-block text-[16px] header-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[24.96px] mt-[5px]"
+				>
+					Jo Pearson
+				</span>
+			</NavBrand>
+		</div>
 
 		<div class="flex md:order-2 items-center gap-4">
 			<button
@@ -220,6 +296,21 @@
 
 	.header-logo-pulse {
 		animation: headerPulse 3s ease-in-out infinite;
+	}
+
+	/* Logo positioning styles */
+	.logo-wrapper {
+		transition: transform 0.3s ease-out;
+		will-change: transform;
+		line-height: 1; /* Reset line height to prevent vertical offset issues */
+	}
+
+	/* Additional CSS for landscape orientation */
+	@media (orientation: landscape) and (max-width: 767px) {
+		:global(.logo-wrapper[data-orientation='landscape']) {
+			/* Force a different position in CSS as a backup */
+			left: 30% !important;
+		}
 	}
 
 	@keyframes headerPulse {

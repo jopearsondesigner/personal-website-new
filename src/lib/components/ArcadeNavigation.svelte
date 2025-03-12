@@ -115,6 +115,7 @@
 	});
 </script>
 
+<!-- Modified positioning to use fixed positioning for mobile -->
 <nav class="arcade-navigation" class:mobile={isMobile} aria-label="Game navigation">
 	{#if isMobile}
 		<button
@@ -130,15 +131,15 @@
 
 	{#if isMobile && isMenuOpen}
 		<div
-			class="overlay fixed inset-0 bg-[#2b2b2b] bg-opacity-70 z-[40]"
+			class="overlay fixed inset-0 bg-[#2b2b2b] bg-opacity-70"
 			on:click|stopPropagation={() => (isMenuOpen = false)}
 			aria-hidden="true"
 		/>
 	{/if}
 
 	<div
-		id="menu-container relative"
-		class="menu-container pixel-art z-[101] text-link"
+		id="menu-container"
+		class="menu-container pixel-art text-link"
 		class:hidden={isMobile && !isMenuOpen}
 		tabindex="0"
 		bind:this={menuRef}
@@ -152,7 +153,7 @@
 		{/if}
 		{#each menuItems as item, index}
 			<button
-				class="menu-item z-[50]"
+				class="menu-item"
 				class:selected={selectedIndex === index}
 				on:click|stopPropagation={() => handleMenuItemClick(index)}
 				role="menuitem"
@@ -194,7 +195,7 @@
 		right: 0;
 		bottom: 0;
 		background-color: rgba(43, 43, 43, 0.7);
-		z-index: 90;
+		z-index: 9998;
 		pointer-events: auto;
 	}
 
@@ -207,13 +208,13 @@
 		top: 1rem;
 		left: 1.47rem;
 		z-index: 100;
-		/* pointer-events: none; */
 	}
 
 	.arcade-navigation.mobile {
-		/* position: relative; */
+		/* Changed to fixed position to break out of stacking contexts */
+		position: fixed;
 		right: auto;
-		z-index: 1;
+		z-index: 9999; /* Very high z-index */
 		left: 0.85rem;
 		top: 0.85rem;
 	}
@@ -233,7 +234,7 @@
 		outline: none;
 		pointer-events: auto;
 		position: relative;
-		z-index: 110;
+		z-index: 9999;
 	}
 
 	.menu-container:focus {
@@ -252,6 +253,7 @@
 		pointer-events: auto;
 		width: 90%;
 		max-width: 400px;
+		z-index: 9999;
 	}
 
 	.menu-item {
@@ -269,8 +271,6 @@
 		outline: none;
 		pointer-events: auto;
 		font-size: 0.6875rem;
-		/* font-size: 0.8125rem; */
-		/* font-size: 0.75rem; */
 	}
 
 	@media (max-width: 1024px) {
@@ -297,7 +297,11 @@
 		border-radius: 2px;
 		pointer-events: auto;
 		font-size: 0.5625rem;
-		position: relative;
+		position: fixed; /* Changed from relative to fixed */
+		top: 21px; /* Added specific top positioning */
+		left: 22px; /* Added specific left positioning */
+		/* Button itself doesn't need z-index as parent is fixed */
+		z-index: 9999; /* Added high z-index */
 		overflow: hidden;
 		text-shadow:
 			0 0 4px var(--arcade-neon-green-100),
