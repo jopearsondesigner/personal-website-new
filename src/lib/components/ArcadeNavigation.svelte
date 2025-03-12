@@ -228,7 +228,7 @@
 
 	.arcade-navigation {
 		position: absolute;
-		top: 1.72rem;
+		top: 1.92rem;
 		left: 2.12rem;
 		z-index: 100;
 		/* This allows the navigation itself to receive pointer events */
@@ -241,7 +241,7 @@
 		right: auto;
 		z-index: 9999;
 		left: 1.47rem;
-		top: 1.24rem;
+		top: 1.54rem;
 	}
 
 	.pixel-art {
