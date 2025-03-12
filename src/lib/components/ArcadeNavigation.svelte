@@ -115,79 +115,101 @@
 	});
 </script>
 
-<!-- Modified positioning to use fixed positioning for mobile -->
-<nav class="arcade-navigation" class:mobile={isMobile} aria-label="Game navigation">
-	{#if isMobile}
-		<button
-			bind:this={menuButtonRef}
-			class="menu-button pixel-art"
-			on:click|preventDefault|stopPropagation={toggleMenu}
-			aria-expanded={isMenuOpen}
-			aria-controls="menu-container"
-		>
-			MENU
-		</button>
-	{/if}
-
-	{#if isMobile && isMenuOpen}
-		<div
-			class="overlay fixed inset-0 bg-[#2b2b2b] bg-opacity-70"
-			on:click|stopPropagation={() => (isMenuOpen = false)}
-			aria-hidden="true"
-		/>
-	{/if}
-
-	<div
-		id="menu-container"
-		class="menu-container pixel-art text-link"
-		class:hidden={isMobile && !isMenuOpen}
-		tabindex="0"
-		bind:this={menuRef}
-		role="menu"
-		aria-label="Game navigation"
-	>
+<!-- Modified positioning to use root-level fixed positioning -->
+<div class="arcade-navigation-container">
+	<nav class="arcade-navigation" class:mobile={isMobile} aria-label="Game navigation">
 		{#if isMobile}
-			<button class="close-button" on:click|stopPropagation={toggleMenu} aria-label="Close menu">
-				X
+			<button
+				bind:this={menuButtonRef}
+				class="menu-button pixel-art"
+				on:click|preventDefault|stopPropagation={toggleMenu}
+				aria-expanded={isMenuOpen}
+				aria-controls="menu-container"
+			>
+				MENU
 			</button>
 		{/if}
-		{#each menuItems as item, index}
-			<button
-				class="menu-item"
-				class:selected={selectedIndex === index}
-				on:click|stopPropagation={() => handleMenuItemClick(index)}
-				role="menuitem"
-				aria-current={selectedIndex === index}
-				data-screen={item.label.toLowerCase().replace(/\s+/g, '-')}
-			>
-				{#if selectedIndex === index}
-					<span class="arrow" aria-hidden="true">
-						<svg
-							id="Layer_1"
-							data-name="Layer 1"
-							xmlns="http://www.w3.org/2000/svg"
-							viewBox="0 0 16.56 17.67"
-						>
-							<defs>
-								<style>
-									.cls-1 {
-										fill: #c7ffdd;
-										stroke: #e5e7eb;
-										stroke-miterlimit: 10;
-									}
-								</style>
-							</defs>
-							<polygon class="cls-1" points=".5 .83 15.5 8.83 .5 16.83 .5 .83" />
-						</svg>
-					</span>
-				{/if}
-				<span class="menu-text">{item.label}</span>
-			</button>
-		{/each}
-	</div>
-</nav>
+
+		{#if isMobile && isMenuOpen}
+			<div
+				class="overlay fixed inset-0 bg-[#2b2b2b] bg-opacity-70"
+				on:click|stopPropagation={() => (isMenuOpen = false)}
+				aria-hidden="true"
+			/>
+		{/if}
+
+		<div
+			id="menu-container"
+			class="menu-container pixel-art text-link"
+			class:hidden={isMobile && !isMenuOpen}
+			tabindex="0"
+			bind:this={menuRef}
+			role="menu"
+			aria-label="Game navigation"
+		>
+			{#if isMobile}
+				<button class="close-button" on:click|stopPropagation={toggleMenu} aria-label="Close menu">
+					X
+				</button>
+			{/if}
+			{#each menuItems as item, index}
+				<button
+					class="menu-item"
+					class:selected={selectedIndex === index}
+					on:click|stopPropagation={() => handleMenuItemClick(index)}
+					role="menuitem"
+					aria-current={selectedIndex === index}
+					data-screen={item.label.toLowerCase().replace(/\s+/g, '-')}
+				>
+					{#if selectedIndex === index}
+						<span class="arrow" aria-hidden="true">
+							<svg
+								id="Layer_1"
+								data-name="Layer 1"
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 16.56 17.67"
+							>
+								<defs>
+									<style>
+										.cls-1 {
+											fill: #c7ffdd;
+											stroke: #e5e7eb;
+											stroke-miterlimit: 10;
+										}
+									</style>
+								</defs>
+								<polygon class="cls-1" points=".5 .83 15.5 8.83 .5 16.83 .5 .83" />
+							</svg>
+						</span>
+					{/if}
+					<span class="menu-text">{item.label}</span>
+				</button>
+			{/each}
+		</div>
+	</nav>
+</div>
 
 <style lang="postcss">
+	/* New container element to attach to root DOM */
+	.arcade-navigation-container {
+		/* Use fixed positioning to break out of all stacking contexts */
+		position: fixed;
+		/* Make sure it's attached to the body/root level */
+		top: 0;
+		left: 0;
+		/* Ensure full viewport coverage for proper event handling */
+		width: 100%;
+		height: 100%;
+		/* Use pointer-events: none to let clicks pass through to elements below */
+		pointer-events: none;
+		/* Set a very high z-index to ensure it's above everything */
+		z-index: 10000;
+		/* Make it impossible to interact with this container itself */
+		user-select: none;
+		/* Prevent any accidental rendering issues */
+		background: transparent;
+	}
+
 	.overlay {
 		position: fixed;
 		top: 0;
@@ -196,6 +218,7 @@
 		bottom: 0;
 		background-color: rgba(43, 43, 43, 0.7);
 		z-index: 9998;
+		/* Enable pointer events for the overlay */
 		pointer-events: auto;
 	}
 
@@ -205,18 +228,20 @@
 
 	.arcade-navigation {
 		position: absolute;
-		top: 1rem;
-		left: 1.47rem;
+		top: 1.72rem;
+		left: 2.12rem;
 		z-index: 100;
+		/* This allows the navigation itself to receive pointer events */
+		pointer-events: auto;
 	}
 
 	.arcade-navigation.mobile {
-		/* Changed to fixed position to break out of stacking contexts */
-		position: fixed;
+		/* Positioned relative to the fixed container */
+		position: absolute;
 		right: auto;
-		z-index: 9999; /* Very high z-index */
-		left: 0.85rem;
-		top: 0.85rem;
+		z-index: 9999;
+		left: 1.47rem;
+		top: 1.24rem;
 	}
 
 	.pixel-art {
@@ -297,11 +322,8 @@
 		border-radius: 2px;
 		pointer-events: auto;
 		font-size: 0.5625rem;
-		position: fixed; /* Changed from relative to fixed */
-		top: 21px; /* Added specific top positioning */
-		left: 22px; /* Added specific left positioning */
-		/* Button itself doesn't need z-index as parent is fixed */
-		z-index: 9999; /* Added high z-index */
+		position: relative;
+		/* Remove z-index from the button itself as it inherits from its container */
 		overflow: hidden;
 		text-shadow:
 			0 0 4px var(--arcade-neon-green-100),
@@ -310,6 +332,8 @@
 		box-shadow:
 			0 0 10px rgba(39, 255, 153, 0.3),
 			inset 0 0 8px rgba(39, 255, 153, 0.2);
+		/* Add increased hit target */
+		touch-action: manipulation;
 	}
 
 	/* The shimmer effect overlay */
