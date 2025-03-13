@@ -17,6 +17,9 @@
 	// Prepare any props to pass to the section component
 	const componentProps = section.props || {};
 
+	// Determine if this is the hero section
+	const isHeroSection = section.id === 'hero';
+
 	onMount(() => {
 		if (animate) {
 			// Set up intersection observer for animation
@@ -43,10 +46,10 @@
 
 <section
 	id={section.id}
-	class="section-wrapper relative {section.fullHeight
-		? 'min-h-screen'
-		: ''} py-12 md:py-16 flex flex-col justify-center"
+	class="section-wrapper relative {section.fullHeight ? 'min-h-screen' : ''}
+		{isHeroSection ? '' : 'py-12 md:py-16'} flex flex-col justify-center"
 	class:full-height={section.fullHeight}
+	class:hero-section={isHeroSection}
 	bind:this={sectionElement}
 >
 	{#if isVisible}
@@ -65,5 +68,10 @@
 
 	.full-height {
 		min-height: calc(100vh - var(--navbar-height, 64px));
+	}
+
+	.hero-section {
+		padding-top: 0;
+		padding-bottom: 0;
 	}
 </style>
