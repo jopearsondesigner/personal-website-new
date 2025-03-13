@@ -4,9 +4,9 @@
 	import { browser } from '$app/environment';
 	import { gsap } from 'gsap';
 	import { get } from 'svelte/store';
-	import ArcadeCtaButton from '$lib/components/ArcadeCtaButton.svelte';
-	import ArcadeNavigation from '$lib/components/ArcadeNavigation.svelte';
-	import GameScreen from '$lib/components/GameScreen.svelte';
+	import ArcadeCtaButton from '$lib/components/ui/ArcadeCtaButton.svelte';
+	import ArcadeNavigation from '$lib/components/ui/ArcadeNavigation.svelte';
+	import GameScreen from '$lib/components/game/GameScreen.svelte';
 	import { animations } from '$lib/utils/animation-utils';
 	import { animationState, screenStore } from '$lib/stores/animation-store';
 	import { layoutStore } from '$lib/stores/store';

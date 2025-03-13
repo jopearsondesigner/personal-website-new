@@ -1,13 +1,21 @@
-<!-- File: src/lib/components/MobileNavMenu.svelte -->
+<!-- src/lib/components/layout/MobileNavMenu.svelte -->
 <script lang="ts">
 	import { fly, fade } from 'svelte/transition';
 	import { cubicInOut } from 'svelte/easing';
 	import { Sun, Moon } from 'svelte-bootstrap-icons';
 	import { theme } from '$lib/stores/theme';
 	import { onMount, onDestroy } from 'svelte';
+	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
+	import { writable } from 'svelte/store';
 
 	export let isOpen = false;
 
+	// Active navigation item tracking
+	const activeNavItem = writable('/');
+	let currentPath = '/';
+
+	// Navigation items
 	const menuItems = [
 		{ label: 'Home', href: '/' },
 		{ label: 'Work', href: '/#work' },
@@ -16,16 +24,19 @@
 		{ label: 'Blog', href: '/blog' }
 	];
 
+	// Toggle menu function
 	function toggleMenu() {
 		isOpen = !isOpen;
 	}
 
+	// Close menu when escape key is pressed
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape' && isOpen) {
 			isOpen = false;
 		}
 	}
 
+	// Toggle theme function
 	function toggleTheme() {
 		theme.update((currentTheme) => {
 			const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
@@ -36,12 +47,95 @@
 		});
 	}
 
+	// Smooth scroll function
+	function smoothScroll(target: string, e: MouseEvent) {
+		e.preventDefault();
+
+		if (!browser) return;
+
+		const isSamePage = window.location.pathname === '/' || currentPath === '/';
+
+		// If linking to a different page, navigate normally
+		if (!isSamePage && !target.startsWith('/#')) {
+			window.location.href = target;
+			closeMenu();
+			return;
+		}
+
+		// Handle hash navigation
+		if (target.includes('#')) {
+			const hash = target.split('#')[1];
+			const element = document.getElementById(hash);
+
+			if (element) {
+				// If we're not on the homepage, navigate to homepage first
+				if (window.location.pathname !== '/' && !isSamePage) {
+					window.location.href = target;
+					closeMenu();
+					return;
+				}
+
+				// Set active nav item
+				activeNavItem.set(target);
+
+				// Get navbar height for offset
+				const navbarHeight =
+					document.documentElement.style.getPropertyValue('--navbar-height') || '64px';
+				const offset = parseInt(navbarHeight, 10);
+
+				// Calculate position
+				const top = element.getBoundingClientRect().top + window.scrollY - offset;
+
+				// Smooth scroll
+				window.scrollTo({
+					top,
+					behavior: 'smooth'
+				});
+
+				// Update URL hash without scroll
+				if (history.pushState) {
+					history.pushState(null, null, `#${hash}`);
+				} else {
+					window.location.hash = hash;
+				}
+
+				closeMenu();
+				return;
+			}
+		}
+
+		// Regular navigation
+		window.location.href = target;
+		closeMenu();
+	}
+
+	// Close menu function
 	function closeMenu() {
 		isOpen = false;
 	}
 
+	// Update current path when page changes
+	$: if (browser && $page) {
+		currentPath = $page.url.pathname;
+
+		// Check if current route matches any menu item
+		const matchingItem = menuItems.find((item) => {
+			if (item.href === '/') {
+				return currentPath === '/';
+			} else if (item.href.startsWith('/#')) {
+				return currentPath === '/' && window.location.hash === item.href.substring(1);
+			} else {
+				return currentPath === item.href;
+			}
+		});
+
+		if (matchingItem) {
+			activeNavItem.set(matchingItem.href);
+		}
+	}
+
 	// Lock body scroll when menu is open
-	$: if (typeof document !== 'undefined') {
+	$: if (browser) {
 		if (isOpen) {
 			document.body.classList.add('menu-open');
 		} else {
@@ -51,7 +145,7 @@
 
 	// Clean up on component destroy
 	onDestroy(() => {
-		if (typeof document !== 'undefined') {
+		if (browser) {
 			document.body.classList.remove('menu-open');
 		}
 	});
@@ -125,8 +219,9 @@
 							href={item.href}
 							class="block text-base
 								text-arcadeBlack-500 dark:text-arcadeWhite-300
-								hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500"
-							on:click={closeMenu}
+								hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500
+								{$activeNavItem === item.href ? 'text-arcadeNeonGreen-500' : ''}"
+							on:click={(e) => smoothScroll(item.href, e)}
 						>
 							{item.label}
 						</a>

@@ -1,21 +1,9 @@
+<!-- src/routes/+page.svelte-->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Hero from '$lib/components/Hero.svelte';
+	import Hero from '$lib/components/sections/Hero.svelte';
 	import { layoutStore } from '$lib/stores/store';
-
-	onMount(() => {
-		window.addEventListener('resize', () => {
-			// Handle window resize event
-		});
-	});
 </script>
-
-<svelte:head>
-	<link
-		href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=VT323&display=swap"
-		rel="stylesheet"
-	/>
-</svelte:head>
 
 <div
 	class="min-h-screen bg-background dark:bg-background-dark text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-200)]"
@@ -45,3 +33,7 @@
 		</section>
 	</div>
 </div>
+
+<style>
+	/* Your CSS styles here */
+</style>

@@ -5,7 +5,7 @@
 	import { writable } from 'svelte/store';
 	import Game from '$components/game/Game.svelte';
 	import { onMount, onDestroy } from 'svelte';
-	import Instructions from './Instructions.svelte';
+	import Instructions from '../ui/Instructions.svelte';
 
 	// Define the store
 	const deviceState = writable({

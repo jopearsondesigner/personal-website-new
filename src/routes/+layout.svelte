@@ -1,20 +1,20 @@
-<!-- +layout.svelte -->
+<!-- src/routes/+layout.svelte -->
 <script lang="ts">
 	import '../app.css';
-	import Navbar from '$components/Navbar.svelte';
-	import NavBrand from '$components/Navbrand.svelte';
+	import Navbar from '$lib/components/layout/Navbar.svelte';
+	import NavBrand from '$lib/components/layout/Navbrand.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import { loadingStore } from '$lib/stores/loading';
 	import logo from '$lib/assets/images/logo-black.svg';
 	import { Sun, Moon } from 'svelte-bootstrap-icons';
-	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
+	import LoadingScreen from '$lib/components/ui/LoadingScreen.svelte';
 	import { theme } from '$lib/stores/theme';
-	import Tooltip from '$lib/components/Tooltip.svelte';
+	import Tooltip from '$lib/components/ui/Tooltip.svelte';
 	import { browser } from '$app/environment';
 	import { writable } from 'svelte/store';
 	import { layoutStore } from '$lib/stores/store';
-	import MobileNavMenu from '$lib/components/MobileNavMenu.svelte';
+	import MobileNavMenu from '$lib/components/layout/MobileNavMenu.svelte';
 
 	// Use ResizeObserver instead of window resize event
 	let resizeObserver: ResizeObserver;
