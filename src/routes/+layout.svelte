@@ -1,7 +1,8 @@
 <!-- +layout.svelte -->
 <script lang="ts">
 	import '../app.css';
-	import { Navbar, NavBrand } from 'flowbite-svelte';
+	import Navbar from '$components/Navbar.svelte';
+	import NavBrand from '$components/Navbrand.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import { loadingStore } from '$lib/stores/loading';
@@ -53,36 +54,37 @@
 			viewportWidth = window.innerWidth;
 			viewportHeight = window.innerHeight;
 
+			// Determine orientation
+			const isLandscape = viewportWidth > viewportHeight;
+			logoWrapper.setAttribute('data-orientation', isLandscape ? 'landscape' : 'portrait');
+
 			// Only apply custom positioning on mobile layouts
 			if (viewportWidth < 768) {
 				const logoWidth = logoWrapper.offsetWidth;
 
-				// Force reapplication of the position by adding a custom data attribute
-				// that we can target with CSS
-				logoWrapper.setAttribute(
-					'data-orientation',
-					window.innerWidth > window.innerHeight ? 'landscape' : 'portrait'
-				);
-
-				// Base position calculation for portrait
+				// Base position calculation for portrait mode
 				let offsetPosition = viewportWidth * 0.2 - logoWidth / 2;
 
-				// For landscape, explicitly check dimensions and override the position
-				if (window.innerWidth > window.innerHeight) {
-					offsetPosition = viewportWidth * 0.3 - logoWidth / 2;
+				// Adjust position for landscape mode
+				if (isLandscape) {
+					offsetPosition = viewportWidth * 0.2 - logoWidth / 2;
 				}
 
-				// Apply the calculated position
-				logoWrapper.style.transform = `translateX(${offsetPosition}px) translateY(-50%)`;
-				logoWrapper.style.position = 'absolute';
-				logoWrapper.style.top = '50%';
-				logoWrapper.style.height = 'auto';
+				// Apply styles efficiently in a single batch
+				Object.assign(logoWrapper.style, {
+					transform: `translateX(${offsetPosition}px) translateY(-50%)`,
+					position: 'absolute',
+					top: '50%',
+					height: 'auto'
+				});
 			} else {
 				// Reset positioning for larger screens
-				logoWrapper.style.transform = 'none';
-				logoWrapper.style.position = 'relative';
-				logoWrapper.style.top = 'auto';
-				logoWrapper.style.height = 'auto';
+				Object.assign(logoWrapper.style, {
+					transform: 'none',
+					position: 'relative',
+					top: 'auto',
+					height: 'auto'
+				});
 				logoWrapper.removeAttribute('data-orientation');
 			}
 		}
@@ -194,7 +196,7 @@
 		: 'navbar-background-light'} p-container-padding box-border md:shadow-header"
 >
 	<Navbar
-		class="container max-w-screen-xl mx-auto px-4 flex justify-between items-center bg-transparent"
+		class="container max-w-screen-xl mx-auto px-4 py-px flex justify-between items-center bg-transparent"
 	>
 		<!-- Empty div for spacing on mobile -->
 		<div class="w-9 h-9 md:hidden"></div>
