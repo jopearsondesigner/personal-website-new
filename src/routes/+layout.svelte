@@ -25,6 +25,7 @@
 	let logoWrapper: HTMLElement;
 	let viewportWidth = 0;
 	let viewportHeight = 0;
+	let isScrolled = false; // New state for tracking scroll position
 
 	// Create stores with initial values
 	export const navbarHeight = writable(0);
@@ -90,6 +91,14 @@
 		}
 	};
 
+	// Track scroll position for blur effect
+	const handleScroll = () => {
+		if (browser) {
+			// Update the scroll state based on scroll position
+			isScrolled = window.scrollY > 10;
+		}
+	};
+
 	// Optimized theme toggle with minimal reflows
 	function toggleTheme() {
 		theme.update((currentTheme) => {
@@ -133,6 +142,7 @@
 			// Add multiple event listeners to catch all possible triggers
 			window.addEventListener('resize', updateLogoPosition);
 			window.addEventListener('orientationchange', updateLogoPosition);
+			window.addEventListener('scroll', handleScroll, { passive: true }); // Add scroll listener with passive flag
 
 			// Force repaint on orientation change with a slight delay
 			window.addEventListener('orientationchange', () => {
@@ -163,6 +173,7 @@
 		if (browser) {
 			window.removeEventListener('resize', updateLogoPosition);
 			window.removeEventListener('orientationchange', updateLogoPosition);
+			window.removeEventListener('scroll', handleScroll); // Clean up scroll listener
 		}
 	});
 </script>
@@ -188,7 +199,8 @@
            md:border-b-[2.5px] md:border-arcadeBlack-200 md:dark:border-arcadeBlack-600
            top-0 z-[101] {$theme === 'dark'
 		? 'navbar-background-dark'
-		: 'navbar-background-light'} p-container-padding box-border md:shadow-header"
+		: 'navbar-background-light'} p-container-padding box-border md:shadow-header
+		{isScrolled ? 'mobile-navbar-blur' : ''}"
 >
 	<Navbar
 		class="container max-w-screen-xl mx-auto px-4 py-px flex justify-between items-center bg-transparent"
@@ -271,6 +283,19 @@
 				linear-gradient(45deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
 				linear-gradient(315deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%);
 			background-size: 4px 4px;
+		}
+	}
+
+	/* Mobile navbar blur effect - only applies on mobile */
+	@media (max-width: 767px) {
+		.mobile-navbar-blur {
+			backdrop-filter: blur(2.5px);
+			-webkit-backdrop-filter: blur(2.5px);
+			background-color: rgba(255, 255, 255, 0.05); /* Very subtle background for dark mode */
+		}
+
+		.dark .mobile-navbar-blur {
+			background-color: rgba(0, 0, 0, 0.1); /* Slightly darker background for light mode */
 		}
 	}
 
