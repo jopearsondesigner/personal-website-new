@@ -8,21 +8,33 @@
 	import { page } from '$app/stores';
 	import { browser } from '$app/environment';
 	import { navSections, navigationStore } from '$lib/stores/navigation';
+	import { tick } from 'svelte';
 
 	export let isOpen = false;
 
 	// Current path tracking
 	let currentPath = '/';
+	// Store scroll position
+	let scrollPosition = 0;
 
-	// Toggle menu function
-	function toggleMenu() {
+	// Toggle menu function with scroll position preservation
+	function toggleMenu(event?: Event) {
+		if (event) {
+			event.preventDefault();
+		}
+
+		if (!isOpen && browser) {
+			// Save scroll position before opening menu
+			scrollPosition = window.scrollY;
+		}
+
 		isOpen = !isOpen;
 	}
 
 	// Close menu when escape key is pressed
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape' && isOpen) {
-			isOpen = false;
+			closeMenu();
 		}
 	}
 
@@ -37,43 +49,79 @@
 		});
 	}
 
-	// Smooth scroll function updated to use navigationStore
-	function smoothScroll(target: string, e: MouseEvent) {
+	// Improved smooth scroll function
+	async function smoothScroll(target: string, e: MouseEvent) {
 		e.preventDefault();
-
 		if (!browser) return;
 
-		// First determine if this is an in-page section link
-		const isSectionLink = target.startsWith('#') || target.startsWith('/#');
-		const sectionId = isSectionLink ? target.split('#')[1] : '';
-
-		// If we're already on the homepage and this is a section link
-		if ((window.location.pathname === '/' || currentPath === '/') && sectionId) {
-			navigationStore.scrollToSection(sectionId);
-			closeMenu();
-			return;
-		}
-
-		// External link or different page
-		if (!isSectionLink || window.location.pathname !== '/') {
-			// For section links on other pages, navigate to homepage first
-			if (sectionId) {
-				window.location.href = `/#${sectionId}`;
-			} else {
-				window.location.href = target;
-			}
-			closeMenu();
-			return;
-		}
-
-		// Default: navigate to the URL
-		window.location.href = target;
+		// Close the menu first
 		closeMenu();
+
+		// Extract section ID from target
+		const isHashLink = target.startsWith('#');
+		const sectionId = isHashLink ? target.substring(1) : '';
+
+		// If not a section link, just navigate normally
+		if (!isHashLink) {
+			window.location.href = target;
+			return;
+		}
+
+		// Check if we're on the homepage
+		const isHomePage = currentPath === '/' || window.location.pathname === '/';
+
+		if (isHomePage) {
+			// We're on homepage - use the robust hybrid approach
+			await tick();
+
+			// Find the section element
+			const section = document.getElementById(sectionId);
+			if (!section) return;
+
+			// Get navbar height for offset
+			const navbarHeight = parseInt(
+				document.documentElement.style.getPropertyValue('--navbar-height') || '64',
+				10
+			);
+
+			// Calculate position with offset
+			const top = section.getBoundingClientRect().top + window.scrollY - navbarHeight;
+
+			// Update active section in store
+			navigationStore.setActiveSection(sectionId);
+
+			// Update URL hash without jumping (using history API)
+			if (history.pushState) {
+				history.pushState(null, null, `#${sectionId}`);
+			}
+
+			// Smooth scroll
+			window.scrollTo({
+				top,
+				behavior: 'smooth'
+			});
+		} else {
+			// We're on a different page - navigate to homepage with hash
+			window.location.href = `/#${sectionId}`;
+		}
 	}
 
-	// Close menu function
+	// Improved close menu function
 	function closeMenu() {
-		isOpen = false;
+		if (isOpen) {
+			isOpen = false;
+
+			// Wait a tick to ensure DOM updates
+			tick().then(() => {
+				if (browser) {
+					// Remove the menu-open class first
+					document.body.classList.remove('menu-open');
+
+					// Restore previous scroll position
+					window.scrollTo(0, scrollPosition);
+				}
+			});
+		}
 	}
 
 	// Update current path when page changes
@@ -81,12 +129,18 @@
 		currentPath = $page.url.pathname;
 	}
 
-	// Lock body scroll when menu is open
+	// Improved body scroll lock with position preservation
 	$: if (browser) {
 		if (isOpen) {
+			// Save current scroll position
+			scrollPosition = window.scrollY;
+
+			// Apply fixed positioning to body at the current scroll position
+			document.body.style.top = `-${scrollPosition}px`;
 			document.body.classList.add('menu-open');
 		} else {
 			document.body.classList.remove('menu-open');
+			document.body.style.top = '';
 		}
 	}
 
@@ -94,6 +148,7 @@
 	onDestroy(() => {
 		if (browser) {
 			document.body.classList.remove('menu-open');
+			document.body.style.top = '';
 		}
 	});
 </script>
@@ -249,7 +304,7 @@
 		perspective: 1000px;
 	}
 
-	/* Prevent body scroll when menu is open */
+	/* Improve body scroll locking for menu open */
 	:global(body.menu-open) {
 		overflow: hidden;
 		position: fixed;
