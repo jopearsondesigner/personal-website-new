@@ -7,22 +7,12 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import { browser } from '$app/environment';
-	import { writable } from 'svelte/store';
+	import { navSections, navigationStore } from '$lib/stores/navigation';
 
 	export let isOpen = false;
 
-	// Active navigation item tracking
-	const activeNavItem = writable('/');
+	// Current path tracking
 	let currentPath = '/';
-
-	// Navigation items
-	const menuItems = [
-		{ label: 'Home', href: '/' },
-		{ label: 'Work', href: '/#work' },
-		{ label: 'About', href: '/#about' },
-		{ label: 'Contact', href: '/#contact' },
-		{ label: 'Blog', href: '/blog' }
-	];
 
 	// Toggle menu function
 	function toggleMenu() {
@@ -47,64 +37,36 @@
 		});
 	}
 
-	// Smooth scroll function
+	// Smooth scroll function updated to use navigationStore
 	function smoothScroll(target: string, e: MouseEvent) {
 		e.preventDefault();
 
 		if (!browser) return;
 
-		const isSamePage = window.location.pathname === '/' || currentPath === '/';
+		// First determine if this is an in-page section link
+		const isSectionLink = target.startsWith('#') || target.startsWith('/#');
+		const sectionId = isSectionLink ? target.split('#')[1] : '';
 
-		// If linking to a different page, navigate normally
-		if (!isSamePage && !target.startsWith('/#')) {
-			window.location.href = target;
+		// If we're already on the homepage and this is a section link
+		if ((window.location.pathname === '/' || currentPath === '/') && sectionId) {
+			navigationStore.scrollToSection(sectionId);
 			closeMenu();
 			return;
 		}
 
-		// Handle hash navigation
-		if (target.includes('#')) {
-			const hash = target.split('#')[1];
-			const element = document.getElementById(hash);
-
-			if (element) {
-				// If we're not on the homepage, navigate to homepage first
-				if (window.location.pathname !== '/' && !isSamePage) {
-					window.location.href = target;
-					closeMenu();
-					return;
-				}
-
-				// Set active nav item
-				activeNavItem.set(target);
-
-				// Get navbar height for offset
-				const navbarHeight =
-					document.documentElement.style.getPropertyValue('--navbar-height') || '64px';
-				const offset = parseInt(navbarHeight, 10);
-
-				// Calculate position
-				const top = element.getBoundingClientRect().top + window.scrollY - offset;
-
-				// Smooth scroll
-				window.scrollTo({
-					top,
-					behavior: 'smooth'
-				});
-
-				// Update URL hash without scroll
-				if (history.pushState) {
-					history.pushState(null, null, `#${hash}`);
-				} else {
-					window.location.hash = hash;
-				}
-
-				closeMenu();
-				return;
+		// External link or different page
+		if (!isSectionLink || window.location.pathname !== '/') {
+			// For section links on other pages, navigate to homepage first
+			if (sectionId) {
+				window.location.href = `/#${sectionId}`;
+			} else {
+				window.location.href = target;
 			}
+			closeMenu();
+			return;
 		}
 
-		// Regular navigation
+		// Default: navigate to the URL
 		window.location.href = target;
 		closeMenu();
 	}
@@ -117,21 +79,6 @@
 	// Update current path when page changes
 	$: if (browser && $page) {
 		currentPath = $page.url.pathname;
-
-		// Check if current route matches any menu item
-		const matchingItem = menuItems.find((item) => {
-			if (item.href === '/') {
-				return currentPath === '/';
-			} else if (item.href.startsWith('/#')) {
-				return currentPath === '/' && window.location.hash === item.href.substring(1);
-			} else {
-				return currentPath === item.href;
-			}
-		});
-
-		if (matchingItem) {
-			activeNavItem.set(matchingItem.href);
-		}
 	}
 
 	// Lock body scroll when menu is open
@@ -211,21 +158,33 @@
 			<!-- Top spacing area - no button here -->
 			<div class="px-4 py-4 h-16"></div>
 
-			<!-- Navigation Links -->
+			<!-- Navigation Links - Updated to use navSections -->
 			<nav class="flex-1 px-6 py-2">
 				<div class="space-y-5">
-					{#each menuItems as item, index}
+					{#each $navSections as section}
 						<a
-							href={item.href}
+							href="#{section.id}"
 							class="block text-base
 								text-arcadeBlack-500 dark:text-arcadeWhite-300
 								hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500
-								{$activeNavItem === item.href ? 'text-arcadeNeonGreen-500' : ''}"
-							on:click={(e) => smoothScroll(item.href, e)}
+								{section.isActive ? 'text-arcadeNeonGreen-500' : ''}"
+							on:click={(e) => smoothScroll(`#${section.id}`, e)}
 						>
-							{item.label}
+							{section.title}
 						</a>
 					{/each}
+
+					<!-- Add blog link separately if needed -->
+					<a
+						href="/blog"
+						class="block text-base
+							text-arcadeBlack-500 dark:text-arcadeWhite-300
+							hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500
+							{currentPath === '/blog' ? 'text-arcadeNeonGreen-500' : ''}"
+						on:click={(e) => smoothScroll('/blog', e)}
+					>
+						Blog
+					</a>
 				</div>
 			</nav>
 

@@ -1,7 +1,7 @@
 <!-- src/lib/components/ui/ContactForm.svelte -->
 <script lang="ts">
 	import { fade } from 'svelte/transition';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 
 	// Form state
 	let name = '';
@@ -10,6 +10,7 @@
 	let formSubmitted = false;
 	let formError = false;
 	let isSending = false;
+	let messageTimer: ReturnType<typeof setTimeout>;
 
 	// Form validation
 	let errors = {
@@ -95,14 +96,22 @@
 		}
 	}
 
-	// Reset form status after some time
+	// Watch for form status changes
 	$: if (formSubmitted || formError) {
-		const timer = setTimeout(() => {
+		// Clear any existing timer first
+		if (messageTimer) clearTimeout(messageTimer);
+
+		// Set a new timer
+		messageTimer = setTimeout(() => {
 			formSubmitted = false;
 			formError = false;
 		}, 5000);
-		return () => clearTimeout(timer);
 	}
+
+	// Clean up the timer when component is destroyed
+	onDestroy(() => {
+		if (messageTimer) clearTimeout(messageTimer);
+	});
 </script>
 
 {#if formSubmitted}
@@ -177,4 +186,73 @@
 			on:focus={handleFocus}
 			on:blur={handleBlur}
 			rows="4"
-			class="w-full bg-transparent border-b-2 border-arcadeBlack-500/20 dark:border-arcadeWhite-200/20 focus:border-arcadeNeonGreen-500 outline-none py-2 px-
+			class="w-full bg-transparent border-b-2 border-arcadeBlack-500/20 dark:border-arcadeWhite-200/20 focus:border-arcadeNeonGreen-500 outline-none py-2 px-3 pt-6 transition-all duration-200 resize-y"
+		></textarea>
+		{#if errors.message}
+			<p class="text-arcadeRed-500 text-sm mt-1">{errors.message}</p>
+		{/if}
+	</div>
+
+	<button
+		type="submit"
+		class="px-6 py-3 mt-6 bg-arcadeBlack-500 dark:bg-arcadeBlack-700 text-arcadeWhite-200
+		rounded-lg shadow-md hover:shadow-lg transition-all duration-300
+		border border-arcadeNeonGreen-500/30 hover:border-arcadeNeonGreen-500
+		hover:bg-arcadeBlack-600 relative overflow-hidden disabled:opacity-70"
+		disabled={isSending}
+	>
+		<span class="relative z-10">
+			{#if isSending}
+				Sending...
+			{:else}
+				Send Message
+			{/if}
+		</span>
+		<div class="absolute inset-0 overflow-hidden">
+			<div
+				class="crt-loading-bar h-full bg-arcadeNeonGreen-500/20 transition-all"
+				class:w-full={isSending}
+				class:w-0={!isSending}
+			></div>
+		</div>
+	</button>
+</form>
+
+<style>
+	/* Form animations */
+	.form-group.focused label {
+		transform: translateY(-70%) scale(0.8);
+		color: var(--arcade-neon-green-500);
+	}
+
+	.form-group label {
+		transform-origin: 0 0;
+	}
+
+	/* Loading animation */
+	.crt-loading-bar {
+		position: absolute;
+		left: 0;
+		top: 0;
+		transition: width 1.5s linear;
+		background: linear-gradient(
+			90deg,
+			rgba(39, 255, 153, 0.1),
+			rgba(39, 255, 153, 0.4),
+			rgba(39, 255, 153, 0.1)
+		);
+		animation: pulsate 1.5s infinite;
+	}
+
+	@keyframes pulsate {
+		0% {
+			opacity: 0.6;
+		}
+		50% {
+			opacity: 1;
+		}
+		100% {
+			opacity: 0.6;
+		}
+	}
+</style>

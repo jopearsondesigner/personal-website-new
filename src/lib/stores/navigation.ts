@@ -1,6 +1,7 @@
 // src/lib/stores/navigation.ts
-import { writable } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
+import { sections, getAllSections, getNavSections } from '$lib/config/sections';
 
 interface NavigationStore {
 	activeSection: string;
@@ -9,10 +10,13 @@ interface NavigationStore {
 }
 
 function createNavigationStore() {
+	// Get section IDs from configuration
+	const sectionIds = getAllSections().map((section) => section.id);
+
 	// Default navigation state
 	const defaultState: NavigationStore = {
-		activeSection: 'hero',
-		sections: ['hero', 'about', 'work', 'contact'],
+		activeSection: sectionIds[0] || 'hero',
+		sections: sectionIds,
 		isScrolling: false
 	};
 
@@ -35,8 +39,6 @@ function createNavigationStore() {
 
 			// Wait for DOM to be fully loaded
 			setTimeout(() => {
-				const sections = defaultState.sections;
-
 				// Create intersection observer
 				const observer = new IntersectionObserver(
 					(entries) => {
@@ -44,13 +46,13 @@ function createNavigationStore() {
 						update((state) => {
 							if (state.isScrolling) return state;
 
-							// Find the first section that is visible
-							const visibleSection = entries.find((entry) => entry.isIntersecting);
+							// Find the first section that is intersecting
+							const visibleEntry = entries.find((entry) => entry.isIntersecting);
 
-							if (visibleSection && visibleSection.target.id) {
+							if (visibleEntry && visibleEntry.target.id) {
 								return {
 									...state,
-									activeSection: visibleSection.target.id
+									activeSection: visibleEntry.target.id
 								};
 							}
 
@@ -64,19 +66,19 @@ function createNavigationStore() {
 				);
 
 				// Observe all sections
-				sections.forEach((sectionId) => {
+				sectionIds.forEach((sectionId) => {
 					const section = document.getElementById(sectionId);
 					if (section) observer.observe(section);
 				});
 
-				// Cleanup function (to be called when app is destroyed)
+				// Return cleanup function
 				return () => {
-					sections.forEach((sectionId) => {
+					sectionIds.forEach((sectionId) => {
 						const section = document.getElementById(sectionId);
 						if (section) observer.unobserve(section);
 					});
 				};
-			}, 500); // Small delay to ensure DOM is ready
+			}, 300); // Small delay to ensure DOM is ready
 		},
 
 		// Smooth scroll to section
@@ -86,7 +88,7 @@ function createNavigationStore() {
 			const section = document.getElementById(sectionId);
 			if (!section) return;
 
-			// Mark as manually scrolling
+			// Mark as manually scrolling to prevent observer interference
 			update((state) => ({ ...state, isScrolling: true }));
 
 			// Get navbar height for offset
@@ -95,7 +97,7 @@ function createNavigationStore() {
 				10
 			);
 
-			// Calculate position
+			// Calculate position with offset
 			const top = section.getBoundingClientRect().top + window.scrollY - navbarHeight;
 
 			// Smooth scroll
@@ -104,20 +106,61 @@ function createNavigationStore() {
 				behavior: 'smooth'
 			});
 
-			// Update active section
+			// Update active section immediately for UI feedback
 			update((state) => ({ ...state, activeSection: sectionId }));
 
-			// Update URL hash
-			if (history.pushState) {
-				history.pushState(null, null, `#${sectionId}`);
-			} else {
-				window.location.hash = sectionId;
-			}
+			// Update URL hash without causing additional scroll
+			const updateUrlHash = () => {
+				if (history.pushState) {
+					history.pushState(null, null, `#${sectionId}`);
+				} else {
+					const scrollPosition = window.scrollY;
+					window.location.hash = sectionId;
+					window.scrollTo(0, scrollPosition);
+				}
+			};
+
+			setTimeout(updateUrlHash, 50);
 
 			// Reset scrolling flag after animation completes
 			setTimeout(() => {
 				update((state) => ({ ...state, isScrolling: false }));
 			}, 1000); // Typical scroll animation duration
+		},
+
+		// Handle initial hash navigation on page load
+		handleInitialHash: () => {
+			if (!browser) return;
+
+			setTimeout(() => {
+				// If URL has a hash, scroll to that section
+				const hash = window.location.hash.substring(1);
+				if (hash && sectionIds.includes(hash)) {
+					// Use setTimeout to ensure DOM is ready
+					setTimeout(() => {
+						const section = document.getElementById(hash);
+						if (section) {
+							// Get navbar height for offset
+							const navbarHeight = parseInt(
+								document.documentElement.style.getPropertyValue('--navbar-height') || '64',
+								10
+							);
+
+							// Calculate position
+							const top = section.getBoundingClientRect().top + window.scrollY - navbarHeight;
+
+							// Scroll without animation for initial load
+							window.scrollTo({
+								top,
+								behavior: 'auto'
+							});
+
+							// Update active section
+							update((state) => ({ ...state, activeSection: hash }));
+						}
+					}, 100);
+				}
+			}, 200);
 		},
 
 		// Reset to default state
@@ -127,3 +170,15 @@ function createNavigationStore() {
 
 // Create and export the navigation store
 export const navigationStore = createNavigationStore();
+
+// Create a derived store that includes section configurations
+export const navSections = derived(navigationStore, ($navigationStore) => {
+	// Get nav sections from config
+	const navSectionConfigs = getNavSections();
+
+	// Enhance with active state
+	return navSectionConfigs.map((section) => ({
+		...section,
+		isActive: section.id === $navigationStore.activeSection
+	}));
+});

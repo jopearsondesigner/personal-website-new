@@ -15,6 +15,7 @@
 	import { writable } from 'svelte/store';
 	import { layoutStore } from '$lib/stores/store';
 	import MobileNavMenu from '$lib/components/layout/MobileNavMenu.svelte';
+	import Navigation from '$lib/components/layout/Navigation.svelte';
 
 	// Use ResizeObserver instead of window resize event
 	let resizeObserver: ResizeObserver;
@@ -27,7 +28,6 @@
 
 	// Create stores with initial values
 	export const navbarHeight = writable(0);
-	const activeNavItem = writable('/');
 
 	// Debounced navbar height update function
 	const updateNavHeight = (() => {
@@ -111,11 +111,6 @@
 			localStorage.setItem('theme', newTheme);
 			return newTheme;
 		});
-	}
-
-	// Simplified nav link click handler
-	function handleNavLinkClick(path: string) {
-		activeNavItem.set(path);
 	}
 
 	// Initialization and cleanup logic
@@ -238,25 +233,8 @@
 			</div>
 		</div>
 
-		<!-- Navigation Links -->
-		<div class="lg:flex lg:flex-wrap lg:order-1 hidden">
-			{#each ['/', '/#work', '/#about', '/#contact', '/blog'] as path}
-				<a
-					href={path}
-					class="nav-button"
-					class:active={$activeNavItem === path}
-					on:click={() => handleNavLinkClick(path)}
-				>
-					{#if path === '/'}
-						Home
-					{:else if path.startsWith('/#')}
-						{path.slice(2).charAt(0).toUpperCase() + path.slice(3)}
-					{:else}
-						{path.slice(1).charAt(0).toUpperCase() + path.slice(1).substring(1)}
-					{/if}
-				</a>
-			{/each}
-		</div>
+		<!-- Updated Navigation Component -->
+		<Navigation />
 	</Navbar>
 </nav>
 
