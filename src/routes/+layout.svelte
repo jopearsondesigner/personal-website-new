@@ -3,6 +3,7 @@
 	import '../app.css';
 	import Navbar from '$lib/components/layout/Navbar.svelte';
 	import NavBrand from '$lib/components/layout/Navbrand.svelte';
+	import Footer from '$lib/components/layout/Footer.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import { loadingStore } from '$lib/stores/loading';
@@ -253,6 +254,8 @@
 <main bind:this={contentWrapper} class="content-wrapper">
 	<slot />
 </main>
+
+<Footer />
 
 <style>
 	:global(:root) {
