@@ -177,6 +177,40 @@ html.dark .nav-button:active {
 	opacity: 0;
 }
 
+/* Hide the default "bulls eye" in the loading screen */
+@keyframes hideDefaultLoader {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+body::before {
+	content: '';
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: var(--dark-mode-bg);
+	z-index: 9998;
+	animation: hideDefaultLoader 0.1s forwards;
+}
+
+/* Target the bulls eye specifically */
+[data-svelte-loading-indicator],
+.svelte-loading-indicator,
+#svelte-announcer,
+svg[role='status'],
+svg[aria-labelledby='svelte-announcer'] {
+	display: none !important;
+	opacity: 0 !important;
+	visibility: hidden !important;
+	pointer-events: none !important;
+}
+
 /* Responsive Layouts */
 @media (orientation: landscape) {
 	.game-wrapper {

@@ -18,6 +18,17 @@
 		animationFrame: null
 	});
 
+	// Create a dedicated error state store
+	const errorState = writable({
+		hasError: false,
+		message: '',
+		details: '',
+		timestamp: 0,
+		isVisible: false,
+		dismissible: false,
+		level: 'error' // 'error', 'warning', 'info'
+	});
+
 	function detectDevice() {
 		if (!browser) return;
 		const isMobile =
@@ -33,10 +44,13 @@
 
 	let canvas: HTMLCanvasElement;
 	let gameContainer: HTMLDivElement;
+	let errorContainer: HTMLDivElement;
 	let scale = 1;
 	let scaleFactor = 0.9;
 	let controlsPosition = { x: 0, y: 0 };
 	let mounted = false;
+	let errorTimeout: NodeJS.Timeout;
+	let gameInstance: any;
 
 	const GAME_WIDTH = 800;
 	const GAME_HEIGHT = 600;
@@ -126,6 +140,65 @@
 		}
 	}
 
+	// New function to handle game errors
+	function handleGameError(
+		error: Error | string,
+		level: 'error' | 'warning' | 'info' = 'error',
+		dismissible = true,
+		timeout = 5000
+	) {
+		console.error('[Game] Error occurred:', error);
+
+		// Format error message
+		const errorMessage = typeof error === 'string' ? error : error.message;
+		const errorDetails = typeof error === 'string' ? '' : error.stack;
+
+		// Update error state
+		errorState.update((state) => ({
+			hasError: true,
+			message: errorMessage,
+			details: errorDetails,
+			timestamp: Date.now(),
+			isVisible: true,
+			dismissible,
+			level
+		}));
+
+		// Clear any existing timeout
+		if (errorTimeout) {
+			clearTimeout(errorTimeout);
+		}
+
+		// Auto-dismiss non-critical errors after timeout
+		if (timeout > 0) {
+			errorTimeout = setTimeout(() => {
+				dismissError();
+			}, timeout);
+		}
+
+		return error;
+	}
+
+	function dismissError() {
+		errorState.update((state) => ({
+			...state,
+			isVisible: false
+		}));
+	}
+
+	// Try to initialize the game, with proper error handling
+	async function initializeGame() {
+		if (!canvas || !browser) return;
+
+		try {
+			// Setup the game with custom error handler
+			gameInstance = await setupGame(canvas);
+			calculateScale();
+		} catch (error) {
+			handleGameError(`Game initialization failed: ${error.message}`, 'error', true, 0);
+		}
+	}
+
 	onMount(() => {
 		if (!browser) return;
 
@@ -134,17 +207,22 @@
 
 		detectDevice();
 
-		if (canvas) {
-			try {
-				setupGame(canvas);
-				calculateScale();
-			} catch (error) {
-				console.error('[Game] Game initialization error:', error);
+		// Setup global error handler for runtime errors
+		window.addEventListener('error', (e) => {
+			// Only handle game-related errors
+			if (e.message.includes('game') || e.filename.includes('game')) {
+				handleGameError(e.error || e.message);
+				e.preventDefault(); // Prevent default error handling
 			}
+		});
 
-			window.addEventListener('orientationchange', handleOrientation);
-			window.addEventListener('resize', handleResize);
-		}
+		// Initialize the game
+		initializeGame().catch((err) => {
+			handleGameError(`Failed to start game: ${err.message}`);
+		});
+
+		window.addEventListener('orientationchange', handleOrientation);
+		window.addEventListener('resize', handleResize);
 	});
 
 	onDestroy(() => {
@@ -174,8 +252,22 @@
 		window.removeEventListener('resize', handleResize);
 		window.removeEventListener('orientationchange', handleOrientation);
 
+		if (errorTimeout) {
+			clearTimeout(errorTimeout);
+		}
+
 		mounted = false;
 	});
+
+	// Reactive statement to handle error state changes
+	$: if ($errorState.isVisible && errorContainer) {
+		// Ensure error container is visible and positioned correctly
+		errorContainer.style.opacity = '1';
+		errorContainer.style.transform = 'translateY(0)';
+	} else if (errorContainer) {
+		errorContainer.style.opacity = '0';
+		errorContainer.style.transform = 'translateY(-20px)';
+	}
 </script>
 
 <div
@@ -194,6 +286,40 @@
 			/>
 			<div id="scanline-overlay" class="absolute inset-0 pointer-events-none z-10" />
 			<div class="neon-glow" />
+
+			<!-- Error message overlay -->
+			{#if $errorState.isVisible}
+				<div
+					class="error-container {$errorState.level}"
+					bind:this={errorContainer}
+					transition:fade={{ duration: 300 }}
+				>
+					<div class="error-content">
+						<div class="error-header">
+							<span class="error-icon">
+								{#if $errorState.level === 'error'}⚠️{:else if $errorState.level === 'warning'}⚠{:else}ℹ️{/if}
+							</span>
+							<span class="error-title">
+								{#if $errorState.level === 'error'}Game Error{:else if $errorState.level === 'warning'}Warning{:else}Information{/if}
+							</span>
+							{#if $errorState.dismissible}
+								<button class="error-close" on:click={dismissError}>×</button>
+							{/if}
+						</div>
+						<div class="error-message">
+							{$errorState.message}
+						</div>
+						{#if $errorState.details}
+							<div class="error-details">
+								<details>
+									<summary>Details</summary>
+									<pre>{$errorState.details}</pre>
+								</details>
+							</div>
+						{/if}
+					</div>
+				</div>
+			{/if}
 		</div>
 	</div>
 </div>
@@ -278,6 +404,99 @@
 		z-index: 2;
 	}
 
+	/* Error Styling */
+	.error-container {
+		position: absolute;
+		top: 20px;
+		left: 50%;
+		transform: translateX(-50%) translateY(-20px);
+		min-width: 320px;
+		max-width: 640px;
+		background-color: rgba(0, 0, 0, 0.85);
+		border-radius: 8px;
+		backdrop-filter: blur(4px);
+		z-index: 100;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+		transition: all 0.3s ease;
+		opacity: 0;
+	}
+
+	.error-container.error {
+		border-left: 4px solid #e74c3c;
+	}
+
+	.error-container.warning {
+		border-left: 4px solid #f39c12;
+	}
+
+	.error-container.info {
+		border-left: 4px solid #3498db;
+	}
+
+	.error-content {
+		padding: 12px 16px;
+	}
+
+	.error-header {
+		display: flex;
+		align-items: center;
+		margin-bottom: 8px;
+	}
+
+	.error-icon {
+		margin-right: 8px;
+	}
+
+	.error-title {
+		font-weight: bold;
+		font-size: 16px;
+		flex-grow: 1;
+		color: #fff;
+	}
+
+	.error-close {
+		background: none;
+		border: none;
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 20px;
+		cursor: pointer;
+		padding: 0 4px;
+		line-height: 1;
+	}
+
+	.error-close:hover {
+		color: #fff;
+	}
+
+	.error-message {
+		color: rgba(255, 255, 255, 0.9);
+		margin-bottom: 8px;
+		font-size: 14px;
+		line-height: 1.4;
+	}
+
+	.error-details {
+		font-size: 12px;
+		color: rgba(255, 255, 255, 0.7);
+		background: rgba(0, 0, 0, 0.3);
+		border-radius: 4px;
+		padding: 4px;
+	}
+
+	.error-details summary {
+		cursor: pointer;
+		padding: 4px;
+	}
+
+	.error-details pre {
+		white-space: pre-wrap;
+		word-break: break-all;
+		max-height: 120px;
+		overflow-y: auto;
+		padding: 8px;
+		margin: 4px 0;
+	}
+
 	/* Animations */
 	@keyframes scanline {
 		0% {
@@ -314,6 +533,12 @@
 
 		.neon-glow {
 			border-radius: 14px;
+		}
+
+		.error-container {
+			min-width: 80%;
+			max-width: 90%;
+			top: 10px;
 		}
 	}
 

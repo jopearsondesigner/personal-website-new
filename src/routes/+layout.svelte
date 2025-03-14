@@ -18,6 +18,9 @@
 	import MobileNavMenu from '$lib/components/layout/MobileNavMenu.svelte';
 	import Navigation from '$lib/components/layout/Navigation.svelte';
 
+	// Set loading to true initially to ensure LoadingScreen shows first
+	loadingStore.set(true);
+
 	// Use ResizeObserver instead of window resize event
 	let resizeObserver: ResizeObserver;
 	let navbarElement: HTMLElement;
@@ -164,6 +167,14 @@
 		]).then(() => {
 			setTimeout(() => loadingStore.set(false), 1500);
 		});
+
+		// Immediately try to remove any lingering initial-loader from app.html
+		if (browser) {
+			const initialLoader = document.getElementById('initial-loader');
+			if (initialLoader) {
+				initialLoader.style.display = 'none';
+			}
+		}
 	});
 
 	onDestroy(() => {

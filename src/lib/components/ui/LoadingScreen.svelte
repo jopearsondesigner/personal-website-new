@@ -3,9 +3,18 @@
 	import { fade } from 'svelte/transition';
 	import Logo from '$lib/assets/images/logo-black.svg';
 	import { loadingStore } from '$lib/stores/loading';
+	import { onMount } from 'svelte';
+
+	// This ensures the loading screen is visible immediately
+	let mounted = false;
+
+	onMount(() => {
+		mounted = true;
+	});
 </script>
 
-{#if $loadingStore}
+<!-- The loading screen will show regardless of loadingStore until component is mounted -->
+{#if !mounted || $loadingStore}
 	<div
 		transition:fade={{ duration: 300 }}
 		class="fixed inset-0 z-[9999] flex items-center justify-center bg-[var(--dark-mode-bg)] dark:bg-[var(--dark-mode-bg)]"
