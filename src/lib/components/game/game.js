@@ -5380,7 +5380,7 @@ function setupInputListeners() {
 
 	// Handle keyboard events
 	window.addEventListener('keydown', function (event) {
-		const key = event.key.toUpperCase();
+		const key = event.key.toUpperCase(); // Define key variable here
 
 		// Prevent default browser actions for game controls
 		if (['ArrowLeft', 'ArrowRight', 'ArrowUp', ' ', 'x', 'X', 'p', 'P'].includes(event.key)) {
@@ -5510,6 +5510,8 @@ function setupInputListeners() {
 	});
 
 	window.addEventListener('keyup', function (event) {
+		const key = event.key.toUpperCase(); // Define key variable here
+
 		if (gameActive) {
 			switch (event.key) {
 				case 'ArrowLeft':
@@ -5571,6 +5573,8 @@ function setupInputListeners() {
 	});
 
 	window.addEventListener('keyup', function (event) {
+		const key = event.key.toUpperCase(); // Define key variable here
+
 		if (gameActive) {
 			switch (event.key) {
 				case 'ArrowLeft':

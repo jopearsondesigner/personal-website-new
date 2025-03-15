@@ -82,16 +82,16 @@
 		if (detail.type === 'joystick') {
 			requestAnimationFrame(() => {
 				if (detail.value.x < -0.5) {
-					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
 				} else if (detail.value.x > 0.5) {
-					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
 				} else {
-					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
-					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight' }));
+					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', bubbles: true }));
+					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
 				}
 
 				if (detail.value.y < -0.5) {
-					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
 				}
 			});
 		}
