@@ -5,6 +5,7 @@ import type { Writable } from 'svelte/store';
 export interface JoystickPosition {
 	x: number;
 	y: number;
+	zone?: MovementZone;
 }
 
 export interface TouchPosition extends JoystickPosition {
@@ -12,8 +13,8 @@ export interface TouchPosition extends JoystickPosition {
 }
 
 export interface ButtonStates {
-	ammo: boolean;
-	heatseeker: boolean;
+	shoot: boolean;
+	missile: boolean;
 	pause: boolean;
 	enter: boolean;
 	reset: boolean;
@@ -29,19 +30,20 @@ export interface KeyStates {
 }
 
 export interface JoystickConfig {
-	DEADZONE: number;
-	MAX_DISTANCE: number;
-	MIN_MOVEMENT_THRESHOLD: number;
-	MOVEMENT_ZONES: {
-		PRECISE: number;
-		NORMAL: number;
+	ZONES: {
+		DEADZONE: number;
+		PRECISION: number;
+		STANDARD: number;
 		RAPID: number;
 	};
 	ACCELERATION: {
-		PRECISE: number;
-		NORMAL: number;
+		PRECISION: number;
+		STANDARD: number;
 		RAPID: number;
 	};
+	SENSITIVITY: number;
+	ACCELERATION_CURVE: number;
+	MAX_DISTANCE: number;
 	SPRING: {
 		STIFFNESS: number;
 		DAMPING: number;
@@ -50,11 +52,6 @@ export interface JoystickConfig {
 		DURATION: {
 			TAP: number;
 			ZONE_CHANGE: number;
-		};
-		INTENSITY: {
-			LIGHT: number;
-			MEDIUM: number;
-			STRONG: number;
 		};
 	};
 }
@@ -65,7 +62,7 @@ export interface TouchConfig {
 	MAX_DELTA: number;
 }
 
-export type MovementZone = 'PRECISE' | 'NORMAL' | 'RAPID';
+export type MovementZone = 'DEADZONE' | 'PRECISION' | 'STANDARD' | 'RAPID';
 
 export type ButtonType = keyof ButtonStates;
 
@@ -73,6 +70,7 @@ export interface ControlEvent {
 	type: 'joystick' | 'button';
 	value: JoystickPosition | boolean;
 	button?: ButtonType;
+	zone?: MovementZone;
 }
 
 // Component Props
@@ -81,7 +79,7 @@ export interface GameControlsProps {
 }
 
 // Utility Types
-export type HapticFeedback = () => void;
+export type HapticFeedback = (duration?: number) => void;
 
 // Event Handler Types
 export type JoystickEventHandler = (event: TouchEvent | MouseEvent) => void;
@@ -98,4 +96,12 @@ export interface SpringStore {
 	set: (value: JoystickPosition) => void;
 	subscribe: (callback: (value: JoystickPosition) => void) => () => void;
 	update: (fn: (value: JoystickPosition) => JoystickPosition) => void;
+}
+
+export interface PositionData {
+	x: number;
+	rawDistance: number;
+	normalizedDistance: number;
+	zone: MovementZone;
+	maxDistance: number;
 }

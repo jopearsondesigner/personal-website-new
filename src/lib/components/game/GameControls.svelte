@@ -25,13 +25,36 @@
 		}
 	};
 
-	// Constants for joystick configuration
-	const JOYSTICK_DEADZONE = 0.08;
-	const JOYSTICK_MAX_DISTANCE = 40;
-	const JOYSTICK_UPDATE_RATE = 16;
-	const JOYSTICK_SENSITIVITY = 1.35;
-	const ACCELERATION_CURVE = 0.7;
-	const BUTTON_HAPTIC_DURATION = 50;
+	// Enhanced dual-mode joystick configuration
+	const JOYSTICK_CONFIG = {
+		// Different movement zones with their thresholds
+		ZONES: {
+			DEADZONE: 0.12, // No movement zone (eliminates jitter)
+			PRECISION: 0.38, // Fine-grained, pixel-by-pixel movement
+			STANDARD: 0.75, // Normal movement speed
+			RAPID: 1.0 // Maximum speed
+		},
+
+		// Acceleration multipliers for each zone
+		ACCELERATION: {
+			PRECISION: 0.4, // Low acceleration for precision control
+			STANDARD: 1.0, // Base acceleration value
+			RAPID: 1.8 // High acceleration for quick traversal
+		},
+
+		// Fine-tuning parameters
+		SENSITIVITY: 1.35, // Base sensitivity multiplier
+		ACCELERATION_CURVE: 0.7, // Power curve for acceleration (values < 1 provide more precision at low inputs)
+		MAX_DISTANCE: 60, // Maximum physical joystick travel distance (pixels)
+
+		// Haptic feedback configuration
+		HAPTIC: {
+			DURATION: {
+				TAP: 50, // Basic feedback duration (ms)
+				ZONE_CHANGE: 20 // Subtle zone transition feedback (ms)
+			}
+		}
+	};
 
 	let keys = {
 		ArrowLeft: false,
@@ -42,49 +65,12 @@
 		Enter: false
 	};
 
-	const TOUCH_CONFIG = {
-		SAMPLING_RATE: 16, // ms
-		INITIAL_DELAY: 50, // ms
-		MAX_DELTA: 1.5 // Maximum change per update
-	};
-
-	function calculateNormalizedPosition(touch, rect) {
-		const centerX = rect.width / 2;
-		const centerY = rect.height / 2;
-
-		// Calculate raw position
-		const rawX = touch.clientX - rect.left - centerX;
-		const rawY = touch.clientY - rect.top - centerY;
-
-		// Calculate distance from center
-		const distance = Math.sqrt(rawX * rawX + rawY * rawY);
-
-		// For horizontal movement only, ignore Y axis
-		return {
-			x: rawX / Math.max(rect.width / 2, distance),
-			y: 0, // Set Y to 0 to disable vertical movement
-			distance: distance
-		};
-	}
-
-	function applyProgressiveAcceleration(value) {
-		// Apply increased sensitivity
-		value *= JOYSTICK_SENSITIVITY;
-
-		// Apply custom acceleration curve
-		const absValue = Math.abs(value);
-		const sign = Math.sign(value);
-
-		// Use a custom curve that's more responsive at lower inputs
-		return sign * Math.pow(absValue, ACCELERATION_CURVE);
-	}
-
 	// Spring animation for smooth joystick movement (horizontal only)
 	let joystickPos = spring(
 		{ x: 0, y: 0 },
 		{
-			stiffness: 0.55,
-			damping: 0.45
+			stiffness: 0.25, // Lower for smoother movement
+			damping: 0.7 // Higher for less oscillation
 		}
 	);
 
@@ -97,71 +83,143 @@
 	let mounted = false;
 	let isLandscape = false;
 
+	// Track current movement zone for transitions and visual feedback
+	let currentMovementZone = 'DEADZONE';
+	let previousMovementZone = 'DEADZONE';
+
 	// Button states
 	const buttons: {
-		ammo: boolean;
-		heatseeker: boolean;
+		shoot: boolean;
+		missile: boolean;
 		pause: boolean;
 		enter: boolean;
 		reset: boolean;
 	} = {
-		ammo: false,
-		heatseeker: false,
+		shoot: false,
+		missile: false,
 		pause: false,
 		enter: false,
 		reset: false
 	};
 
+	// Debug variables
+	let debugMode = false; // Set to true to enable visual zone indicators
+
 	$: controlsHeight = isLandscape ? 'var(--controls-height-landscape)' : 'var(--controls-height)';
 
-	function triggerHaptic() {
+	/**
+	 * Trigger haptic feedback for user interactions
+	 * @param {number} duration - Duration of vibration in ms
+	 */
+	function triggerHaptic(duration = JOYSTICK_CONFIG.HAPTIC.DURATION.TAP) {
 		if (browser && 'vibrate' in navigator) {
-			navigator.vibrate(BUTTON_HAPTIC_DURATION);
+			navigator.vibrate(duration);
 		}
 	}
 
-	const JOYSTICK_CONFIG = {
-		// Increased from 0.15 for better subtle control
-		DEADZONE: 0.12,
-		// Expanded range for more precise movement
-		MAX_DISTANCE: 60,
-		// Added for smoother acceleration
-		MIN_MOVEMENT_THRESHOLD: 0.05,
-		// Multiple zones for progressive response
-		MOVEMENT_ZONES: {
-			PRECISE: 0.3,
-			NORMAL: 0.6,
-			RAPID: 1.0
-		},
-		// Dynamic acceleration curve
-		ACCELERATION: {
-			PRECISE: 1.2,
-			NORMAL: 1.5,
-			RAPID: 1.8
-		},
-		// Enhanced smoothing
-		SPRING: {
-			STIFFNESS: 0.25, // Reduced from 0.3
-			DAMPING: 0.85 // Increased from 0.8
-		},
-		// Haptic feedback configuration
-		HAPTIC: {
-			DURATION: {
-				TAP: 50,
-				ZONE_CHANGE: 20
-			},
-			INTENSITY: {
-				LIGHT: 0.3,
-				MEDIUM: 0.5,
-				STRONG: 0.8
+	/**
+	 * Calculates normalized joystick position with zone awareness
+	 * @param {TouchEvent|MouseEvent} touch - The touch/mouse input event
+	 * @param {DOMRect} rect - The joystick element's bounding rectangle
+	 * @returns {Object} Normalized position and additional metadata
+	 */
+	function calculateNormalizedPosition(touch, rect) {
+		const centerX = rect.width / 2;
+
+		// Calculate raw position (horizontal only for this implementation)
+		const rawX = touch.clientX - rect.left - centerX;
+
+		// Calculate distance from center
+		const distance = Math.abs(rawX);
+		const maxDistance = Math.min(JOYSTICK_CONFIG.MAX_DISTANCE, rect.width * 0.4);
+
+		// Normalize the position to -1 to 1 range
+		const normalizedX = Math.max(-1, Math.min(1, rawX / maxDistance));
+
+		// Determine which zone the input falls into
+		const absNormalizedX = Math.abs(normalizedX);
+		let zone = 'DEADZONE';
+
+		if (absNormalizedX > JOYSTICK_CONFIG.ZONES.DEADZONE) {
+			zone = 'PRECISION';
+
+			if (absNormalizedX > JOYSTICK_CONFIG.ZONES.PRECISION) {
+				zone = 'STANDARD';
+
+				if (absNormalizedX > JOYSTICK_CONFIG.ZONES.STANDARD) {
+					zone = 'RAPID';
+				}
 			}
 		}
-	};
 
-	// State management for movement zones
-	let currentMovementZone = 'PRECISE'; // Initialize with the most precise zone
-	let previousMovementZone = 'PRECISE';
+		return {
+			x: normalizedX,
+			rawDistance: distance,
+			normalizedDistance: absNormalizedX,
+			zone: zone,
+			maxDistance: maxDistance
+		};
+	}
 
+	/**
+	 * Applies a progressive acceleration curve based on the input zone
+	 * @param {Object} positionData - The normalized position data with zone information
+	 * @returns {number} The accelerated input value for horizontal movement
+	 */
+	function applyProgressiveAcceleration(positionData) {
+		const { x, zone, normalizedDistance } = positionData;
+
+		// If in deadzone, no movement
+		if (zone === 'DEADZONE') {
+			return 0;
+		}
+
+		// Get the acceleration multiplier for the current zone
+		const accelerationMultiplier = JOYSTICK_CONFIG.ACCELERATION[zone];
+
+		// Apply the base sensitivity
+		let adjustedValue = x * JOYSTICK_CONFIG.SENSITIVITY;
+
+		// Calculate zone-specific progress (how far into the current zone)
+		let zoneProgress = 0;
+
+		if (zone === 'PRECISION') {
+			zoneProgress =
+				(normalizedDistance - JOYSTICK_CONFIG.ZONES.DEADZONE) /
+				(JOYSTICK_CONFIG.ZONES.PRECISION - JOYSTICK_CONFIG.ZONES.DEADZONE);
+		} else if (zone === 'STANDARD') {
+			zoneProgress =
+				(normalizedDistance - JOYSTICK_CONFIG.ZONES.PRECISION) /
+				(JOYSTICK_CONFIG.ZONES.STANDARD - JOYSTICK_CONFIG.ZONES.PRECISION);
+		} else if (zone === 'RAPID') {
+			zoneProgress =
+				(normalizedDistance - JOYSTICK_CONFIG.ZONES.STANDARD) /
+				(JOYSTICK_CONFIG.ZONES.RAPID - JOYSTICK_CONFIG.ZONES.STANDARD);
+		}
+
+		// Apply non-linear acceleration curve for smoother transitions
+		// Use different power curves for different zones
+		let curveExponent = JOYSTICK_CONFIG.ACCELERATION_CURVE;
+
+		if (zone === 'PRECISION') {
+			// More extreme curve for precision mode (more precision at low inputs)
+			curveExponent = 0.5;
+		}
+
+		// Apply the curve to zone progress
+		zoneProgress = Math.pow(Math.max(0.1, Math.min(1, zoneProgress)), curveExponent);
+
+		// Apply accelerated value with zone-specific scaling
+		const acceleratedValue =
+			Math.sign(adjustedValue) * Math.abs(adjustedValue) * accelerationMultiplier * zoneProgress;
+
+		return acceleratedValue;
+	}
+
+	/**
+	 * Handles joystick movement with improved zone-based control
+	 * @param {TouchEvent|MouseEvent} event - The touch/mouse input event
+	 */
 	function handleJoystickMove(event) {
 		if (!browser || !mounted || !isJoystickActive) return;
 
@@ -170,22 +228,23 @@
 		if (!touch) return;
 
 		const rect = joystickBase.getBoundingClientRect();
-		const { x: normalizedX, distance } = calculateNormalizedPosition(touch, rect);
 
-		// Apply enhanced sensitivity for mobile (horizontal only)
-		const sensitivity = distance < JOYSTICK_MAX_DISTANCE * 0.5 ? 1.2 : 1.5;
-		let adjustedX = normalizedX * JOYSTICK_MAX_DISTANCE * sensitivity;
+		// Get enhanced normalized position data with zone information
+		const positionData = calculateNormalizedPosition(touch, rect);
 
-		// Apply smoother deadzone
-		const deadzoneValue = Math.min(JOYSTICK_DEADZONE, (distance / JOYSTICK_MAX_DISTANCE) * 0.1);
+		// Track previous zone for haptic feedback on zone transitions
+		previousMovementZone = currentMovementZone;
+		currentMovementZone = positionData.zone;
 
-		// Only handle movement keys, don't interfere with other controls
-		if (Math.abs(adjustedX) < deadzoneValue) {
-			adjustedX = 0;
-			// Only reset movement-related state
+		// Apply progressive acceleration based on zones
+		const acceleratedX = applyProgressiveAcceleration(positionData);
+
+		// Handle movement based on the accelerated value
+		if (positionData.zone === 'DEADZONE') {
+			// In deadzone, stop movement
 			touchControlState.movement.direction.x = 0;
 
-			// Only release movement keys
+			// Release movement keys
 			if (keys.ArrowLeft) {
 				window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
 				keys.ArrowLeft = false;
@@ -195,12 +254,13 @@
 				keys.ArrowRight = false;
 			}
 		} else {
-			// Update only movement state and simulate keyboard events
-			const direction = Math.sign(adjustedX);
+			// Outside deadzone, update movement
+			const direction = Math.sign(acceleratedX);
 			touchControlState.movement.direction.x = direction;
 
 			// Handle left movement
 			if (direction < 0 && !keys.ArrowLeft) {
+				// Simulate keyboard event
 				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
 				keys.ArrowLeft = true;
 				if (keys.ArrowRight) {
@@ -210,6 +270,7 @@
 			}
 			// Handle right movement
 			else if (direction > 0 && !keys.ArrowRight) {
+				// Simulate keyboard event
 				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
 				keys.ArrowRight = true;
 				if (keys.ArrowLeft) {
@@ -219,23 +280,35 @@
 			}
 		}
 
-		// Update visual position with dynamic constraint (horizontal only)
-		const maxDistance = Math.min(JOYSTICK_MAX_DISTANCE, rect.width * 0.4);
-		if (Math.abs(adjustedX) > maxDistance) {
-			adjustedX = Math.sign(adjustedX) * maxDistance;
+		// Provide haptic feedback on zone transitions
+		if (previousMovementZone !== currentMovementZone) {
+			// Different feedback intensity based on which zone we're entering
+			let vibrationIntensity = JOYSTICK_CONFIG.HAPTIC.DURATION.ZONE_CHANGE;
+
+			if (currentMovementZone === 'RAPID') {
+				// Stronger feedback when entering rapid mode
+				vibrationIntensity = JOYSTICK_CONFIG.HAPTIC.DURATION.ZONE_CHANGE * 2;
+			}
+
+			triggerHaptic(vibrationIntensity);
 		}
 
+		// Update visual position with dynamic constraint
+		const visualX = positionData.x * positionData.maxDistance;
+
+		// Update spring animation for smooth movement
 		joystickPos.set({
-			x: adjustedX,
-			y: 0 // Keep Y at 0
+			x: visualX,
+			y: 0 // Keep Y at 0 for horizontal-only movement
 		});
 
-		// Only dispatch movement data
+		// Dispatch control event with enhanced data
 		dispatch('control', {
 			type: 'joystick',
 			value: {
-				x: Math.max(-1, Math.min(1, adjustedX / maxDistance)),
-				y: 0
+				x: acceleratedX,
+				y: 0,
+				zone: currentMovementZone
 			}
 		});
 	}
@@ -254,6 +327,7 @@
 			y: touch.clientY - rect.top
 		};
 
+		// Update joystick position immediately
 		handleJoystickMove(event);
 	}
 
@@ -264,10 +338,10 @@
 		joystickPos.set({ x: 0, y: 0 });
 
 		// Reset movement zone
-		currentMovementZone = 'PRECISE';
-		previousMovementZone = 'PRECISE';
+		previousMovementZone = currentMovementZone;
+		currentMovementZone = 'DEADZONE';
 
-		// Only release movement keys
+		// Release movement keys
 		if (keys.ArrowLeft) {
 			window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft' }));
 			keys.ArrowLeft = false;
@@ -277,11 +351,11 @@
 			keys.ArrowRight = false;
 		}
 
-		// Reset only movement state
+		// Reset movement state
 		touchControlState.movement.direction.x = 0;
 		dispatch('control', {
 			type: 'joystick',
-			value: { x: 0, y: 0 }
+			value: { x: 0, y: 0, zone: 'DEADZONE' }
 		});
 	}
 
@@ -366,6 +440,7 @@
 			});
 		}
 	}
+
 	function updateLayoutOrientation() {
 		if (!browser || !mounted) return;
 		isLandscape = window.innerWidth > window.innerHeight;
@@ -479,17 +554,42 @@
 		<div class="joystick-container">
 			<div
 				class="joystick-base"
+				class:debug-mode={debugMode}
 				bind:this={joystickBase}
 				on:mousedown|preventDefault={handleJoystickStart}
 				on:touchstart|preventDefault={handleJoystickStart}
 			>
+				<!-- Debug zone indicators (only visible in debug mode) -->
+				{#if debugMode}
+					<div
+						class="zone-indicator precision"
+						style="transform: scale({JOYSTICK_CONFIG.ZONES.PRECISION})"
+					></div>
+					<div
+						class="zone-indicator standard"
+						style="transform: scale({JOYSTICK_CONFIG.ZONES.STANDARD})"
+					></div>
+					<div
+						class="zone-indicator rapid"
+						style="transform: scale({JOYSTICK_CONFIG.ZONES.RAPID})"
+					></div>
+				{/if}
+
 				<div
 					class="joystick-handle"
+					class:precision-mode={currentMovementZone === 'PRECISION'}
+					class:standard-mode={currentMovementZone === 'STANDARD'}
+					class:rapid-mode={currentMovementZone === 'RAPID'}
 					style="transform: translate3d({$joystickPos.x}px, {$joystickPos.y}px, 0)"
 				>
 					<div class="joystick-indicator" />
 				</div>
 			</div>
+
+			<!-- Zone indicator label (only visible in debug mode) -->
+			{#if debugMode}
+				<div class="zone-label">{currentMovementZone}</div>
+			{/if}
 		</div>
 
 		<div class="action-buttons">
@@ -543,6 +643,14 @@
 		--neon-color: rgba(39, 255, 153, 1);
 		--neon-color-dim: rgba(39, 255, 153, 0.3);
 		--controls-background: rgba(245, 245, 220, 0.05);
+
+		/* Zone-specific colors */
+		--precision-color: rgba(39, 155, 255, 1);
+		--precision-color-dim: rgba(39, 155, 255, 0.4);
+		--standard-color: rgba(39, 255, 153, 1);
+		--standard-color-dim: rgba(39, 255, 153, 0.4);
+		--rapid-color: rgba(255, 100, 100, 1);
+		--rapid-color-dim: rgba(255, 100, 100, 0.4);
 	}
 
 	/* Base container styles */
@@ -607,15 +715,17 @@
 		position: relative;
 	}
 
-	/* Joystick styles */
+	/* Joystick styles with enhanced zone-based visuals */
 	.joystick-container {
 		flex: 0 0 var(--joystick-size);
 		display: flex;
+		flex-direction: column;
 		justify-content: center;
 		align-items: center;
 		height: 100%;
 		touch-action: none;
 		margin-left: 2rem;
+		position: relative;
 	}
 
 	.joystick-base {
@@ -632,6 +742,40 @@
 		-webkit-touch-callout: none;
 		-webkit-tap-highlight-color: transparent;
 		transform: translateZ(0);
+		transition: border-color 0.2s ease;
+	}
+
+	/* Zone indicator circles for debug mode */
+	.zone-indicator {
+		position: absolute;
+		width: 100%;
+		height: 100%;
+		border-radius: 50%;
+		border: 1px dashed rgba(255, 255, 255, 0.3);
+		pointer-events: none;
+	}
+
+	.zone-indicator.precision {
+		border-color: var(--precision-color-dim);
+	}
+
+	.zone-indicator.standard {
+		border-color: var(--standard-color-dim);
+	}
+
+	.zone-indicator.rapid {
+		border-color: var(--rapid-color-dim);
+	}
+
+	.zone-label {
+		position: absolute;
+		bottom: -20px;
+		font-size: 10px;
+		color: rgba(255, 255, 255, 0.7);
+		background: rgba(0, 0, 0, 0.5);
+		padding: 2px 6px;
+		border-radius: 4px;
+		white-space: nowrap;
 	}
 
 	.joystick-handle {
@@ -645,19 +789,56 @@
 		touch-action: none;
 		transform-style: preserve-3d;
 		backface-visibility: hidden;
-		transition: transform 0.05s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+		transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 		box-shadow: 0 0 15px rgba(39, 255, 153, 0.3);
 	}
 
+	/* Zone-specific visual styles */
+	.joystick-handle.precision-mode {
+		border-color: var(--precision-color);
+		box-shadow: 0 0 15px var(--precision-color-dim);
+		background: rgba(39, 155, 255, 0.2);
+	}
+
+	.joystick-handle.standard-mode {
+		border-color: var(--standard-color);
+		box-shadow: 0 0 15px var(--standard-color-dim);
+		background: rgba(39, 255, 153, 0.2);
+	}
+
+	.joystick-handle.rapid-mode {
+		border-color: var(--rapid-color);
+		box-shadow: 0 0 20px var(--rapid-color-dim);
+		background: rgba(255, 100, 100, 0.2);
+	}
+
 	.joystick-handle:active {
-		box-shadow: 0 0 25px rgba(39, 255, 153, 0.5);
+		transform: scale(0.95); /* Subtle press effect */
 	}
 
 	.joystick-indicator {
 		width: 100%;
 		height: 100%;
-		background: radial-gradient(circle at center, rgba(39, 255, 153, 0.3) 0%, transparent 70%);
 		border-radius: 50%;
+		transition: background 0.2s ease;
+	}
+
+	/* Zone-specific indicator styles */
+	.precision-mode .joystick-indicator {
+		background: radial-gradient(circle at center, rgba(39, 155, 255, 0.4) 0%, transparent 70%);
+	}
+
+	.standard-mode .joystick-indicator {
+		background: radial-gradient(circle at center, rgba(39, 255, 153, 0.4) 0%, transparent 70%);
+	}
+
+	.rapid-mode .joystick-indicator {
+		background: radial-gradient(circle at center, rgba(255, 100, 100, 0.4) 0%, transparent 70%);
+	}
+
+	/* Debug mode enhancements */
+	.joystick-base.debug-mode {
+		background: rgba(0, 0, 0, 0.2);
 	}
 
 	/* Button styles */
