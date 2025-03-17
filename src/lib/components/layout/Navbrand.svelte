@@ -1,5 +1,9 @@
-<!-- src/components/NavBrand.svelte -->
+<!-- File: src/lib/components/layout/NavBrand.svelte -->
+<!-- Location: Update the component to include base path in links -->
+
 <script lang="ts">
+	import { base } from '$app/paths'; // Import the base path
+
 	/**
 	 * Custom NavBrand component - A simplified replacement for Flowbite's NavBrand
 	 *
@@ -50,10 +54,13 @@
 	 * @type {string}
 	 */
 	export let ariaLabel = '';
+
+	// Add base path to href if it's a relative path
+	$: actualHref = href.startsWith('/') ? `${base}${href}` : href;
 </script>
 
 <a
-	{href}
+	href={actualHref}
 	class="flex items-center {className}"
 	{target}
 	{rel}
@@ -64,19 +71,3 @@
 >
 	<slot />
 </a>
-
-<style>
-	/* Add any custom styles for the brand component here */
-	a {
-		display: flex;
-		align-items: center;
-		text-decoration: none;
-		outline-offset: 2px;
-	}
-
-	/* Ensure focus styles for accessibility */
-	a:focus-visible {
-		outline: 2px solid currentColor;
-		outline-offset: 2px;
-	}
-</style>

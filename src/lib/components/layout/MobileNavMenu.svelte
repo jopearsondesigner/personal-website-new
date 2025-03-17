@@ -9,6 +9,7 @@
 	import { browser } from '$app/environment';
 	import { navSections, navigationStore } from '$lib/stores/navigation';
 	import { tick } from 'svelte';
+	import { base } from '$app/paths'; // Import the base path
 
 	export let isOpen = false;
 
@@ -68,7 +69,11 @@
 		}
 
 		// Check if we're on the homepage
-		const isHomePage = currentPath === '/' || window.location.pathname === '/';
+		const isHomePage =
+			currentPath === '/' ||
+			currentPath === base + '/' ||
+			window.location.pathname === '/' ||
+			window.location.pathname === base + '/';
 
 		if (isHomePage) {
 			// We're on homepage - use the robust hybrid approach
@@ -92,7 +97,7 @@
 
 			// Update URL hash without jumping (using history API)
 			if (history.pushState) {
-				history.pushState(null, null, `#${sectionId}`);
+				history.pushState(null, null, `${base}/#${sectionId}`);
 			}
 
 			// Smooth scroll
@@ -102,7 +107,7 @@
 			});
 		} else {
 			// We're on a different page - navigate to homepage with hash
-			window.location.href = `/#${sectionId}`;
+			window.location.href = `${base}/#${sectionId}`;
 		}
 	}
 
@@ -218,7 +223,7 @@
 				<div class="space-y-5">
 					{#each $navSections as section}
 						<a
-							href="#{section.id}"
+							href="{base}#{section.id}"
 							class="block text-base
 								text-arcadeBlack-500 dark:text-arcadeWhite-300
 								hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500
@@ -231,12 +236,11 @@
 
 					<!-- Add blog link separately if needed -->
 					<a
-						href="/blog"
+						href="{base}/blog"
 						class="block text-base
 							text-arcadeBlack-500 dark:text-arcadeWhite-300
 							hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500
-							{currentPath === '/blog' ? 'text-arcadeNeonGreen-500' : ''}"
-						on:click={(e) => smoothScroll('/blog', e)}
+							{currentPath === '/blog' || currentPath === base + '/blog' ? 'text-arcadeNeonGreen-500' : ''}"
 					>
 						Blog
 					</a>

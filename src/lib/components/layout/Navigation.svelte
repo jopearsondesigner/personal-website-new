@@ -5,11 +5,12 @@
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { base } from '$app/paths'; // Import the base path
 
 	// Initialize navigation observer on component mount
 	onMount(() => {
 		// Initialize section observer for homepage
-		if ($page.url.pathname === '/') {
+		if ($page.url.pathname === '/' || $page.url.pathname === base + '/') {
 			navigationStore.initSectionObserver();
 		}
 
@@ -28,7 +29,7 @@
 		e.preventDefault();
 
 		// Check if we're on the homepage
-		const isHomepage = $page.url.pathname === '/';
+		const isHomepage = $page.url.pathname === '/' || $page.url.pathname === base + '/';
 
 		if (isHomepage) {
 			// If on homepage, just scroll to section
@@ -36,7 +37,7 @@
 		} else {
 			// If on another page, use SvelteKit's goto function with replaceState
 			// to prevent adding to browser history
-			await goto(`/#${sectionId}`, { replaceState: false });
+			await goto(`${base}/#${sectionId}`, { replaceState: false });
 
 			// After navigation completes, need to scroll to section
 			// Small timeout to ensure DOM is ready after route change
@@ -47,16 +48,17 @@
 	}
 
 	// Determine if blog is active
-	$: isBlogActive = $page.url.pathname.startsWith('/blog');
+	$: isBlogActive = $page.url.pathname.startsWith(base + '/blog');
 </script>
 
 <nav class="desktop-nav hidden lg:flex lg:flex-wrap lg:order-1">
 	<!-- Home, About, Work, Contact sections from configuration -->
 	{#each $navSections as section}
 		<a
-			href="/#${section.id}"
+			href="{base}/#${section.id}"
 			class="nav-button"
-			class:active={section.isActive && $page.url.pathname === '/'}
+			class:active={section.isActive &&
+				($page.url.pathname === '/' || $page.url.pathname === base + '/')}
 			on:click={(e) => handleNavClick(section.id, e)}
 			aria-label="Navigate to {section.title} section"
 		>
@@ -65,7 +67,12 @@
 	{/each}
 
 	<!-- Blog link as the last item -->
-	<a href="/blog" class="nav-button" class:active={isBlogActive} aria-label="Navigate to Blog">
+	<a
+		href="{base}/blog"
+		class="nav-button"
+		class:active={isBlogActive}
+		aria-label="Navigate to Blog"
+	>
 		Blog
 	</a>
 </nav>
