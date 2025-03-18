@@ -1,75 +1,68 @@
-<!-- src/lib/components/layout/Navigation.svelte -->
+<!-- File: src/lib/components/layout/Navigation.svelte -->
+
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { navSections, navigationStore } from '$lib/stores/navigation';
+	import { base } from '$app/paths';
+	import { tick } from 'svelte';
 	import { browser } from '$app/environment';
-	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
-	import { base } from '$app/paths'; // Import the base path
 
-	// Initialize navigation observer on component mount
-	onMount(() => {
-		// Initialize section observer for homepage
-		if ($page.url.pathname === '/' || $page.url.pathname === base + '/') {
-			navigationStore.initSectionObserver();
-		}
+	// Determine if we're on the homepage
+	$: isHomePage = $page.url.pathname === '/' || $page.url.pathname === base + '/';
 
-		// Handle initial hash navigation if coming from another page
-		if (browser && window.location.hash) {
-			const hash = window.location.hash.substring(1);
-			// Small delay to ensure DOM is ready
-			setTimeout(() => {
-				navigationStore.scrollToSection(hash);
-			}, 100);
-		}
-	});
-
-	// Handle navigation click for section scrolling
+	// Function to handle navigation click
 	async function handleNavClick(sectionId: string, e: MouseEvent) {
 		e.preventDefault();
 
-		// Check if we're on the homepage
-		const isHomepage = $page.url.pathname === '/' || $page.url.pathname === base + '/';
+		if (browser) {
+			if (isHomePage) {
+				// We're on the homepage - scroll to section
+				const navbarHeight = parseInt(
+					document.documentElement.style.getPropertyValue('--navbar-height') || '64',
+					10
+				);
 
-		if (isHomepage) {
-			// If on homepage, just scroll to section
-			navigationStore.scrollToSection(sectionId);
-		} else {
-			// If on another page, use SvelteKit's goto function with replaceState
-			// to prevent adding to browser history
-			await goto(`${base}/#${sectionId}`, { replaceState: false });
+				const section = document.getElementById(sectionId);
+				if (!section) return;
 
-			// After navigation completes, need to scroll to section
-			// Small timeout to ensure DOM is ready after route change
-			setTimeout(() => {
-				navigationStore.scrollToSection(sectionId);
-			}, 100);
+				const top = section.getBoundingClientRect().top + window.scrollY - navbarHeight;
+
+				navigationStore.setActiveSection(sectionId);
+
+				if (history.pushState) {
+					history.pushState(null, '', `#${sectionId}`);
+				}
+
+				window.scrollTo({
+					top,
+					behavior: 'smooth'
+				});
+			} else {
+				// We're on another page - navigate to homepage with hash
+				window.location.href = `${base}/#${sectionId}`;
+			}
 		}
 	}
-
-	// Determine if blog is active
-	$: isBlogActive = $page.url.pathname.startsWith(base + '/blog');
 </script>
 
-<nav class="desktop-nav hidden lg:flex lg:flex-wrap lg:order-1">
-	<!-- Home, About, Work, Contact sections from configuration -->
+<div class="hidden lg:flex items-center space-x-px">
 	{#each $navSections as section (section.id)}
+		<!-- Use conditional href based on current page -->
 		<a
-			href="#{section.id}"
-			class:active={section.isActive}
+			href={isHomePage ? `#${section.id}` : `${base}/#${section.id}`}
+			class="nav-button {section.isActive ? 'active' : ''}"
 			on:click|preventDefault={(e) => handleNavClick(section.id, e)}
 		>
 			{section.title}
 		</a>
 	{/each}
 
-	<!-- Blog link as the last item -->
 	<a
 		href="{base}/blog"
-		class="nav-button"
-		class:active={isBlogActive}
-		aria-label="Navigate to Blog"
+		class="nav-button {$page.url.pathname === '/blog' || $page.url.pathname === base + '/blog'
+			? 'active'
+			: ''}"
 	>
 		Blog
 	</a>
-</nav>
+</div>
