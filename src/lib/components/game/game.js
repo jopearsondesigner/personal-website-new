@@ -3047,6 +3047,18 @@ class Enemy {
 		this.spriteHeight = 65;
 		this.flapSpeed = Math.floor(Math.random() * 10 + 1);
 		this.patternIndex = Math.floor(Math.random() * 4);
+		this.arcadePhysics = {
+			bounceHeight: Math.random() * 3 + 2,
+			bounceSpeed: Math.random() * 0.05 + 0.02,
+			bouncePhase: Math.random() * Math.PI * 2,
+			wobbleAmount: Math.random() * 2 + 1,
+			pauseInterval: Math.floor(Math.random() * 120) + 60,
+			pauseTimer: 0,
+			isPaused: false,
+			pauseDuration: Math.floor(Math.random() * 30) + 15,
+			lastDirectionChange: 0,
+			directionChangeInterval: Math.floor(Math.random() * 90) + 30
+		};
 		this.spriteImage = new Image();
 		this.spriteImage.src = getAssetPath('assets/images/game/void_swarm_sprite.png');
 		this.targetX = player.x;
@@ -3064,56 +3076,117 @@ class Enemy {
 		const adjustedSpeed = this.speed * timeMultiplier;
 		const adjustedDiveSpeed = this.diveSpeed * timeMultiplier;
 
-		// Remove the early return and make the frame sync only affect movement
+		// Arcade-style movement pattern: occasional pauses
+		if (this.arcadePhysics.pauseTimer >= this.arcadePhysics.pauseInterval) {
+			this.arcadePhysics.isPaused = true;
+			this.arcadePhysics.pauseTimer = 0;
+		} else if (this.arcadePhysics.isPaused) {
+			this.arcadePhysics.pauseDuration--;
+			if (this.arcadePhysics.pauseDuration <= 0) {
+				this.arcadePhysics.isPaused = false;
+				this.arcadePhysics.pauseDuration = Math.floor(Math.random() * 30) + 15;
+			}
+			// During pause, just animate wings but don't move
+			this.animateWings();
+			return;
+		}
+
+		this.arcadePhysics.pauseTimer++;
+
+		// Reference to gameFrame for sync
 		const shouldMove = gameFrame % (4 + (this.moveDelay || 0)) === 0;
 
 		if (this.y < 0) {
 			// Initial entry movement is smooth and always happens
 			this.y += 2 * timeMultiplier;
-		} else if (shouldMove) {
+		} else if (shouldMove && !this.arcadePhysics.isPaused) {
+			// Apply classic arcade movement patterns with more personality
 			switch (this.patternIndex) {
-				case 0: // Classic Galaga-style curved entry
+				case 0: // Classic Galaga-style curved entry with bounce
 					this.y += adjustedSpeed;
 					this.x += Math.sin(gameFrame * 0.02) * 2 * timeMultiplier;
+					// Add vertical bounce for personality
+					this.y +=
+						Math.sin(gameFrame * this.arcadePhysics.bounceSpeed) *
+						this.arcadePhysics.bounceHeight *
+						timeMultiplier;
 					break;
-				case 1: // Figure-8 pattern
+
+				case 1: // Figure-8 pattern with hesitation
 					const t = gameFrame * 0.02;
+					// Add occasional direction change hesitation
+					if (
+						gameFrame - this.arcadePhysics.lastDirectionChange >
+						this.arcadePhysics.directionChangeInterval
+					) {
+						this.arcadePhysics.lastDirectionChange = gameFrame;
+						// Brief pause at pattern inflection points
+						if (Math.random() < 0.3) {
+							this.arcadePhysics.isPaused = true;
+							this.arcadePhysics.pauseDuration = Math.floor(Math.random() * 10) + 5;
+						}
+					}
 					this.x += Math.sin(t) * 2 * timeMultiplier;
 					this.y += Math.sin(t * 2) * timeMultiplier;
 					break;
-				case 2: // Gradius-style wave pattern
+
+				case 2: // Gradius-style wave pattern with wobble
 					this.y += adjustedSpeed * 0.5;
-					this.x += Math.sin(this.y * 0.02) * 3 * timeMultiplier;
+					// Add a secondary wobble for more organic movement
+					this.x +=
+						Math.sin(this.y * 0.02) * 3 * timeMultiplier +
+						Math.sin(gameFrame * 0.1) * this.arcadePhysics.wobbleAmount * 0.3 * timeMultiplier;
 					break;
-				case 3: // R-Type dive attack
+
+				case 3: // R-Type dive attack with arcade-style targeting
 					if (this.y < canvas.height / 3) {
 						this.y += adjustedSpeed;
 					} else {
+						// More arcade-like targeting with overshooting and correction
 						const dx = player.x - this.x;
 						const dy = player.y - this.y;
 						const angle = Math.atan2(dy, dx);
-						this.x += Math.cos(angle) * adjustedSpeed * 1.5;
+
+						// Add intentional overshoot like classic games
+						const overcompensation = Math.sin(gameFrame * 0.05) * 0.5 + 1;
+
+						this.x += Math.cos(angle) * adjustedSpeed * 1.5 * overcompensation;
 						this.y += Math.sin(angle) * adjustedSpeed * 1.5;
 					}
 					break;
 			}
 		}
 
-		// Rest of the existing update code remains exactly the same...
+		// Handle explosion animation
 		if (this.isExploding) {
-			this.explosionFrame++;
-			if (this.explosionFrame > this.numberOfExplosionFrames) {
-				this.toBeRemoved = true;
-			}
-
-			for (let i = 0; i < 50; i++) {
-				let color = `rgba(${255 - Math.random() * 128}, ${Math.random() * 100}, 0, 1)`;
-				particles.push(new Particle(this.x + this.width / 2, this.y + this.height / 2, color));
-			}
-			this.toBeRemoved = true;
-			shakeScreen(300, 10);
+			this.handleExplosion(timeMultiplier);
+			return;
 		}
 
+		// Handle aggressive state effects
+		this.handleAggressiveEffects(timeMultiplier);
+
+		// Handle animation and shooting
+		this.animateWings();
+		this.handleShooting(timeMultiplier);
+	}
+
+	// Helper methods to keep update() clean
+	handleExplosion(timeMultiplier) {
+		this.explosionFrame++;
+		if (this.explosionFrame > this.numberOfExplosionFrames) {
+			this.toBeRemoved = true;
+		}
+
+		for (let i = 0; i < 50; i++) {
+			let color = `rgba(${255 - Math.random() * 128}, ${Math.random() * 100}, 0, 1)`;
+			particles.push(new Particle(this.x + this.width / 2, this.y + this.height / 2, color));
+		}
+		this.toBeRemoved = true;
+		shakeScreen(300, 10);
+	}
+
+	handleAggressiveEffects(timeMultiplier) {
 		if (this.isAggressive) {
 			const particleCount = Math.floor(Math.random() * 3) + 8;
 
@@ -3150,17 +3223,6 @@ class Enemy {
 			}
 		});
 
-		if (this.flapSpeed === 0) {
-			this.flapSpeed = Math.floor(Math.random() * 10 + 5);
-			this.frameX = (this.frameX + 1) % this.maxFrames;
-		} else {
-			this.flapSpeed--;
-		}
-
-		if (Math.random() < (this.isAggressive ? 0.005 : 0.0025) * timeMultiplier) {
-			enemyProjectiles.push(new AnimatedProjectile(this.x + this.width / 2 - 6.5, this.y, true));
-		}
-
 		if (this.isAggressive) {
 			this.speed += 0.1 * timeMultiplier;
 			this.diveSpeed += 0.2 * timeMultiplier;
@@ -3169,52 +3231,114 @@ class Enemy {
 		}
 	}
 
+	animateWings() {
+		if (this.flapSpeed === 0) {
+			this.flapSpeed = Math.floor(Math.random() * 10 + 5);
+			this.frameX = (this.frameX + 1) % this.maxFrames;
+		} else {
+			this.flapSpeed--;
+		}
+	}
+
+	handleShooting(timeMultiplier) {
+		// Arcade-style shot pattern: more shots when aggressive
+		const shotChance = this.isAggressive ? 0.008 : 0.003;
+
+		if (Math.random() < shotChance * timeMultiplier) {
+			// Create 1-3 bullets in a spread pattern for more arcade feel
+			const bulletCount = this.isAggressive ? (Math.random() < 0.3 ? 3 : 1) : 1;
+
+			for (let i = 0; i < bulletCount; i++) {
+				const spread = (i - (bulletCount - 1) / 2) * 15; // Spread angle in degrees
+				const radians = (spread * Math.PI) / 180;
+
+				// Create projectile with angle offset for spread
+				const projectile = new AnimatedProjectile(this.x + this.width / 2 - 6.5, this.y, true);
+
+				// Apply spread angle if multiple bullets
+				if (bulletCount > 1) {
+					projectile.angle = Math.PI / 2 + radians;
+				}
+
+				enemyProjectiles.push(projectile);
+			}
+		}
+	}
+
 	draw(ctx) {
+		this.enhancedDraw(ctx);
+	}
+
+	// Enhance the draw method with personality
+	enhancedDraw(ctx) {
 		if (this.isExploding) {
-			// Corrected frame indices for explosion animation (frames 7-9 are indices 6-8)
+			// Explosion animation with screen shake based on frame
 			let explosionFrameIndex = 6 + (this.explosionFrame - 1);
 			if (explosionFrameIndex > 8) explosionFrameIndex = 8;
+
+			// Add slight rotation during explosion for more impact
+			ctx.save();
+			ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+			ctx.rotate((Math.random() - 0.5) * 0.2); // Slight random rotation
+
 			ctx.drawImage(
 				this.spriteImage,
 				explosionFrameIndex * this.spriteWidth,
 				0,
 				this.spriteWidth,
 				this.spriteHeight,
-				this.x,
-				this.y,
+				-this.width / 2,
+				-this.height / 2,
 				this.width,
 				this.height
 			);
+			ctx.restore();
 		} else if (this.isAggressive) {
-			// Handle aggressive flight animation (frames 3-4)
-			// Let's cycle between frames 3-4 for aggression mode animation
+			// Handle aggressive flight animation with extra effects
 			let aggressiveFrameIndex = 2 + (this.frameX % 2);
+
+			// Add "angry" shake and pulsing for aggressive enemies
+			const angerShake = (Math.random() - 0.5) * 2;
+			const pulseFactor = 1 + Math.sin(gameFrame * 0.1) * 0.05; // Subtle size pulse
+
+			ctx.save();
+			ctx.translate(this.x + this.width / 2 + angerShake, this.y + this.height / 2);
+			ctx.scale(pulseFactor, pulseFactor);
+
 			ctx.drawImage(
 				this.spriteImage,
 				aggressiveFrameIndex * this.spriteWidth,
-				0, // Y position for aggressive frames
+				0,
 				this.spriteWidth,
 				this.spriteHeight,
-				this.x,
-				this.y,
+				-this.width / 2,
+				-this.height / 2,
 				this.width,
 				this.height
 			);
+			ctx.restore();
 		} else {
-			// Handle normal flight animation (frames 1-2)
-			// Cycle between frames 1-2 for normal flight animation
-			let normalFrameIndex = this.frameX % 2; // Use frameX to toggle between 0 and 1
+			// Normal flight animation with subtle bobbing
+			let normalFrameIndex = this.frameX % 2;
+
+			// Add subtle vertical bobbing common in arcade games
+			const bob = Math.sin(gameFrame * 0.08) * 1.5;
+
+			ctx.save();
+			ctx.translate(this.x + this.width / 2, this.y + this.height / 2 + bob);
+
 			ctx.drawImage(
 				this.spriteImage,
 				normalFrameIndex * this.spriteWidth,
-				0, // Y position for normal frames
+				0,
 				this.spriteWidth,
 				this.spriteHeight,
-				this.x,
-				this.y,
+				-this.width / 2,
+				-this.height / 2,
 				this.width,
 				this.height
 			);
+			ctx.restore();
 		}
 
 		// Draw fire particles if the enemy is aggressive
@@ -3272,28 +3396,66 @@ class CityEnemy extends Enemy {
 	update(timeMultiplier = 1) {
 		const adjustedSpeed = this.speed * timeMultiplier;
 
-		console.log('CityEnemy update:', {
-			currentPos: { x: this.x, y: this.y },
-			isReady: this.isReady,
-			scale: this.scale,
-			speed: adjustedSpeed
-		});
-
 		if (!this.isReady) {
+			// Add a slight horizontal sway during initial approach
 			this.y -= adjustedSpeed;
+			this.x += Math.sin(gameFrame * 0.05) * 0.5 * timeMultiplier;
+
 			if (this.y <= this.targetY) {
 				this.isReady = true;
 				this.init = true;
-				console.log('CityEnemy reached target position');
+
+				// Arcade classic: pause briefly when reaching position
+				setTimeout(() => {
+					// Play a brief "lock-on" animation here if needed
+					this.canShoot = true;
+				}, 500);
 			}
 		} else {
 			if (this.init) {
+				// Apply classic arcade targeting with overshooting and correction
 				let angle = Math.atan2(player.y - this.y, player.x - this.x);
-				this.x += Math.cos(angle) * adjustedSpeed;
-				this.y += Math.sin(angle) * adjustedSpeed;
-				this.scale = Math.min(1, this.scale + 0.01 * timeMultiplier);
 
-				if (this.scale >= 1) {
+				// Add intentional "Mario Bros enemy" style movement:
+				// 1. Move in pulses rather than continuously
+				if (gameFrame % 3 === 0) {
+					// Calculate desired movement
+					const desiredX = this.x + Math.cos(angle) * adjustedSpeed * 1.5;
+					const desiredY = this.y + Math.sin(angle) * adjustedSpeed * 1.5;
+
+					// Apply "overshoot and return" behavior
+					if (Math.random() < 0.05) {
+						// Occasionally overshoot (mimic classic enemy AI mistakes)
+						this.x = desiredX + (Math.random() - 0.5) * 10;
+						this.y = desiredY + (Math.random() - 0.5) * 10;
+					} else {
+						// Normal movement
+						this.x = desiredX;
+						this.y = desiredY;
+					}
+				}
+
+				// 2. Add "hesitation" by occasionally pausing
+				if (Math.random() < 0.01) {
+					// Create a brief pause, typical in arcade games
+					this.init = false;
+					setTimeout(
+						() => {
+							this.init = true;
+						},
+						300 + Math.random() * 300
+					);
+				}
+
+				// Scale up gradually with slight bouncing effect
+				const targetScale = 1;
+				const scaleStep = 0.01 * timeMultiplier;
+				const bounce = Math.sin(gameFrame * 0.1) * 0.03; // Small bounce
+
+				this.scale =
+					Math.min(targetScale, this.scale + scaleStep) + (this.scale > 0.5 ? bounce : 0);
+
+				if (this.scale >= 0.95) {
 					this.canShoot = true;
 				}
 
@@ -3303,12 +3465,14 @@ class CityEnemy extends Enemy {
 			}
 		}
 
+		// Handle aggressive effects
 		if (this.isAggressive) {
 			for (let i = 0; i < 5; i++) {
 				this.fireParticles.push(new FireParticle(this.x, this.y));
 			}
 		}
 
+		// Update fire particles
 		this.fireParticles.forEach((particle, index) => {
 			particle.update(timeMultiplier);
 			if (particle.opacity <= 0) {
@@ -3316,16 +3480,24 @@ class CityEnemy extends Enemy {
 			}
 		});
 
+		// Animate sprite frames
 		this.frameTimer++;
 		if (this.frameTimer >= this.frameInterval) {
-			if (this.isAggressive) {
-				this.frameX = this.frameX === 3 ? 4 : 3;
+			// Add random slight pauses in animation for personality
+			if (Math.random() < 0.1) {
+				// Hold current frame slightly longer
+				this.frameTimer = this.frameInterval - 2;
 			} else {
-				this.frameX = this.frameX === 0 ? 1 : 0;
+				if (this.isAggressive) {
+					this.frameX = this.frameX === 3 ? 4 : 3;
+				} else {
+					this.frameX = this.frameX === 0 ? 1 : 0;
+				}
+				this.frameTimer = 0;
 			}
-			this.frameTimer = 0;
 		}
 
+		// Handle explosion animation
 		if (this.isExploding) {
 			this.frameX = this.explosionFrame + 5;
 			this.explosionFrame++;
@@ -3334,20 +3506,29 @@ class CityEnemy extends Enemy {
 			}
 		}
 
+		// Handle shooting
 		if (this.isReady && !this.isExploding && this.canShoot) {
 			if (gameFrame - this.lastShotFrame > this.shootingInterval) {
-				enemyProjectiles.push(
-					new AnimatedProjectile(this.x + this.width / 2, this.y, true, false, this)
-				);
-				this.lastShotFrame = gameFrame;
-			}
-		}
+				// Classic arcade "telegraph" shooting
+				if (!this.isTelegraphing) {
+					// Show "about to shoot" state
+					this.isTelegraphing = true;
 
-		if (this.isAggressive) {
-			this.speed += 0.1;
-			this.diveSpeed += 0.2;
-			this.curveAmplitude += 0.5;
-			this.curveFrequency += 0.005;
+					// Flash briefly before shooting (classic arcade telegraph)
+					const originalFrameX = this.frameX;
+					this.frameX = this.isAggressive ? 4 : 1; // Use fully open state
+
+					setTimeout(() => {
+						// Fire after telegraph
+						enemyProjectiles.push(
+							new AnimatedProjectile(this.x + this.width / 2, this.y, true, false, this)
+						);
+						this.lastShotFrame = gameFrame;
+						this.isTelegraphing = false;
+						this.frameX = originalFrameX;
+					}, 200);
+				}
+			}
 		}
 	}
 
@@ -3393,12 +3574,37 @@ class ZigzagEnemy extends Enemy {
 		this.patternIndex = 4; // New pattern index for zigzag behavior
 	}
 
-	update() {
+	update(timeMultiplier = 1) {
+		// Apply unique zigzag pattern with classic arcade timing
 		if (this.patternIndex === 4) {
-			this.y += this.speed;
-			this.x += Math.sin(this.y / 10) * 2; // Zigzag pattern
+			// Move only every few frames to create classic arcade staggered movement
+			if (gameFrame % 3 === 0) {
+				this.y += this.speed * 1.4 * timeMultiplier;
+
+				// Classic zigzag with variable amplitude
+				const baseAmplitude = 2;
+				const variableAmplitude = Math.sin(gameFrame * 0.02) * baseAmplitude;
+				const zigzagFactor = Math.sin(this.y / 10);
+
+				this.x += zigzagFactor * (baseAmplitude + Math.abs(variableAmplitude)) * timeMultiplier;
+
+				// Occasionally make sharp turns like classic arcade enemies
+				if (Math.random() < 0.01) {
+					this.x += (Math.random() < 0.5 ? -1 : 1) * 5 * timeMultiplier;
+				}
+
+				// Quick direction reversal for personality
+				if (Math.random() < 0.005) {
+					this.speed *= -0.8; // Reverse with slight slowdown
+					setTimeout(() => {
+						this.speed *= -1.25; // Return to normal with slight boost
+					}, 300);
+				}
+			}
 		}
-		super.update();
+
+		// Call the parent class update for standard behaviors
+		super.update(timeMultiplier);
 	}
 }
 
@@ -4596,8 +4802,43 @@ function spawnEnemy() {
 	enemies.push(newEnemy);
 }
 
-// Manage Enemies
+function manageEnemies() {
+	// Update and manage existing enemies
+	enemies.forEach((enemy, index) => {
+		enemy.update(timeMultiplier);
+		enemy.draw(ctx);
+
+		// Remove off-screen or destroyed enemies
+		if (enemy.y > canvas.height || enemy.toBeRemoved) {
+			if (enemy.toBeRemoved) {
+				handleEnemyDestruction(enemy);
+			}
+			enemies.splice(index, 1);
+		}
+
+		// Handle collisions with player
+		if (checkCollision(player, enemy, PLAYER_HITBOX_PADDING)) {
+			handlePlayerHit('collision', enemy);
+			enemies.splice(index, 1);
+		}
+
+		// Handle projectile collisions
+		handleEnemyCollisions(enemy, index);
+	});
+
+	// Handle enemy spawning
+	manageEnemySpawning();
+}
+
 function manageEnemySpawning() {
+	// Check for formation pattern opportunity
+	const shouldSpawnFormation = Math.random() < 0.1 && enemies.length < maxEnemies / 2;
+
+	if (shouldSpawnFormation) {
+		spawnFormation();
+		return;
+	}
+
 	// First check if we have any visible enemies
 	if (!hasVisibleEnemies() && enemies.length < maxEnemies) {
 		console.log('No visible enemies - spawning new enemy');
@@ -4638,32 +4879,97 @@ function manageEnemySpawning() {
 	}
 }
 
-function manageEnemies() {
-	// Update and manage existing enemies
-	enemies.forEach((enemy, index) => {
-		enemy.update(timeMultiplier);
-		enemy.draw(ctx);
+// Add this new formation spawning function
+function spawnFormation() {
+	// Choose a formation pattern
+	const formations = ['v-formation', 'line-formation', 'circle-formation', 'wave-formation'];
 
-		// Remove off-screen or destroyed enemies
-		if (enemy.y > canvas.height || enemy.toBeRemoved) {
-			if (enemy.toBeRemoved) {
-				handleEnemyDestruction(enemy);
+	const formation = formations[Math.floor(Math.random() * formations.length)];
+	const enemyCount = Math.floor(Math.random() * 3) + 3; // 3-5 enemies
+
+	console.log(`Spawning formation: ${formation} with ${enemyCount} enemies`);
+
+	switch (formation) {
+		case 'v-formation':
+			// Create V formation with leader and wingmen
+			for (let i = 0; i < enemyCount; i++) {
+				const enemy = Math.random() < 0.3 ? new ZigzagEnemy() : new Enemy();
+
+				// Position in V shape
+				const centerX = canvas.width / 2;
+				const spacing = 50;
+				const offset = i - (enemyCount - 1) / 2;
+
+				enemy.x = centerX + offset * spacing;
+				enemy.y = -50 - Math.abs(offset) * 30; // Make V shape
+
+				// Sync movement patterns
+				enemy.patternIndex = 0;
+				enemy.moveDelay = i;
+
+				enemies.push(enemy);
 			}
-			enemies.splice(index, 1);
-		}
+			break;
 
-		// Handle collisions with player
-		if (checkCollision(player, enemy, PLAYER_HITBOX_PADDING)) {
-			handlePlayerHit('collision', enemy);
-			enemies.splice(index, 1);
-		}
+		case 'line-formation':
+			// Create horizontal line formation
+			for (let i = 0; i < enemyCount; i++) {
+				const enemy = Math.random() < 0.3 ? new ZigzagEnemy() : new Enemy();
 
-		// Handle projectile collisions
-		handleEnemyCollisions(enemy, index);
-	});
+				// Position in horizontal line
+				const spacing = canvas.width / (enemyCount + 1);
+				enemy.x = spacing * (i + 1);
+				enemy.y = -50;
 
-	// Handle enemy spawning
-	manageEnemySpawning();
+				// Sync movement but with slight offset
+				enemy.patternIndex = 2;
+				enemy.moveDelay = i * 2;
+
+				enemies.push(enemy);
+			}
+			break;
+
+		case 'circle-formation':
+			// Create circular formation that spirals in
+			for (let i = 0; i < enemyCount; i++) {
+				const enemy = Math.random() < 0.2 ? new ZigzagEnemy() : new Enemy();
+
+				// Position in circle
+				const angle = (i / enemyCount) * Math.PI * 2;
+				const radius = 80;
+				const centerX = canvas.width / 2;
+
+				enemy.x = centerX + Math.cos(angle) * radius;
+				enemy.y = -50 + Math.sin(angle) * radius;
+
+				// Set spiral pattern
+				enemy.patternIndex = 1;
+				enemy.moveDelay = i;
+
+				enemies.push(enemy);
+			}
+			break;
+
+		case 'wave-formation':
+			// Create wave pattern
+			for (let i = 0; i < enemyCount; i++) {
+				const enemy = new Enemy();
+
+				// Staggered positioning
+				const spacing = canvas.width / enemyCount;
+				enemy.x = spacing * i;
+				enemy.y = -50 - (i % 2) * 30; // Alternating heights
+
+				// Synchronized wave patterns
+				enemy.patternIndex = 2;
+				// Different phases of the same wave pattern
+				enemy.curvePhase = (i / enemyCount) * Math.PI * 2;
+				enemy.moveDelay = 0;
+
+				enemies.push(enemy);
+			}
+			break;
+	}
 }
 
 function handleEnemyDestruction(enemy) {
@@ -5172,6 +5478,12 @@ function animate() {
 
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 	gameFrame++;
+	const arcadeFrameMod = {
+		enemies: gameFrame % 2 === 0,
+		projectiles: gameFrame % 2 === 1,
+		particles: true, // Always update for smooth effects
+		player: true // Always update for responsive controls
+	};
 	updateTimingSystem();
 
 	drawDynamicGradientSky();
