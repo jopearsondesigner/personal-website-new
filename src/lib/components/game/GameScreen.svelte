@@ -6,6 +6,14 @@
 	import Game from '$components/game/Game.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import Instructions from '../ui/Instructions.svelte';
+	import LeftArrowIcon from '$lib/icons/LeftArrowIcon.svelte';
+	import RightArrowIcon from '$lib/icons/RightArrowIcon.svelte';
+	import XKeyIcon from '$lib/icons/XKeyIcon.svelte';
+	import SpaceKeyIcon from '$lib/icons/SpaceKeyIcon.svelte';
+	import { ICON_SIZE } from '$lib/constants/ui-constants';
+
+	// Icon size constant - adjust this single value to change all icons
+	// const ICON_SIZE = 28;
 
 	// Define the store
 	const deviceState = writable({
@@ -15,13 +23,27 @@
 		isDesktop: false // Add this to track desktop state
 	});
 
-	let showInstructions = true; // Show initially
+	let showInstructions = false; // Set to false to initially hide Help modal
 	let hasPlayedBefore = false; // Track first-time players
 
-	// Modify your decorativeText array to include controls reference
+	// Modified decorativeText array with optimized controls layout and terminology
 	let decorativeText = [
 		{ text: 'HIGH SCORE', value: '000000', side: 'left' },
-		{ text: 'CONTROLS', value: '← → MOVE\n↑ JUMP\nX SHOOT', side: 'left' },
+		{
+			text: 'CONTROLS',
+			value: 'MOVE',
+			icons: [
+				{ component: LeftArrowIcon, size: ICON_SIZE, color: 'rgba(245, 245, 220, 0.9)' },
+				{ component: RightArrowIcon, size: ICON_SIZE, color: 'rgba(245, 245, 220, 0.9)' }
+			],
+			additionalText: '\nSHOOT',
+			additionalIcons: [
+				{ component: XKeyIcon, size: ICON_SIZE, color: 'rgba(245, 245, 220, 0.9)' }
+			],
+			moreText: '\nHEATSEEKER', // Changed from MISSILE to HEATSEEKER for consistency
+			moreIcons: [{ component: SpaceKeyIcon, size: ICON_SIZE, color: 'rgba(245, 245, 220, 0.9)' }],
+			side: 'left'
+		},
 		{ text: '1UP', value: '0', side: 'right' }
 	];
 
@@ -65,8 +87,9 @@
 	});
 </script>
 
-<!-- Only show instructions and help button on desktop -->
-<!-- {#if $deviceState.isDesktop}
+<!-- Only show instructions and help button on desktop - COMMENTED OUT as requested -->
+<!--
+{#if $deviceState.isDesktop}
 	{#if showInstructions}
 		<Instructions
 			on:close={() => {
@@ -89,7 +112,8 @@
 	>
 		HELP
 	</button>
-{/if} -->
+{/if}
+-->
 
 <div
 	id="game-screen"
@@ -103,7 +127,34 @@
 				{#each decorativeText.filter((item) => item.side === 'left') as item}
 					<div class="arcade-text">
 						<span class="label">{item.text}</span>
-						<span class="value">{item.value}</span>
+						{#if item.icons}
+							<span class="value with-icons">
+								<span class="control-label">{item.value}</span>
+								<span class="icon-row">
+									{#each item.icons as icon}
+										<svelte:component this={icon.component} size={icon.size} color={icon.color} />
+									{/each}
+								</span>
+								{#if item.additionalText}
+									<span class="control-label">{item.additionalText}</span>
+									<span class="icon-row">
+										{#each item.additionalIcons as icon}
+											<svelte:component this={icon.component} size={icon.size} color={icon.color} />
+										{/each}
+									</span>
+								{/if}
+								{#if item.moreText}
+									<span class="control-label">{item.moreText}</span>
+									<span class="icon-row">
+										{#each item.moreIcons as icon}
+											<svelte:component this={icon.component} size={icon.size} color={icon.color} />
+										{/each}
+									</span>
+								{/if}
+							</span>
+						{:else}
+							<span class="value">{item.value}</span>
+						{/if}
 					</div>
 				{/each}
 				<div class="neon-line"></div>
@@ -257,22 +308,57 @@
 		font-family: 'Press Start 2P', monospace;
 		color: var(--arcade-neon-green-100);
 		text-align: center;
-		margin: 1rem 0;
+		margin: 0.75rem 0; /* Reduced vertical margin */
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: 0.3rem; /* Reduced gap for tighter spacing */
 	}
 
 	.arcade-text .label {
-		font-size: 0.8rem;
+		font-size: 0.7rem; /* Even smaller for better visual hierarchy */
 		opacity: 0.8;
+		letter-spacing: 0.05rem; /* Improved letter spacing for readability */
+		margin-bottom: 0.15rem; /* Tighter spacing */
 	}
 
 	.arcade-text .value {
-		font-size: 0.8rem;
+		font-size: 0.65rem; /* Further reduced size for better proportion */
 		text-shadow: 0 0 5px var(--arcade-neon-green-100);
 		white-space: pre-line;
-		line-height: 1.5;
+		line-height: 1.4; /* Tighter line height */
+	}
+
+	/* Added control label style for consistent text appearance */
+	.control-label {
+		font-size: 0.6rem;
+		margin-top: 0.4rem; /* Tighter spacing */
+		margin-bottom: 0.15rem; /* Tighter spacing */
+		letter-spacing: 0.05rem;
+		opacity: 0.9;
+	}
+
+	/* Improved styles for icon rows */
+	.arcade-text .value.with-icons {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.15rem; /* Further reduced gap for tighter spacing */
+	}
+
+	.icon-row {
+		display: flex;
+		gap: 0.4rem; /* Tighter spacing between horizontal icons */
+		justify-content: center;
+		align-items: center;
+		margin-top: 0.1rem; /* Tighter spacing */
+		margin-bottom: 0.3rem; /* Tighter spacing */
+	}
+
+	/* Style for icons */
+	:global(.instruction-icon) {
+		display: inline-block;
+		vertical-align: middle;
+		filter: drop-shadow(0 0 3px var(--arcade-neon-green-100)); /* Added glow effect to icons */
 	}
 
 	/* ==========================================================================
@@ -282,7 +368,7 @@
 		width: 80%;
 		height: 2px;
 		background: var(--arcade-neon-green-100);
-		margin: 2rem 0;
+		margin: 1rem 0; /* Further reduced spacing */
 		box-shadow: 0 0 10px var(--arcade-neon-green-100);
 		opacity: 0.333;
 	}
@@ -503,12 +589,6 @@
 			display: flex;
 		}
 	}
-
-	/* @media (max-width: 1023px) {
-		:global(html.light) .game-background {
-			background: linear-gradient(135deg, rgba(248, 248, 248, 1) 0%, rgba(242, 242, 242, 1) 100%);
-		}
-	} */
 
 	/* ==========================================================================
    Transitions

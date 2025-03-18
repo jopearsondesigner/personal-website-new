@@ -5,7 +5,10 @@
 	import { fade } from 'svelte/transition';
 	import { browser } from '$app/environment';
 	import { writable } from 'svelte/store';
-	import { RotateCcw, Pause, Play, Crosshair, Rocket } from 'lucide-svelte';
+	// Updated icon imports
+	import { RefreshCw, Pause, Play, Target, Zap } from 'lucide-svelte';
+	import ShootIcon from '$lib/icons/ShootIcon.svelte';
+	import HeatsekerIcon from '$lib/icons/HeatseekerIcon.svelte';
 
 	export const menuOpen = writable(false);
 
@@ -510,6 +513,7 @@
 >
 	<!-- Header with utility buttons -->
 	<div class="controls-header">
+		<!-- Utility Buttons Section from GameControls.svelte -->
 		<div class="utility-buttons">
 			<button
 				class="utility-button"
@@ -520,7 +524,7 @@
 				on:touchend={() => handleButtonRelease('reset')}
 				aria-label="Reset"
 			>
-				<RotateCcw class="w-4 h-4" />
+				<RefreshCw class="w-4 h-4" />
 			</button>
 
 			<button
@@ -605,7 +609,7 @@
 					aria-label="Heat Seeker"
 				>
 					<span class="button-face" />
-					<Crosshair class="button-icon" aria-hidden="true" />
+					<HeatsekerIcon color="rgba(245, 245, 220, 0.9)" size={24} />
 				</button>
 			</div>
 
@@ -621,7 +625,7 @@
 					aria-label="Shoot"
 				>
 					<span class="button-face" />
-					<Rocket class="button-icon" aria-hidden="true" />
+					<ShootIcon color="rgba(245, 245, 220, 0.9)" size={24} />
 				</button>
 			</div>
 		</div>
@@ -884,15 +888,16 @@
 	}
 
 	.button-label {
-		font-size: 0.6rem;
+		font-size: 0.65rem;
 		color: rgba(245, 245, 220, 0.9);
 		text-transform: uppercase;
-		letter-spacing: 0.5px;
+		font-weight: 600;
+		letter-spacing: 0.6px;
 		margin-bottom: 6px;
 		text-align: center;
 		font-weight: 500;
 		user-select: none;
-		text-shadow: 0 0 4px rgba(39, 255, 153, 0.4);
+		text-shadow: 0 0 5px rgba(39, 255, 153, 0.5);
 	}
 
 	@media (max-width: 480px) {
@@ -913,15 +918,32 @@
 		box-shadow: 0 0 15px rgba(39, 255, 153, 0.4);
 	}
 
-	.arcade-button :global(.button-icon) {
+	.arcade-button :global(svg.button-icon) {
 		position: absolute;
 		top: 50%;
 		left: 50%;
 		transform: translate(-50%, -50%);
-		width: 32px;
-		height: 32px;
-		color: rgba(245, 245, 220, 0.9);
-		transition: all 0.2s ease;
+		width: 24px;
+		height: 24px;
+	}
+
+	.arcade-button.active :global(svg.button-icon) {
+		filter: drop-shadow(0 0 8px rgba(39, 255, 153, 0.6));
+	}
+
+	/* Adjust primary and secondary action icons differently */
+	.arcade-button.primary-action :global(svg.button-icon) {
+		color: var(--neon-color);
+	}
+
+	.arcade-button.secondary-action :global(svg.button-icon) {
+		color: var(--precision-color);
+	}
+
+	/* Make sure icon components fill their container properly */
+	:global(svg.button-icon path) {
+		/* This ensures the paths within your SVG respect the icon boundaries */
+		vector-effect: non-scaling-stroke;
 	}
 
 	.arcade-button.active .button-face {
@@ -953,12 +975,18 @@
 		align-items: center;
 		justify-content: center;
 		transition: all 0.1s ease;
+		backdrop-filter: blur(4px);
+		-webkit-backdrop-filter: blur(4px);
 	}
 
 	.utility-button.active {
 		transform: scale(0.95);
 		background: rgba(39, 255, 153, 0.2);
 		box-shadow: 0 0 10px rgba(39, 255, 153, 0.3);
+	}
+
+	.utility-button:hover {
+		border-color: var(--neon-color);
 	}
 
 	.utility-button :global(svg) {
@@ -1060,6 +1088,11 @@
 		.joystick-handle {
 			width: 65%; /* Larger touch target */
 			height: 65%;
+		}
+
+		.arcade-button :global(.button-icon) {
+			width: 22px;
+			height: 22px;
 		}
 	}
 
