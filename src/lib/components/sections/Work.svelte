@@ -55,11 +55,7 @@
 	});
 </script>
 
-<section
-	id="work"
-	class="py-16 min-h-screen flex flex-col justify-center"
-	bind:this={sectionElement}
->
+<section id="work" class="section work-section">
 	<div class="container mx-auto px-4">
 		{#if sectionVisible}
 			<div in:fly={{ y: 50, duration: 800, delay: 200, easing: backOut }}>

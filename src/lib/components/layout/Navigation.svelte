@@ -53,14 +53,11 @@
 
 <nav class="desktop-nav hidden lg:flex lg:flex-wrap lg:order-1">
 	<!-- Home, About, Work, Contact sections from configuration -->
-	{#each $navSections as section}
+	{#each $navSections as section (section.id)}
 		<a
-			href="{base}/#{section.id}"
-			class="nav-button"
-			class:active={section.isActive &&
-				($page.url.pathname === '/' || $page.url.pathname === base + '/')}
-			on:click={(e) => handleNavClick(section.id, e)}
-			aria-label="Navigate to {section.title} section"
+			href="#{section.id}"
+			class:active={section.isActive}
+			on:click|preventDefault={(e) => handleNavClick(section.id, e)}
 		>
 			{section.title}
 		</a>

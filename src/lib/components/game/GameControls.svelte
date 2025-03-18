@@ -516,41 +516,43 @@
 	<!-- Header with utility buttons -->
 	<div class="controls-header">
 		<!-- Utility Buttons Section from GameControls.svelte -->
-		<button
-			class="utility-button"
-			class:active={buttons.reset}
-			on:mousedown|preventDefault={(e) => handleButtonPress('reset', e)}
-			on:mouseup={() => handleButtonRelease('reset')}
-			on:touchstart|preventDefault={(e) => handleButtonPress('reset', e)}
-			on:touchend={() => handleButtonRelease('reset')}
-			aria-label="Reset"
-		>
-			<RefreshCwIcon class="w-4 h-4" />
-		</button>
+		<div class="utility-buttons">
+			<button
+				class="utility-button"
+				class:active={buttons.reset}
+				on:mousedown|preventDefault={(e) => handleButtonPress('reset', e)}
+				on:mouseup={() => handleButtonRelease('reset')}
+				on:touchstart|preventDefault={(e) => handleButtonPress('reset', e)}
+				on:touchend={() => handleButtonRelease('reset')}
+				aria-label="Reset"
+			>
+				<RefreshCwIcon class="w-4 h-4" />
+			</button>
 
-		<button
-			class="utility-button"
-			class:active={buttons.pause}
-			on:mousedown|preventDefault={(e) => handleButtonPress('pause', e)}
-			on:mouseup={() => handleButtonRelease('pause')}
-			on:touchstart|preventDefault={(e) => handleButtonPress('pause', e)}
-			on:touchend={() => handleButtonRelease('pause')}
-			aria-label="Pause"
-		>
-			<PauseIcon class="w-4 h-4" />
-		</button>
+			<button
+				class="utility-button"
+				class:active={buttons.pause}
+				on:mousedown|preventDefault={(e) => handleButtonPress('pause', e)}
+				on:mouseup={() => handleButtonRelease('pause')}
+				on:touchstart|preventDefault={(e) => handleButtonPress('pause', e)}
+				on:touchend={() => handleButtonRelease('pause')}
+				aria-label="Pause"
+			>
+				<PauseIcon class="w-4 h-4" />
+			</button>
 
-		<button
-			class="utility-button"
-			class:active={buttons.enter}
-			on:mousedown|preventDefault={(e) => handleButtonPress('enter', e)}
-			on:mouseup={() => handleButtonRelease('enter')}
-			on:touchstart|preventDefault={(e) => handleButtonPress('enter', e)}
-			on:touchend={() => handleButtonRelease('enter')}
-			aria-label="Start"
-		>
-			<PlayIcon class="w-4 h-4" />
-		</button>
+			<button
+				class="utility-button"
+				class:active={buttons.enter}
+				on:mousedown|preventDefault={(e) => handleButtonPress('enter', e)}
+				on:mouseup={() => handleButtonRelease('enter')}
+				on:touchstart|preventDefault={(e) => handleButtonPress('enter', e)}
+				on:touchend={() => handleButtonRelease('enter')}
+				aria-label="Start"
+			>
+				<PlayIcon class="w-4 h-4" />
+			</button>
+		</div>
 	</div>
 
 	<!-- Main controls section -->
@@ -977,6 +979,8 @@
 		transition: all 0.1s ease;
 		backdrop-filter: blur(4px);
 		-webkit-backdrop-filter: blur(4px);
+		position: relative;
+		overflow: hidden;
 	}
 
 	.utility-button.active {
@@ -990,6 +994,12 @@
 	}
 
 	.utility-button :global(svg) {
+		position: absolute; /* Change from relative to absolute */
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		width: 16px; /* Explicitly set width */
+		height: 16px; /* Explicitly set height */
 		color: rgba(245, 245, 220, 0.9);
 		transition: color 0.2s ease;
 	}

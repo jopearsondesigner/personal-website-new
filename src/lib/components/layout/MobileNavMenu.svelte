@@ -65,8 +65,10 @@
 		closeMenu();
 
 		// Extract section ID from target
-		const isHashLink = target.startsWith('#');
-		const sectionId = isHashLink ? target.substring(1) : '';
+		const isHashLink = target.includes('#');
+		const sectionId = isHashLink ? target.split('#')[1] : '';
+
+		console.log('Navigating to section:', sectionId); // Add for debugging
 
 		// If not a section link, just navigate normally
 		if (!isHashLink) {
@@ -108,7 +110,7 @@
 			if (history.pushState) {
 				// Avoid duplicate base paths in URL
 				const basePath = base || '';
-				history.pushState(null, null, `${basePath}/#${sectionId}`);
+				history.pushState(null, '', `${basePath}/#${sectionId}`);
 			}
 
 			// Smooth scroll
@@ -203,9 +205,9 @@
 </button>
 
 {#if isOpen}
-	<!-- Fixed overlay for when menu is open -->
+	<!-- Fixed overlay for when menu is open - Increase z-index -->
 	<div
-		class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+		class="fixed inset-0 z-[9999] bg-black/30 backdrop-blur-sm"
 		on:click={closeMenu}
 		on:keydown={(e) => e.key === 'Enter' && closeMenu()}
 		transition:fade={{ duration: 200 }}
@@ -214,7 +216,7 @@
 		<!-- Menu Panel -->
 		<div
 			id="mobile-menu"
-			class="fixed inset-y-0 right-0 z-40 w-full max-w-xs
+			class="fixed inset-y-0 right-0 z-[10000] w-full max-w-xs
 			bg-[var(--light-mode-bg)] dark:bg-[var(--dark-mode-bg)]
 			shadow-xl flex flex-col overflow-y-auto
 			transform will-change-transform"
@@ -317,15 +319,26 @@
 		perspective: 1000px;
 	}
 
-	/* Improve body scroll locking for menu open */
 	:global(body.menu-open) {
 		overflow: hidden;
-		/* Position, top, and width are handled in JavaScript */
+		position: fixed;
+		width: 100%;
+		height: 100%;
+		touch-action: none;
+		-webkit-overflow-scrolling: auto;
 	}
 
-	/* Ensure the mobile menu can always expand to full height */
+	/* Fix for iOS - ensure full height and proper position */
 	#mobile-menu {
-		height: 100%;
-		max-height: -webkit-fill-available; /* iOS Safari fix */
+		height: 100vh;
+		height: -webkit-fill-available;
+		max-height: -webkit-fill-available;
+		overflow-y: auto;
+		position: fixed;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		-webkit-transform: translateZ(0); /* Force hardware acceleration */
+		transform: translateZ(0);
 	}
 </style>

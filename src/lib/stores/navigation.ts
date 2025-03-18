@@ -12,10 +12,10 @@ export interface Section {
 }
 
 // Create the store for navigation sections
-export const navSections = writable<Section[]>([
+export const navSections = writable([
 	{ id: 'hero', title: 'Home', isActive: false },
 	{ id: 'about', title: 'About', isActive: false },
-	{ id: 'projects', title: 'Work', isActive: false },
+	{ id: 'work', title: 'Work', isActive: false }, // Verify this ID matches the actual section ID
 	{ id: 'contact', title: 'Contact', isActive: false }
 ]);
 
