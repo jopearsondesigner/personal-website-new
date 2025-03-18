@@ -12,9 +12,6 @@
 	import SpaceKeyIcon from '$lib/icons/SpaceKeyIcon.svelte';
 	import { ICON_SIZE } from '$lib/constants/ui-constants';
 
-	// Icon size constant - adjust this single value to change all icons
-	// const ICON_SIZE = 28;
-
 	// Define the store
 	const deviceState = writable({
 		isTouchDevice: false,
@@ -26,9 +23,9 @@
 	let showInstructions = false; // Set to false to initially hide Help modal
 	let hasPlayedBefore = false; // Track first-time players
 
-	// Modified decorativeText array with optimized controls layout and terminology
+	// Modified decorativeText array with HIGH SCORE above 1UP
 	let decorativeText = [
-		{ text: 'HIGH SCORE', value: '000000', side: 'left' },
+		// Controls in left panel
 		{
 			text: 'CONTROLS',
 			value: 'MOVE',
@@ -40,10 +37,12 @@
 			additionalIcons: [
 				{ component: XKeyIcon, size: ICON_SIZE, color: 'rgba(245, 245, 220, 0.9)' }
 			],
-			moreText: '\nHEATSEEKER', // Changed from MISSILE to HEATSEEKER for consistency
+			moreText: '\nHEATSEEKER',
 			moreIcons: [{ component: SpaceKeyIcon, size: ICON_SIZE, color: 'rgba(245, 245, 220, 0.9)' }],
 			side: 'left'
 		},
+		// Score displays in right panel (HIGH SCORE first, then 1UP)
+		{ text: 'HIGH SCORE', value: '000000', side: 'right' },
 		{ text: '1UP', value: '0', side: 'right' }
 	];
 
@@ -124,41 +123,52 @@
 		<!-- Left side panel - only show on desktop -->
 		<div class="hidden lg:block">
 			<div class="side-panel left" in:fly={{ x: -50, duration: 1000 }}>
-				{#each decorativeText.filter((item) => item.side === 'left') as item}
-					<div class="arcade-text">
-						<span class="label">{item.text}</span>
-						{#if item.icons}
-							<span class="value with-icons">
-								<span class="control-label">{item.value}</span>
-								<span class="icon-row">
-									{#each item.icons as icon}
-										<svelte:component this={icon.component} size={icon.size} color={icon.color} />
-									{/each}
+				<div class="panel-content">
+					<!-- Added wrapper div for better centering -->
+					{#each decorativeText.filter((item) => item.side === 'left') as item}
+						<div class="arcade-text">
+							<span class="label">{item.text}</span>
+							{#if item.icons}
+								<span class="value with-icons">
+									<span class="control-label">{item.value}</span>
+									<span class="icon-row">
+										{#each item.icons as icon}
+											<svelte:component this={icon.component} size={icon.size} color={icon.color} />
+										{/each}
+									</span>
+									{#if item.additionalText}
+										<span class="control-label">{item.additionalText}</span>
+										<span class="icon-row">
+											{#each item.additionalIcons as icon}
+												<svelte:component
+													this={icon.component}
+													size={icon.size}
+													color={icon.color}
+												/>
+											{/each}
+										</span>
+									{/if}
+									{#if item.moreText}
+										<span class="control-label">{item.moreText}</span>
+										<span class="icon-row">
+											{#each item.moreIcons as icon}
+												<svelte:component
+													this={icon.component}
+													size={icon.size}
+													color={icon.color}
+												/>
+											{/each}
+										</span>
+									{/if}
 								</span>
-								{#if item.additionalText}
-									<span class="control-label">{item.additionalText}</span>
-									<span class="icon-row">
-										{#each item.additionalIcons as icon}
-											<svelte:component this={icon.component} size={icon.size} color={icon.color} />
-										{/each}
-									</span>
-								{/if}
-								{#if item.moreText}
-									<span class="control-label">{item.moreText}</span>
-									<span class="icon-row">
-										{#each item.moreIcons as icon}
-											<svelte:component this={icon.component} size={icon.size} color={icon.color} />
-										{/each}
-									</span>
-								{/if}
-							</span>
-						{:else}
-							<span class="value">{item.value}</span>
-						{/if}
-					</div>
-				{/each}
-				<div class="neon-line"></div>
-				<div class="pixel-decoration"></div>
+							{:else}
+								<span class="value">{item.value}</span>
+							{/if}
+						</div>
+					{/each}
+					<div class="neon-line"></div>
+					<div class="pixel-decoration"></div>
+				</div>
 			</div>
 		</div>
 
@@ -170,14 +180,17 @@
 		<!-- Right side panel - only show on desktop -->
 		<div class="hidden lg:block">
 			<div class="side-panel right" in:fly={{ x: 50, duration: 1000 }}>
-				{#each decorativeText.filter((item) => item.side === 'right') as item}
-					<div class="arcade-text">
-						<span class="label">{item.text}</span>
-						<span class="value">{item.value}</span>
-					</div>
-				{/each}
-				<div class="neon-line"></div>
-				<div class="pixel-decoration"></div>
+				<div class="panel-content">
+					<!-- Added wrapper div for better centering -->
+					{#each decorativeText.filter((item) => item.side === 'right') as item}
+						<div class="arcade-text">
+							<span class="label">{item.text}</span>
+							<span class="value">{item.value}</span>
+						</div>
+					{/each}
+					<div class="neon-line"></div>
+					<div class="pixel-decoration"></div>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -283,6 +296,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
+		justify-content: center; /* Added for vertical centering */
 		padding: 2rem 1rem;
 		z-index: 2;
 		pointer-events: none;
@@ -299,6 +313,14 @@
 		right: 0;
 		border-left: 1px solid rgba(39, 255, 153, 0.1);
 		border-radius: 0 3vmin 3vmin 0;
+	}
+
+	/* Added panel content wrapper for better centering */
+	.panel-content {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		width: 100%;
 	}
 
 	/* ==========================================================================
