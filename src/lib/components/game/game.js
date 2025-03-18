@@ -248,6 +248,16 @@ const assetURLs = [
 	getAssetPath('assets/images/game/main_logo_title_screen-01.svg')
 ];
 
+// This uses a global function that will be set by Game.svelte
+function updateGameStore(stateObject) {
+	if (typeof window !== 'undefined' && window.gameStoreUpdater) {
+		console.log('Game sending state update:', stateObject);
+		window.gameStoreUpdater(stateObject);
+	} else {
+		console.warn('Game store updater not available');
+	}
+}
+
 function initializePlayer() {
 	Object.assign(player, {
 		x: canvas.width / 2 - 27.5,
@@ -2082,6 +2092,10 @@ function handlePlayerHit(source = null, enemy = null) {
 		}
 
 		lives--;
+
+		// Update the store
+		updateGameStore({ lives });
+
 		drawHUD();
 		shakeScreen(300, 5);
 		triggerRedFlash(); // Trigger the red flash effect
@@ -2710,6 +2724,16 @@ function drawHUD() {
 	ctx.textAlign = 'right';
 	ctx.fillText(`Lives:${lives}`, canvas.width - padding, textY);
 
+	// Update the store with current game state values
+	updateGameStore({
+		score,
+		highScore,
+		lives,
+		heatseekerCount: unlimitedHeatseekersMode ? 'unlimited' : heatseekerCount,
+		gameActive,
+		isPaused
+	});
+
 	// Draw power-up bar if active
 	drawPowerUpBar();
 
@@ -2829,6 +2853,12 @@ function drawShootingStar() {
 function drawGameOverScreen() {
 	gameOverScreen = true;
 
+	// Update the store
+	updateGameStore({
+		gameActive: false,
+		isGameOver: true
+	});
+
 	// Fill background
 	ctx.fillStyle = NESPalette.black;
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -2891,6 +2921,16 @@ function resetGame() {
 	titleScreen = false;
 	gameOverScreen = false;
 	isPaused = false;
+
+	// Update the store
+	updateGameStore({
+		score,
+		lives,
+		heatseekerCount,
+		gameActive,
+		isGameOver: false,
+		isPaused
+	});
 
 	if (animationFrameId) {
 		cancelAnimationFrame(animationFrameId);
@@ -3506,6 +3546,9 @@ function shoot(isHeatseeker = false, isPowerUp = false) {
 			if (!unlimitedHeatseekersMode) {
 				heatseekerCount = Math.max(0, heatseekerCount - 1); // Prevent negative count
 
+				// Update the store with new heatseeker count
+				updateGameStore({ heatseekerCount });
+
 				// Add floating text for remaining heatseekers
 				if (heatseekerCount === 0) {
 					floatingTexts.push(
@@ -4110,9 +4153,9 @@ class EnhancedStar {
 	draw(ctx) {
 		// Set star color with opacity based on twinkle factor
 		ctx.fillStyle = `rgba(${parseInt(this.baseColor.slice(1, 3), 16)},
-                             ${parseInt(this.baseColor.slice(3, 5), 16)},
-                             ${parseInt(this.baseColor.slice(5, 7), 16)},
-                             ${this.twinkleFactor})`;
+								${parseInt(this.baseColor.slice(3, 5), 16)},
+								${parseInt(this.baseColor.slice(5, 7), 16)},
+								${this.twinkleFactor})`;
 
 		// Draw the star
 		ctx.beginPath();
@@ -4627,6 +4670,9 @@ function handleEnemyDestruction(enemy) {
 	// Add score
 	score += 100;
 
+	// Update the store with new score
+	updateGameStore({ score });
+
 	// Create floating score text
 	floatingTexts.push(new FloatingText(enemy.x, enemy.y, '+100 pts', NESPalette.lightYellow));
 
@@ -4967,6 +5013,16 @@ export function setupGame(canvasElement) {
 						resetGame();
 					}
 				}
+			});
+
+			updateGameStore({
+				score,
+				lives,
+				heatseekerCount,
+				highScore,
+				gameActive,
+				isGameOver: gameOverScreen,
+				isPaused
 			});
 
 			// Return game control interface

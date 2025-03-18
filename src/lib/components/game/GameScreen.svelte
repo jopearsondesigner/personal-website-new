@@ -11,8 +11,10 @@
 	import XKeyIcon from '$lib/icons/XKeyIcon.svelte';
 	import SpaceKeyIcon from '$lib/icons/SpaceKeyIcon.svelte';
 	import { ICON_SIZE } from '$lib/constants/ui-constants';
+	// Import game store
+	import { gameStore } from '$lib/stores/game-store';
 
-	// Define the store
+	// Define the device state store
 	const deviceState = writable({
 		isTouchDevice: false,
 		windowWidth: 0,
@@ -23,8 +25,25 @@
 	let showInstructions = false; // Set to false to initially hide Help modal
 	let hasPlayedBefore = false; // Track first-time players
 
-	// Modified decorativeText array with HIGH SCORE above 1UP
-	let decorativeText = [
+	// Subscribe to game store values
+	let score = 0;
+	let highScore = 0;
+	let lives = 3;
+	let heatseekerCount = 3;
+
+	// Unsubscribe function
+	const unsubscribe = gameStore.subscribe((state) => {
+		score = state.score;
+		highScore = state.highScore;
+		lives = state.lives;
+		heatseekerCount = state.heatseekerCount;
+	});
+
+	// Explicitly trigger reactivity when these values change
+	$: ({ score, highScore, lives, heatseekerCount });
+
+	// Modified decorativeText array using reactive values
+	$: decorativeText = [
 		// Controls in left panel
 		{
 			text: 'CONTROLS',
@@ -41,9 +60,10 @@
 			moreIcons: [{ component: SpaceKeyIcon, size: ICON_SIZE, color: 'rgba(245, 245, 220, 0.9)' }],
 			side: 'left'
 		},
-		// Score displays in right panel (HIGH SCORE first, then 1UP)
-		{ text: 'HIGH SCORE', value: '000000', side: 'right' },
-		{ text: '1UP', value: '0', side: 'right' }
+		// Right panel - updated with renamed elements and proper order
+		{ text: 'HIGH SCORE', value: highScore.toString().padStart(6, '0'), side: 'right' },
+		{ text: 'SCORE', value: score.toString().padStart(6, '0'), side: 'right' }, // Changed from "1UP" to "SCORE"
+		{ text: 'LIVES', value: lives.toString(), side: 'right' }
 	];
 
 	// Add help toggle function
@@ -82,6 +102,7 @@
 	onDestroy(() => {
 		if (browser) {
 			window.removeEventListener('resize', initializeDeviceState);
+			unsubscribe(); // Clean up subscription
 		}
 	});
 </script>

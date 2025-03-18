@@ -1,4 +1,4 @@
-<!-- src/lib/components/Game.svelte -->
+<!-- src/lib/components/game/Game.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
@@ -7,6 +7,8 @@
 	import { setupGame } from './game.js';
 	import { get } from 'svelte/store';
 	import { writable } from 'svelte/store';
+	// Import the game store
+	import { gameStore } from '$lib/stores/game-store';
 
 	const deviceState = writable({
 		isTouchDevice: false,
@@ -164,6 +166,9 @@
 			level
 		}));
 
+		// Also update game store to pause the game
+		gameStore.setPaused(true);
+
 		// Clear any existing timeout
 		if (errorTimeout) {
 			clearTimeout(errorTimeout);
@@ -193,6 +198,15 @@
 		try {
 			// Setup the game with custom error handler
 			gameInstance = await setupGame(canvas);
+
+			// Connect to the game's internal state
+			// This sets up the initial values from localStorage (if available)
+			window.gameStoreUpdater = (gameData) => {
+				if (gameData) {
+					gameStore.updateState(gameData);
+				}
+			};
+
 			calculateScale();
 		} catch (error) {
 			handleGameError(`Game initialization failed: ${error.message}`, 'error', true, 0);
@@ -256,6 +270,11 @@
 			clearTimeout(errorTimeout);
 		}
 
+		// Clean up global references
+		if (window.gameStoreUpdater) {
+			window.gameStoreUpdater = null;
+		}
+
 		mounted = false;
 	});
 
@@ -268,6 +287,14 @@
 		errorContainer.style.opacity = '0';
 		errorContainer.style.transform = 'translateY(-20px)';
 	}
+
+	// Connect to the game's internal state
+	window.gameStoreUpdater = (gameData) => {
+		if (gameData) {
+			console.log('UI receiving game state update:', gameData);
+			gameStore.updateState(gameData);
+		}
+	};
 </script>
 
 <div
