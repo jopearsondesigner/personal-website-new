@@ -1,7 +1,7 @@
 <!-- src/lib/components/LoadingScreen.svelte -->
 <script lang="ts">
 	import { fade } from 'svelte/transition';
-	import Logo from '$lib/assets/images/logo-black.svg';
+	import Logo from '$lib/assets/images/logo.svg';
 	import { loadingStore } from '$lib/stores/loading';
 	import { onMount } from 'svelte';
 

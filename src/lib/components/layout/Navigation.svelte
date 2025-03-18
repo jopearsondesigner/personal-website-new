@@ -55,7 +55,7 @@
 	<!-- Home, About, Work, Contact sections from configuration -->
 	{#each $navSections as section}
 		<a
-			href="{base}/#${section.id}"
+			href="{base}/#{section.id}"
 			class="nav-button"
 			class:active={section.isActive &&
 				($page.url.pathname === '/' || $page.url.pathname === base + '/')}

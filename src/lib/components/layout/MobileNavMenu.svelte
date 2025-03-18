@@ -81,7 +81,10 @@
 
 			// Find the section element
 			const section = document.getElementById(sectionId);
-			if (!section) return;
+			if (!section) {
+				console.warn(`Section with ID '${sectionId}' not found`);
+				return;
+			}
 
 			// Get navbar height for offset
 			const navbarHeight = parseInt(
@@ -97,7 +100,9 @@
 
 			// Update URL hash without jumping (using history API)
 			if (history.pushState) {
-				history.pushState(null, null, `${base}/#${sectionId}`);
+				// Avoid duplicate base paths in URL
+				const basePath = base || '';
+				history.pushState(null, null, `${basePath}/#${sectionId}`);
 			}
 
 			// Smooth scroll
@@ -107,7 +112,8 @@
 			});
 		} else {
 			// We're on a different page - navigate to homepage with hash
-			window.location.href = `${base}/#${sectionId}`;
+			const basePath = base || '';
+			window.location.href = `${basePath}/#${sectionId}`;
 		}
 	}
 

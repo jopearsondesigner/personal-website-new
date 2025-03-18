@@ -21,7 +21,8 @@ const config = {
 			// assets: process.env.NODE_ENV === 'production' ? '/personal-website-new' : ''
 		},
 		prerender: {
-			handleHttpError: 'warn'
+			handleHttpError: 'warn',
+			handleMissingId: 'ignore'
 		}
 	},
 	preprocess: vitePreprocess()

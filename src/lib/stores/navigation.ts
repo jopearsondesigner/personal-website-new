@@ -1,5 +1,4 @@
 // File: src/lib/stores/navigation.ts
-// Location: Modify the file to include the base path in navigation logic
 
 import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';
@@ -62,8 +61,9 @@ function createNavigationStore() {
 
 						// Update URL hash using History API to avoid page jump
 						if (history.pushState) {
-							const newUrl =
-								window.location.pathname + window.location.search + `#${visibleSection.target.id}`;
+							// Use base path consistently
+							const basePath = base || '';
+							const newUrl = `${basePath}/${window.location.search}#${visibleSection.target.id}`;
 							history.replaceState(null, '', newUrl);
 						}
 					}
@@ -125,7 +125,19 @@ function createNavigationStore() {
 
 				// Update URL hash without jumping (using history API)
 				if (history.pushState) {
-					history.pushState(null, null, `${base}/#${sectionId}`);
+					// Make sure to use base path consistently and avoid duplicates
+					const basePath = base || '';
+					const currentPath = window.location.pathname;
+
+					// Only include base path if not already in the current path
+					let newPath;
+					if (currentPath.startsWith(basePath)) {
+						newPath = `${currentPath}#${sectionId}`;
+					} else {
+						newPath = `${basePath}/#${sectionId}`;
+					}
+
+					history.pushState(null, null, newPath);
 				}
 
 				// Smooth scroll
@@ -133,6 +145,8 @@ function createNavigationStore() {
 					top,
 					behavior: 'smooth'
 				});
+			} else {
+				console.warn(`Section with ID '${sectionId}' not found`);
 			}
 		}
 	};

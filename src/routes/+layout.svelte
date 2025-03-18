@@ -7,7 +7,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
 	import { loadingStore } from '$lib/stores/loading';
-	import logo from '$lib/assets/images/logo-black.svg';
+	import logo from '$lib/assets/images/logo.svg';
 	import { Sun, Moon } from 'svelte-bootstrap-icons';
 	import LoadingScreen from '$lib/components/ui/LoadingScreen.svelte';
 	import { theme } from '$lib/stores/theme';
