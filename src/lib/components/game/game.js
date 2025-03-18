@@ -3393,6 +3393,7 @@ class CityEnemy extends Enemy {
 		});
 	}
 
+	// Enhanced CityEnemy update method - replace the existing update method
 	update(timeMultiplier = 1) {
 		const adjustedSpeed = this.speed * timeMultiplier;
 
@@ -3407,68 +3408,127 @@ class CityEnemy extends Enemy {
 
 				// Arcade classic: pause briefly when reaching position
 				setTimeout(() => {
-					// Play a brief "lock-on" animation here if needed
 					this.canShoot = true;
 				}, 500);
 			}
 		} else {
 			if (this.init) {
-				// Apply classic arcade targeting with overshooting and correction
-				let angle = Math.atan2(player.y - this.y, player.x - this.x);
+				// Different behavior based on aggressive state
+				if (this.isAggressive) {
+					// AGGRESSIVE BEHAVIOR: More deliberate, threatening movements
 
-				// Add intentional "Mario Bros enemy" style movement:
-				// 1. Move in pulses rather than continuously
-				if (gameFrame % 3 === 0) {
-					// Calculate desired movement
-					const desiredX = this.x + Math.cos(angle) * adjustedSpeed * 1.5;
-					const desiredY = this.y + Math.sin(angle) * adjustedSpeed * 1.5;
+					// Calculate vector to player with more aggressive tracking
+					const dx = player.x - this.x;
+					const dy = player.y - this.y;
+					const distance = Math.sqrt(dx * dx + dy * dy);
 
-					// Apply "overshoot and return" behavior
-					if (Math.random() < 0.05) {
-						// Occasionally overshoot (mimic classic enemy AI mistakes)
-						this.x = desiredX + (Math.random() - 0.5) * 10;
-						this.y = desiredY + (Math.random() - 0.5) * 10;
+					// Move in a more threatening way - periodically charge at player
+					if (gameFrame % 60 < 30) {
+						// Circling phase: orbit around the player at medium distance
+						const orbitSpeed = 0.02 * timeMultiplier;
+						const orbitRadius = 150;
+						const orbitAngle = (gameFrame * orbitSpeed) % (Math.PI * 2);
+
+						// Calculate orbit position relative to player
+						const targetX = player.x + Math.cos(orbitAngle) * orbitRadius;
+						const targetY = player.y + Math.sin(orbitAngle) * orbitRadius;
+
+						// Move toward orbit position
+						const orbitDx = targetX - this.x;
+						const orbitDy = targetY - this.y;
+
+						this.x += orbitDx * 0.03 * timeMultiplier;
+						this.y += orbitDy * 0.03 * timeMultiplier;
 					} else {
-						// Normal movement
-						this.x = desiredX;
-						this.y = desiredY;
+						// Attack phase: make quick darting movements toward player
+						if (distance > 100) {
+							// Charge toward player with momentum
+							this.x += (dx / distance) * adjustedSpeed * 2;
+							this.y += (dy / distance) * adjustedSpeed * 2;
+						} else {
+							// Back off when too close (avoid collision)
+							this.x -= (dx / distance) * adjustedSpeed;
+							this.y -= (dy / distance) * adjustedSpeed;
+						}
 					}
+
+					// Pulse scale for threatening effect
+					const pulseMagnitude = Math.sin(gameFrame * 0.1) * 0.05;
+					this.scale = Math.min(1.1, this.scale + pulseMagnitude);
+
+					// Increase aggression over time
+					if (gameFrame % 300 === 0) {
+						this.speed *= 1.1;
+						this.shootingInterval = Math.max(50, this.shootingInterval * 0.9);
+					}
+				} else {
+					// NORMAL BEHAVIOR: Standard tracking with hesitation
+					let angle = Math.atan2(player.y - this.y, player.x - this.x);
+
+					// Apply classic arcade targeting with overshooting and correction
+					if (gameFrame % 3 === 0) {
+						// Calculate desired movement
+						const desiredX = this.x + Math.cos(angle) * adjustedSpeed * 1.5;
+						const desiredY = this.y + Math.sin(angle) * adjustedSpeed * 1.5;
+
+						// Apply "overshoot and return" behavior
+						if (Math.random() < 0.05) {
+							// Occasionally overshoot (mimic classic enemy AI mistakes)
+							this.x = desiredX + (Math.random() - 0.5) * 10;
+							this.y = desiredY + (Math.random() - 0.5) * 10;
+						} else {
+							// Normal movement
+							this.x = desiredX;
+							this.y = desiredY;
+						}
+					}
+
+					// Add "hesitation" by occasionally pausing
+					if (Math.random() < 0.01) {
+						// Create a brief pause, typical in arcade games
+						this.init = false;
+						setTimeout(
+							() => {
+								this.init = true;
+							},
+							300 + Math.random() * 300
+						);
+					}
+
+					// Scale up gradually with slight bouncing effect
+					const targetScale = 1;
+					const scaleStep = 0.01 * timeMultiplier;
+					const bounce = Math.sin(gameFrame * 0.1) * 0.03; // Small bounce
+
+					this.scale =
+						Math.min(targetScale, this.scale + scaleStep) + (this.scale > 0.5 ? bounce : 0);
 				}
-
-				// 2. Add "hesitation" by occasionally pausing
-				if (Math.random() < 0.01) {
-					// Create a brief pause, typical in arcade games
-					this.init = false;
-					setTimeout(
-						() => {
-							this.init = true;
-						},
-						300 + Math.random() * 300
-					);
-				}
-
-				// Scale up gradually with slight bouncing effect
-				const targetScale = 1;
-				const scaleStep = 0.01 * timeMultiplier;
-				const bounce = Math.sin(gameFrame * 0.1) * 0.03; // Small bounce
-
-				this.scale =
-					Math.min(targetScale, this.scale + scaleStep) + (this.scale > 0.5 ? bounce : 0);
 
 				if (this.scale >= 0.95) {
 					this.canShoot = true;
 				}
 
+				// Boundary checking
 				if (this.y < 0 || this.x < 0 || this.x > canvas.width || this.y > canvas.height) {
 					this.toBeRemoved = true;
 				}
 			}
 		}
 
-		// Handle aggressive effects
+		// Handle fire particles with improved effect
 		if (this.isAggressive) {
-			for (let i = 0; i < 5; i++) {
-				this.fireParticles.push(new FireParticle(this.x, this.y));
+			// Create more particles for a more dramatic effect
+			for (let i = 0; i < 8; i++) {
+				const fireParticle = new FireParticle(
+					this.x + (Math.random() - 0.5) * this.width * 0.8,
+					this.y + (Math.random() - 0.5) * this.height * 0.8
+				);
+				// Make some particles larger and longer-lived
+				if (i % 3 === 0) {
+					fireParticle.size *= 1.5;
+					fireParticle.lifespan *= 1.2;
+				}
+				this.fireParticles.push(fireParticle);
 			}
 		}
 
@@ -3483,18 +3543,13 @@ class CityEnemy extends Enemy {
 		// Animate sprite frames
 		this.frameTimer++;
 		if (this.frameTimer >= this.frameInterval) {
-			// Add random slight pauses in animation for personality
-			if (Math.random() < 0.1) {
-				// Hold current frame slightly longer
-				this.frameTimer = this.frameInterval - 2;
+			if (this.isAggressive) {
+				// Smooth animation between aggressive frames
+				this.frameX = this.frameX === 3 ? 4 : 3;
 			} else {
-				if (this.isAggressive) {
-					this.frameX = this.frameX === 3 ? 4 : 3;
-				} else {
-					this.frameX = this.frameX === 0 ? 1 : 0;
-				}
-				this.frameTimer = 0;
+				this.frameX = this.frameX === 0 ? 1 : 0;
 			}
+			this.frameTimer = 0;
 		}
 
 		// Handle explosion animation
@@ -3506,7 +3561,7 @@ class CityEnemy extends Enemy {
 			}
 		}
 
-		// Handle shooting
+		// Handle shooting with telegraph
 		if (this.isReady && !this.isExploding && this.canShoot) {
 			if (gameFrame - this.lastShotFrame > this.shootingInterval) {
 				// Classic arcade "telegraph" shooting
@@ -3518,11 +3573,42 @@ class CityEnemy extends Enemy {
 					const originalFrameX = this.frameX;
 					this.frameX = this.isAggressive ? 4 : 1; // Use fully open state
 
+					// Create charge-up effect
+					if (this.isAggressive) {
+						for (let i = 0; i < 15; i++) {
+							const chargeParticle = new FireParticle(
+								this.x + (Math.random() - 0.5) * 10,
+								this.y + this.height / 2 + (Math.random() - 0.5) * 10
+							);
+							chargeParticle.color = NESPalette.lightYellow;
+							chargeParticle.speedY *= 2;
+							this.fireParticles.push(chargeParticle);
+						}
+					}
+
 					setTimeout(() => {
-						// Fire after telegraph
-						enemyProjectiles.push(
-							new AnimatedProjectile(this.x + this.width / 2, this.y, true, false, this)
-						);
+						// Fire after telegraph - more bullets when aggressive
+						if (this.isAggressive) {
+							// 3-way spread when aggressive
+							const spreadAngle = Math.PI / 8; // 22.5 degrees
+							for (let i = -1; i <= 1; i++) {
+								const projectile = new AnimatedProjectile(
+									this.x + this.width / 2,
+									this.y,
+									true,
+									false,
+									this
+								);
+								projectile.angle = Math.PI / 2 + spreadAngle * i;
+								enemyProjectiles.push(projectile);
+							}
+						} else {
+							// Single shot when not aggressive
+							enemyProjectiles.push(
+								new AnimatedProjectile(this.x + this.width / 2, this.y, true, false, this)
+							);
+						}
+
 						this.lastShotFrame = gameFrame;
 						this.isTelegraphing = false;
 						this.frameX = originalFrameX;
@@ -3530,6 +3616,59 @@ class CityEnemy extends Enemy {
 				}
 			}
 		}
+	}
+
+	// Enhanced CityEnemy draw method
+	draw(ctx) {
+		ctx.save();
+
+		// Add a pulsating glow effect for aggressive enemies
+		if (this.isAggressive) {
+			ctx.globalAlpha = 0.3 + Math.sin(gameFrame * 0.1) * 0.1;
+			const glowRadius = this.width * this.scale * 0.6;
+			const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, glowRadius);
+			gradient.addColorStop(0, NESPalette.lightOrange);
+			gradient.addColorStop(1, 'transparent');
+			ctx.fillStyle = gradient;
+			ctx.beginPath();
+			ctx.arc(this.x, this.y, glowRadius, 0, Math.PI * 2);
+			ctx.fill();
+		}
+
+		// Draw the enemy sprite with appropriate transformations
+		ctx.translate(this.x, this.y);
+		if (!this.isReady) {
+			ctx.scale(1, -1);
+		}
+
+		// Apply scale with a subtle rotation when aggressive
+		if (this.isAggressive) {
+			const wobble = Math.sin(gameFrame * 0.2) * 0.05;
+			ctx.rotate(wobble);
+			ctx.scale(this.scale, this.scale);
+		} else {
+			ctx.scale(this.scale, this.scale);
+		}
+
+		// Draw the sprite with the correct frame
+		ctx.drawImage(
+			this.spriteImage,
+			this.frameX * this.width,
+			0,
+			this.width,
+			this.height,
+			-this.width / 2,
+			-this.height / 2,
+			this.width,
+			this.height
+		);
+
+		ctx.restore();
+
+		// Draw fire particles
+		this.fireParticles.forEach((particle) => {
+			particle.draw(ctx);
+		});
 	}
 
 	draw(ctx) {
@@ -5845,69 +5984,6 @@ function setupInputListeners() {
 
 				case 'Enter':
 					keyState.Enter = true;
-					break;
-
-				default:
-					// Handle cheat code sequence
-					if (key.length === 1) {
-						if (key === keyCombination[keyCombinationIndex]) {
-							keyCombinationIndex++;
-							if (keyCombinationIndex === keyCombination.length) {
-								handleCheatCode();
-								keyCombinationIndex = 0;
-							}
-						} else if (key === 'S') {
-							keyCombinationIndex = 1;
-						} else {
-							keyCombinationIndex = 0;
-						}
-					}
-					break;
-			}
-
-			// Check for special move combinations
-			checkSpecialMoves(inputBuffer);
-		}
-
-		// Handle reload command
-		if (key === 'R' && (event.ctrlKey || event.metaKey)) {
-			event.preventDefault();
-			resetGame();
-			return;
-		}
-	});
-
-	window.addEventListener('keyup', function (event) {
-		const key = event.key.toUpperCase(); // Define key variable here
-
-		if (gameActive) {
-			switch (event.key) {
-				case 'ArrowLeft':
-					keyState.ArrowLeft = false;
-					player.movingLeft = false;
-					break;
-
-				case 'ArrowRight':
-					keyState.ArrowRight = false;
-					player.movingRight = false;
-					break;
-
-				case ' ':
-					keyState[' '] = false;
-					break;
-
-				case 'x':
-				case 'X':
-					keyState.x = false;
-					break;
-
-				case 'p':
-				case 'P':
-					keyState.p = false;
-					break;
-
-				case 'Enter':
-					keyState.Enter = false;
 					break;
 
 				default:
