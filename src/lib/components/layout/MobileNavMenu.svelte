@@ -17,8 +17,23 @@
 	let currentPath = '/';
 	// Store scroll position
 	let scrollPosition = 0;
+	// DOM elements
+	let mobileMenuContainer: HTMLElement;
+	let mobileMenuPanel: HTMLElement;
 
-	// Toggle menu function with scroll position preservation
+	// iOS detection - helps with specific fixes
+	let isIOS = false;
+
+	onMount(() => {
+		// Detect iOS for specific fixes
+		if (browser) {
+			isIOS =
+				/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+				(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+		}
+	});
+
+	// Toggle menu function with improved iOS support
 	function toggleMenu(event?: Event) {
 		if (event) {
 			event.preventDefault();
@@ -35,10 +50,42 @@
 			document.body.style.top = `-${scrollPosition}px`;
 			document.body.style.overflow = 'hidden';
 			document.body.style.touchAction = 'none';
+
+			// Add class to body for styling hooks
 			document.body.classList.add('menu-open');
+
+			// iOS-specific overflow handling
+			if (isIOS) {
+				// Force layout calculation to ensure proper positioning
+				document.documentElement.style.overflow = 'hidden';
+				document.documentElement.style.height = '100%';
+
+				// iOS scroll position prevention
+				window.scrollTo(0, 0);
+				setTimeout(() => {
+					// Additional iOS fix for positioning
+					if (mobileMenuPanel) {
+						// Force position recalculation
+						mobileMenuPanel.style.display = 'none';
+						void mobileMenuPanel.offsetHeight; // Force reflow
+						mobileMenuPanel.style.display = 'flex';
+					}
+				}, 10);
+			}
 		}
 
 		isOpen = !isOpen;
+
+		// If opening, apply additional iOS fixes after state update
+		if (isOpen && isIOS && browser) {
+			tick().then(() => {
+				// Move the menu element to be a direct child of body for iOS
+				if (mobileMenuContainer) {
+					// Ensure menu is directly in body for proper stacking context
+					document.body.appendChild(mobileMenuContainer);
+				}
+			});
+		}
 	}
 
 	// Close menu when escape key is pressed
@@ -70,8 +117,6 @@
 		// Extract section ID from target
 		const isHashLink = target.includes('#');
 		const sectionId = isHashLink ? target.split('#')[1] : '';
-
-		console.log('Navigating to section:', sectionId); // Add for debugging
 
 		// If not a section link, just navigate normally
 		if (!isHashLink) {
@@ -148,10 +193,16 @@
 					document.body.style.overflow = '';
 					document.body.style.touchAction = '';
 
+					// iOS-specific cleanup
+					if (isIOS) {
+						document.documentElement.style.overflow = '';
+						document.documentElement.style.height = '';
+					}
+
 					// Restore scroll position with a small delay for iOS
 					setTimeout(() => {
 						window.scrollTo(0, scrollY);
-					}, 10);
+					}, 50);
 				}
 			});
 		}
@@ -162,13 +213,6 @@
 		currentPath = $page.url.pathname;
 	}
 
-	// Improved body scroll lock with position preservation
-	$: if (browser && isOpen) {
-		// Already applied in toggleMenu function
-	} else if (browser && !isOpen) {
-		// Already cleaned up in closeMenu function
-	}
-
 	// Clean up on component destroy
 	onDestroy(() => {
 		if (browser) {
@@ -176,6 +220,8 @@
 			document.body.style.position = '';
 			document.body.style.top = '';
 			document.body.style.width = '';
+			document.documentElement.style.overflow = '';
+			document.documentElement.style.height = '';
 		}
 	});
 </script>
@@ -216,23 +262,30 @@
 </button>
 
 {#if isOpen}
-	<!-- Fixed overlay for when menu is open - Increase z-index -->
+	<!-- Overlay and menu container - using portal pattern for iOS -->
 	<div
-		class="fixed inset-0 z-[9999] bg-black/30 backdrop-blur-sm"
-		style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;"
+		bind:this={mobileMenuContainer}
+		class="mobile-menu-container"
 		on:click={closeMenu}
 		on:keydown={(e) => e.key === 'Enter' && closeMenu()}
-		transition:fade={{ duration: 200 }}
 		role="presentation"
 	>
+		<!-- Fixed overlay for when menu is open - directly in body -->
+		<div
+			class="fixed inset-0 z-[9999] bg-black/30 backdrop-blur-sm"
+			style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100vh; width: 100vw;"
+			transition:fade={{ duration: 200 }}
+		></div>
+
 		<!-- Menu Panel -->
 		<div
+			bind:this={mobileMenuPanel}
 			id="mobile-menu"
 			class="fixed inset-y-0 right-0 z-[10000] w-full max-w-xs
-		bg-[var(--light-mode-bg)] dark:bg-[var(--dark-mode-bg)]
-		shadow-xl flex flex-col overflow-y-auto
-		transform will-change-transform"
-			style="position: fixed; top: 0; bottom: 0; right: 0; height: 100%;"
+			bg-[var(--light-mode-bg)] dark:bg-[var(--dark-mode-bg)]
+			shadow-xl flex flex-col overflow-y-auto
+			transform will-change-transform"
+			style="position: fixed; top: 0; bottom: 0; right: 0; height: 100vh; max-height: 100vh; width: 100%; max-width: 20rem;"
 			transition:fly={{ x: 300, duration: 300, easing: cubicInOut }}
 			on:click|stopPropagation
 			on:keydown={(e) => e.key === 'Enter' && closeMenu()}
@@ -322,14 +375,35 @@
 	div {
 		scrollbar-width: none;
 		-ms-overflow-style: none;
-		&::-webkit-scrollbar {
-			display: none;
-		}
+	}
 
-		/* Enable hardware acceleration for smoother animations */
+	div::-webkit-scrollbar {
+		display: none;
+	}
+
+	/* Enable hardware acceleration for smoother animations */
+	div {
 		transform: translateZ(0);
 		backface-visibility: hidden;
 		perspective: 1000px;
+	}
+
+	/* iOS-specific fixes */
+	:global(.mobile-menu-container) {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		width: 100vw;
+		height: 100vh;
+		height: -webkit-fill-available;
+		max-height: -webkit-fill-available;
+		overflow: hidden;
+		z-index: 9999;
+		/* Force new stacking context outside of any other element */
+		transform: translateZ(0);
+		will-change: transform;
 	}
 
 	/* Fix for iOS - ensure proper positioning and dimensions */
@@ -337,14 +411,18 @@
 		height: 100vh;
 		height: -webkit-fill-available;
 		max-height: -webkit-fill-available;
+		width: 100%;
+		max-width: 20rem;
 		overflow-y: auto;
 		position: fixed;
 		top: 0;
 		right: 0;
 		bottom: 0;
+		left: auto;
 		/* Force hardware acceleration */
 		-webkit-transform: translateZ(0);
 		transform: translateZ(0);
+		will-change: transform;
 	}
 
 	/* Improved iOS body lock */
@@ -355,5 +433,16 @@
 		height: 100% !important;
 		touch-action: none !important;
 		-webkit-overflow-scrolling: auto !important;
+	}
+
+	/* iOS height fixes for menu */
+	@supports (-webkit-touch-callout: none) {
+		#mobile-menu {
+			height: -webkit-fill-available;
+		}
+
+		:global(.mobile-menu-container) {
+			height: -webkit-fill-available;
+		}
 	}
 </style>

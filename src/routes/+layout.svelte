@@ -349,4 +349,37 @@
 			background-color 0.3s ease,
 			color 0.3s ease;
 	}
+
+	/* iOS-specific fixes */
+	@supports (-webkit-touch-callout: none) {
+		/* Fix iOS 100vh issue */
+		.content-wrapper {
+			min-height: 100vh;
+			min-height: -webkit-fill-available;
+		}
+
+		/* Proper z-index handling for iOS */
+		nav {
+			z-index: 100;
+			position: relative;
+			/* Force hardware acceleration */
+			transform: translateZ(0);
+		}
+	}
+
+	/* Improve mobile-navbar-blur for iOS */
+	@media (max-width: 767px) {
+		.mobile-navbar-blur {
+			backdrop-filter: blur(2.5px);
+			-webkit-backdrop-filter: blur(2.5px);
+			background-color: rgba(255, 255, 255, 0.05);
+			/* Force new stacking context on iOS */
+			transform: translateZ(0);
+			z-index: 100;
+		}
+
+		.dark .mobile-navbar-blur {
+			background-color: rgba(0, 0, 0, 0.1);
+		}
+	}
 </style>
