@@ -47,6 +47,32 @@
 	--loading-duration: 1500ms;
 }
 
+@media (max-width: 768px) {
+	:root {
+		/* Mobile Light Theme Cabinet - Enhanced for modern aesthetic */
+		--light-cabinet-primary: #f8f8f8;
+		--light-cabinet-secondary: #f0f0f0;
+		--light-cabinet-tertiary: #e8e8e8;
+		--light-cabinet-accent: rgba(0, 150, 255, 0.5);
+		--light-shadow-subtle: rgba(0, 0, 0, 0.03);
+		--light-shadow-medium: rgba(0, 0, 0, 0.05);
+		--light-highlight: rgba(255, 255, 255, 0.8);
+		--light-screen-glow: rgba(0, 120, 255, 0.3);
+		--light-screen-glow-intensity: 0.08;
+		--light-cabinet-border-radius: 12px;
+		--light-cabinet-border-color: rgba(0, 0, 0, 0.05);
+		--light-cabinet-texture-opacity: 0.02;
+		--light-bezel-gradient-start: rgba(220, 220, 220, 1);
+		--light-bezel-gradient-end: rgba(200, 200, 200, 1);
+
+		/* Override other variables for mobile */
+		--screen-glow-opacity: 0.1;
+		--shadow-mask-size: 2px;
+		--border-radius: 12px;
+		--bezel-thickness: 0.6vmin;
+	}
+}
+
 /* Theme Transition - Instant Switch */
 .theme-transition * {
 	transition: none !important;

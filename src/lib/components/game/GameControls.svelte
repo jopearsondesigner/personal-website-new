@@ -970,9 +970,9 @@
 		min-width: var(--utility-button-size);
 		height: var(--utility-button-size);
 		padding: 0 8px;
-		background: var(--controls-background);
+		background: var(--controls-background); /* Use the same background variable */
 		border: 1px solid var(--neon-color-dim);
-		border-radius: 4px;
+		border-radius: 6px; /* Slightly more rounded */
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -981,16 +981,19 @@
 		-webkit-backdrop-filter: blur(4px);
 		position: relative;
 		overflow: hidden;
+		box-shadow: 0 0 6px rgba(39, 255, 153, 0.1); /* Add subtle glow */
 	}
 
 	.utility-button.active {
 		transform: scale(0.95);
 		background: rgba(39, 255, 153, 0.2);
-		box-shadow: 0 0 10px rgba(39, 255, 153, 0.3);
+		box-shadow: 0 0 10px rgba(39, 255, 153, 0.4);
+		border-color: var(--neon-color);
 	}
 
 	.utility-button:hover {
 		border-color: var(--neon-color);
+		background: rgba(39, 255, 153, 0.1);
 	}
 
 	.utility-button :global(svg) {
@@ -998,18 +1001,21 @@
 		top: 50%;
 		left: 50%;
 		transform: translate(-50%, -50%);
-		width: 16px;
-		height: 16px;
-		color: rgba(245, 245, 220, 0.9);
+		width: 16px; /* Explicitly set width */
+		height: 16px; /* Explicitly set height */
 		transition: color 0.2s ease;
 		fill: transparent !important; /* Force transparent fill */
 		stroke: currentColor; /* Ensure stroke is applied */
 	}
 
+	.utility-button :global(svg) {
+		color: rgba(245, 245, 220, 0.9);
+	}
+
 	.utility-button:hover :global(svg),
 	.utility-button.active :global(svg) {
 		color: var(--neon-color);
-		filter: drop-shadow(0 0 4px rgba(39, 255, 153, 0.6));
+		filter: drop-shadow(0 0 6px rgba(39, 255, 153, 0.6));
 	}
 
 	/* Responsive styles */
@@ -1117,18 +1123,35 @@
 
 	/* Theme adjustments */
 	:global(html.light) .controls-container {
-		--controls-background: rgba(43, 43, 43, 0.45);
+		--controls-background: rgba(43, 43, 43, 0.65); /* Increased opacity for better contrast */
+		backdrop-filter: blur(4px); /* Enhanced blur for better readability */
+		-webkit-backdrop-filter: blur(4px);
 	}
 
-	:global(html.light) .joystick-base,
-	:global(html.light) .arcade-button .button-face,
+	:global(html.light) .joystick-base {
+		background: rgba(0, 0, 0, 0.3); /* Darker for better contrast */
+		border-color: rgba(39, 255, 153, 0.3);
+		box-shadow: 0 0 6px rgba(39, 255, 153, 0.2);
+	}
+
+	:global(html.light) .arcade-button .button-face {
+		background: rgba(0, 0, 0, 0.3); /* Darker for better contrast */
+		border-color: rgba(39, 255, 153, 0.3);
+		box-shadow: 0 0 6px rgba(39, 255, 153, 0.2);
+	}
+
 	:global(html.light) .utility-button {
-		background: rgba(200, 200, 200, 0.2);
-		border-color: rgba(39, 255, 153, 0.25);
+		background: rgba(0, 0, 0, 0.3);
+		border-color: rgba(39, 255, 153, 0.3);
 	}
 
 	:global(html.light) .button-label {
-		color: rgba(245, 245, 220, 0.9);
-		text-shadow: 0 0 4px rgba(39, 255, 153, 0.4);
+		color: rgba(245, 245, 220, 1); /* Brighter for better contrast */
+		text-shadow: 0 0 5px rgba(0, 0, 0, 0.5); /* Darker shadow for better legibility */
+	}
+
+	:global(html.dark) .utility-button {
+		background: rgba(39, 255, 153, 0.05);
+		border-color: var(--neon-color-dim);
 	}
 </style>
