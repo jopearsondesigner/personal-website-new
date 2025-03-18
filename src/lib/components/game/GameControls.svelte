@@ -994,14 +994,16 @@
 	}
 
 	.utility-button :global(svg) {
-		position: absolute; /* Change from relative to absolute */
+		position: absolute;
 		top: 50%;
 		left: 50%;
 		transform: translate(-50%, -50%);
-		width: 16px; /* Explicitly set width */
-		height: 16px; /* Explicitly set height */
+		width: 16px;
+		height: 16px;
 		color: rgba(245, 245, 220, 0.9);
 		transition: color 0.2s ease;
+		fill: transparent !important; /* Force transparent fill */
+		stroke: currentColor; /* Ensure stroke is applied */
 	}
 
 	.utility-button:hover :global(svg),

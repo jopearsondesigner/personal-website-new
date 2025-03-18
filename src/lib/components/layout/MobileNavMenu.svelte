@@ -28,10 +28,13 @@
 			// Save scroll position before opening menu
 			scrollPosition = window.scrollY;
 
-			// Reset the body's top position before opening menu
+			// Apply fixed position to body with proper transform
 			document.body.style.position = 'fixed';
 			document.body.style.width = '100%';
+			document.body.style.height = '100%';
 			document.body.style.top = `-${scrollPosition}px`;
+			document.body.style.overflow = 'hidden';
+			document.body.style.touchAction = 'none';
 			document.body.classList.add('menu-open');
 		}
 
@@ -133,14 +136,22 @@
 			// Wait a tick to ensure DOM updates
 			tick().then(() => {
 				if (browser) {
-					// Remove the fixed positioning
+					// Store the scroll position we need to restore
+					const scrollY = parseInt(document.body.style.top || '0') * -1;
+
+					// Remove the fixed positioning and other properties
 					document.body.classList.remove('menu-open');
 					document.body.style.position = '';
 					document.body.style.top = '';
 					document.body.style.width = '';
+					document.body.style.height = '';
+					document.body.style.overflow = '';
+					document.body.style.touchAction = '';
 
-					// Restore previous scroll position
-					window.scrollTo(0, scrollPosition);
+					// Restore scroll position with a small delay for iOS
+					setTimeout(() => {
+						window.scrollTo(0, scrollY);
+					}, 10);
 				}
 			});
 		}
@@ -208,6 +219,7 @@
 	<!-- Fixed overlay for when menu is open - Increase z-index -->
 	<div
 		class="fixed inset-0 z-[9999] bg-black/30 backdrop-blur-sm"
+		style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;"
 		on:click={closeMenu}
 		on:keydown={(e) => e.key === 'Enter' && closeMenu()}
 		transition:fade={{ duration: 200 }}
@@ -217,9 +229,10 @@
 		<div
 			id="mobile-menu"
 			class="fixed inset-y-0 right-0 z-[10000] w-full max-w-xs
-			bg-[var(--light-mode-bg)] dark:bg-[var(--dark-mode-bg)]
-			shadow-xl flex flex-col overflow-y-auto
-			transform will-change-transform"
+		bg-[var(--light-mode-bg)] dark:bg-[var(--dark-mode-bg)]
+		shadow-xl flex flex-col overflow-y-auto
+		transform will-change-transform"
+			style="position: fixed; top: 0; bottom: 0; right: 0; height: 100%;"
 			transition:fly={{ x: 300, duration: 300, easing: cubicInOut }}
 			on:click|stopPropagation
 			on:keydown={(e) => e.key === 'Enter' && closeMenu()}
@@ -319,16 +332,7 @@
 		perspective: 1000px;
 	}
 
-	:global(body.menu-open) {
-		overflow: hidden;
-		position: fixed;
-		width: 100%;
-		height: 100%;
-		touch-action: none;
-		-webkit-overflow-scrolling: auto;
-	}
-
-	/* Fix for iOS - ensure full height and proper position */
+	/* Fix for iOS - ensure proper positioning and dimensions */
 	#mobile-menu {
 		height: 100vh;
 		height: -webkit-fill-available;
@@ -338,7 +342,18 @@
 		top: 0;
 		right: 0;
 		bottom: 0;
-		-webkit-transform: translateZ(0); /* Force hardware acceleration */
+		/* Force hardware acceleration */
+		-webkit-transform: translateZ(0);
 		transform: translateZ(0);
+	}
+
+	/* Improved iOS body lock */
+	:global(body.menu-open) {
+		overflow: hidden !important;
+		position: fixed !important;
+		width: 100% !important;
+		height: 100% !important;
+		touch-action: none !important;
+		-webkit-overflow-scrolling: auto !important;
 	}
 </style>

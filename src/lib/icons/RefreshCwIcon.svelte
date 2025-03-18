@@ -24,3 +24,18 @@
 		fill="none"
 	/>
 </svg>
+
+<style>
+	/* iOS WebKit fill override */
+	svg {
+		fill: transparent !important;
+	}
+
+	/* Ensure paths and shapes use stroke not fill */
+	svg path,
+	svg rect,
+	svg polygon {
+		fill: none !important;
+		stroke: currentColor;
+	}
+</style>
