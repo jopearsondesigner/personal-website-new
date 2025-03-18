@@ -5,8 +5,10 @@
 	import { fade } from 'svelte/transition';
 	import { browser } from '$app/environment';
 	import { writable } from 'svelte/store';
-	// Updated icon imports
-	import { RefreshCw, Pause, Play, Target, Zap } from 'lucide-svelte';
+	// Import SVG icons directly from files instead of using lucide-svelte
+	import RefreshCwIcon from '$lib/icons/RefreshCwIcon.svelte';
+	import PauseIcon from '$lib/icons/PauseIcon.svelte';
+	import PlayIcon from '$lib/icons/PlayIcon.svelte';
 	import ShootIcon from '$lib/icons/ShootIcon.svelte';
 	import HeatsekerIcon from '$lib/icons/HeatseekerIcon.svelte';
 
@@ -514,43 +516,41 @@
 	<!-- Header with utility buttons -->
 	<div class="controls-header">
 		<!-- Utility Buttons Section from GameControls.svelte -->
-		<div class="utility-buttons">
-			<button
-				class="utility-button"
-				class:active={buttons.reset}
-				on:mousedown|preventDefault={(e) => handleButtonPress('reset', e)}
-				on:mouseup={() => handleButtonRelease('reset')}
-				on:touchstart|preventDefault={(e) => handleButtonPress('reset', e)}
-				on:touchend={() => handleButtonRelease('reset')}
-				aria-label="Reset"
-			>
-				<RefreshCw class="w-4 h-4" />
-			</button>
+		<button
+			class="utility-button"
+			class:active={buttons.reset}
+			on:mousedown|preventDefault={(e) => handleButtonPress('reset', e)}
+			on:mouseup={() => handleButtonRelease('reset')}
+			on:touchstart|preventDefault={(e) => handleButtonPress('reset', e)}
+			on:touchend={() => handleButtonRelease('reset')}
+			aria-label="Reset"
+		>
+			<RefreshCwIcon class="w-4 h-4" />
+		</button>
 
-			<button
-				class="utility-button"
-				class:active={buttons.pause}
-				on:mousedown|preventDefault={(e) => handleButtonPress('pause', e)}
-				on:mouseup={() => handleButtonRelease('pause')}
-				on:touchstart|preventDefault={(e) => handleButtonPress('pause', e)}
-				on:touchend={() => handleButtonRelease('pause')}
-				aria-label="Pause"
-			>
-				<Pause class="w-4 h-4" />
-			</button>
+		<button
+			class="utility-button"
+			class:active={buttons.pause}
+			on:mousedown|preventDefault={(e) => handleButtonPress('pause', e)}
+			on:mouseup={() => handleButtonRelease('pause')}
+			on:touchstart|preventDefault={(e) => handleButtonPress('pause', e)}
+			on:touchend={() => handleButtonRelease('pause')}
+			aria-label="Pause"
+		>
+			<PauseIcon class="w-4 h-4" />
+		</button>
 
-			<button
-				class="utility-button"
-				class:active={buttons.enter}
-				on:mousedown|preventDefault={(e) => handleButtonPress('enter', e)}
-				on:mouseup={() => handleButtonRelease('enter')}
-				on:touchstart|preventDefault={(e) => handleButtonPress('enter', e)}
-				on:touchend={() => handleButtonRelease('enter')}
-				aria-label="Start"
-			>
-				<Play class="w-4 h-4" />
-			</button>
-		</div>
+		<button
+			class="utility-button"
+			class:active={buttons.enter}
+			on:mousedown|preventDefault={(e) => handleButtonPress('enter', e)}
+			on:mouseup={() => handleButtonRelease('enter')}
+			on:touchstart|preventDefault={(e) => handleButtonPress('enter', e)}
+			on:touchend={() => handleButtonRelease('enter')}
+			aria-label="Start"
+		>
+			<PlayIcon class="w-4 h-4" />
+		</button>
 	</div>
 
 	<!-- Main controls section -->

@@ -27,6 +27,12 @@
 		if (!isOpen && browser) {
 			// Save scroll position before opening menu
 			scrollPosition = window.scrollY;
+
+			// Reset the body's top position before opening menu
+			document.body.style.position = 'fixed';
+			document.body.style.width = '100%';
+			document.body.style.top = `-${scrollPosition}px`;
+			document.body.classList.add('menu-open');
 		}
 
 		isOpen = !isOpen;
@@ -125,8 +131,11 @@
 			// Wait a tick to ensure DOM updates
 			tick().then(() => {
 				if (browser) {
-					// Remove the menu-open class first
+					// Remove the fixed positioning
 					document.body.classList.remove('menu-open');
+					document.body.style.position = '';
+					document.body.style.top = '';
+					document.body.style.width = '';
 
 					// Restore previous scroll position
 					window.scrollTo(0, scrollPosition);
@@ -141,25 +150,19 @@
 	}
 
 	// Improved body scroll lock with position preservation
-	$: if (browser) {
-		if (isOpen) {
-			// Save current scroll position
-			scrollPosition = window.scrollY;
-
-			// Apply fixed positioning to body at the current scroll position
-			document.body.style.top = `-${scrollPosition}px`;
-			document.body.classList.add('menu-open');
-		} else {
-			document.body.classList.remove('menu-open');
-			document.body.style.top = '';
-		}
+	$: if (browser && isOpen) {
+		// Already applied in toggleMenu function
+	} else if (browser && !isOpen) {
+		// Already cleaned up in closeMenu function
 	}
 
 	// Clean up on component destroy
 	onDestroy(() => {
 		if (browser) {
 			document.body.classList.remove('menu-open');
+			document.body.style.position = '';
 			document.body.style.top = '';
+			document.body.style.width = '';
 		}
 	});
 </script>
@@ -317,8 +320,12 @@
 	/* Improve body scroll locking for menu open */
 	:global(body.menu-open) {
 		overflow: hidden;
-		position: fixed;
-		width: 100%;
+		/* Position, top, and width are handled in JavaScript */
+	}
+
+	/* Ensure the mobile menu can always expand to full height */
+	#mobile-menu {
 		height: 100%;
+		max-height: -webkit-fill-available; /* iOS Safari fix */
 	}
 </style>
