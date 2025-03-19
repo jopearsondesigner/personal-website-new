@@ -10,6 +10,8 @@
 	/* Colors */
 	--arcade-red-500: #ff5426;
 	--arcade-black-200: #d5d5d5;
+	--arcade-black-300: #808080;
+	--arcade-black-400: #555555;
 	--arcade-black-500: #2b2b2b;
 	--arcade-black-600: #262626;
 	--arcade-black-700: #1a1a1a;
@@ -229,63 +231,5 @@ html.dark .nav-button:active {
 @media (min-width: 1024px) {
 	.controls-container {
 		display: none;
-	}
-}
-
-/* Global SVG fix for iOS WebKit fill issue */
-svg,
-svg path,
-svg rect,
-svg circle,
-svg polygon,
-svg line {
-	fill: transparent !important;
-	-webkit-fill: transparent !important;
-	stroke: currentColor;
-}
-
-/* Explicit override for iOS in dark mode */
-html.dark svg,
-html.dark svg path,
-html.dark svg rect,
-html.dark svg circle,
-html.dark svg polygon,
-html.dark svg line {
-	fill: transparent !important;
-	-webkit-fill: transparent !important;
-	stroke: currentColor;
-}
-
-/* Force hardware acceleration globally for smoother animations */
-.header-logo-pulse,
-.logo-wrapper,
-nav,
-.mobile-menu-container,
-#mobile-menu {
-	transform: translateZ(0);
-	backface-visibility: hidden;
-	will-change: transform;
-}
-
-/* iOS-specific fixes */
-@supports (-webkit-touch-callout: none) {
-	html,
-	body {
-		height: 100%;
-		/* iOS height fix for menu layout */
-		min-height: -webkit-fill-available;
-	}
-
-	/* Fix for mobile menu on iOS */
-	body.menu-open .mobile-menu-container {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		width: 100vw !important;
-		height: 100vh !important;
-		height: -webkit-fill-available !important;
-		z-index: 9999 !important;
 	}
 }

@@ -242,7 +242,7 @@
 		<div class="flex md:order-2 items-center gap-4">
 			<button
 				on:click={toggleTheme}
-				class="md:flex items-center justify-center w-10 h-10 rounded-full bg-opacity-20 hover:bg-opacity-30 transition-all duration-300 ease-in dark:text-[var(--arcade-white-300)] text-[var(--arcade-black-500)]"
+				class="md:flex items-center justify-center w-10 h-10 rounded-full bg-opacity-20 hover:bg-opacity-30 transition-all duration-300 ease-in dark:text-[var(--arcade-white-300)] text-[var(--arcade-black-300)]"
 				aria-label="Toggle Dark Mode"
 			>
 				{#if $theme === 'dark'}
