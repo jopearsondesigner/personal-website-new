@@ -137,80 +137,89 @@
 
 <div
 	id="game-screen"
-	class="flex items-center justify-center w-full h-full p-[.75vmin] overflow-hidden"
+	class="flex items-center justify-center w-full h-full p-[.5vmin] overflow-hidden"
 >
-	<!-- Add overflow-hidden to game-background -->
+	<!-- Game background with overflow-hidden -->
 	<div class="game-background overflow-hidden">
-		<!-- Left side panel - only show on desktop -->
-		<div class="hidden lg:block">
-			<div class="side-panel left" in:fly={{ x: -50, duration: 1000 }}>
-				<div class="panel-content">
-					<!-- Added wrapper div for better centering -->
-					{#each decorativeText.filter((item) => item.side === 'left') as item}
-						<div class="arcade-text">
-							<span class="label">{item.text}</span>
-							{#if item.icons}
-								<span class="value with-icons">
-									<span class="control-label">{item.value}</span>
-									<span class="icon-row">
-										{#each item.icons as icon}
-											<svelte:component this={icon.component} size={icon.size} color={icon.color} />
-										{/each}
+		<!-- Use flex layout with fixed widths for panels -->
+		<div class="game-content-wrapper flex justify-center items-stretch w-full h-full">
+			<!-- Left side panel - only show on desktop -->
+			<div class="hidden lg:block lg:w-[150px] flex-shrink-0">
+				<div class="side-panel left h-full" in:fly={{ x: -50, duration: 1000 }}>
+					<div class="panel-content">
+						<!-- Added wrapper div for better centering -->
+						{#each decorativeText.filter((item) => item.side === 'left') as item}
+							<div class="arcade-text">
+								<span class="label">{item.text}</span>
+								{#if item.icons}
+									<span class="value with-icons">
+										<span class="control-label">{item.value}</span>
+										<span class="icon-row">
+											{#each item.icons as icon}
+												<svelte:component
+													this={icon.component}
+													size={icon.size}
+													color={icon.color}
+												/>
+											{/each}
+										</span>
+										{#if item.additionalText}
+											<span class="control-label">{item.additionalText}</span>
+											<span class="icon-row">
+												{#each item.additionalIcons as icon}
+													<svelte:component
+														this={icon.component}
+														size={icon.size}
+														color={icon.color}
+													/>
+												{/each}
+											</span>
+										{/if}
+										{#if item.moreText}
+											<span class="control-label">{item.moreText}</span>
+											<span class="icon-row">
+												{#each item.moreIcons as icon}
+													<svelte:component
+														this={icon.component}
+														size={icon.size}
+														color={icon.color}
+													/>
+												{/each}
+											</span>
+										{/if}
 									</span>
-									{#if item.additionalText}
-										<span class="control-label">{item.additionalText}</span>
-										<span class="icon-row">
-											{#each item.additionalIcons as icon}
-												<svelte:component
-													this={icon.component}
-													size={icon.size}
-													color={icon.color}
-												/>
-											{/each}
-										</span>
-									{/if}
-									{#if item.moreText}
-										<span class="control-label">{item.moreText}</span>
-										<span class="icon-row">
-											{#each item.moreIcons as icon}
-												<svelte:component
-													this={icon.component}
-													size={icon.size}
-													color={icon.color}
-												/>
-											{/each}
-										</span>
-									{/if}
-								</span>
-							{:else}
-								<span class="value">{item.value}</span>
-							{/if}
-						</div>
-					{/each}
-					<div class="neon-line"></div>
-					<div class="pixel-decoration"></div>
+								{:else}
+									<span class="value">{item.value}</span>
+								{/if}
+							</div>
+						{/each}
+						<div class="neon-line"></div>
+						<div class="pixel-decoration"></div>
+					</div>
 				</div>
 			</div>
-		</div>
 
-		<!-- Game container -->
-		<div class="game-view-container w-full lg:max-w-[calc(100%-300px)] overflow-hidden">
-			<Game />
-		</div>
+			<!-- Game container - using flex-grow to fill available space -->
+			<div
+				class="game-view-container flex-grow flex items-center justify-center p-1 overflow-hidden"
+			>
+				<Game />
+			</div>
 
-		<!-- Right side panel - only show on desktop -->
-		<div class="hidden lg:block">
-			<div class="side-panel right" in:fly={{ x: 50, duration: 1000 }}>
-				<div class="panel-content">
-					<!-- Added wrapper div for better centering -->
-					{#each decorativeText.filter((item) => item.side === 'right') as item}
-						<div class="arcade-text">
-							<span class="label">{item.text}</span>
-							<span class="value">{item.value}</span>
-						</div>
-					{/each}
-					<div class="neon-line"></div>
-					<div class="pixel-decoration"></div>
+			<!-- Right side panel - only show on desktop -->
+			<div class="hidden lg:block lg:w-[150px] flex-shrink-0">
+				<div class="side-panel right h-full" in:fly={{ x: 50, duration: 1000 }}>
+					<div class="panel-content">
+						<!-- Added wrapper div for better centering -->
+						{#each decorativeText.filter((item) => item.side === 'right') as item}
+							<div class="arcade-text">
+								<span class="label">{item.text}</span>
+								<span class="value">{item.value}</span>
+							</div>
+						{/each}
+						<div class="neon-line"></div>
+						<div class="pixel-decoration"></div>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -237,6 +246,15 @@
 		border-radius: 3.5vmin;
 	}
 
+	/* New wrapper for flex layout */
+	.game-content-wrapper {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		align-items: stretch;
+		justify-content: center;
+	}
+
 	.game-view-container {
 		height: 100%;
 		position: relative;
@@ -245,6 +263,7 @@
 		align-items: center;
 		border-radius: 3vmin;
 		overflow: hidden;
+		padding: 0.25rem; /* Reduced padding for maximum space */
 	}
 
 	/* ==========================================================================
@@ -310,33 +329,30 @@
    Side Panel Styles
    ========================================================================== */
 	.side-panel {
-		position: absolute;
-		top: 0;
-		bottom: 0;
-		width: 150px;
+		position: relative; /* Changed from absolute to relative */
+		height: 100%; /* Full height */
+		width: 100%; /* Full width of parent */
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: center; /* Added for vertical centering */
-		padding: 2rem 1rem;
+		justify-content: center;
+		padding: 1.5rem 0.75rem; /* Reduced padding */
 		z-index: 2;
 		pointer-events: none;
-		display: none;
 		border-radius: 3vmin 0 0 3vmin;
 	}
 
 	.side-panel.left {
-		left: 0;
 		border-right: 1px solid rgba(39, 255, 153, 0.1);
+		border-radius: 3vmin 0 0 3vmin;
 	}
 
 	.side-panel.right {
-		right: 0;
 		border-left: 1px solid rgba(39, 255, 153, 0.1);
 		border-radius: 0 3vmin 3vmin 0;
 	}
 
-	/* Added panel content wrapper for better centering */
+	/* Panel content wrapper for better centering */
 	.panel-content {
 		display: flex;
 		flex-direction: column;
@@ -628,8 +644,30 @@
    Media Queries
    ========================================================================== */
 	@media (min-width: 1024px) {
-		.side-panel {
-			display: flex;
+		/* No need for display: flex override as we're using flex layout */
+		/* The side panels will show automatically with lg:block classes */
+	}
+
+	@media (max-width: 1023px) {
+		.game-view-container {
+			padding: 0.5rem; /* Slightly more padding on mobile */
+		}
+
+		#game-screen {
+			padding: 0.5rem;
+		}
+	}
+
+	@media (orientation: portrait) and (max-width: 1023px) {
+		.game-wrapper {
+			height: calc(100% - 80px); /* Reduced from 120px */
+		}
+	}
+
+	@media (orientation: landscape) and (max-width: 1023px) {
+		.game-wrapper {
+			height: calc(100vh - var(--controls-height-landscape));
+			padding-right: 0;
 		}
 	}
 
@@ -643,7 +681,8 @@
 	.pixel-decoration,
 	.game-background::before,
 	.game-background::after,
-	.game-view-container {
+	.game-view-container,
+	.game-content-wrapper {
 		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	}
 </style>

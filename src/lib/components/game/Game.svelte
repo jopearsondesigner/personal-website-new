@@ -9,11 +9,17 @@
 	import { writable } from 'svelte/store';
 	// Import the game store
 	import { gameStore } from '$lib/stores/game-store';
+	// Import device detection utilities
+	import {
+		detectDeviceCapabilities,
+		calculateOptimalCanvasDimensions
+	} from '$lib/utils/device-detection';
 
 	const deviceState = writable({
 		isTouchDevice: false,
 		windowWidth: 0,
-		showControls: false
+		showControls: false,
+		performanceTier: 'medium' // Add performance tier tracking
 	});
 
 	const gameState = writable({
@@ -33,14 +39,15 @@
 
 	function detectDevice() {
 		if (!browser) return;
-		const isMobile =
-			/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
-			(navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+
+		// Use device detection utility instead of simple check
+		const deviceCapabilities = detectDeviceCapabilities();
 
 		deviceState.update((state) => ({
 			...state,
-			isTouchDevice: isMobile,
-			windowWidth: window.innerWidth
+			isTouchDevice: deviceCapabilities.isTouchDevice,
+			windowWidth: deviceCapabilities.windowWidth,
+			performanceTier: deviceCapabilities.performanceTier
 		}));
 	}
 
@@ -48,11 +55,12 @@
 	let gameContainer: HTMLDivElement;
 	let errorContainer: HTMLDivElement;
 	let scale = 1;
-	let scaleFactor = 0.9;
+	let scaleFactor = 0.9; // Will be adjusted in calculateScale
 	let controlsPosition = { x: 0, y: 0 };
 	let mounted = false;
 	let errorTimeout: NodeJS.Timeout;
 	let gameInstance: any;
+	let deviceCapabilities: any; // Store device capabilities
 
 	const GAME_WIDTH = 800;
 	const GAME_HEIGHT = 600;
@@ -75,30 +83,102 @@
 		const containerWidth = gameContainer.clientWidth;
 		const containerHeight = gameContainer.clientHeight;
 
+		// Get device information
 		const isMobile = get(deviceState).isTouchDevice;
-		const mobileScaleFactor = isMobile ? 0.98 : 0.8; // Increased from 0.95 to 0.98 for mobile
-		const currentScaleFactor = isMobile ? mobileScaleFactor : scaleFactor;
+		const isDesktop = window.innerWidth >= 1024;
 
-		// Account for padding in available space calculation
-		const padding = isMobile ? 32 : 0; // 2rem (32px) padding on mobile
-		const availableWidth = (containerWidth - padding) * currentScaleFactor;
-		const availableHeight = (containerHeight - padding) * currentScaleFactor;
+		// DESKTOP OPTIMIZATION: Use different approach for desktop vs mobile
+		if (isDesktop) {
+			// For desktop: Maximize game size to fill available space between panels
+			// The parent container (.game-view-container) should already account for panels in GameScreen.svelte
 
-		const widthScale = availableWidth / GAME_WIDTH;
-		const heightScale = availableHeight / GAME_HEIGHT;
+			// Use minimal padding to maximize size (just 2px for border)
+			const padding = 2;
+			const effectiveWidth = containerWidth - padding * 2;
+			const effectiveHeight = containerHeight - padding * 2;
 
-		// Use the smaller scale to maintain aspect ratio
-		scale = Math.min(widthScale, heightScale);
+			// Calculate scale factors to fit available space
+			const widthScale = effectiveWidth / GAME_WIDTH;
+			const heightScale = effectiveHeight / GAME_HEIGHT;
 
-		// Ensure minimum scale for visibility
-		scale = Math.max(scale, isMobile ? 0.3 : 0.5);
+			// Use the smaller scale to maintain aspect ratio
+			scale = Math.min(widthScale, heightScale);
 
+			// Ensure minimum scale is high for desktop to match screenshot
+			scale = Math.max(scale, 0.75);
+
+			console.log(
+				`[Game] Desktop scale: ${scale.toFixed(2)}, container: ${containerWidth}x${containerHeight}`
+			);
+		} else {
+			// MOBILE OPTIMIZATION: Use more conservative approach for mobile
+			let availableWidth = containerWidth;
+			const padding = 16; // More padding on mobile
+
+			const effectiveWidth = availableWidth - padding * 2;
+			const effectiveHeight = containerHeight - padding * 2;
+
+			// Calculate scale factors
+			const widthScale = effectiveWidth / GAME_WIDTH;
+			const heightScale = effectiveHeight / GAME_HEIGHT;
+
+			// Use the smaller scale to maintain aspect ratio
+			scale = Math.min(widthScale, heightScale);
+
+			// Mobile minimum scale
+			scale = Math.max(scale, 0.5);
+
+			console.log(`[Game] Mobile scale: ${scale.toFixed(2)}`);
+		}
+
+		// Apply scale to wrapper
 		const wrapper = gameContainer.querySelector('.game-scale-wrapper');
 		if (wrapper) {
-			wrapper.style.transform = `scale(${scale})`;
-			wrapper.style.transformOrigin = 'center center';
+			// Size the game container to exact dimensions
 			wrapper.style.width = `${GAME_WIDTH}px`;
 			wrapper.style.height = `${GAME_HEIGHT}px`;
+
+			// For desktop: use absolute positioning to ensure maximum size
+			if (isDesktop) {
+				wrapper.style.position = 'absolute';
+				wrapper.style.left = '50%';
+				wrapper.style.top = '50%';
+				wrapper.style.transform = `translate(-50%, -50%) scale(${scale})`;
+			} else {
+				// For mobile: centered scaling
+				wrapper.style.position = 'relative';
+				wrapper.style.transform = `scale(${scale})`;
+				wrapper.style.transformOrigin = 'center center';
+			}
+		}
+	}
+
+	// New function to optimize for mobile devices
+	function optimizeForMobileDevice() {
+		if (!browser || !get(deviceState).isTouchDevice) return;
+
+		// Apply performance optimizations based on device tier
+		const performanceTier = get(deviceState).performanceTier;
+
+		// Adjust canvas parameters based on device tier
+		if (canvas) {
+			const ctx = canvas.getContext('2d');
+			if (ctx) {
+				// Disable image smoothing on low-end devices for performance
+				ctx.imageSmoothingEnabled = performanceTier !== 'low';
+				ctx.imageSmoothingQuality = performanceTier === 'high' ? 'high' : 'medium';
+			}
+
+			// For very small screens, apply additional optimizations
+			if (window.innerWidth < 480 || window.innerHeight < 480) {
+				// Ensure minimum scale for tiny screens
+				scale = Math.max(scale, 0.6);
+
+				// Add class for additional CSS handling
+				gameContainer.classList.add('very-small-screen');
+			} else {
+				gameContainer.classList.remove('very-small-screen');
+			}
 		}
 	}
 
@@ -109,7 +189,18 @@
 
 	const handleResize = debounce(() => {
 		if (!browser || !mounted) return;
-		detectDevice();
+
+		// Update device capabilities on resize
+		deviceCapabilities = detectDeviceCapabilities();
+
+		// Update device state
+		deviceState.update((state) => ({
+			...state,
+			isTouchDevice: deviceCapabilities.isTouchDevice,
+			windowWidth: deviceCapabilities.windowWidth,
+			performanceTier: deviceCapabilities.performanceTier
+		}));
+
 		calculateScale();
 	}, 100);
 
@@ -196,8 +287,14 @@
 		if (!canvas || !browser) return;
 
 		try {
-			// Setup the game with custom error handler
-			gameInstance = await setupGame(canvas);
+			// Pass device capabilities to the setup
+			gameInstance = await setupGame(canvas, deviceCapabilities);
+
+			// Apply device-specific optimizations if the game instance supports it
+			if (gameInstance && typeof gameInstance.setQualityLevel === 'function') {
+				const { performanceTier } = deviceCapabilities || get(deviceState);
+				gameInstance.setQualityLevel(performanceTier);
+			}
 
 			// Connect to the game's internal state
 			// This sets up the initial values from localStorage (if available)
@@ -219,6 +316,8 @@
 		mounted = true;
 		console.log('[Game] Component mounted');
 
+		// Get device capabilities
+		deviceCapabilities = detectDeviceCapabilities();
 		detectDevice();
 
 		// Setup global error handler for runtime errors
@@ -298,7 +397,7 @@
 </script>
 
 <div
-	class="game-wrapper relative w-full h-full flex items-center justify-center p-4 md:p-0"
+	class="game-wrapper relative w-full h-full flex items-center justify-center p-2 md:p-4"
 	bind:this={gameContainer}
 >
 	<div class="game-scale-wrapper flex justify-center items-center">
@@ -524,6 +623,17 @@
 		margin: 4px 0;
 	}
 
+	/* Very small screen specific styles */
+	:global(.very-small-screen) .game-container {
+		border-radius: 10px;
+		outline: 4px solid var(--dark-mode-bg);
+	}
+
+	:global(.very-small-screen) .neon-glow {
+		border-radius: 12px;
+		border-width: 1px;
+	}
+
 	/* Animations */
 	@keyframes scanline {
 		0% {
@@ -549,7 +659,7 @@
 		}
 
 		.game-wrapper {
-			padding: 1rem;
+			padding: 0.5rem; /* Reduced padding for mobile */
 		}
 
 		.game-scale-wrapper {
@@ -571,7 +681,7 @@
 
 	@media (orientation: portrait) and (max-width: 1023px) {
 		.game-wrapper {
-			height: calc(100% - 120px);
+			height: calc(100% - 80px); /* Reduced from 120px */
 		}
 	}
 
