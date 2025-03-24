@@ -533,7 +533,22 @@
 				on:touchend={() => handleButtonRelease('reset')}
 				aria-label="Reset"
 			>
-				<RefreshCwIcon class="w-4 h-4" color="rgba(245, 245, 220, 0.9)" />
+				<!-- Inline SVG for refresh icon -->
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="rgba(245, 245, 220, 0.9)"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<path d="M23 4v6h-6"></path>
+					<path d="M1 20v-6h6"></path>
+					<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+				</svg>
 			</button>
 
 			<button
@@ -545,7 +560,21 @@
 				on:touchend={() => handleButtonRelease('pause')}
 				aria-label="Pause"
 			>
-				<PauseIcon class="w-4 h-4" color="rgba(245, 245, 220, 0.9)" />
+				<!-- Inline SVG for pause icon -->
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="rgba(245, 245, 220, 0.9)"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<rect x="6" y="4" width="4" height="16" fill="rgba(245, 245, 220, 0.9)"></rect>
+					<rect x="14" y="4" width="4" height="16" fill="rgba(245, 245, 220, 0.9)"></rect>
+				</svg>
 			</button>
 
 			<button
@@ -557,7 +586,20 @@
 				on:touchend={() => handleButtonRelease('enter')}
 				aria-label="Start"
 			>
-				<PlayIcon class="w-4 h-4" color="rgba(245, 245, 220, 0.9)" />
+				<!-- Inline SVG for play icon -->
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="rgba(245, 245, 220, 0.9)"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<polygon points="5 3 19 12 5 21 5 3" fill="rgba(245, 245, 220, 0.9)"></polygon>
+				</svg>
 			</button>
 		</div>
 	</div>
@@ -1251,5 +1293,16 @@
 			stroke: var(--neon-color) !important;
 			filter: drop-shadow(0 0 6px rgba(39, 255, 153, 0.6));
 		}
+	}
+	.utility-button.active svg {
+		stroke: var(--neon-color) !important;
+	}
+
+	.utility-button.active svg polygon,
+	.utility-button.active svg rect,
+	.utility-button.active svg path,
+	.utility-button.active svg circle {
+		fill: var(--neon-color) !important;
+		stroke: var(--neon-color) !important;
 	}
 </style>
