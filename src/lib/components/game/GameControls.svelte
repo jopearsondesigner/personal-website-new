@@ -533,7 +533,7 @@
 				on:touchend={() => handleButtonRelease('reset')}
 				aria-label="Reset"
 			>
-				<RefreshCwIcon class="w-4 h-4" />
+				<RefreshCwIcon class="w-4 h-4" color="rgba(245, 245, 220, 0.9)" />
 			</button>
 
 			<button
@@ -545,7 +545,7 @@
 				on:touchend={() => handleButtonRelease('pause')}
 				aria-label="Pause"
 			>
-				<PauseIcon class="w-4 h-4" />
+				<PauseIcon class="w-4 h-4" color="rgba(245, 245, 220, 0.9)" />
 			</button>
 
 			<button
@@ -557,7 +557,7 @@
 				on:touchend={() => handleButtonRelease('enter')}
 				aria-label="Start"
 			>
-				<PlayIcon class="w-4 h-4" />
+				<PlayIcon class="w-4 h-4" color="rgba(245, 245, 220, 0.9)" />
 			</button>
 		</div>
 	</div>
@@ -1227,5 +1227,29 @@
 	:global(html.dark) .utility-button {
 		background: rgba(39, 255, 153, 0.05);
 		border-color: var(--neon-color-dim);
+	}
+	/* iOS Safari specific fixes for dark mode */
+	@supports (-webkit-touch-callout: none) {
+		:global(html.dark) .utility-button :global(svg) {
+			stroke: rgba(245, 245, 220, 0.9) !important;
+		}
+
+		:global(html.dark) .utility-button :global(svg polygon),
+		:global(html.dark) .utility-button :global(svg path),
+		:global(html.dark) .utility-button :global(svg circle),
+		:global(html.dark) .utility-button :global(svg rect) {
+			fill: rgba(245, 245, 220, 0.9) !important;
+			stroke: rgba(245, 245, 220, 0.9) !important;
+		}
+
+		:global(html.dark) .utility-button.active :global(svg),
+		:global(html.dark) .utility-button.active :global(svg polygon),
+		:global(html.dark) .utility-button.active :global(svg path),
+		:global(html.dark) .utility-button.active :global(svg circle),
+		:global(html.dark) .utility-button.active :global(svg rect) {
+			fill: var(--neon-color) !important;
+			stroke: var(--neon-color) !important;
+			filter: drop-shadow(0 0 6px rgba(39, 255, 153, 0.6));
+		}
 	}
 </style>

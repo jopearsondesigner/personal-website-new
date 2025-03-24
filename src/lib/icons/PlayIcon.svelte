@@ -1,5 +1,4 @@
 <!-- src/lib/icons/PlayIcon.svelte -->
-
 <script lang="ts">
 	export let size = 24;
 	export let color = 'currentColor';
@@ -12,15 +11,12 @@
 	width={size}
 	height={size}
 	viewBox="0 0 24 24"
-	fill="none"
+	stroke={color}
+	stroke-width="2"
+	stroke-linecap="round"
+	stroke-linejoin="round"
 	class={className}
 >
-	<polygon
-		points="5 3 19 12 5 21 5 3"
-		stroke={color}
-		stroke-width="2"
-		stroke-linecap="round"
-		stroke-linejoin="round"
-		fill={color}
-	/>
+	<!-- Note: No fill attribute on the SVG tag -->
+	<polygon points="5 3 19 12 5 21 5 3" stroke="inherit" fill={color} />
 </svg>
