@@ -339,23 +339,6 @@
 			color 0.3s ease;
 	}
 
-	/* iOS-specific fixes */
-	@supports (-webkit-touch-callout: none) {
-		/* Fix iOS 100vh issue */
-		.content-wrapper {
-			min-height: 100vh;
-			min-height: -webkit-fill-available;
-		}
-
-		/* Proper z-index handling for iOS */
-		nav {
-			z-index: 100;
-			position: relative;
-			/* Force hardware acceleration */
-			transform: translateZ(0);
-		}
-	}
-
 	/* Improve mobile-navbar-blur for iOS */
 	@media (max-width: 767px) {
 		.mobile-navbar-blur {
