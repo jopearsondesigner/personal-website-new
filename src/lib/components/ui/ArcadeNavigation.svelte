@@ -229,7 +229,7 @@
 	.arcade-navigation {
 		position: absolute;
 		top: 1.92rem;
-		left: 2.12rem;
+		left: 2.82rem;
 		z-index: 100;
 		/* This allows the navigation itself to receive pointer events */
 		pointer-events: auto;

@@ -194,7 +194,7 @@
 		</div>
 
 		<!-- Game container -->
-		<div class="game-view-container w-full lg:max-w-[calc(100%-300px)] overflow-hidden">
+		<div class="game-view-container w-full lg:w-[calc(100%-260px)] overflow-hidden">
 			<Game />
 		</div>
 
@@ -317,7 +317,7 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: center; /* Added for vertical centering */
+		justify-content: center;
 		padding: 2rem 1rem;
 		z-index: 2;
 		pointer-events: none;

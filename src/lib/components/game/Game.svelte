@@ -53,6 +53,7 @@
 	let mounted = false;
 	let errorTimeout: NodeJS.Timeout;
 	let gameInstance: any;
+	let isInitializing = true;
 
 	const GAME_WIDTH = 800;
 	const GAME_HEIGHT = 600;
@@ -76,11 +77,13 @@
 		const containerHeight = gameContainer.clientHeight;
 
 		const isMobile = get(deviceState).isTouchDevice;
-		const mobileScaleFactor = isMobile ? 0.98 : 0.8; // Increased from 0.95 to 0.98 for mobile
-		const currentScaleFactor = isMobile ? mobileScaleFactor : scaleFactor;
 
-		// Account for padding in available space calculation
-		const padding = isMobile ? 32 : 0; // 2rem (32px) padding on mobile
+		// Increase scale factors for better space utilization
+		const mobileScaleFactor = isMobile ? 0.98 : 0.98; // Maximized for both
+		const currentScaleFactor = isMobile ? mobileScaleFactor : 0.98; // Increased from 0.8 to 0.98
+
+		// Reduce padding to maximize canvas space
+		const padding = isMobile ? 16 : 0; // Reduced from 32px to 16px padding on mobile
 		const availableWidth = (containerWidth - padding) * currentScaleFactor;
 		const availableHeight = (containerHeight - padding) * currentScaleFactor;
 
@@ -90,8 +93,8 @@
 		// Use the smaller scale to maintain aspect ratio
 		scale = Math.min(widthScale, heightScale);
 
-		// Ensure minimum scale for visibility
-		scale = Math.max(scale, isMobile ? 0.3 : 0.5);
+		// Ensure minimum scale for visibility but allow higher maximum
+		scale = Math.max(scale, isMobile ? 0.4 : 0.5);
 
 		const wrapper = gameContainer.querySelector('.game-scale-wrapper');
 		if (wrapper) {
@@ -111,6 +114,11 @@
 		if (!browser || !mounted) return;
 		detectDevice();
 		calculateScale();
+
+		// Force a recalculation after a short delay to ensure stable dimensions
+		setTimeout(() => {
+			calculateScale();
+		}, 50);
 	}, 100);
 
 	function handleControlInput(event) {
@@ -191,7 +199,6 @@
 		}));
 	}
 
-	// Try to initialize the game, with proper error handling
 	async function initializeGame() {
 		if (!canvas || !browser) return;
 
@@ -208,7 +215,13 @@
 			};
 
 			calculateScale();
+
+			// Add a small delay to ensure all calculations are complete
+			setTimeout(() => {
+				isInitializing = false;
+			}, 100);
 		} catch (error) {
+			isInitializing = false; // Ensure visibility even if there's an error
 			handleGameError(`Game initialization failed: ${error.message}`, 'error', true, 0);
 		}
 	}
@@ -298,7 +311,9 @@
 </script>
 
 <div
-	class="game-wrapper relative w-full h-full flex items-center justify-center p-4 md:p-0"
+	class="game-wrapper relative w-full h-full flex items-center justify-center p-2 md:p-0 {isInitializing
+		? 'opacity-0'
+		: 'opacity-100 transition-opacity duration-300'}"
 	bind:this={gameContainer}
 >
 	<div class="game-scale-wrapper flex justify-center items-center">
@@ -310,6 +325,7 @@
 				width={GAME_WIDTH}
 				height={GAME_HEIGHT}
 				class="canvas-pixel-art"
+				style="image-rendering: pixelated; image-rendering: crisp-edges; -webkit-backface-visibility: hidden; backface-visibility: hidden;"
 			/>
 			<div id="scanline-overlay" class="absolute inset-0 pointer-events-none z-10" />
 			<div class="neon-glow" />
@@ -377,13 +393,14 @@
 		width: 800px;
 		height: 600px;
 		background: black;
-		border-radius: 20px;
-		outline: 6px solid var(--dark-mode-bg);
+		border-radius: 16px; /* Reduced from 20px */
+		outline: 4px solid var(--dark-mode-bg); /* Reduced from 6px */
 		box-shadow:
 			inset 0 0 50px rgba(0, 0, 0, 0.5),
 			0 0 30px rgba(0, 0, 0, 0.3);
 		overflow: hidden;
 		transform-origin: center;
+		will-change: transform; /* Add for performance */
 	}
 
 	/* Add light mode styles */
@@ -538,18 +555,18 @@
 	@media (max-width: 1023px) {
 		.game-container {
 			border-radius: 12px;
-			outline: 6px solid var(--dark-mode-bg);
+			outline: 4px solid var(--dark-mode-bg); /* Reduced from 6px */
 			margin: 0;
 			height: auto;
 			width: 100%;
 		}
 
 		:global(.light) .game-container {
-			outline: 6px solid var(--light-mode-bg);
+			outline: 4px solid var(--light-mode-bg);
 		}
 
 		.game-wrapper {
-			padding: 1rem;
+			padding: 0.5rem; /* Reduced from 1rem */
 		}
 
 		.game-scale-wrapper {
@@ -566,6 +583,19 @@
 			min-width: 80%;
 			max-width: 90%;
 			top: 10px;
+		}
+	}
+
+	@media (orientation: portrait) and (max-width: 1023px) {
+		.game-wrapper {
+			height: calc(100% - 80px); /* Reduced from 120px */
+		}
+	}
+
+	@media (orientation: landscape) and (max-width: 1023px) {
+		.game-wrapper {
+			height: calc(100vh - var(--controls-height-landscape));
+			padding: 0.25rem; /* Added minimal padding */
 		}
 	}
 

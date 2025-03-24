@@ -191,17 +191,6 @@
 </script>
 
 <!-- Template section -->
-<svelte:head>
-	<meta
-		name="viewport"
-		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-	/>
-	<link
-		href="https://fonts.googleapis.com/css2?family=Gruppo&family=Press+Start+2P&family=Pixelify+Sans:wght@400;500;600;700&family=VT323&family=Roboto:wght@100;900&display=swap"
-		rel="stylesheet"
-	/>
-</svelte:head>
-
 <LoadingScreen />
 
 <nav
