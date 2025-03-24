@@ -1,4 +1,4 @@
-<!-- File: src/lib/icons/PauseIcon.svelte -->
+<!-- src/lib/icons/PauseIcon.svelte -->
 
 <script lang="ts">
 	export let size = 24;
@@ -13,7 +13,7 @@
 	height={size}
 	viewBox="0 0 24 24"
 	fill="none"
-	class={`${className}`}
+	class={className}
 >
 	<rect
 		x="6"
@@ -24,7 +24,7 @@
 		stroke-width="2"
 		stroke-linecap="round"
 		stroke-linejoin="round"
-		fill="none"
+		fill={color}
 	/>
 	<rect
 		x="14"
@@ -35,21 +35,6 @@
 		stroke-width="2"
 		stroke-linecap="round"
 		stroke-linejoin="round"
-		fill="none"
+		fill={color}
 	/>
 </svg>
-
-<style>
-	/* iOS WebKit fill override */
-	svg {
-		fill: transparent !important;
-	}
-
-	/* Ensure paths and shapes use stroke not fill */
-	svg path,
-	svg rect,
-	svg polygon {
-		fill: none !important;
-		stroke: currentColor;
-	}
-</style>

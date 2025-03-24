@@ -5,12 +5,14 @@
 	import { fade } from 'svelte/transition';
 	import { browser } from '$app/environment';
 	import { writable } from 'svelte/store';
-	// Import SVG icons directly from files instead of using lucide-svelte
 	import RefreshCwIcon from '$lib/icons/RefreshCwIcon.svelte';
 	import PauseIcon from '$lib/icons/PauseIcon.svelte';
 	import PlayIcon from '$lib/icons/PlayIcon.svelte';
 	import ShootIcon from '$lib/icons/ShootIcon.svelte';
 	import HeatsekerIcon from '$lib/icons/HeatseekerIcon.svelte';
+
+	import JoystickLeftArrowIcon from '$lib/icons/JoystickLeftArrowIcon.svelte';
+	import JoystickRightArrowIcon from '$lib/icons/JoystickRightArrowIcon.svelte';
 
 	export const menuOpen = writable(false);
 
@@ -111,6 +113,11 @@
 	let debugMode = false; // Set to true to enable visual zone indicators
 
 	$: controlsHeight = isLandscape ? 'var(--controls-height-landscape)' : 'var(--controls-height)';
+	$: joystickDirectionalClass = keys.ArrowLeft
+		? 'moving-left'
+		: keys.ArrowRight
+			? 'moving-right'
+			: '';
 
 	/**
 	 * Trigger haptic feedback for user interactions
@@ -561,6 +568,8 @@
 			<div
 				class="joystick-base"
 				class:debug-mode={debugMode}
+				class:moving-left={keys.ArrowLeft}
+				class:moving-right={keys.ArrowRight}
 				bind:this={joystickBase}
 				on:mousedown|preventDefault={handleJoystickStart}
 				on:touchstart|preventDefault={handleJoystickStart}
@@ -590,6 +599,15 @@
 				>
 					<div class="joystick-indicator" />
 				</div>
+			</div>
+
+			<!-- Arrow Indicators (positioned correctly on the sides) -->
+			<div class="joystick-arrow-container left-arrow" class:active={keys.ArrowLeft}>
+				<JoystickLeftArrowIcon size={16} color="var(--neon-color, rgba(39, 255, 153, 0.9))" />
+			</div>
+
+			<div class="joystick-arrow-container right-arrow" class:active={keys.ArrowRight}>
+				<JoystickRightArrowIcon size={16} color="var(--neon-color, rgba(39, 255, 153, 0.9))" />
 			</div>
 
 			<!-- Zone indicator label (only visible in debug mode) -->
@@ -725,13 +743,50 @@
 	.joystick-container {
 		flex: 0 0 var(--joystick-size);
 		display: flex;
-		flex-direction: column;
+		flex-direction: row; /* Changed to row for side arrows */
 		justify-content: center;
 		align-items: center;
 		height: 100%;
 		touch-action: none;
 		margin-left: 2rem;
 		position: relative;
+	}
+
+	/* Arrow indicator styles */
+	.joystick-arrow-container {
+		position: absolute;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		z-index: 2;
+		transition:
+			opacity 0.2s ease,
+			filter 0.2s ease;
+		opacity: 0.7;
+	}
+
+	.joystick-arrow-container.left-arrow {
+		left: 12px; /* Position outside the joystick */
+		top: 50%;
+		transform: translateY(-50%);
+	}
+
+	.joystick-arrow-container.right-arrow {
+		right: 12px; /* Position outside the joystick */
+		top: 50%;
+		transform: translateY(-50%);
+	}
+
+	.joystick-arrow-container.active {
+		opacity: 1;
+		filter: drop-shadow(0 0 4px rgba(39, 255, 153, 0.6));
+	}
+
+	/* Joystick movement states */
+	.joystick-base.moving-left .joystick-arrow-container.left-arrow,
+	.joystick-base.moving-right .joystick-arrow-container.right-arrow {
+		opacity: 1;
+		filter: drop-shadow(0 0 4px rgba(39, 255, 153, 0.6));
 	}
 
 	.joystick-base {
@@ -827,6 +882,19 @@
 		height: 100%;
 		border-radius: 50%;
 		transition: background 0.2s ease;
+	}
+
+	/* Arrow styling */
+	.joystick-arrow {
+		opacity: 0.7;
+		transition:
+			opacity 0.2s ease,
+			filter 0.2s ease;
+	}
+
+	.active .joystick-arrow {
+		opacity: 1;
+		filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.6));
 	}
 
 	/* Zone-specific indicator styles */

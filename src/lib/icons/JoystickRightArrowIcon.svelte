@@ -1,5 +1,4 @@
-<!-- src/lib/icons/PlayIcon.svelte -->
-
+<!-- src/lib/icons/JoystickInnerRightArrowIcon.svelte -->
 <script lang="ts">
 	export let size = 24;
 	export let color = 'currentColor';
@@ -15,12 +14,11 @@
 	fill="none"
 	class={className}
 >
-	<polygon
-		points="5 3 19 12 5 21 5 3"
+	<path
+		d="M9 5L16 12L9 19"
 		stroke={color}
 		stroke-width="2"
 		stroke-linecap="round"
 		stroke-linejoin="round"
-		fill={color}
 	/>
 </svg>
