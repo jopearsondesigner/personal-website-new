@@ -603,11 +603,11 @@
 
 			<!-- Arrow Indicators (positioned correctly on the sides) -->
 			<div class="joystick-arrow-container left-arrow" class:active={keys.ArrowLeft}>
-				<JoystickLeftArrowIcon size={16} color="var(--neon-color, rgba(39, 255, 153, 0.9))" />
+				<JoystickLeftArrowIcon size={16} color="var(--arcade-white-200)" />
 			</div>
 
 			<div class="joystick-arrow-container right-arrow" class:active={keys.ArrowRight}>
-				<JoystickRightArrowIcon size={16} color="var(--neon-color, rgba(39, 255, 153, 0.9))" />
+				<JoystickRightArrowIcon size={16} color="var(--arcade-white-200)" />
 			</div>
 
 			<!-- Zone indicator label (only visible in debug mode) -->
@@ -688,8 +688,8 @@
 		display: flex;
 		flex-direction: column;
 		padding-bottom: env(safe-area-inset-bottom, 0);
-		backdrop-filter: blur(2.5px); /* Modern browsers */
-		-webkit-backdrop-filter: blur(2.5px); /* Safari */
+		backdrop-filter: blur(2.5px);
+		-webkit-backdrop-filter: blur(2.5px);
 		z-index: 1000;
 		touch-action: none;
 		user-select: none;
@@ -779,6 +779,19 @@
 
 	.joystick-arrow-container.active {
 		opacity: 1;
+		filter: drop-shadow(0 0 4px rgba(39, 255, 153, 0.6));
+	}
+
+	/* New arrow styling for active state */
+	.joystick-arrow-container.active :global(svg) {
+		color: var(--arcade-neon-green-500) !important;
+		filter: drop-shadow(0 0 4px rgba(39, 255, 153, 0.6));
+	}
+
+	/* New arrow styling for movement states */
+	.joystick-base.moving-left .joystick-arrow-container.left-arrow :global(svg),
+	.joystick-base.moving-right .joystick-arrow-container.right-arrow :global(svg) {
+		color: var(--arcade-neon-green-500) !important;
 		filter: drop-shadow(0 0 4px rgba(39, 255, 153, 0.6));
 	}
 
@@ -1014,12 +1027,6 @@
 	:global(svg.button-icon path) {
 		/* This ensures the paths within your SVG respect the icon boundaries */
 		vector-effect: non-scaling-stroke;
-	}
-
-	.arcade-button.active .button-face {
-		transform: scale(0.95);
-		background: rgba(39, 255, 153, 0.2);
-		box-shadow: 0 0 15px rgba(39, 255, 153, 0.4);
 	}
 
 	.arcade-button:hover :global(.button-icon),
