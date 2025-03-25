@@ -188,6 +188,103 @@
 			window.removeEventListener('scroll', handleScroll); // Clean up scroll listener
 		}
 	});
+
+	// Add to your main layout file
+	const performanceMonitor = {
+		fps: {
+			value: 0,
+			frames: 0,
+			lastTime: performance.now(),
+			history: []
+		},
+		memory: {
+			readings: [],
+			lastCheck: 0
+		},
+		init() {
+			// Create simple UI
+			const monitorEl = document.createElement('div');
+			monitorEl.style = `
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 10px;
+      font-family: monospace;
+      z-index: 9999;
+      font-size: 12px;
+    `;
+			monitorEl.innerHTML = `
+      <div>FPS: <span id="fps-meter">0</span></div>
+      <div>Mem: <span id="memory-meter">N/A</span></div>
+    `;
+			document.body.appendChild(monitorEl);
+
+			// Start monitoring
+			this.monitorFPS();
+			this.monitorMemory();
+		},
+		monitorFPS() {
+			const update = () => {
+				this.fps.frames++;
+				const now = performance.now();
+				if (now >= this.fps.lastTime + 1000) {
+					this.fps.value = Math.round((this.fps.frames * 1000) / (now - this.fps.lastTime));
+					this.fps.history.push(this.fps.value);
+					if (this.fps.history.length > 60) this.fps.history.shift();
+
+					document.getElementById('fps-meter').textContent = this.fps.value;
+
+					this.fps.frames = 0;
+					this.fps.lastTime = now;
+				}
+				requestAnimationFrame(update);
+			};
+			requestAnimationFrame(update);
+		},
+		monitorMemory() {
+			const update = () => {
+				// Try to access memory info if available
+				if (performance && performance.memory) {
+					const mem = performance.memory;
+					const used = Math.round(mem.usedJSHeapSize / 1048576);
+					this.memory.readings.push(used);
+					if (this.memory.readings.length > 60) this.memory.readings.shift();
+
+					document.getElementById('memory-meter').textContent = `${used}MB`;
+				}
+				setTimeout(update, 1000);
+			};
+			update();
+		},
+		getReport() {
+			// Log detailed report
+			console.log('=== PERFORMANCE REPORT ===');
+			console.log(
+				`Avg FPS: ${this.fps.history.reduce((a, b) => a + b, 0) / this.fps.history.length}`
+			);
+			console.log(`Min FPS: ${Math.min(...this.fps.history)}`);
+			console.log(`FPS history: ${this.fps.history.join(', ')}`);
+
+			if (this.memory.readings.length) {
+				console.log(
+					`Memory growth: ${this.memory.readings[this.memory.readings.length - 1] - this.memory.readings[0]}MB`
+				);
+				console.log(`Memory readings: ${this.memory.readings.join(', ')}`);
+			}
+		}
+	};
+
+	// Initialize after page load
+	window.addEventListener('load', () => {
+		performanceMonitor.init();
+
+		// Log report after 2 minutes
+		setTimeout(() => {
+			performanceMonitor.getReport();
+		}, 120000);
+	});
 </script>
 
 <!-- Template section -->
