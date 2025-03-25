@@ -12,7 +12,8 @@
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
 		"test:integration": "playwright test",
-		"test:unit": "vitest"
+		"test:unit": "vitest",
+		"setup": "npm install gsap lodash-es"
 	},
 	"devDependencies": {
 		"@playwright/test": "^1.28.1",
@@ -21,6 +22,7 @@
 		"@sveltejs/kit": "^2.8.2",
 		"@sveltejs/vite-plugin-svelte": "^4.0.0",
 		"@types/eslint": "^8.56.11",
+		"@types/lodash-es": "^4.17.12",
 		"@types/node": "^20.14.14",
 		"@types/three": "^0.167.2",
 		"autoprefixer": "^10.4.19",
@@ -45,7 +47,8 @@
 	"dependencies": {
 		"@sveltejs/adapter-vercel": "^5.5.2",
 		"flowbite-svelte": "^0.46.14",
-		"gsap": "^3.12.5",
+		"gsap": "^3.12.7",
+		"lodash-es": "^4.17.21",
 		"lucide-svelte": "^0.468.0",
 		"svelte-bootstrap-icons": "^3.1.1",
 		"three": "^0.167.1",

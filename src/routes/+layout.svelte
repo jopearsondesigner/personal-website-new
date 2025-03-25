@@ -17,25 +17,64 @@
 	import { layoutStore } from '$lib/stores/store';
 	import MobileNavMenu from '$lib/components/layout/MobileNavMenu.svelte';
 	import Navigation from '$lib/components/layout/Navigation.svelte';
+	import { gsap } from 'gsap';
+	import { throttle } from '$lib/utils/lodash-utils';
+	import PerformanceMonitor from '$lib/components/ui/PerformanceMonitor.svelte';
+	import { initAnimationMode } from '$lib/utils/animation-mode';
+
+	// Enable/disable performance monitor
+	const showPerformanceMonitor = writable(false);
 
 	// Set loading to true initially to ensure LoadingScreen shows first
 	loadingStore.set(true);
 
-	// Use ResizeObserver instead of window resize event
-	let resizeObserver: ResizeObserver;
+	// Element references
 	let navbarElement: HTMLElement;
 	let contentWrapper: HTMLElement;
 	let isMenuOpen = false;
 	let logoWrapper: HTMLElement;
-	let viewportWidth = 0;
-	let viewportHeight = 0;
-	let isScrolled = false; // New state for tracking scroll position
+	let isScrolled = false; // State for tracking scroll position
 
-	// Create stores with initial values
+	// Optimize with ResizeObserver instead of window resize event
+	let resizeObserver: ResizeObserver | null = null;
+	let handlers: {
+		throttledPositionUpdate: ReturnType<typeof throttle>;
+		throttledScrollHandler: ReturnType<typeof throttle>;
+	} | null = null;
+
+	// Create store with initial value
 	export const navbarHeight = writable(0);
+
+	// Create throttled handlers outside of lifecycle hooks
+	const createThrottledHandlers = () => {
+		if (!browser) return { throttledPositionUpdate: () => {}, throttledScrollHandler: () => {} };
+
+		// Throttle handlers to limit execution frequency
+		const throttledPositionUpdate = throttle(
+			() => {
+				requestAnimationFrame(updateLogoPosition);
+			},
+			100,
+			{ leading: true, trailing: true }
+		);
+
+		const throttledScrollHandler = throttle(
+			() => {
+				requestAnimationFrame(() => {
+					isScrolled = window.scrollY > 10;
+				});
+			},
+			100,
+			{ leading: true, trailing: true }
+		);
+
+		return { throttledPositionUpdate, throttledScrollHandler };
+	};
 
 	// Debounced navbar height update function
 	const updateNavHeight = (() => {
+		if (!browser) return () => {};
+
 		let frame: number;
 		return () => {
 			cancelAnimationFrame(frame);
@@ -45,9 +84,7 @@
 					navbarHeight.set(height);
 					layoutStore.setNavbarHeight(height);
 
-					if (browser) {
-						document.documentElement.style.setProperty('--navbar-height', `${height}px`);
-					}
+					document.documentElement.style.setProperty('--navbar-height', `${height}px`);
 				}
 			});
 		};
@@ -55,52 +92,41 @@
 
 	// Update logo position based on viewport width and orientation
 	const updateLogoPosition = () => {
-		if (browser && logoWrapper && navbarElement) {
-			viewportWidth = window.innerWidth;
-			viewportHeight = window.innerHeight;
+		if (!browser || !logoWrapper || !navbarElement) return;
 
-			// Determine orientation
-			const isLandscape = viewportWidth > viewportHeight;
-			logoWrapper.setAttribute('data-orientation', isLandscape ? 'landscape' : 'portrait');
+		// Read phase - gather all measurements first
+		const width = window.innerWidth;
+		const height = window.innerHeight;
+		const isLandscape = width > height;
+		const isMobile = width < 768;
+		const logoWidth = isMobile ? logoWrapper.offsetWidth : 0;
 
-			// Only apply custom positioning on mobile layouts
-			if (viewportWidth < 768) {
-				const logoWidth = logoWrapper.offsetWidth;
+		// Batch DOM writes with a single requestAnimationFrame
+		requestAnimationFrame(() => {
+			// Use GSAP for smoother animations with hardware acceleration
+			if (isMobile) {
+				const offsetPosition = isLandscape
+					? width * 0.25 - logoWidth / 2
+					: width * 0.23 - logoWidth / 2;
 
-				// Base position calculation for portrait mode
-				let offsetPosition = viewportWidth * 0.23 - logoWidth / 2;
-
-				// Adjust position for landscape mode
-				if (isLandscape) {
-					offsetPosition = viewportWidth * 0.25 - logoWidth / 2;
-				}
-
-				// Apply styles efficiently in a single batch
-				Object.assign(logoWrapper.style, {
-					transform: `translateX(${offsetPosition}px) translateY(-50%)`,
+				gsap.set(logoWrapper, {
+					attr: { 'data-orientation': isLandscape ? 'landscape' : 'portrait' },
 					position: 'absolute',
 					top: '50%',
-					height: 'auto'
+					height: 'auto',
+					xPercent: 0,
+					yPercent: -50,
+					x: offsetPosition,
+					force3D: true, // Force hardware acceleration
+					clearProps: 'z,perspective' // Clear unnecessary props
 				});
 			} else {
-				// Reset positioning for larger screens
-				Object.assign(logoWrapper.style, {
-					transform: 'none',
-					position: 'relative',
-					top: 'auto',
-					height: 'auto'
+				gsap.set(logoWrapper, {
+					clearProps: 'transform,position,top,height,data-orientation',
+					force3D: true
 				});
-				logoWrapper.removeAttribute('data-orientation');
 			}
-		}
-	};
-
-	// Track scroll position for blur effect
-	const handleScroll = () => {
-		if (browser) {
-			// Update the scroll state based on scroll position
-			isScrolled = window.scrollY > 10;
-		}
+		});
 	};
 
 	// Optimized theme toggle with minimal reflows
@@ -126,118 +152,54 @@
 		});
 	}
 
-	// Remove both existing monitor implementations and replace with this:
-	let perfMonitorActive = false;
-
-	function initPerformanceMonitor() {
-		if (perfMonitorActive || !browser) return;
-		perfMonitorActive = true;
-
-		console.log('Initializing performance monitor...');
-
-		// Create performance monitor element with high z-index
-		const monitor = document.createElement('div');
-		monitor.id = 'perf-monitor';
-		monitor.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: black;
-    color: lime;
-    font-family: monospace;
-    padding: 10px;
-    border-radius: 4px;
-    z-index: 10000000;
-    font-size: 16px;
-    text-align: left;
-    width: auto;
-    box-shadow: 0 0 5px rgba(0,0,0,0.5);
-  `;
-
-		document.body.appendChild(monitor);
-		console.log('Monitor element added to DOM');
-
-		// FPS tracking
-		let frameCount = 0;
-		let lastTime = performance.now();
-		let fps = 0;
-
-		// Memory tracking
-		let memoryReadings = [];
-		let startTime = performance.now();
-
-		function updateStats() {
-			// Update FPS
-			frameCount++;
-			const now = performance.now();
-			if (now - lastTime >= 1000) {
-				fps = Math.round((frameCount * 1000) / (now - lastTime));
-				frameCount = 0;
-				lastTime = now;
-
-				// Track memory if available
-				if (performance.memory) {
-					const memoryUsed = Math.round(performance.memory.usedJSHeapSize / (1024 * 1024));
-					memoryReadings.push(memoryUsed);
-				}
-
-				// Update display text
-				monitor.innerHTML = `
-        <div>FPS: ${fps}</div>
-        ${
-					performance.memory
-						? `<div>Memory: ${Math.round(performance.memory.usedJSHeapSize / (1024 * 1024))}MB</div>`
-						: '<div>Memory: Not available</div>'
-				}
-        <div>Runtime: ${Math.floor((now - startTime) / 1000)}s</div>
-      `;
-
-				// Log every 30 seconds
-				const runTime = Math.floor((now - startTime) / 1000);
-				if (runTime > 0 && runTime % 30 === 0 && fps > 0) {
-					console.log(`=== PERFORMANCE DATA (${runTime}s) ===`);
-					console.log(`Current FPS: ${fps}`);
-					if (memoryReadings.length > 0) {
-						console.log(`Memory readings: ${memoryReadings.join(', ')}MB`);
-					}
-				}
-			}
-
-			requestAnimationFrame(updateStats);
-		}
-
-		requestAnimationFrame(updateStats);
+	// Toggle performance monitor
+	function togglePerformanceMonitor() {
+		showPerformanceMonitor.update((value) => !value);
 	}
 
 	// Initialization and cleanup logic
 	onMount(() => {
-		// Theme initialization
+		if (!browser) return;
+
+		// Create handlers once
+		handlers = createThrottledHandlers();
+
+		// Initialize animation mode
+		initAnimationMode();
+
+		// Theme initialization - do this FIRST and only ONCE
 		const savedTheme = localStorage.getItem('theme') || 'dark';
 		theme.set(savedTheme);
 		document.documentElement.classList.add(savedTheme);
 
+		// Consolidated event registration with a single resize observer
+		const resizeHandler = () => {
+			if (handlers) handlers.throttledPositionUpdate();
+			updateNavHeight();
+		};
+
 		// Initialize ResizeObserver for navbar height
-		if (navbarElement) {
-			resizeObserver = new ResizeObserver(updateNavHeight);
-			resizeObserver.observe(navbarElement);
+		try {
+			resizeObserver = new ResizeObserver(resizeHandler);
+
+			// Observe only what's necessary
+			if (navbarElement) {
+				resizeObserver.observe(navbarElement);
+				updateNavHeight(); // Update height once immediately
+			}
+		} catch (e) {
+			// Fallback for browsers without ResizeObserver
+			window.addEventListener('resize', resizeHandler, { passive: true });
 		}
 
-		// Setup logo positioning - only in browser
-		if (browser) {
-			updateLogoPosition();
+		// Use passive event listeners for better performance
+		window.addEventListener('scroll', handlers.throttledScrollHandler, { passive: true });
+		window.addEventListener('orientationchange', resizeHandler, { passive: true });
 
-			// Add multiple event listeners to catch all possible triggers
-			window.addEventListener('resize', updateLogoPosition);
-			window.addEventListener('orientationchange', updateLogoPosition);
-			window.addEventListener('scroll', handleScroll, { passive: true }); // Add scroll listener with passive flag
+		// Initial positioning
+		updateLogoPosition();
 
-			// Force repaint on orientation change with a slight delay
-			window.addEventListener('orientationchange', () => {
-				setTimeout(updateLogoPosition, 100);
-			});
-		}
-
-		// Loading screen handling
+		// Loading screen handling with Promise.all for better coordination
 		Promise.all([
 			document.fonts.ready,
 			new Promise((resolve) => {
@@ -248,31 +210,44 @@
 				}
 			})
 		]).then(() => {
-			setTimeout(() => loadingStore.set(false), 1500);
-		});
-
-		// Immediately try to remove any lingering initial-loader from app.html
-		if (browser) {
-			const initialLoader = document.getElementById('initial-loader');
-			if (initialLoader) {
-				initialLoader.style.display = 'none';
+			// Use requestIdleCallback if available, otherwise setTimeout
+			if (window.requestIdleCallback) {
+				window.requestIdleCallback(() => {
+					loadingStore.set(false);
+				});
+			} else {
+				setTimeout(() => loadingStore.set(false), 1500);
 			}
-		}
-
-		setTimeout(() => {
-			initPerformanceMonitor();
-		}, 1000);
+		});
+		// Performance monitor toggle (Ctrl+Shift+P)
+		document.addEventListener('keydown', (event) => {
+			if (event.ctrlKey && event.shiftKey && event.key === 'P') {
+				togglePerformanceMonitor();
+			}
+		});
 	});
 
 	onDestroy(() => {
+		// Complete cleanup to prevent memory leaks
 		if (resizeObserver) {
 			resizeObserver.disconnect();
+			resizeObserver = null;
 		}
-		// Remove event listeners only if in browser
+
+		if (browser && handlers) {
+			window.removeEventListener('scroll', handlers.throttledScrollHandler);
+			// Remove event listeners
+			window.removeEventListener('orientationchange', handlers.throttledPositionUpdate);
+
+			// Cancel any pending throttled executions
+			handlers.throttledPositionUpdate.cancel();
+			handlers.throttledScrollHandler.cancel();
+			handlers = null;
+		}
+
+		// Kill any GSAP animations to prevent memory leaks
 		if (browser) {
-			window.removeEventListener('resize', updateLogoPosition);
-			window.removeEventListener('orientationchange', updateLogoPosition);
-			window.removeEventListener('scroll', handleScroll); // Clean up scroll listener
+			gsap.killTweensOf([logoWrapper, navbarElement]);
 		}
 	});
 </script>
@@ -283,12 +258,12 @@
 <nav
 	bind:this={navbarElement}
 	class="sticky relative
-           border-b-2 border-arcadeBlack-500 border-opacity-30 dark:border-arcadeBlack-700 dark:border-opacity-50
-           md:border-b-[2.5px] md:border-arcadeBlack-200 md:dark:border-arcadeBlack-600
-           top-0 z-[101] {$theme === 'dark'
+         border-b-2 border-arcadeBlack-500 border-opacity-30 dark:border-arcadeBlack-700 dark:border-opacity-50
+         md:border-b-[2.5px] md:border-arcadeBlack-200 md:dark:border-arcadeBlack-600
+         top-0 z-[101] {$theme === 'dark'
 		? 'navbar-background-dark'
 		: 'navbar-background-light'} p-container-padding box-border md:shadow-header
-		{isScrolled ? 'mobile-navbar-blur' : ''}"
+    {isScrolled ? 'mobile-navbar-blur' : ''}"
 >
 	<Navbar
 		class="container max-w-screen-xl mx-auto px-4 py-px flex justify-between items-center bg-transparent"
@@ -344,6 +319,11 @@
 
 <Footer />
 
+<!-- Add performance monitor (toggled with Ctrl+Shift+P) -->
+{#if browser}
+	<PerformanceMonitor enabled={$showPerformanceMonitor} />
+{/if}
+
 <style>
 	:global(:root) {
 		--navbar-height: 0px;
@@ -376,16 +356,35 @@
 		}
 	}
 
-	/* Mobile navbar blur effect - only applies on mobile */
+	/* Mobile navbar blur effect - optimized for performance */
 	@media (max-width: 767px) {
+		/* Replace backdrop-filter with solid background on mobile */
 		.mobile-navbar-blur {
-			backdrop-filter: blur(2.5px);
-			-webkit-backdrop-filter: blur(2.5px);
-			background-color: rgba(255, 255, 255, 0.05); /* Very subtle background for dark mode */
+			/* Remove expensive backdrop-filter for mobile */
+			backdrop-filter: none;
+			-webkit-backdrop-filter: none;
+			/* Use solid background instead */
+			background-color: rgba(20, 20, 20, 0.85);
+			/* Keep GPU acceleration */
+			transform: translateZ(0);
+			z-index: 100;
 		}
 
 		.dark .mobile-navbar-blur {
-			background-color: rgba(0, 0, 0, 0.1); /* Slightly darker background for light mode */
+			background-color: rgba(0, 0, 0, 0.85);
+		}
+
+		/* Restore backdrop-filter for high-end devices */
+		@media (min-width: 768px), (min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+			.mobile-navbar-blur {
+				backdrop-filter: blur(2.5px);
+				-webkit-backdrop-filter: blur(2.5px);
+				background-color: rgba(255, 255, 255, 0.05);
+			}
+
+			.dark .mobile-navbar-blur {
+				background-color: rgba(0, 0, 0, 0.1);
+			}
 		}
 	}
 
@@ -393,11 +392,12 @@
 		animation: headerPulse 3s ease-in-out infinite;
 	}
 
-	/* Logo positioning styles */
+	/* Logo positioning styles with optimized animation */
 	.logo-wrapper {
 		transition: transform 0.3s ease-out;
 		will-change: transform;
-		line-height: 1; /* Reset line height to prevent vertical offset issues */
+		line-height: 1;
+		transform: translateZ(0); /* Force GPU acceleration */
 	}
 
 	/* Additional CSS for landscape orientation */
@@ -418,27 +418,58 @@
 		}
 	}
 
-	/* Add will-change to optimize animations */
+	/* Optimized transition handling */
 	.theme-transition {
-		will-change: background-color, color;
-		transition:
-			background-color 0.3s ease,
-			color 0.3s ease;
+		/* Only transition essential properties */
+		transition: background-color 0.3s ease;
+		/* Remove will-change except during transition */
+		will-change: auto;
 	}
 
-	/* Improve mobile-navbar-blur for iOS */
+	/* Improve mobile styles for iOS */
 	@media (max-width: 767px) {
+		/* Fix GPU rendering on iOS */
+		.content-wrapper {
+			-webkit-overflow-scrolling: touch;
+			transform: translateZ(0);
+		}
+	}
+	/* Force hardware acceleration on key elements */
+	:global(.hardware-accelerated) {
+		transform: translateZ(0);
+		backface-visibility: hidden;
+		will-change: transform;
+	}
+
+	/* Optimize mobile navbar blur effect */
+	@media (max-width: 767px) {
+		/* Replace backdrop-filter with solid background on mobile */
 		.mobile-navbar-blur {
-			backdrop-filter: blur(2.5px);
-			-webkit-backdrop-filter: blur(2.5px);
-			background-color: rgba(255, 255, 255, 0.05);
-			/* Force new stacking context on iOS */
+			/* Remove expensive backdrop-filter for mobile */
+			backdrop-filter: none;
+			-webkit-backdrop-filter: none;
+			/* Use solid background instead */
+			background-color: rgba(20, 20, 20, 0.85);
+			/* Keep GPU acceleration */
 			transform: translateZ(0);
 			z-index: 100;
 		}
 
 		.dark .mobile-navbar-blur {
-			background-color: rgba(0, 0, 0, 0.1);
+			background-color: rgba(0, 0, 0, 0.85);
+		}
+
+		/* Restore backdrop-filter for high-end devices */
+		@media (min-width: 768px), (min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+			.mobile-navbar-blur {
+				backdrop-filter: blur(2.5px);
+				-webkit-backdrop-filter: blur(2.5px);
+				background-color: rgba(255, 255, 255, 0.05);
+			}
+
+			.dark .mobile-navbar-blur {
+				background-color: rgba(0, 0, 0, 0.1);
+			}
 		}
 	}
 </style>
