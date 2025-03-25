@@ -1094,8 +1094,9 @@
 		align-items: center;
 		justify-content: center;
 		transition: all 0.1s ease;
-		backdrop-filter: blur(4px);
-		-webkit-backdrop-filter: blur(4px);
+		/* This is what was causing the utility buttons on IOS to be broken */
+		/* backdrop-filter: blur(4px);
+		-webkit-backdrop-filter: blur(4px); */
 		position: relative;
 		overflow: hidden;
 		box-shadow: 0 0 6px rgba(39, 255, 153, 0.1); /* Add subtle glow */
@@ -1294,6 +1295,7 @@
 			filter: drop-shadow(0 0 6px rgba(39, 255, 153, 0.6));
 		}
 	}
+
 	.utility-button.active svg {
 		stroke: var(--neon-color) !important;
 	}
