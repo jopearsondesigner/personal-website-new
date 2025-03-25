@@ -1014,6 +1014,9 @@
 		height: var(--button-size);
 		position: relative;
 		touch-action: none;
+		display: flex;
+		justify-content: center;
+		align-items: center;
 	}
 
 	.button-face {
@@ -1069,12 +1072,8 @@
 	}
 
 	.arcade-button :global(svg.button-icon) {
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		transform: translate(-50%, -50%);
-		width: 24px;
-		height: 24px;
+		position: relative;
+		z-index: 1;
 	}
 
 	.arcade-button.active :global(svg.button-icon) {

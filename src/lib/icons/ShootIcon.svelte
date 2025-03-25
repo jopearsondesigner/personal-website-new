@@ -2,6 +2,8 @@
 <script lang="ts">
 	export let size = 24;
 	export let color = 'currentColor';
+	let className = '';
+	export { className as class };
 </script>
 
 <svg
@@ -10,15 +12,15 @@
 	height={size}
 	viewBox="0 0 32 32"
 	fill="none"
-	class="button-icon"
+	class={className}
 >
-	<path d="M11,20h9v-9h-9v9Z" fill={color} />
-	<path d="M11,21v6h-6v-6h6" fill={color} />
-	<path d="M27,5v6h-6v-6h6" fill={color} />
-	<path d="M32,0v4h-4V0h4" fill={color} />
-	<path d="M4,28v4H0v-4h4" fill={color} />
-	<path d="M11,5v6h-6v-6h6" fill={color} />
-	<path d="M4,0v4H0V0h4" fill={color} />
-	<path d="M27,21v6h-6v-6h6" fill={color} />
-	<path d="M32,28v4h-4v-4h4" fill={color} />
+	<path fill={color} d="M20.6,11.4v9.1h-9.1v-9.1h9.1" />
+	<path fill={color} d="M11.2,20.8v5.9h-5.9v-5.9h5.9" />
+	<path fill={color} d="M26.7,5.3v5.9h-5.9v-5.9h5.9" />
+	<path fill={color} d="M32,0v3.7h-3.7V0h3.7" />
+	<path fill={color} d="M3.7,28.3v3.7H0v-3.7h3.7" />
+	<path fill={color} d="M11.2,5.3v5.9h-5.9v-5.9h5.9" />
+	<path fill={color} d="M3.7,0v3.7H0V0h3.7" />
+	<path fill={color} d="M26.7,20.8v5.9h-5.9v-5.9h5.9" />
+	<path fill={color} d="M32,28.3v3.7h-3.7v-3.7h3.7" />
 </svg>

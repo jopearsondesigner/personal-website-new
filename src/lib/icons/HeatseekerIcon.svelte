@@ -2,6 +2,8 @@
 <script lang="ts">
 	export let size = 24;
 	export let color = 'currentColor';
+	let className = '';
+	export { className as class };
 </script>
 
 <svg
