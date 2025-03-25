@@ -1,4 +1,4 @@
-<!-- src/lib/icons/JoystickInnerRightArrowIcon.svelte -->
+<!-- src/lib/icons/JoystickRightArrowIcon.svelte -->
 <script lang="ts">
 	export let size = 24;
 	export let color = 'currentColor';
@@ -15,7 +15,7 @@
 	class={className}
 >
 	<path
-		d="M9 5L16 12L9 19"
+		d="M9 18L15 12L9 6"
 		stroke={color}
 		stroke-width="2"
 		stroke-linecap="round"

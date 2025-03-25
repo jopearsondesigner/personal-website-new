@@ -540,14 +540,30 @@
 					height="16"
 					viewBox="0 0 24 24"
 					fill="none"
-					stroke="rgba(245, 245, 220, 0.9)"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
 				>
-					<path d="M23 4v6h-6"></path>
-					<path d="M1 20v-6h6"></path>
-					<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+					<!-- Path for the top arc -->
+					<path
+						d="M21 8.0c-0.3-0.6-3.4-7.2-10.0-5.0c-3.2 1.0-5.5 3.3-6.5 6.5c-0.3 1.0-0.5 2.0-0.5 3.0"
+						fill="none"
+						stroke="rgba(245, 245, 220, 0.9)"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+					<!-- Top arrow filled polygon -->
+					<polygon points="21,3 21,8 16,8" fill="rgba(245, 245, 220, 0.9)" />
+
+					<!-- Path for the bottom arc -->
+					<path
+						d="M3 16.0c0.3 0.6 3.4 7.2 10.0 5.0c3.2-1.0 5.5-3.3 6.5-6.5c0.3-1.0 0.5-2.0 0.5-3.0"
+						fill="none"
+						stroke="rgba(245, 245, 220, 0.9)"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+					<!-- Bottom arrow filled polygon -->
+					<polygon points="3,21 3,16 8,16" fill="rgba(245, 245, 220, 0.9)" />
 				</svg>
 			</button>
 
@@ -567,10 +583,6 @@
 					height="16"
 					viewBox="0 0 24 24"
 					fill="none"
-					stroke="rgba(245, 245, 220, 0.9)"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
 				>
 					<rect x="6" y="4" width="4" height="16" fill="rgba(245, 245, 220, 0.9)"></rect>
 					<rect x="14" y="4" width="4" height="16" fill="rgba(245, 245, 220, 0.9)"></rect>
@@ -593,10 +605,6 @@
 					height="16"
 					viewBox="0 0 24 24"
 					fill="none"
-					stroke="rgba(245, 245, 220, 0.9)"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
 				>
 					<polygon points="5 3 19 12 5 21 5 3" fill="rgba(245, 245, 220, 0.9)"></polygon>
 				</svg>
@@ -645,11 +653,41 @@
 
 			<!-- Arrow Indicators (positioned correctly on the sides) -->
 			<div class="joystick-arrow-container left-arrow" class:active={keys.ArrowLeft}>
-				<JoystickLeftArrowIcon size={16} color="var(--arcade-white-200)" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+				>
+					<path
+						d="M15 18L9 12L15 6"
+						stroke="var(--arcade-white-200)"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						fill="none"
+					/>
+				</svg>
 			</div>
 
 			<div class="joystick-arrow-container right-arrow" class:active={keys.ArrowRight}>
-				<JoystickRightArrowIcon size={16} color="var(--arcade-white-200)" />
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="16"
+					height="16"
+					viewBox="0 0 24 24"
+					fill="none"
+				>
+					<path
+						d="M9 18L15 12L9 6"
+						stroke="var(--arcade-white-200)"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						fill="none"
+					/>
+				</svg>
 			</div>
 
 			<!-- Zone indicator label (only visible in debug mode) -->
@@ -805,16 +843,18 @@
 			opacity 0.2s ease,
 			filter 0.2s ease;
 		opacity: 0.7;
+		width: 24px;
+		height: 24px;
 	}
 
 	.joystick-arrow-container.left-arrow {
-		left: 12px; /* Position outside the joystick */
+		left: 8px; /* Adjusted position */
 		top: 50%;
 		transform: translateY(-50%);
 	}
 
 	.joystick-arrow-container.right-arrow {
-		right: 12px; /* Position outside the joystick */
+		right: 8px; /* Adjusted position */
 		top: 50%;
 		transform: translateY(-50%);
 	}
@@ -824,24 +864,9 @@
 		filter: drop-shadow(0 0 4px rgba(39, 255, 153, 0.6));
 	}
 
-	/* New arrow styling for active state */
-	.joystick-arrow-container.active :global(svg) {
-		color: var(--arcade-neon-green-500) !important;
-		filter: drop-shadow(0 0 4px rgba(39, 255, 153, 0.6));
-	}
-
-	/* New arrow styling for movement states */
-	.joystick-base.moving-left .joystick-arrow-container.left-arrow :global(svg),
-	.joystick-base.moving-right .joystick-arrow-container.right-arrow :global(svg) {
-		color: var(--arcade-neon-green-500) !important;
-		filter: drop-shadow(0 0 4px rgba(39, 255, 153, 0.6));
-	}
-
-	/* Joystick movement states */
-	.joystick-base.moving-left .joystick-arrow-container.left-arrow,
-	.joystick-base.moving-right .joystick-arrow-container.right-arrow {
-		opacity: 1;
-		filter: drop-shadow(0 0 4px rgba(39, 255, 153, 0.6));
+	/* Add explicit styling for the SVG paths */
+	.joystick-arrow-container svg path {
+		transition: stroke 0.2s ease;
 	}
 
 	.joystick-base {
@@ -1271,33 +1296,35 @@
 		background: rgba(39, 255, 153, 0.05);
 		border-color: var(--neon-color-dim);
 	}
-	/* iOS Safari specific fixes for dark mode */
+
+	/* iOS Safari specific fixes for both dark and light mode */
 	@supports (-webkit-touch-callout: none) {
-		:global(html.dark) .utility-button :global(svg) {
+		:global(html) .utility-button svg path {
 			stroke: rgba(245, 245, 220, 0.9) !important;
 		}
 
-		:global(html.dark) .utility-button :global(svg polygon),
-		:global(html.dark) .utility-button :global(svg path),
-		:global(html.dark) .utility-button :global(svg circle),
-		:global(html.dark) .utility-button :global(svg rect) {
+		:global(html) .utility-button svg polygon {
 			fill: rgba(245, 245, 220, 0.9) !important;
-			stroke: rgba(245, 245, 220, 0.9) !important;
 		}
 
-		:global(html.dark) .utility-button.active :global(svg),
-		:global(html.dark) .utility-button.active :global(svg polygon),
-		:global(html.dark) .utility-button.active :global(svg path),
-		:global(html.dark) .utility-button.active :global(svg circle),
-		:global(html.dark) .utility-button.active :global(svg rect) {
-			fill: var(--neon-color) !important;
+		:global(html) .utility-button.active svg path,
+		:global(html.dark) .utility-button.active svg path {
 			stroke: var(--neon-color) !important;
+		}
+
+		:global(html) .utility-button.active svg polygon,
+		:global(html.dark) .utility-button.active svg polygon {
+			fill: var(--neon-color) !important;
 			filter: drop-shadow(0 0 6px rgba(39, 255, 153, 0.6));
 		}
 	}
 
-	.utility-button.active svg {
+	.utility-button.active svg path {
 		stroke: var(--neon-color) !important;
+	}
+
+	.utility-button.active svg polygon {
+		fill: var(--neon-color) !important;
 	}
 
 	.utility-button.active svg polygon,
@@ -1306,5 +1333,48 @@
 	.utility-button.active svg circle {
 		fill: var(--neon-color) !important;
 		stroke: var(--neon-color) !important;
+	}
+	svg {
+		overflow: visible;
+		transform-origin: center;
+	}
+
+	/* Specific Safari fixes for all icon types */
+	@supports (-webkit-touch-callout: none) {
+		/* Play icon */
+		.utility-button svg polygon {
+			fill: rgba(245, 245, 220, 0.9) !important;
+		}
+
+		/* Pause icon */
+		.utility-button svg rect {
+			fill: rgba(245, 245, 220, 0.9) !important;
+		}
+
+		/* Action buttons */
+		.primary-action svg path,
+		.primary-action svg circle,
+		.primary-action svg line,
+		.secondary-action svg path,
+		.secondary-action svg circle,
+		.secondary-action svg line {
+			stroke: rgba(245, 245, 220, 0.9) !important;
+		}
+
+		.primary-action svg path[fill],
+		.primary-action svg polygon,
+		.secondary-action svg path[fill],
+		.secondary-action svg polygon {
+			fill: rgba(245, 245, 220, 0.9) !important;
+		}
+
+		/* Active states for all icons */
+		.utility-button.active svg *,
+		.primary-action.active svg *,
+		.secondary-action.active svg * {
+			stroke: var(--neon-color) !important;
+			fill: var(--neon-color) !important;
+			filter: drop-shadow(0 0 6px rgba(39, 255, 153, 0.6));
+		}
 	}
 </style>

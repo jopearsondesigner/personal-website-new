@@ -15,26 +15,8 @@
 	fill="none"
 	class={className}
 >
-	<rect
-		x="6"
-		y="4"
-		width="4"
-		height="16"
-		stroke={color}
-		stroke-width="2"
-		stroke-linecap="round"
-		stroke-linejoin="round"
-		fill={color}
-	/>
-	<rect
-		x="14"
-		y="4"
-		width="4"
-		height="16"
-		stroke={color}
-		stroke-width="2"
-		stroke-linecap="round"
-		stroke-linejoin="round"
-		fill={color}
-	/>
+	<!-- Left pause bar -->
+	<rect x="6" y="4" width="4" height="16" fill={color} />
+	<!-- Right pause bar -->
+	<rect x="14" y="4" width="4" height="16" fill={color} />
 </svg>

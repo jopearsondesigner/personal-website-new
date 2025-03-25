@@ -11,12 +11,9 @@
 	width={size}
 	height={size}
 	viewBox="0 0 24 24"
-	stroke={color}
-	stroke-width="2"
-	stroke-linecap="round"
-	stroke-linejoin="round"
+	fill="none"
 	class={className}
 >
-	<!-- Note: No fill attribute on the SVG tag -->
-	<polygon points="5 3 19 12 5 21 5 3" stroke="inherit" fill={color} />
+	<!-- Play triangle with fill -->
+	<polygon points="5 3 19 12 5 21 5 3" fill={color} />
 </svg>
