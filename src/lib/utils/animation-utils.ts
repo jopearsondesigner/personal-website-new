@@ -214,3 +214,39 @@ export const animations = {
 	GlitchManager,
 	StarFieldManager
 };
+
+// Add to your main animation file
+const gsapDebug = {
+	activeTimelines: [],
+	activeScrollTriggers: [],
+
+	init() {
+		// Monkey patch GSAP timeline creation
+		const originalTimeline = gsap.timeline;
+		gsap.timeline = function (...args) {
+			const tl = originalTimeline.apply(this, args);
+			gsapDebug.activeTimelines.push(tl);
+
+			// Track when timeline is killed
+			const originalKill = tl.kill;
+			tl.kill = function () {
+				const index = gsapDebug.activeTimelines.indexOf(this);
+				if (index > -1) {
+					gsapDebug.activeTimelines.splice(index, 1);
+				}
+				return originalKill.apply(this, arguments);
+			};
+
+			return tl;
+		};
+
+		// Log stats periodically
+		setInterval(() => {
+			console.log(`Active GSAP timelines: ${this.activeTimelines.length}`);
+			console.log(`Active ScrollTriggers: ${ScrollTrigger?.getAll()?.length || 0}`);
+		}, 5000);
+	}
+};
+
+// Initialize after GSAP is loaded
+gsapDebug.init();
