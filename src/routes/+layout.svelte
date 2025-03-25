@@ -285,6 +285,80 @@
 			performanceMonitor.getReport();
 		}, 120000);
 	});
+
+	// Add this to your main JavaScript file or in a <script> tag in your main HTML
+	document.addEventListener('DOMContentLoaded', function () {
+		// Create performance monitor element
+		const monitor = document.createElement('div');
+		monitor.id = 'perf-monitor';
+		monitor.style.cssText = `
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: black;
+    color: lime;
+    font-family: monospace;
+    padding: 10px;
+    border-radius: 4px;
+    z-index: 999999;
+    font-size: 14px;
+    text-align: left;
+    width: auto;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+  `;
+
+		// Add to DOM
+		document.body.appendChild(monitor);
+
+		// FPS tracking
+		let frameCount = 0;
+		let lastTime = performance.now();
+		let fps = 0;
+
+		// Memory tracking
+		let memoryReadings = [];
+
+		function updateStats() {
+			// Update FPS
+			frameCount++;
+			const now = performance.now();
+			if (now - lastTime >= 1000) {
+				fps = Math.round((frameCount * 1000) / (now - lastTime));
+				frameCount = 0;
+				lastTime = now;
+
+				// Track memory if available
+				if (performance.memory) {
+					const memoryUsed = Math.round(performance.memory.usedJSHeapSize / (1024 * 1024));
+					memoryReadings.push(memoryUsed);
+				}
+			}
+
+			// Update display
+			monitor.innerHTML = `
+      <div>FPS: ${fps}</div>
+      ${performance.memory ? `<div>Memory: ${Math.round(performance.memory.usedJSHeapSize / (1024 * 1024))}MB</div>` : ''}
+    `;
+
+			// Log performance data every 30 seconds
+			const runTime = Math.floor(performance.now() / 1000 / 30);
+			if (runTime > 0 && performance.now() % 30000 < 100) {
+				console.log(`=== PERFORMANCE DATA (${runTime * 30}s) ===`);
+				console.log(`Current FPS: ${fps}`);
+				if (memoryReadings.length > 0) {
+					console.log(`Memory start: ${memoryReadings[0]}MB`);
+					console.log(`Memory current: ${memoryReadings[memoryReadings.length - 1]}MB`);
+					console.log(
+						`Memory growth: ${memoryReadings[memoryReadings.length - 1] - memoryReadings[0]}MB`
+					);
+				}
+			}
+
+			requestAnimationFrame(updateStats);
+		}
+
+		requestAnimationFrame(updateStats);
+	});
 </script>
 
 <!-- Template section -->
