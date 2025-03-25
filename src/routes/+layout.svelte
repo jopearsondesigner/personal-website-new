@@ -126,6 +126,89 @@
 		});
 	}
 
+	// Remove both existing monitor implementations and replace with this:
+	let perfMonitorActive = false;
+
+	function initPerformanceMonitor() {
+		if (perfMonitorActive || !browser) return;
+		perfMonitorActive = true;
+
+		console.log('Initializing performance monitor...');
+
+		// Create performance monitor element with high z-index
+		const monitor = document.createElement('div');
+		monitor.id = 'perf-monitor';
+		monitor.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: black;
+    color: lime;
+    font-family: monospace;
+    padding: 10px;
+    border-radius: 4px;
+    z-index: 10000000;
+    font-size: 16px;
+    text-align: left;
+    width: auto;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+  `;
+
+		document.body.appendChild(monitor);
+		console.log('Monitor element added to DOM');
+
+		// FPS tracking
+		let frameCount = 0;
+		let lastTime = performance.now();
+		let fps = 0;
+
+		// Memory tracking
+		let memoryReadings = [];
+		let startTime = performance.now();
+
+		function updateStats() {
+			// Update FPS
+			frameCount++;
+			const now = performance.now();
+			if (now - lastTime >= 1000) {
+				fps = Math.round((frameCount * 1000) / (now - lastTime));
+				frameCount = 0;
+				lastTime = now;
+
+				// Track memory if available
+				if (performance.memory) {
+					const memoryUsed = Math.round(performance.memory.usedJSHeapSize / (1024 * 1024));
+					memoryReadings.push(memoryUsed);
+				}
+
+				// Update display text
+				monitor.innerHTML = `
+        <div>FPS: ${fps}</div>
+        ${
+					performance.memory
+						? `<div>Memory: ${Math.round(performance.memory.usedJSHeapSize / (1024 * 1024))}MB</div>`
+						: '<div>Memory: Not available</div>'
+				}
+        <div>Runtime: ${Math.floor((now - startTime) / 1000)}s</div>
+      `;
+
+				// Log every 30 seconds
+				const runTime = Math.floor((now - startTime) / 1000);
+				if (runTime > 0 && runTime % 30 === 0 && fps > 0) {
+					console.log(`=== PERFORMANCE DATA (${runTime}s) ===`);
+					console.log(`Current FPS: ${fps}`);
+					if (memoryReadings.length > 0) {
+						console.log(`Memory readings: ${memoryReadings.join(', ')}MB`);
+					}
+				}
+			}
+
+			requestAnimationFrame(updateStats);
+		}
+
+		requestAnimationFrame(updateStats);
+	}
+
 	// Initialization and cleanup logic
 	onMount(() => {
 		// Theme initialization
@@ -175,6 +258,10 @@
 				initialLoader.style.display = 'none';
 			}
 		}
+
+		setTimeout(() => {
+			initPerformanceMonitor();
+		}, 1000);
 	});
 
 	onDestroy(() => {
@@ -187,177 +274,6 @@
 			window.removeEventListener('orientationchange', updateLogoPosition);
 			window.removeEventListener('scroll', handleScroll); // Clean up scroll listener
 		}
-	});
-
-	// Add to your main layout file
-	const performanceMonitor = {
-		fps: {
-			value: 0,
-			frames: 0,
-			lastTime: performance.now(),
-			history: []
-		},
-		memory: {
-			readings: [],
-			lastCheck: 0
-		},
-		init() {
-			// Create simple UI
-			const monitorEl = document.createElement('div');
-			monitorEl.style = `
-      position: fixed;
-      bottom: 10px;
-      left: 10px;
-      background: rgba(0,0,0,0.7);
-      color: white;
-      padding: 10px;
-      font-family: monospace;
-      z-index: 9999;
-      font-size: 12px;
-    `;
-			monitorEl.innerHTML = `
-      <div>FPS: <span id="fps-meter">0</span></div>
-      <div>Mem: <span id="memory-meter">N/A</span></div>
-    `;
-			document.body.appendChild(monitorEl);
-
-			// Start monitoring
-			this.monitorFPS();
-			this.monitorMemory();
-		},
-		monitorFPS() {
-			const update = () => {
-				this.fps.frames++;
-				const now = performance.now();
-				if (now >= this.fps.lastTime + 1000) {
-					this.fps.value = Math.round((this.fps.frames * 1000) / (now - this.fps.lastTime));
-					this.fps.history.push(this.fps.value);
-					if (this.fps.history.length > 60) this.fps.history.shift();
-
-					document.getElementById('fps-meter').textContent = this.fps.value;
-
-					this.fps.frames = 0;
-					this.fps.lastTime = now;
-				}
-				requestAnimationFrame(update);
-			};
-			requestAnimationFrame(update);
-		},
-		monitorMemory() {
-			const update = () => {
-				// Try to access memory info if available
-				if (performance && performance.memory) {
-					const mem = performance.memory;
-					const used = Math.round(mem.usedJSHeapSize / 1048576);
-					this.memory.readings.push(used);
-					if (this.memory.readings.length > 60) this.memory.readings.shift();
-
-					document.getElementById('memory-meter').textContent = `${used}MB`;
-				}
-				setTimeout(update, 1000);
-			};
-			update();
-		},
-		getReport() {
-			// Log detailed report
-			console.log('=== PERFORMANCE REPORT ===');
-			console.log(
-				`Avg FPS: ${this.fps.history.reduce((a, b) => a + b, 0) / this.fps.history.length}`
-			);
-			console.log(`Min FPS: ${Math.min(...this.fps.history)}`);
-			console.log(`FPS history: ${this.fps.history.join(', ')}`);
-
-			if (this.memory.readings.length) {
-				console.log(
-					`Memory growth: ${this.memory.readings[this.memory.readings.length - 1] - this.memory.readings[0]}MB`
-				);
-				console.log(`Memory readings: ${this.memory.readings.join(', ')}`);
-			}
-		}
-	};
-
-	// Initialize after page load
-	window.addEventListener('load', () => {
-		performanceMonitor.init();
-
-		// Log report after 2 minutes
-		setTimeout(() => {
-			performanceMonitor.getReport();
-		}, 120000);
-	});
-
-	// Add this to your main JavaScript file or in a <script> tag in your main HTML
-	document.addEventListener('DOMContentLoaded', function () {
-		// Create performance monitor element
-		const monitor = document.createElement('div');
-		monitor.id = 'perf-monitor';
-		monitor.style.cssText = `
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    background: black;
-    color: lime;
-    font-family: monospace;
-    padding: 10px;
-    border-radius: 4px;
-    z-index: 999999;
-    font-size: 14px;
-    text-align: left;
-    width: auto;
-    box-shadow: 0 0 5px rgba(0,0,0,0.5);
-  `;
-
-		// Add to DOM
-		document.body.appendChild(monitor);
-
-		// FPS tracking
-		let frameCount = 0;
-		let lastTime = performance.now();
-		let fps = 0;
-
-		// Memory tracking
-		let memoryReadings = [];
-
-		function updateStats() {
-			// Update FPS
-			frameCount++;
-			const now = performance.now();
-			if (now - lastTime >= 1000) {
-				fps = Math.round((frameCount * 1000) / (now - lastTime));
-				frameCount = 0;
-				lastTime = now;
-
-				// Track memory if available
-				if (performance.memory) {
-					const memoryUsed = Math.round(performance.memory.usedJSHeapSize / (1024 * 1024));
-					memoryReadings.push(memoryUsed);
-				}
-			}
-
-			// Update display
-			monitor.innerHTML = `
-      <div>FPS: ${fps}</div>
-      ${performance.memory ? `<div>Memory: ${Math.round(performance.memory.usedJSHeapSize / (1024 * 1024))}MB</div>` : ''}
-    `;
-
-			// Log performance data every 30 seconds
-			const runTime = Math.floor(performance.now() / 1000 / 30);
-			if (runTime > 0 && performance.now() % 30000 < 100) {
-				console.log(`=== PERFORMANCE DATA (${runTime * 30}s) ===`);
-				console.log(`Current FPS: ${fps}`);
-				if (memoryReadings.length > 0) {
-					console.log(`Memory start: ${memoryReadings[0]}MB`);
-					console.log(`Memory current: ${memoryReadings[memoryReadings.length - 1]}MB`);
-					console.log(
-						`Memory growth: ${memoryReadings[memoryReadings.length - 1] - memoryReadings[0]}MB`
-					);
-				}
-			}
-
-			requestAnimationFrame(updateStats);
-		}
-
-		requestAnimationFrame(updateStats);
 	});
 </script>
 
