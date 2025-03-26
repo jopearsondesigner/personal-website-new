@@ -23,7 +23,10 @@
 	import { initAnimationMode } from '$lib/utils/animation-mode';
 
 	// Enable/disable performance monitor
-	const showPerformanceMonitor = writable(false);
+	// Create a persistent store that saves the preference
+	const showPerformanceMonitor = writable(
+		browser && localStorage.getItem('showPerformanceMonitor') === 'true'
+	);
 
 	// Set loading to true initially to ensure LoadingScreen shows first
 	loadingStore.set(true);
@@ -152,9 +155,15 @@
 		});
 	}
 
-	// Toggle performance monitor
+	// Toggle performance monitor and save the preference
 	function togglePerformanceMonitor() {
-		showPerformanceMonitor.update((value) => !value);
+		showPerformanceMonitor.update((value) => {
+			const newValue = !value;
+			if (browser) {
+				localStorage.setItem('showPerformanceMonitor', newValue.toString());
+			}
+			return newValue;
+		});
 	}
 
 	// Initialization and cleanup logic
@@ -220,11 +229,13 @@
 			}
 		});
 		// Performance monitor toggle (Ctrl+Shift+P)
-		document.addEventListener('keydown', (event) => {
-			if (event.ctrlKey && event.shiftKey && event.key === 'P') {
-				togglePerformanceMonitor();
-			}
-		});
+		if (browser) {
+			document.addEventListener('keydown', (event) => {
+				if (event.ctrlKey && event.shiftKey && event.key === 'P') {
+					togglePerformanceMonitor();
+				}
+			});
+		}
 	});
 
 	onDestroy(() => {

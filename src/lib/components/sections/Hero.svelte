@@ -90,6 +90,7 @@
 	}, 16); // ~60fps
 
 	// Animation management
+	// Animation management
 	function startAnimations(elements: {
 		header: HTMLElement;
 		insertConcept: HTMLElement;
@@ -104,7 +105,7 @@
 			// Get device-specific optimizations
 			const mode = get(animationMode);
 			const config = animationService.getAnimationConfig('hero');
-			const starCount = config.starCount;
+			const starCount = config.starCount || 30;
 
 			// Initialize star field based on device capabilities
 			if (browser && window.Worker && !worker) {
@@ -176,78 +177,106 @@
 				glitchManager.start([header]);
 			}
 
-			// Create optimized GSAP timeline through animation service
-			const timeline = animationService.createTimeline('heroAnimations', {
-				paused: true,
-				repeat: -1,
-				defaults: {
-					ease: 'power1.inOut',
-					force3D: true
-				}
-			});
+			// Check if GSAP is available
+			if (browser && typeof gsap !== 'undefined') {
+				// Create timeline directly with GSAP
+				const timeline = gsap.timeline({
+					paused: true,
+					repeat: -1,
+					defaults: {
+						ease: 'power1.inOut',
+						force3D: true
+					}
+				});
 
-			// Apply device-specific animations
-			if (mode === 'minimal') {
-				// Minimal animations for low-end devices
+				// Apply device-specific animations
+				if (mode === 'minimal') {
+					// Minimal animations for low-end devices
+					if (insertConcept) {
+						insertConcept.classList.add('mobile-blink-animation');
+					}
+
+					if (header) {
+						timeline.to(header, {
+							duration: 0.5,
+							y: '+=1',
+							yoyo: true,
+							repeat: 1,
+							repeatDelay: 2
+						});
+					}
+				} else if (mode === 'reduced') {
+					// Reduced animations for mid-range devices
+					if (header) {
+						timeline.to(header, {
+							duration: 0.3,
+							y: '+=2',
+							yoyo: true,
+							repeat: 3
+						});
+					}
+
+					if (insertConcept) {
+						timeline.to(
+							insertConcept,
+							{
+								duration: 1.5,
+								opacity: 0.5,
+								yoyo: true,
+								repeat: 1
+							},
+							0
+						);
+					}
+				} else {
+					// Full animations for high-end devices
+					if (header && insertConcept) {
+						timeline.to([header, insertConcept], {
+							duration: 0.1,
+							y: '+=2',
+							yoyo: true,
+							repeat: 3
+						});
+
+						timeline.to(
+							insertConcept,
+							{
+								duration: 1,
+								opacity: 0,
+								yoyo: true,
+								repeat: 1
+							},
+							0
+						);
+					}
+				}
+
+				currentTimeline = timeline;
+				timeline.play();
+			} else {
+				// Fallback for when GSAP is not available
+				console.info('GSAP not available, using CSS animations instead');
+				if (header) {
+					header.classList.add('simple-glitch-effect');
+				}
 				if (insertConcept) {
 					insertConcept.classList.add('mobile-blink-animation');
 				}
-
-				timeline.to(header, {
-					duration: 0.5,
-					y: '+=1',
-					yoyo: true,
-					repeat: 1,
-					repeatDelay: 2
-				});
-			} else if (mode === 'reduced') {
-				// Reduced animations for mid-range devices
-				timeline
-					.to(header, {
-						duration: 0.3,
-						y: '+=2',
-						yoyo: true,
-						repeat: 3
-					})
-					.to(
-						insertConcept,
-						{
-							duration: 1.5,
-							opacity: 0.5,
-							yoyo: true,
-							repeat: 1
-						},
-						0
-					);
-			} else {
-				// Full animations for high-end devices
-				timeline
-					.to([header, insertConcept], {
-						duration: 0.1,
-						y: '+=2',
-						yoyo: true,
-						repeat: 3
-					})
-					.to(
-						insertConcept,
-						{
-							duration: 1,
-							opacity: 0,
-							yoyo: true,
-							repeat: 1
-						},
-						0
-					);
 			}
-
-			currentTimeline = timeline;
-			timeline.play();
 
 			// Update animation state
 			animationState.setAnimating(true);
 		} catch (error) {
 			console.error('Animation initialization failed:', error);
 			animationState.reset();
+
+			// Apply fallback CSS animations on error
+			if (header) {
+				header.classList.add('simple-glitch-effect');
+			}
+			if (insertConcept) {
+				insertConcept.classList.add('mobile-blink-animation');
+			}
 		}
 	}
 
@@ -508,7 +537,7 @@ Root Variables
 		--bezel-thickness: 0.8vmin;
 
 		/* Typography */
-		--header-font-size: 70px;
+		--header-font-size: 110px;
 		--insert-concept-font-size: 4.45vmin;
 
 		/* Colors */
@@ -544,7 +573,7 @@ Media Queries
 		:root {
 			--arcade-screen-width: 80vw;
 			--arcade-screen-height: 600px;
-			--header-font-size: 100px;
+			--header-font-size: 140px;
 			--insert-concept-font-size: 2.45vmin;
 		}
 	}
@@ -802,6 +831,9 @@ Typography
 		transition:
 			transform 50ms ease-out,
 			filter 50ms ease-out;
+		/* Add these properties */
+		max-width: 80%;
+		margin: 0 auto;
 	}
 
 	#header::before {
@@ -1237,11 +1269,19 @@ Additional Theme-Specific Styles
 	:global(html.light) .screen-bezel {
 		background: linear-gradient(to bottom, rgba(210, 210, 210, 1) 0%, rgba(190, 190, 190, 1) 100%);
 		box-shadow:
-	/* Inner shadow for depth */
+    /* Inner shadow for depth */
 			inset 0 2px 4px rgba(0, 0, 0, 0.15),
 			/* Subtle outer glow */ 0 0 1px rgba(255, 255, 255, 0.8),
 			/* Gentle ambient shadow */ 0 4px 6px rgba(0, 0, 0, 0.06);
 		border-radius: calc(var(--border-radius) + 0.5vmin);
+	}
+
+	:global(html.light) #arcade-screen {
+		box-shadow:
+			0 0 30px rgba(0, 0, 0, 0.1),
+			inset 0 0 50px rgba(0, 0, 0, 0.2),
+			inset 0 0 2px rgba(255, 255, 255, 0.5),
+			inset 0 0 100px rgba(0, 0, 0, 0.1);
 	}
 
 	:global(html.light) .t-molding::before {
@@ -1820,8 +1860,9 @@ Additional Theme-Specific Styles
    ========================================================================== */
 	@media (max-width: 640px) {
 		#header {
-			font-size: max(32px, min(10vw, 60px));
+			font-size: max(88px, min(12vw, 110px));
 			line-height: 1.1;
+			max-width: 90%;
 		}
 
 		#insert-concept {
@@ -1881,6 +1922,18 @@ Additional Theme-Specific Styles
 		.screen-bezel {
 			box-shadow: none !important;
 			background: #333 !important;
+		}
+
+		:global(html.light) .screen-bezel {
+			background: linear-gradient(
+				to bottom,
+				rgba(210, 210, 210, 1) 0%,
+				rgba(190, 190, 190, 1) 100%
+			) !important;
+			box-shadow:
+				inset 0 2px 4px rgba(0, 0, 0, 0.15),
+				0 0 1px rgba(255, 255, 255, 0.8),
+				0 4px 6px rgba(0, 0, 0, 0.06) !important;
 		}
 
 		/* Simplified scanlines */
