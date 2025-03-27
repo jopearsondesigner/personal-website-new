@@ -21,6 +21,8 @@
 	import { throttle } from '$lib/utils/lodash-utils';
 	import PerformanceMonitor from '$lib/components/ui/PerformanceMonitor.svelte';
 	import { initAnimationMode } from '$lib/utils/animation-mode';
+	import { cssEffectsManager } from '$lib/utils/css-effects-manager';
+	import { frameRateController } from '$lib/utils/frame-rate-controller';
 
 	// Enable/disable performance monitor
 	// Create a persistent store that saves the preference
@@ -173,8 +175,14 @@
 		// Create handlers once
 		handlers = createThrottledHandlers();
 
-		// Initialize animation mode
+		// 1. First initialize animation mode (prerequisite)
 		initAnimationMode();
+
+		// 2. Start frame rate controller (cssEffectsManager depends on this)
+		frameRateController.start();
+
+		// 3. Initialize CSS effects manager
+		cssEffectsManager.init(document.documentElement);
 
 		// Theme initialization - do this FIRST and only ONCE
 		const savedTheme = localStorage.getItem('theme') || 'dark';

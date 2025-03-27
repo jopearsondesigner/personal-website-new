@@ -12,6 +12,8 @@
 	import { animationState, screenStore } from '$lib/stores/animation-store';
 	import { layoutStore } from '$lib/stores/store';
 	import GameControls from '$lib/components/game/GameControls.svelte';
+	import { cssEffectsManager } from '$lib/utils/css-effects-manager';
+	import { frameRateController } from '$lib/utils/frame-rate-controller';
 
 	// Import new optimization utilities
 	import { animationService } from '$lib/services/animation-service';
@@ -101,7 +103,9 @@
 		return {
 			useContainerParallax: isMobile || isTablet, // Only use container parallax on mobile/tablet
 			starCount: isDesktop ? 80 : isMobile ? 30 : 50,
-			updateInterval: isDesktop ? 30 : 50 // Faster updates on desktop
+			updateInterval: isDesktop ? 30 : 50, // Faster updates on desktop
+			parallaxIntensity: isDesktop ? { x: 5, y: 2 } : { x: 10, y: 5 },
+			parallaxSpeed: isDesktop ? { x: 8000, y: 10000 } : { x: 4000, y: 5000 }
 		};
 	}
 
@@ -158,9 +162,8 @@
 					if (!starFieldManager) {
 						starFieldManager = new OptimizedStarFieldManager(
 							animationState,
-							60,
-							false,
-							deviceSettings.useContainerParallax
+							starCount,
+							false // Don't use worker
 						);
 						if (starContainer) {
 							starFieldManager.setContainer(starContainer);
@@ -173,9 +176,8 @@
 				if (!starFieldManager) {
 					starFieldManager = new OptimizedStarFieldManager(
 						animationState,
-						60,
-						false,
-						deviceSettings.useContainerParallax
+						starCount,
+						false // Don't use worker
 					);
 					if (starContainer) {
 						starFieldManager.setContainer(starContainer);
@@ -354,14 +356,25 @@
 	onMount(() => {
 		if (!browser) return;
 
-		// Initialize animation mode
-		initAnimationMode();
+		// Get device settings before initializing anything else
+		const deviceSettings = getDeviceSpecificAnimationSettings();
 
 		// Set initial screen
 		currentScreen = 'main';
 
 		// Initialize animation state
 		animationState.reset();
+
+		// Initialize star field manager with proper settings
+		starFieldManager = new OptimizedStarFieldManager(
+			animationState,
+			deviceSettings.starCount || 60,
+			false // Don't use worker initially
+		);
+
+		if (starContainer) {
+			starFieldManager.setContainer(starContainer);
+		}
 
 		// Setup intersection observer for visibility detection
 		intersectionObserver = new IntersectionObserver(
@@ -385,21 +398,6 @@
 		const heroSection = document.getElementById('hero');
 		if (heroSection) {
 			intersectionObserver.observe(heroSection);
-		}
-
-		// Get device settings before initializing star field
-		const deviceSettings = getDeviceSpecificAnimationSettings();
-
-		// Initialize star field manager with proper settings
-		starFieldManager = new OptimizedStarFieldManager(
-			animationState,
-			deviceSettings.starCount || 60,
-			false,
-			deviceSettings.useContainerParallax
-		);
-
-		if (starContainer) {
-			starFieldManager.setContainer(starContainer);
 		}
 
 		// Setup resize observer
@@ -581,7 +579,7 @@ Root Variables
 		--bezel-thickness: 0.8vmin;
 
 		/* Typography */
-		--header-font-size: 110px;
+		--header-font-size: 90px;
 		--insert-concept-font-size: 4.45vmin;
 
 		/* Colors */
@@ -617,7 +615,7 @@ Media Queries
 		:root {
 			--arcade-screen-width: 80vw;
 			--arcade-screen-height: 600px;
-			--header-font-size: 140px;
+			--header-font-size: 110px;
 			--insert-concept-font-size: 2.45vmin;
 		}
 	}
@@ -630,6 +628,11 @@ Layout Components
 	}
 
 	.fixed-game-controls {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		width: 100%;
+		z-index: 1050;
 		display: none;
 	}
 
@@ -701,113 +704,6 @@ Visual Effects
 		overflow: hidden;
 	}
 
-	/* ==========================================================================
-Mobile Optimizations - Simplified Effects for Performance
-========================================================================== */
-	@media (max-width: 767px) {
-		/* Simplified gradients for mobile */
-		.screen-reflection {
-			position: absolute;
-			inset: 0;
-			/* Simpler gradient with fewer color stops */
-			background: linear-gradient(
-				35deg,
-				transparent 0%,
-				rgba(255, 255, 255, 0.03) 50%,
-				transparent 100%
-			);
-			/* Remove expensive mix-blend-mode */
-			mix-blend-mode: normal;
-			opacity: 0.5;
-		}
-
-		/* Remove expensive effects on mobile */
-		.glow-effect,
-		.phosphor-decay,
-		.shadow-mask,
-		.interlace {
-			display: none;
-		}
-
-		/* Simplified arcade screen for mobile */
-		#arcade-screen {
-			box-shadow: 0 0 15px rgba(0, 0, 0, 0.5) !important;
-			/* Simpler background */
-			background: #111 !important;
-		}
-
-		/* Simplified hardware acceleration for mobile */
-		.hardware-accelerated {
-			/* Only use the most effective GPU acceleration properties */
-			transform: translateZ(0);
-			/* Remove expensive CSS properties */
-			backface-visibility: visible;
-			perspective: none;
-			/* More selective will-change */
-			will-change: transform;
-			/* Remove expensive contain property on mobile */
-			contain: none;
-			content-visibility: visible;
-		}
-
-		/* Simplified bezel for mobile */
-		.screen-bezel {
-			box-shadow: none !important;
-			background: #333 !important;
-		}
-
-		/* Simplified reflection for mobile */
-		.screen-glass {
-			opacity: 0.4 !important;
-			background: linear-gradient(
-				35deg,
-				transparent 0%,
-				rgba(255, 255, 255, 0.02) 50%,
-				transparent 100%
-			) !important;
-		}
-
-		/* Optimize scanlines for mobile */
-		#scanline-overlay {
-			opacity: 0.3;
-			background-size: 100% 6px !important;
-		}
-	}
-
-	/* Add CSS animation classes for mobile optimization */
-	.mobile-blink-animation {
-		animation: blink 2s ease-in-out infinite;
-	}
-
-	.simple-glitch-effect {
-		animation: simpleGlitch 4s ease-in-out infinite;
-	}
-
-	@keyframes blink {
-		0%,
-		100% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0;
-		}
-	}
-
-	@keyframes simpleGlitch {
-		0%,
-		5%,
-		10%,
-		100% {
-			transform: translateX(0);
-		}
-		2.5% {
-			transform: translateX(2px);
-		}
-		7.5% {
-			transform: translateX(-2px);
-		}
-	}
-
 	.screen-reflection {
 		position: absolute;
 		inset: 0;
@@ -844,7 +740,7 @@ Mobile Optimizations - Simplified Effects for Performance
 			rgba(0, 255, 255, 0.4),
 			rgba(0, 0, 255, 0.4),
 			rgba(255, 0, 255, 0.4),
-			rgba(255, 0, 0, 0.4)
+			rgba(0, 0, 255, 0.4)
 		);
 	}
 
@@ -1558,454 +1454,101 @@ Additional Theme-Specific Styles
 	}
 
 	/* ==========================================================================
-   Performance Optimizations
+   Add CSS animation classes for animation fallbacks
    ========================================================================== */
-	/* Power sequence with simplified animation for mobile */
-	@media (max-width: 767px) {
-		@keyframes mobilePowerUpSequence {
-			0% {
-				filter: brightness(0.8) blur(1px);
-				transform: scale(0.99);
-			}
-			100% {
-				filter: brightness(1) blur(0);
-				transform: scale(1);
-			}
-		}
-
-		.power-sequence {
-			animation-name: mobilePowerUpSequence;
-			animation-duration: 1.5s;
-		}
-
-		/* Reduce shadow intensity for better performance */
-		#arcade-screen {
-			box-shadow: 0 0 20px rgba(0, 0, 0, 0.6);
-		}
-
-		/* Simplify text shadow for better performance */
-		#header {
-			text-shadow:
-				0 0 5px rgba(39, 255, 153, 0.8),
-				0 0 10px rgba(39, 255, 153, 0.6);
-		}
-
-		#insert-concept {
-			text-shadow:
-				0 0 5px rgba(250, 250, 240, 0.5),
-				0 0 10px rgba(250, 250, 240, 0.3);
-		}
+	.mobile-blink-animation {
+		animation: blink 2s ease-in-out infinite;
 	}
 
-	/* ==========================================================================
-   Additional Theme-Specific Adjustments
-   ========================================================================== */
-	:global(html.light) #arcade-screen {
-		box-shadow:
-			0 0 30px rgba(0, 0, 0, 0.1),
-			inset 0 0 50px rgba(0, 0, 0, 0.2),
-			inset 0 0 2px rgba(255, 255, 255, 0.5),
-			inset 0 0 100px rgba(0, 0, 0, 0.1);
+	.simple-glitch-effect {
+		animation: simpleGlitch 4s ease-in-out infinite;
 	}
 
-	:global(html.light) #arcade-screen {
-		background: linear-gradient(145deg, #111 0%, #222 100%);
-		box-shadow:
-        /* Screen recess shadow */
-			0 0 20px rgba(0, 0, 0, 0.08),
-			/* Inner screen shadow */ inset 0 0 40px rgba(0, 0, 0, 0.25),
-			/* Subtle glass effect */ inset 0 0 2px rgba(255, 255, 255, 0.4);
-	}
-
-	/* ==========================================================================
-   Mobile Dark Mode Cabinet Rounded Corners (768px and below)
-   ========================================================================== */
-	@media (max-width: 768px) {
-		/* Apply rounded cabinet styles to dark mode */
-		#arcade-cabinet {
-			border-radius: var(--border-radius, 12px);
-			overflow: hidden;
-		}
-
-		.cabinet-plastic {
-			border-radius: var(--border-radius, 12px);
-			overflow: hidden;
-		}
-
-		.cabinet-background,
-		.cabinet-wear {
-			border-radius: var(--border-radius, 12px);
-		}
-
-		.screen-bezel {
-			border-radius: calc(var(--border-radius, 12px) + var(--bezel-thickness, 0.8vmin));
-			overflow: hidden;
-		}
-
-		/* Ensure proper border-radius on all elements that need it */
-		.arcade-screen-wrapper,
-		.screen-bezel {
-			overflow: hidden;
-			border-radius: var(--border-radius, 12px);
-		}
-	}
-
-	/* ==========================================================================
-   Mobile Light Mode Animation Adjustments
-   ========================================================================== */
-	@media (max-width: 768px) {
-		/* Soften glitch effects for mobile light mode */
-		:global(html.light) #header::before {
-			animation-duration: 6s;
-			opacity: 0.3;
-			background: linear-gradient(
-				90deg,
-				transparent 0%,
-				rgba(39, 255, 153, 0.1) 15%,
-				transparent 25%
-			);
-		}
-
-		/* Smoother scanline effect */
-		:global(html.light) #scanline-overlay {
-			opacity: 0.2;
-			background-size: 100% 4px;
-			animation-duration: 0.3s;
-		}
-
-		/* Reduce power-up sequence intensity for light mode */
-		:global(html.light) .power-sequence {
-			animation-duration: 2s;
-		}
-
-		@keyframes mobileLightPowerUp {
-			0% {
-				filter: brightness(0.8) blur(1px);
-				transform: scale(0.99);
-			}
-			100% {
-				filter: brightness(1) blur(0);
-				transform: scale(1);
-			}
-		}
-
-		:global(html.light) .power-sequence {
-			animation-name: mobileLightPowerUp;
-		}
-	}
-
-	/* ==========================================================================
-   Mobile Light Mode Cabinet Styles (768px and below)
-   ========================================================================== */
-	@media (max-width: 768px) {
-		:global(html.light) #arcade-cabinet {
-			background: linear-gradient(
-				180deg,
-				var(--light-cabinet-primary, #f0f0f0) 0%,
-				var(--light-cabinet-secondary, #e0e0e0) 100%
-			);
-			box-shadow:
-				0 10px 20px rgba(0, 0, 0, 0.08),
-				0 5px 15px rgba(0, 0, 0, 0.04),
-				inset 0 1px 2px var(--light-highlight, rgba(255, 255, 255, 0.9));
-			border-radius: var(--light-cabinet-border-radius, 12px);
-		}
-
-		:global(html.light) .cabinet-plastic {
-			background: linear-gradient(
-				180deg,
-				var(--light-cabinet-secondary, #e0e0e0) 0%,
-				var(--light-cabinet-tertiary, #d0d0d0) 100%
-			);
-			box-shadow:
-				inset 0 5px 15px rgba(0, 0, 0, 0.02),
-				inset -3px 0 8px rgba(0, 0, 0, 0.01),
-				inset 3px 0 8px rgba(0, 0, 0, 0.01),
-				inset 0 -3px 8px rgba(0, 0, 0, 0.02);
-			border-radius: var(--light-cabinet-border-radius, 12px);
-			border: 1px solid var(--light-cabinet-border-color, rgba(0, 0, 0, 0.05));
-		}
-
-		:global(html.light) .cabinet-background {
-			background: linear-gradient(
-				45deg,
-				rgba(240, 240, 240, 0.2) 0%,
-				rgba(250, 250, 250, 0.2) 50%,
-				rgba(240, 240, 240, 0.2) 100%
-			);
-			opacity: 0.6;
-			mix-blend-mode: overlay;
-		}
-
-		:global(html.light) .cabinet-wear {
-			background: repeating-linear-gradient(
-				45deg,
-				transparent 0px,
-				transparent 5px,
-				rgba(0, 0, 0, var(--light-cabinet-texture-opacity, 0.02)) 5px,
-				rgba(0, 0, 0, var(--light-cabinet-texture-opacity, 0.02)) 6px
-			);
-			opacity: 0.2;
-			mix-blend-mode: soft-light;
-		}
-
-		:global(html.light) .screen-bezel {
-			background: linear-gradient(
-				to bottom,
-				var(--light-bezel-gradient-start, #d0d0d0) 0%,
-				var(--light-bezel-gradient-end, #c0c0c0) 100%
-			);
-			box-shadow:
-				inset 0 1px 3px rgba(0, 0, 0, 0.08),
-				0 0 1px rgba(255, 255, 255, 0.9),
-				0 2px 4px rgba(0, 0, 0, 0.03);
-			border-radius: calc(var(--border-radius) + 4px);
-		}
-
-		/* Enhanced mobile t-molding with subtler effect */
-		:global(html.light) .t-molding::before {
-			opacity: 0.2;
-			background: linear-gradient(
-				90deg,
-				var(--light-cabinet-accent, rgba(0, 150, 255, 0.3)) 0%,
-				rgba(0, 150, 255, 0.2) 50%,
-				var(--light-cabinet-accent, rgba(0, 150, 255, 0.3)) 100%
-			);
-			filter: blur(3px);
-		}
-
-		:global(html.light) .t-molding::after {
-			opacity: 0.15;
-			box-shadow:
-				inset 0 0 6px rgba(255, 255, 255, 0.3),
-				0 0 8px var(--light-cabinet-accent, rgba(0, 150, 255, 0.3));
-		}
-
-		/* Refined corner accents for mobile light mode */
-		:global(html.light) .corner-accent {
-			opacity: 0.3;
-			background: radial-gradient(
-				circle at center,
-				rgba(255, 255, 255, 0.7),
-				rgba(255, 255, 255, 0.05) 70%,
-				transparent 100%
-			);
-			filter: blur(1px);
-		}
-
-		/* Softer light spill for mobile light mode */
-		:global(html.light) .light-spill {
-			background: radial-gradient(
-				circle at 50% 50%,
-				var(--light-cabinet-accent, rgba(0, 150, 255, 0.1)),
-				transparent 70%
-			);
-			opacity: 0.06;
-			filter: blur(15px);
-		}
-
-		/* Subtler control panel light in mobile light mode */
-		:global(html.light) .control-panel-light {
-			opacity: 0.15;
-			background: linear-gradient(
-				to bottom,
-				var(--light-cabinet-accent, rgba(0, 150, 255, 0.1)),
-				transparent
-			);
-		}
-
-		/* Adjust arcade-screen-wrapper margin for mobile */
-		:global(html.light) .arcade-screen-wrapper {
-			margin-top: calc(-0.8 * var(--navbar-height, 64px));
-		}
-
-		/* Ensure proper border-radius on all elements that need it */
-		:global(html.light) .cabinet-plastic,
-		:global(html.light) .arcade-screen-wrapper,
-		:global(html.light) .screen-bezel {
-			overflow: hidden;
-			border-radius: var(--light-cabinet-border-radius, 12px);
-		}
-
-		/* Optimized star rendering for mobile */
-		.star {
-			width: 2px;
-			height: 2px;
-			transform: translateZ(0);
-		}
-
-		/* Reduce animation complexity on mobile */
-		#header::before {
-			animation-duration: 8s;
-		}
-
-		/* Optimize scanline effect for mobile */
-		#scanline-overlay {
-			animation-duration: 0.4s;
-			background-size: 100% 6px;
-		}
-	}
-
-	/* ==========================================================================
-   High-End Devices (Detected by animation mode)
-   ========================================================================== */
-	:global(.animation-mode-normal) .star-container {
-		/* Enhanced 3D transforms for high-end devices */
-		transform: perspective(1000px) rotateX(5deg);
-		animation: starContainerRotate 20s infinite linear;
-	}
-
-	:global(.animation-mode-normal) .glow::after {
-		animation: glowPulse 4s infinite alternate;
-	}
-
-	@keyframes starContainerRotate {
-		0% {
-			transform: perspective(1000px) rotateX(5deg) rotateY(0deg);
-		}
+	@keyframes blink {
+		0%,
 		100% {
-			transform: perspective(1000px) rotateX(5deg) rotateY(360deg);
+			opacity: 1;
+		}
+		50% {
+			opacity: 0;
 		}
 	}
 
-	@keyframes glowPulse {
-		0% {
-			opacity: var(--screen-glow-opacity);
-			filter: blur(12px);
-		}
+	@keyframes simpleGlitch {
+		0%,
+		5%,
+		10%,
 		100% {
-			opacity: calc(var(--screen-glow-opacity) * 0.7);
-			filter: blur(8px);
+			transform: translateX(0);
+		}
+		2.5% {
+			transform: translateX(2px);
+		}
+		7.5% {
+			transform: translateX(-2px);
 		}
 	}
 
 	/* ==========================================================================
-   Low-End Devices (Detected by animation mode)
+   Effect Classes for CSS Effects Manager
    ========================================================================== */
-	:global(.animation-mode-minimal) .phosphor-decay,
-	:global(.animation-mode-minimal) .shadow-mask,
-	:global(.animation-mode-minimal) .interlace,
-	:global(.animation-mode-minimal) .glow::after {
-		display: none !important;
+	:global(.effect-shadows-medium) .screen-bezel {
+		box-shadow: var(--bezel-shadow);
 	}
 
-	:global(.animation-mode-minimal) #scanline-overlay {
-		background-size: 100% 8px;
-		opacity: 0.2;
-		animation-duration: 0.6s;
+	:global(.effect-shadows-light) .screen-bezel {
+		box-shadow:
+			inset 0 0 10px rgba(0, 0, 0, 0.6),
+			0 0 1px var(--glass-reflection);
 	}
 
-	:global(.animation-mode-minimal) .screen-reflection {
-		opacity: 0.3;
+	:global(.effect-shadows-disabled) .screen-bezel {
+		box-shadow: none !important;
 	}
 
-	/* ==========================================================================
-   Mid-Range Devices (Detected by animation mode)
-   ========================================================================== */
-	:global(.animation-mode-reduced) .phosphor-decay,
-	:global(.animation-mode-reduced) .shadow-mask {
-		display: none !important;
+	:global(.effect-reflections) .screen-glass {
+		opacity: 0.8;
 	}
 
-	:global(.animation-mode-reduced) .interlace {
-		opacity: 0.3;
+	:global(.effect-reflections-disabled) .screen-glass {
+		opacity: 0.4 !important;
+		background: linear-gradient(
+			35deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.02) 50%,
+			transparent 100%
+		) !important;
 	}
 
-	:global(.animation-mode-reduced) .glow::after {
-		opacity: calc(var(--screen-glow-opacity) * 0.5);
-		filter: blur(6px);
+	:global(.effect-scanlines) #scanline-overlay {
+		animation: scanline 0.2s linear infinite;
 	}
 
-	:global(.animation-mode-reduced) #scanline-overlay {
-		background-size: 100% 6px;
-		opacity: 0.3;
+	:global(.effect-scanlines-disabled) #scanline-overlay {
+		display: none;
 	}
 
-	/* ==========================================================================
-   Responsive Typography Optimizations
-   ========================================================================== */
-	@media (max-width: 640px) {
-		#header {
-			font-size: max(88px, min(12vw, 110px));
-			line-height: 1;
-			max-width: 90%;
-		}
-
-		#insert-concept {
-			font-size: max(12px, min(4vw, 18px));
-		}
+	:global(.effect-phosphor) .phosphor-decay {
+		display: block;
 	}
 
-	/* ==========================================================================
-   Performance Class for Intersection Observer
-   ========================================================================== */
-	.paused-animations .star,
-	.paused-animations #header::before,
-	.paused-animations #scanline-overlay,
-	.paused-animations .phosphor-decay,
-	.paused-animations .interlace {
-		animation-play-state: paused !important;
-	}
-	/* Force GPU acceleration for key elements */
-	/* Hardware acceleration helpers */
-	.hardware-accelerated {
-		transform: translateZ(0);
-		backface-visibility: hidden;
-		will-change: transform;
+	:global(.effect-phosphor-disabled) .phosphor-decay {
+		display: none;
 	}
 
-	/* Mobile optimizations */
-	@media (max-width: 767px) {
-		/* Simplified effects for mobile */
-		.screen-reflection {
-			position: absolute;
-			inset: 0;
-			background: linear-gradient(
-				35deg,
-				transparent 0%,
-				rgba(255, 255, 255, 0.03) 50%,
-				transparent 100%
-			);
-			mix-blend-mode: normal;
-			opacity: 0.5;
-		}
+	:global(.effect-interlace) .interlace {
+		display: block;
+	}
 
-		/* Remove expensive effects on mobile */
-		.glow-effect,
-		.phosphor-decay,
-		.shadow-mask,
-		.interlace {
-			display: none;
-		}
+	:global(.effect-interlace-disabled) .interlace {
+		display: none;
+	}
 
-		/* Simplified arcade screen */
-		#arcade-screen {
-			box-shadow: 0 0 15px rgba(0, 0, 0, 0.5) !important;
-			background: #111 !important;
-		}
+	:global(.use-contain) .star-container {
+		contain: layout style paint;
+	}
 
-		/* Simplified bezel */
-		.screen-bezel {
-			box-shadow: none !important;
-			background: #333 !important;
-		}
-
-		:global(html.light) .screen-bezel {
-			background: linear-gradient(
-				to bottom,
-				rgba(210, 210, 210, 1) 0%,
-				rgba(190, 190, 190, 1) 100%
-			) !important;
-			box-shadow:
-				inset 0 2px 4px rgba(0, 0, 0, 0.15),
-				0 0 1px rgba(255, 255, 255, 0.8),
-				0 4px 6px rgba(0, 0, 0, 0.06) !important;
-		}
-
-		/* Simplified scanlines */
-		#scanline-overlay {
-			opacity: 0.3;
-			background-size: 100% 6px !important;
-		}
+	:global(.use-content-visibility) .star-container {
+		content-visibility: auto;
 	}
 </style>
