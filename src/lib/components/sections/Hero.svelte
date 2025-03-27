@@ -89,7 +89,22 @@
 		}
 	}, 16); // ~60fps
 
-	// Animation management
+	function getDeviceSpecificAnimationSettings() {
+		if (!browser) return { useContainerParallax: false, starCount: 30 };
+
+		const width = window.innerWidth;
+		const height = window.innerHeight;
+		const isDesktop = width >= 1024;
+		const isMobile = width < 768;
+		const isTablet = !isDesktop && !isMobile;
+
+		return {
+			useContainerParallax: isMobile || isTablet, // Only use container parallax on mobile/tablet
+			starCount: isDesktop ? 80 : isMobile ? 30 : 50,
+			updateInterval: isDesktop ? 30 : 50 // Faster updates on desktop
+		};
+	}
+
 	// Animation management
 	function startAnimations(elements: {
 		header: HTMLElement;
@@ -100,12 +115,13 @@
 			// Ensure we stop existing animations first
 			stopAnimations();
 
-			const { header, insertConcept } = elements;
+			const { header, insertConcept, arcadeScreen } = elements;
 
 			// Get device-specific optimizations
 			const mode = get(animationMode);
 			const config = animationService.getAnimationConfig('hero');
-			const starCount = config.starCount || 30;
+			const deviceSettings = getDeviceSpecificAnimationSettings();
+			const starCount = deviceSettings.starCount || config.starCount || 30;
 
 			// Initialize star field based on device capabilities
 			if (browser && window.Worker && !worker) {
@@ -118,20 +134,34 @@
 						if (type === 'starsGenerated') {
 							// Update stars in store
 							animationState.setStars(data.stars);
+						} else if (type === 'starsUpdated') {
+							// Update stars in store when they're updated by the worker
+							animationState.setStars(data.stars);
 						}
 					};
 
-					// Request star generation from worker
+					// Request star generation from worker with device-specific settings
 					worker.postMessage({
 						type: 'generateStars',
-						data: { count: starCount }
+						data: {
+							count: starCount,
+							quadrantSize: 4,
+							// Pass device-specific settings to worker
+							isDesktop: window.innerWidth >= 1024,
+							updateInterval: deviceSettings.updateInterval
+						}
 					});
 				} catch (error) {
 					console.error('Web Worker creation failed:', error);
 
-					// Fallback to main thread star generation
+					// Fallback to main thread star generation with device settings
 					if (!starFieldManager) {
-						starFieldManager = new OptimizedStarFieldManager(animationState, starCount);
+						starFieldManager = new OptimizedStarFieldManager(
+							animationState,
+							60,
+							false,
+							deviceSettings.useContainerParallax
+						);
 						if (starContainer) {
 							starFieldManager.setContainer(starContainer);
 						}
@@ -139,9 +169,14 @@
 					starFieldManager.start();
 				}
 			} else {
-				// Fallback to synchronous star generation
+				// Fallback to synchronous star generation with device settings
 				if (!starFieldManager) {
-					starFieldManager = new OptimizedStarFieldManager(animationState, starCount);
+					starFieldManager = new OptimizedStarFieldManager(
+						animationState,
+						60,
+						false,
+						deviceSettings.useContainerParallax
+					);
 					if (starContainer) {
 						starFieldManager.setContainer(starContainer);
 					}
@@ -352,8 +387,17 @@
 			intersectionObserver.observe(heroSection);
 		}
 
-		// Initialize star field manager
-		starFieldManager = new OptimizedStarFieldManager(animationState, 60);
+		// Get device settings before initializing star field
+		const deviceSettings = getDeviceSpecificAnimationSettings();
+
+		// Initialize star field manager with proper settings
+		starFieldManager = new OptimizedStarFieldManager(
+			animationState,
+			deviceSettings.starCount || 60,
+			false,
+			deviceSettings.useContainerParallax
+		);
+
 		if (starContainer) {
 			starFieldManager.setContainer(starContainer);
 		}
@@ -1179,6 +1223,28 @@ Space Background
 		contain: layout style;
 	}
 
+	/* Add the desktop-specific star styles here */
+	@media (min-width: 1024px) {
+		.star {
+			position: absolute;
+			background: #fff;
+			border-radius: 50%;
+			box-shadow: 0 0 1px 0.5px rgba(255, 255, 255, 0.4);
+			pointer-events: none;
+			transform: translateZ(0);
+			will-change: transform;
+			contain: layout style;
+			/* Add this line to make stars slightly bigger on desktop */
+			min-width: 2px;
+			min-height: 2px;
+		}
+
+		.star-container {
+			transform-style: preserve-3d;
+			animation: none;
+		}
+	}
+
 	/* ==========================================================================
 Additional Animations
 ========================================================================== */
@@ -1861,7 +1927,7 @@ Additional Theme-Specific Styles
 	@media (max-width: 640px) {
 		#header {
 			font-size: max(88px, min(12vw, 110px));
-			line-height: 1.1;
+			line-height: 1;
 			max-width: 90%;
 		}
 
