@@ -646,4 +646,328 @@
 	.game-view-container {
 		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	}
+
+	/* ==========================================================================
+   Device-specific optimizations
+   ========================================================================== */
+	@media (max-width: 768px) {
+		.game-background {
+			overflow: hidden;
+			contain: layout;
+			will-change: transform;
+		}
+
+		.game-view-container {
+			contain: layout;
+			will-change: transform;
+		}
+
+		/* Simplify screen glow on mobile */
+		.game-background::before {
+			animation: none;
+			opacity: 0.15;
+			will-change: opacity;
+		}
+
+		/* Reduce shadow intensity */
+		#game-screen {
+			box-shadow: none;
+		}
+
+		/* Optimize screen reflection effect */
+		.game-background::after {
+			background: linear-gradient(
+				135deg,
+				transparent 0%,
+				rgba(255, 255, 255, 0.02) 15%,
+				rgba(255, 255, 255, 0.03) 30%,
+				transparent 60%
+			);
+			will-change: opacity;
+		}
+
+		/* Optimize animations */
+		@keyframes scanline {
+			0% {
+				background-position: 0 0;
+			}
+			100% {
+				background-position: 0 8px; /* Bigger jump = fewer frames needed */
+			}
+		}
+
+		@keyframes tubeFlicker {
+			0%,
+			100% {
+				opacity: 0.7;
+			}
+			50% {
+				opacity: 0.65;
+			}
+		}
+
+		@keyframes tubeBallast {
+			0%,
+			100% {
+				filter: brightness(1);
+			}
+			50% {
+				filter: brightness(0.97);
+			}
+		}
+	}
+
+	/* ==========================================================================
+   Extremely low power device optimizations
+   ========================================================================== */
+	html[data-device-type='low-power'] .neon-line,
+	html[data-device-type='low-power'] .pixel-decoration {
+		animation: none;
+		transition: none;
+	}
+
+	html[data-device-type='low-power'] .game-background::before,
+	html[data-device-type='low-power'] .game-background::after {
+		content: none;
+	}
+
+	html[data-device-type='low-power'] #scanline-overlay {
+		display: none;
+	}
+
+	/* ==========================================================================
+   Apply hardware acceleration strategically
+   ========================================================================== */
+	.hardware-accelerated {
+		transform: translateZ(0);
+		backface-visibility: hidden;
+		will-change: transform;
+	}
+
+	@media (max-width: 768px) {
+		.hardware-accelerated {
+			/* More selective property to avoid GPU memory pressure */
+			will-change: transform;
+			/* Avoid 3D contexts on low-power devices */
+			backface-visibility: visible;
+		}
+	}
+
+	/* ==========================================================================
+   Safari-specific optimizations
+   ========================================================================== */
+	html[data-browser='safari'] .game-background::before {
+		/* Safari struggles with complex animations */
+		animation: tubeFlicker 0.2s steps(2, end) infinite;
+	}
+
+	html[data-browser='safari'] #game-screen {
+		/* Use simpler gradient on Safari */
+		background: linear-gradient(
+			90deg,
+			rgb(0, 183, 255) 0%,
+			rgb(123, 97, 255) 50%,
+			rgb(255, 56, 100) 100%
+		);
+	}
+
+	/* ==========================================================================
+   Reduced Motion Preference Support
+   ========================================================================== */
+	@media (prefers-reduced-motion: reduce) {
+		.screen-reflection,
+		.screen-glare,
+		.screen-glass,
+		.game-background::before,
+		.game-background::after,
+		.neon-line,
+		.pixel-decoration {
+			animation: none !important;
+			transition: none !important;
+		}
+
+		#game-screen {
+			/* Simpler background */
+			background: linear-gradient(90deg, rgb(0, 183, 255) 0%, rgb(183, 61, 255) 100%);
+		}
+	}
+
+	/* ==========================================================================
+   Performance optimizations for transitions
+   ========================================================================== */
+	.game-background,
+	.side-panel,
+	.arcade-text,
+	.neon-line,
+	.pixel-decoration,
+	.game-background::before,
+	.game-background::after,
+	.game-view-container {
+		transition-property: transform, opacity;
+		transition-duration: 0.3s;
+		transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	/* ==========================================================================
+   Device-specific optimizations
+   ========================================================================== */
+	@media (max-width: 768px) {
+		.game-background {
+			overflow: hidden;
+			contain: layout;
+			will-change: transform;
+		}
+
+		.game-view-container {
+			contain: layout;
+			will-change: transform;
+		}
+
+		/* Simplify screen glow on mobile */
+		.game-background::before {
+			animation: none;
+			opacity: 0.15;
+			will-change: opacity;
+		}
+
+		/* Reduce shadow intensity */
+		#game-screen {
+			box-shadow: none;
+		}
+
+		/* Optimize screen reflection effect */
+		.game-background::after {
+			background: linear-gradient(
+				135deg,
+				transparent 0%,
+				rgba(255, 255, 255, 0.02) 15%,
+				rgba(255, 255, 255, 0.03) 30%,
+				transparent 60%
+			);
+			will-change: opacity;
+		}
+
+		/* Optimize animations */
+		@keyframes scanline {
+			0% {
+				background-position: 0 0;
+			}
+			100% {
+				background-position: 0 8px; /* Bigger jump = fewer frames needed */
+			}
+		}
+
+		@keyframes tubeFlicker {
+			0%,
+			100% {
+				opacity: 0.7;
+			}
+			50% {
+				opacity: 0.65;
+			}
+		}
+
+		@keyframes tubeBallast {
+			0%,
+			100% {
+				filter: brightness(1);
+			}
+			50% {
+				filter: brightness(0.97);
+			}
+		}
+	}
+
+	/* ==========================================================================
+   Extremely low power device optimizations
+   ========================================================================== */
+	html[data-device-type='low-power'] .neon-line,
+	html[data-device-type='low-power'] .pixel-decoration {
+		animation: none;
+		transition: none;
+	}
+
+	html[data-device-type='low-power'] .game-background::before,
+	html[data-device-type='low-power'] .game-background::after {
+		content: none;
+	}
+
+	html[data-device-type='low-power'] #scanline-overlay {
+		display: none;
+	}
+
+	/* ==========================================================================
+   Apply hardware acceleration strategically
+   ========================================================================== */
+	.hardware-accelerated {
+		transform: translateZ(0);
+		backface-visibility: hidden;
+		will-change: transform;
+	}
+
+	@media (max-width: 768px) {
+		.hardware-accelerated {
+			/* More selective property to avoid GPU memory pressure */
+			will-change: transform;
+			/* Avoid 3D contexts on low-power devices */
+			backface-visibility: visible;
+		}
+	}
+
+	/* ==========================================================================
+   Safari-specific optimizations
+   ========================================================================== */
+	html[data-browser='safari'] .game-background::before {
+		/* Safari struggles with complex animations */
+		animation: tubeFlicker 0.2s steps(2, end) infinite;
+	}
+
+	html[data-browser='safari'] #game-screen {
+		/* Use simpler gradient on Safari */
+		background: linear-gradient(
+			90deg,
+			rgb(0, 183, 255) 0%,
+			rgb(123, 97, 255) 50%,
+			rgb(255, 56, 100) 100%
+		);
+	}
+
+	/* ==========================================================================
+   Reduced Motion Preference Support
+   ========================================================================== */
+	@media (prefers-reduced-motion: reduce) {
+		.screen-reflection,
+		.screen-glare,
+		.screen-glass,
+		.game-background::before,
+		.game-background::after,
+		.neon-line,
+		.pixel-decoration {
+			animation: none !important;
+			transition: none !important;
+		}
+
+		#game-screen {
+			/* Simpler background */
+			background: linear-gradient(90deg, rgb(0, 183, 255) 0%, rgb(183, 61, 255) 100%);
+		}
+	}
+
+	/* ==========================================================================
+   Performance optimizations for transitions
+   ========================================================================== */
+	.game-background,
+	.side-panel,
+	.arcade-text,
+	.neon-line,
+	.pixel-decoration,
+	.game-background::before,
+	.game-background::after,
+	.game-view-container {
+		transition-property: transform, opacity;
+		transition-duration: 0.3s;
+		transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	@media;
 </style>

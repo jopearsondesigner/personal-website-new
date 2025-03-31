@@ -67,28 +67,82 @@ export class ViewportManager {
 		this.screen.style.transformOrigin = 'center center';
 	}
 
+	// Optimized implementation
+	private lastScale: number = 0;
+	private lastHeight: number = 0;
+	private lastControlsHeight: number = 0;
+	private lastSafeAreaBottom: number = 0;
+	private rafId: number | null = null;
+
 	public updateViewport(): void {
+		// Cancel any pending RAF to avoid multiple updates in same frame
+		if (this.rafId !== null) {
+			cancelAnimationFrame(this.rafId);
+		}
+
+		// Use RAF to ensure updates happen during next frame
+		this.rafId = requestAnimationFrame(() => {
+			this.rafId = null;
+			this.performViewportUpdate();
+		});
+	}
+
+	private performViewportUpdate(): void {
 		const metrics = this.getDeviceMetrics();
 		const controlsHeight = this.calculateControlsHeight(metrics.isLandscape);
 
-		// Update container dimensions
+		// Calculate available height
 		const availableHeight = metrics.height - controlsHeight - metrics.safeAreaBottom;
-		this.container.style.height = `${availableHeight}px`;
+
+		// Only update DOM if values changed significantly (avoid layout thrashing)
+		if (Math.abs(this.lastHeight - availableHeight) > 1) {
+			this.container.style.height = `${availableHeight}px`;
+			this.lastHeight = availableHeight;
+		}
+
+		// Use cached rect when possible, or get new one
+		let containerRect: DOMRect;
+		// If height changed significantly, we need a fresh rect
+		if (Math.abs(this.lastHeight - availableHeight) > 1) {
+			containerRect = this.container.getBoundingClientRect();
+		} else {
+			// Create a DOMRect-like object with cached dimensions
+			containerRect = {
+				width: this.container.offsetWidth,
+				height: this.container.offsetHeight,
+				x: 0,
+				y: 0,
+				top: 0,
+				left: 0,
+				right: 0,
+				bottom: 0,
+				toJSON: () => {}
+			};
+		}
 
 		// Calculate optimal game screen scale
-		const containerRect = this.container.getBoundingClientRect();
 		const scale = this.calculateOptimalScale(containerRect, {
 			width: 800, // Game canvas base width
 			height: 600 // Game canvas base height
 		});
 
-		// Use optimizeRendering for GPU acceleration
-		this.optimizeRendering(scale);
+		// Only update transform if scale changed significantly
+		if (Math.abs(this.lastScale - scale) > 0.01) {
+			this.optimizeRendering(scale);
+			this.lastScale = scale;
+		}
 
 		// Position controls if they exist
 		if (this.controls) {
-			this.controls.style.height = `${controlsHeight}px`;
-			this.controls.style.bottom = `${metrics.safeAreaBottom}px`;
+			if (Math.abs(this.lastControlsHeight - controlsHeight) > 1) {
+				this.controls.style.height = `${controlsHeight}px`;
+				this.lastControlsHeight = controlsHeight;
+			}
+
+			if (Math.abs(this.lastSafeAreaBottom - metrics.safeAreaBottom) > 1) {
+				this.controls.style.bottom = `${metrics.safeAreaBottom}px`;
+				this.lastSafeAreaBottom = metrics.safeAreaBottom;
+			}
 		}
 	}
 

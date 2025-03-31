@@ -1,4 +1,4 @@
-<!-- src/lib/components/Hero.svelte -->
+<!-- src/lib/components/sections/Hero.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
@@ -11,8 +11,14 @@
 	import { animationState, screenStore } from '$lib/stores/animation-store';
 	import { layoutStore } from '$lib/stores/store';
 	import GameControls from '$lib/components/game/GameControls.svelte';
+	import { deviceCapabilities, setupPerformanceMonitoring } from '$lib/utils/device-performance';
+	import { CanvasStarFieldManager } from '$lib/utils/canvas-star-field';
 
-	// Optimized component state using typed definitions
+	// Device detection state
+	let isMobileDevice = false;
+	let isLowPerformanceDevice = false;
+
+	// Component state with typed definitions
 	let currentTimeline: gsap.core.Timeline | null = null;
 	let header: HTMLElement;
 	let insertConcept: HTMLElement;
@@ -37,6 +43,28 @@
 				`${$layoutStore.navbarHeight}px`
 			);
 		});
+	}
+
+	// Device detection function
+	function detectDeviceCapabilities() {
+		if (!browser) return;
+
+		// Check if mobile
+		isMobileDevice = window.innerWidth < 768;
+
+		// Try to detect lower-performance devices
+		isLowPerformanceDevice =
+			isMobileDevice &&
+			// Check for older/lower-powered devices
+			(navigator.hardwareConcurrency <= 4 ||
+				// iOS Safari can struggle with these effects
+				(navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome')));
+
+		// Set a data attribute that CSS can use for selective effects
+		document.documentElement.setAttribute(
+			'data-device-type',
+			isLowPerformanceDevice ? 'low-performance' : isMobileDevice ? 'mobile' : 'desktop'
+		);
 	}
 
 	// Optimized screen management with debouncing
@@ -68,7 +96,7 @@
 		}
 	}
 
-	// Event handlers with performance optimizations
+	// Event handlers
 	function handleScreenChange(event: CustomEvent) {
 		const newScreen = event.detail;
 		screenStore.set(newScreen);
@@ -97,7 +125,101 @@
 		}
 	}
 
-	// Optimized animation management
+	// Orientation handling
+	function handleOrientation() {
+		if (!browser) return;
+
+		const isLandscape = window.innerWidth > window.innerHeight;
+		requestAnimationFrame(() => {
+			document.body.classList.toggle('landscape', isLandscape);
+		});
+	}
+
+	function debouncedOrientationCheck() {
+		if (orientationTimeout) {
+			clearTimeout(orientationTimeout);
+		}
+		orientationTimeout = window.setTimeout(handleOrientation, 150);
+	}
+
+	// Timeline creation helper
+	function createOptimizedTimeline(elements: any) {
+		if (!browser) return null;
+
+		try {
+			const isMobile = window.innerWidth < 768;
+			const isLowPerformance = isLowPerformanceDevice;
+
+			// Clear any existing timelines
+			if (currentTimeline) {
+				currentTimeline.kill();
+			}
+
+			// When in lower performance mode, use simpler animations
+			if (isLowPerformance) {
+				// Create simpler timeline
+				const timeline = gsap.timeline({
+					paused: true,
+					repeat: -1,
+					defaults: {
+						ease: 'power1.inOut',
+						duration: 1.5,
+						overwrite: 'auto'
+					}
+				});
+
+				// Use a single, simple animation for low-performance devices
+				timeline.to(elements.insertConcept, {
+					opacity: 0.3,
+					yoyo: true,
+					repeat: 1
+				});
+
+				return timeline;
+			}
+
+			// Standard timeline with device-appropriate settings
+			const timeline = gsap.timeline({
+				paused: true,
+				defaults: {
+					ease: 'power1.inOut',
+					immediateRender: false,
+					overwrite: 'auto'
+				}
+			});
+
+			// Adapt animation parameters for mobile
+			const animDuration = isMobile ? 0.15 : 0.1; // Slower on mobile
+			const animDistance = isMobile ? 1 : 2; // Less movement on mobile
+			const opacityDuration = isMobile ? 1.5 : 1; // Slower fade on mobile
+
+			timeline
+				.to([elements.header, elements.insertConcept], {
+					duration: animDuration,
+					y: `+=${animDistance}`,
+					repeat: -1,
+					yoyo: true
+				})
+				.to(
+					elements.insertConcept,
+					{
+						duration: opacityDuration,
+						opacity: 0,
+						repeat: -1,
+						yoyo: true,
+						ease: 'none'
+					},
+					0
+				);
+
+			return timeline;
+		} catch (error) {
+			console.error('Failed to create GSAP timeline:', error);
+			return null;
+		}
+	}
+
+	// Animation control functions
 	function startAnimations(elements: {
 		header: HTMLElement;
 		insertConcept: HTMLElement;
@@ -109,11 +231,19 @@
 				stopAnimations(); // Stop existing animations first
 			}
 
-			const { header, insertConcept, arcadeScreen } = elements;
-
-			// Initialize star field manager
+			// Initialize star field manager with device-appropriate settings
 			if (!starFieldManager) {
-				starFieldManager = new animations.StarFieldManager(animationState);
+				// Get device-appropriate star count
+				const starCount = isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60;
+				starFieldManager = new animations.StarFieldManager(animationState, starCount);
+
+				// Configure worker usage based on device
+				const useWorker = !isLowPerformanceDevice; // Workers can be expensive on low-end devices
+				starFieldManager.setUseWorker(useWorker);
+
+				// Start with minimal or full parallax based on device
+				starFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
+
 				starFieldManager.start();
 			}
 
@@ -121,45 +251,27 @@
 			if (glitchManager) {
 				glitchManager.cleanup();
 			}
-			glitchManager = new animations.GlitchManager();
-			glitchManager.start([header]); // Apply only to header
 
-			// Create GSAP timeline with optimized settings
-			const timeline = gsap.timeline({
-				paused: true,
-				onComplete: () => timeline.restart(),
-				defaults: {
-					ease: 'power1.inOut',
-					immediateRender: false
+			// Only use glitch effects on capable devices
+			if (!isLowPerformanceDevice) {
+				glitchManager = new animations.GlitchManager();
+
+				// Use less intense glitch on mobile
+				if (isMobileDevice) {
+					glitchManager.setIntensity(0.5);
+					glitchManager.setFrequency(0.3);
 				}
-			});
 
-			// Clear any existing timelines
-			if (currentTimeline) {
-				currentTimeline.kill();
+				glitchManager.start([elements.header]); // Apply only to header
 			}
 
-			timeline
-				.to([header, insertConcept], {
-					duration: 0.1,
-					y: '+=2',
-					repeat: -1,
-					yoyo: true
-				})
-				.to(
-					insertConcept,
-					{
-						duration: 1,
-						opacity: 0,
-						repeat: -1,
-						yoyo: true,
-						ease: 'none'
-					},
-					0
-				);
+			// Create and start optimized GSAP timeline
+			const timeline = createOptimizedTimeline(elements);
 
-			currentTimeline = timeline;
-			timeline.play();
+			if (timeline) {
+				currentTimeline = timeline;
+				timeline.play();
+			}
 
 			// Update animation state
 			animationState.update((state) => ({
@@ -175,13 +287,30 @@
 	function stopAnimations() {
 		if (!browser) return;
 
-		// Only stop glitch manager, keep star field running
-		glitchManager?.stop();
+		// Stop glitch manager
+		if (glitchManager) {
+			glitchManager.stop();
+		}
 
 		// Kill GSAP timeline with proper cleanup
 		if (currentTimeline) {
+			// First pause to stop animations
+			currentTimeline.pause();
+
+			// Clear all tweens from the timeline
+			currentTimeline.clear();
+
+			// Finally kill the timeline
 			currentTimeline.kill();
+
+			// Remove reference
 			currentTimeline = null;
+		}
+
+		// Clear any animation frames
+		if (typeof window !== 'undefined' && gsap && gsap.ticker) {
+			// No need for animateFunction reference that doesn't exist
+			gsap.ticker.remove(null);
 		}
 
 		// Don't reset animation state entirely, just update isAnimating
@@ -191,48 +320,78 @@
 		}));
 	}
 
-	// Optimized handling of orientation changes
-	function handleOrientation() {
-		if (!browser) return;
-
-		const isLandscape = window.innerWidth > window.innerHeight;
-		requestAnimationFrame(() => {
-			document.body.classList.toggle('landscape', isLandscape);
-		});
-	}
-
-	// Debounced resize handler
-	function debouncedOrientationCheck() {
-		if (orientationTimeout) {
-			clearTimeout(orientationTimeout);
-		}
-		orientationTimeout = window.setTimeout(handleOrientation, 150);
-	}
-
-	// Lifecycle hooks with proper cleanup
+	// Lifecycle hooks
 	onMount(() => {
 		if (!browser) return;
 
 		currentScreen = 'main';
 
-		// Setup resize observer for performance
-		resizeObserver = new ResizeObserver(debouncedOrientationCheck);
+		// Detect device capabilities
+		detectDeviceCapabilities();
+
+		// Use passive option for all event listeners
+		const passiveOptions = { passive: true };
+
+		// Setup resize observer with optimized callback
+		const optimizedResizeCheck = () => {
+			// Update device capabilities on resize
+			detectDeviceCapabilities();
+			debouncedOrientationCheck();
+		};
+
+		resizeObserver = new ResizeObserver(optimizedResizeCheck);
 		if (arcadeScreen) {
 			resizeObserver.observe(arcadeScreen);
 		}
 
-		// Initial setup
-		requestAnimationFrame(() => {
+		// Initial setup - use RAF for first render timing
+		const initialRaf = requestAnimationFrame(() => {
 			arcadeScreen?.classList.add('power-sequence');
 			handleOrientation();
+
+			// Start animations with a slight delay on mobile to allow initial render to complete
+			if (isMobileDevice) {
+				setTimeout(() => {
+					if (currentScreen === 'main') {
+						const elements = { header, insertConcept, arcadeScreen };
+						if (elements.header && elements.insertConcept && elements.arcadeScreen) {
+							animationState.resetAnimationState();
+							if (!starFieldManager) {
+								starFieldManager = new animations.StarFieldManager(animationState);
+							}
+							// Start with reduced stars on mobile
+							if (isMobileDevice) {
+								starFieldManager.setStarCount(isLowPerformanceDevice ? 20 : 40);
+							}
+							starFieldManager?.start();
+							startAnimations(elements);
+						}
+					}
+				}, 300); // Small delay for initial render
+			}
 		});
 
 		// Add event listener with passive option for better touch performance
-		window.addEventListener('resize', debouncedOrientationCheck, { passive: true });
+		window.addEventListener('resize', optimizedResizeCheck, passiveOptions);
+
+		// Add orientation change listener with passive option
+		window.addEventListener(
+			'orientationchange',
+			() => {
+				// Detect new device capabilities after orientation change
+				setTimeout(detectDeviceCapabilities, 300);
+			},
+			passiveOptions
+		);
 
 		return () => {
-			window.removeEventListener('resize', debouncedOrientationCheck);
+			window.removeEventListener('resize', optimizedResizeCheck);
+			window.removeEventListener('orientationchange', detectDeviceCapabilities);
 			orientationTimeout && clearTimeout(orientationTimeout);
+			if (initialRaf) cancelAnimationFrame(initialRaf);
+
+			// Ensure animations are stopped
+			stopAnimations();
 		};
 	});
 
@@ -266,6 +425,15 @@
 		if (orientationTimeout) {
 			clearTimeout(orientationTimeout);
 			orientationTimeout = null;
+		}
+
+		// Force garbage collection hint when available
+		if (window.gc) {
+			try {
+				window.gc();
+			} catch (e) {
+				// Ignore errors in garbage collection
+			}
 		}
 	});
 </script>
@@ -363,8 +531,8 @@
 
 <style>
 	/* ==========================================================================
-   Root Variables
-   ========================================================================== */
+	   Root Variables
+	   ========================================================================== */
 	:root {
 		/* Layout */
 		--arcade-screen-width: min(95vw, 800px);
@@ -405,8 +573,8 @@
 	}
 
 	/* ==========================================================================
-   Media Queries
-   ========================================================================== */
+	   Media Queries
+	   ========================================================================== */
 	@media (min-width: 1020px) {
 		:root {
 			--arcade-screen-width: 80vw;
@@ -417,8 +585,8 @@
 	}
 
 	/* ==========================================================================
-   Layout Components
-   ========================================================================== */
+	   Layout Components
+	   ========================================================================== */
 	section {
 		height: calc(100vh - var(--navbar-height, 64px));
 	}
@@ -447,8 +615,8 @@
 	}
 
 	/* ==========================================================================
-   Screen Components
-   ========================================================================== */
+	   Screen Components
+	   ========================================================================== */
 	.arcade-screen-wrapper {
 		position: absolute;
 		padding: var(--screen-recess);
@@ -477,8 +645,8 @@
 	}
 
 	/* ==========================================================================
-   Visual Effects
-   ========================================================================== */
+	   Visual Effects
+	   ========================================================================== */
 	.screen-reflection,
 	.screen-glare,
 	.screen-glass,
@@ -540,8 +708,8 @@
 	}
 
 	/* ==========================================================================
-   Typography
-   ========================================================================== */
+	   Typography
+	   ========================================================================== */
 	#header {
 		font-family: 'Pixelify Sans', sans-serif;
 		font-size: var(--header-font-size);
@@ -602,1429 +770,8 @@
 	}
 
 	/* ==========================================================================
-   Animations
-   ========================================================================== */
-	@keyframes scanline {
-		0% {
-			background-position: 0 0;
-		}
-		100% {
-			background-position: 0 4px;
-		}
-	}
-
-	@keyframes tmoldingPulse {
-		0%,
-		100% {
-			opacity: 0.8;
-		}
-		50% {
-			opacity: 1;
-		}
-	}
-
-	/* ==========================================================================
-   Theme-Specific Styles
-   ========================================================================== */
-	/* Light Theme */
-	:global(html.light) #arcade-cabinet {
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, transparent 15%),
-			linear-gradient(
-				90deg,
-				rgba(160, 160, 160, 1) 0%,
-				rgba(200, 200, 200, 0) 15%,
-				rgba(200, 200, 200, 0) 85%,
-				rgba(160, 160, 160, 1) 100%
-			),
-			linear-gradient(170deg, #e0e0e0 0%, #b0b0b0 40%, #909090 70%, #808080 100%);
-		box-shadow:
-			0 20px 40px rgba(0, 0, 0, 0.3),
-			0 10px 30px rgba(0, 0, 0, 0.2),
-			inset 0 2px 3px rgba(255, 255, 255, 0.9),
-			inset -3px 0 8px rgba(0, 0, 0, 0.15),
-			inset 3px 0 8px rgba(0, 0, 0, 0.15),
-			inset 0 -3px 6px rgba(0, 0, 0, 0.2);
-	}
-
-	/* Dark Theme */
-	:global(html.dark) #arcade-screen::after {
-		background: linear-gradient(45deg, #00ffff, #0000ff, #ff00ff, #ff0000);
-		filter: blur(4vmin);
-	}
-
-	/* ==========================================================================
-   Utility Classes
-   ========================================================================== */
-	.hardware-accelerated {
-		transform: translateZ(0);
-		backface-visibility: hidden;
-		perspective: 1000px;
-		will-change: transform, opacity;
-		contain: layout style paint;
-		content-visibility: auto;
-		view-transition-name: screen;
-	}
-
-	/* ==========================================================================
-   CRT Effects
-   ========================================================================== */
-	.crt-screen {
-		--phosphor-decay: 16ms;
-		--refresh-rate: 60Hz;
-		--shadow-mask-size: 3px;
-		--bloom-intensity: 0.4;
-		--misconvergence-offset: 0.5px;
-		position: relative;
-		overflow: hidden;
-		background: #000;
-		border-radius: var(--border-radius);
-		overflow: hidden;
-	}
-
-	.phosphor-decay {
-		position: absolute;
-		inset: 0;
-		mix-blend-mode: screen;
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 20%);
-		animation: phosphorPersistence var(--phosphor-decay) linear infinite;
-	}
-
-	.shadow-mask {
-		position: absolute;
-		inset: 0;
-		background-image: repeating-linear-gradient(
-			90deg,
-			rgba(255, 0, 0, 0.1),
-			rgba(0, 255, 0, 0.1),
-			rgba(0, 0, 255, 0.1)
-		);
-		background-size: var(--shadow-mask-size) var(--shadow-mask-size);
-		pointer-events: none;
-		opacity: 0.3;
-	}
-
-	/* ==========================================================================
-   Cabinet Effects
-   ========================================================================== */
-	.cabinet-wear {
-		border-radius: 0;
-		background: repeating-linear-gradient(
-			45deg,
-			transparent 0px,
-			transparent 5px,
-			rgba(0, 0, 0, 0.02) 5px,
-			rgba(0, 0, 0, 0.02) 6px
-		);
-		opacity: 0.3;
-		mix-blend-mode: multiply;
-		backdrop-filter: contrast(1.02);
-	}
-
-	.screen-bezel {
-		position: absolute;
-		inset: 0;
-		border-radius: calc(var(--border-radius) + var(--bezel-thickness));
-		background: repeating-linear-gradient(
-				45deg,
-				rgba(255, 255, 255, 0.03) 0px,
-				rgba(255, 255, 255, 0.03) 1px,
-				transparent 1px,
-				transparent 2px
-			),
-			linear-gradient(to bottom, rgba(40, 40, 40, 1), rgba(60, 60, 60, 1));
-		transform: translateZ(-1px);
-		box-shadow: var(--bezel-shadow);
-		overflow: hidden;
-	}
-
-	.screen-glare {
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(
-			35deg,
-			transparent 0%,
-			rgba(255, 255, 255, 0.05) 25%,
-			rgba(255, 255, 255, 0.1) 47%,
-			rgba(255, 255, 255, 0.05) 50%,
-			transparent 100%
-		);
-		pointer-events: none;
-		z-index: 2;
-	}
-
-	.screen-glass {
-		position: absolute;
-		inset: 0;
-		border-radius: var(--border-radius);
-		background: linear-gradient(
-			35deg,
-			transparent 0%,
-			rgba(255, 255, 255, 0.02) 25%,
-			rgba(255, 255, 255, 0.05) 47%,
-			rgba(255, 255, 255, 0.02) 50%,
-			transparent 100%
-		);
-		pointer-events: none;
-		mix-blend-mode: overlay;
-		opacity: 0.8;
-		z-index: 2;
-	}
-
-	:global(html.light) .screen-glass {
-		background: linear-gradient(
-			35deg,
-			transparent 0%,
-			rgba(255, 255, 255, 0.01) 25%,
-			rgba(255, 255, 255, 0.02) 47%,
-			rgba(255, 255, 255, 0.01) 50%,
-			transparent 100%
-		);
-		opacity: 0.6;
-	}
-
-	/* ==========================================================================
-   Lighting Effects
-   ========================================================================== */
-	.t-molding {
-		position: absolute;
-		inset: -4px;
-		border-radius: calc(var(--border-radius) + 8px);
-		background: transparent;
-		overflow: hidden;
-		z-index: -1;
-	}
-
-	.t-molding::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(
-			90deg,
-			rgba(255, 0, 98, 0.8) 0%,
-			rgba(255, 0, 98, 0.4) 50%,
-			rgba(255, 0, 98, 0.8) 100%
-		);
-		filter: blur(3px);
-		animation: tmoldingPulse 4s infinite;
-	}
-
-	.t-molding::after {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: rgba(255, 255, 255, 0.1);
-		box-shadow:
-			inset 0 0 15px rgba(255, 255, 255, 0.2),
-			0 0 20px rgba(255, 0, 98, 0.4);
-	}
-
-	.control-panel-light {
-		position: absolute;
-		bottom: -20px;
-		left: 10%;
-		right: 10%;
-		height: 20px;
-		background: linear-gradient(to bottom, rgba(0, 255, 255, 0.4), transparent);
-		filter: blur(8px);
-		transform: perspective(500px) rotateX(60deg);
-		transform-origin: top;
-		opacity: 0.6;
-		animation: controlPanelGlow 2s ease-in-out infinite alternate;
-	}
-
-	.corner-accent {
-		position: absolute;
-		width: 30px;
-		height: 30px;
-		background: radial-gradient(
-			circle at center,
-			rgba(255, 255, 255, 0.9),
-			rgba(255, 255, 255, 0.1) 70%,
-			transparent 100%
-		);
-		filter: blur(2px);
-		opacity: 0.7;
-	}
-
-	/* Corner accent positions */
-	.corner-accent.top-left {
-		top: -15px;
-		left: -15px;
-	}
-	.corner-accent.top-right {
-		top: -15px;
-		right: -15px;
-	}
-	.corner-accent.bottom-left {
-		bottom: -15px;
-		left: -15px;
-	}
-	.corner-accent.bottom-right {
-		bottom: -15px;
-		right: -15px;
-	}
-
-	.light-spill {
-		position: absolute;
-		inset: -50px;
-		background: radial-gradient(circle at 50% 50%, rgba(255, 0, 98, 0.15), transparent 70%);
-		filter: blur(20px);
-		mix-blend-mode: screen;
-		pointer-events: none;
-		z-index: -2;
-	}
-
-	/* ==========================================================================
-   Space Background
-   ========================================================================== */
-	#space-background {
-		position: absolute;
-		inset: 0;
-		background: radial-gradient(circle at center, #000 20%, #001c4d 80%, #000000);
-		border-radius: var(--border-radius);
-		overflow: hidden;
-		z-index: 0;
-		perspective: 1000px;
-	}
-
-	.star-container {
-		position: absolute;
-		inset: 0;
-		perspective: 500px;
-		transform-style: preserve-3d;
-		z-index: 1;
-		border-radius: var(--border-radius);
-	}
-
-	.star {
-		position: absolute;
-		background: #fff;
-		border-radius: 50%;
-		box-shadow: 0 0 2px 1px rgba(255, 255, 255, 0.5);
-		pointer-events: none;
-		transform: translateZ(0);
-		will-change: transform;
-		contain: layout style;
-	}
-
-	/* ==========================================================================
-   Additional Animations
-   ========================================================================== */
-	@keyframes controlPanelGlow {
-		from {
-			opacity: 0.5;
-		}
-		to {
-			opacity: 0.7;
-		}
-	}
-
-	@keyframes screenFlicker {
-		0%,
-		100% {
-			opacity: 0;
-		}
-		50% {
-			opacity: 1;
-		}
-	}
-
-	@keyframes powerUpSequence {
-		0% {
-			filter: brightness(0) blur(2px);
-			transform: scale(0.98);
-		}
-		5% {
-			filter: brightness(0.3) blur(1px);
-			transform: scale(0.99);
-		}
-		10% {
-			filter: brightness(0.1) blur(2px);
-			transform: scale(0.98);
-		}
-		15% {
-			filter: brightness(0.5) blur(0.5px);
-			transform: scale(1);
-		}
-		30% {
-			filter: brightness(0.3) blur(1px);
-			transform: scale(0.99);
-		}
-		100% {
-			filter: brightness(1) blur(0);
-			transform: scale(1);
-		}
-	}
-
-	@keyframes phosphorPersistence {
-		0% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.7;
-		}
-		100% {
-			opacity: 0;
-		}
-	}
-
-	@keyframes interlaceFlicker {
-		0% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.7;
-		}
-		100% {
-			opacity: 1;
-		}
-	}
-
-	/* ==========================================================================
-   Additional Theme-Specific Styles
-   ========================================================================== */
-	:global(html.light) .cabinet-wear {
-		background: repeating-linear-gradient(
-			45deg,
-			transparent 0px,
-			transparent 5px,
-			rgba(0, 0, 0, 0.03) 5px,
-			rgba(0, 0, 0, 0.03) 6px
-		);
-		opacity: 0.4;
-	}
-
-	:global(html.light) .screen-bezel {
-		background: linear-gradient(to bottom, rgba(210, 210, 210, 1) 0%, rgba(190, 190, 190, 1) 100%);
-		box-shadow:
-        /* Inner shadow for depth */
-			inset 0 2px 4px rgba(0, 0, 0, 0.15),
-			/* Subtle outer glow */ 0 0 1px rgba(255, 255, 255, 0.8),
-			/* Gentle ambient shadow */ 0 4px 6px rgba(0, 0, 0, 0.06);
-		border-radius: calc(var(--border-radius) + 0.5vmin);
-	}
-
-	:global(html.light) .t-molding::before {
-		opacity: 0.4;
-		background: linear-gradient(
-			90deg,
-			rgba(0, 150, 255, 0.6) 0%,
-			rgba(0, 150, 255, 0.3) 50%,
-			rgba(0, 150, 255, 0.6) 100%
-		);
-	}
-
-	:global(html.light) .control-panel-light {
-		opacity: 0.3;
-		background: linear-gradient(to bottom, rgba(0, 150, 255, 0.3), transparent);
-	}
-
-	:global(html.light) .crt-screen {
-		--bloom-intensity: 0.3;
-		--shadow-mask-size: 2.5px;
-		background: linear-gradient(180deg, #111 0%, #222 100%);
-	}
-
-	:global(html.light) .shadow-mask {
-		opacity: 0.2;
-	}
-
-	/* Cabinet Materials Light Theme */
-	:global(html.light) .cabinet-metal {
-		background: linear-gradient(
-			180deg,
-			rgba(255, 255, 255, 1) 0%,
-			rgba(240, 240, 240, 1) 15%,
-			rgba(230, 230, 230, 1) 85%,
-			rgba(220, 220, 220, 1) 100%
-		);
-		box-shadow:
-			0 20px 40px rgba(0, 0, 0, 0.1),
-			0 10px 30px rgba(0, 0, 0, 0.05),
-			inset 0 2px 4px rgba(255, 255, 255, 1),
-			inset -3px 0 10px rgba(0, 0, 0, 0.03),
-			inset 3px 0 10px rgba(0, 0, 0, 0.03),
-			inset 0 -5px 15px rgba(0, 0, 0, 0.05);
-	}
-	:global(html.light) .cabinet-plastic {
-		background: linear-gradient(
-			180deg,
-			rgba(240, 240, 240, 1) 0%,
-			rgba(230, 230, 230, 1) 50%,
-			rgba(225, 225, 225, 1) 100%
-		);
-		box-shadow:
-        /* Top highlight */
-			inset 0 1px 2px rgba(255, 255, 255, 0.95),
-			/* Subtle depth shadows */ inset 0 10px 20px rgba(0, 0, 0, 0.02),
-			inset -4px 0 15px rgba(0, 0, 0, 0.01),
-			inset 4px 0 15px rgba(0, 0, 0, 0.01),
-			inset 0 -4px 15px rgba(0, 0, 0, 0.02);
-	}
-
-	:global(html.light) .cabinet-background {
-		background: linear-gradient(
-			45deg,
-			rgba(140, 140, 140, 0.5) 0%,
-			rgba(180, 180, 180, 0.5) 50%,
-			rgba(140, 140, 140, 0.5) 100%
-		);
-		mix-blend-mode: multiply;
-	}
-
-	/* ==========================================================================
-   Cabinet Materials and Structure
-   ========================================================================== */
-	.cabinet-metal {
-		background: linear-gradient(180deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
-		box-shadow: var(--cabinet-shadow);
-	}
-
-	.cabinet-plastic {
-		position: relative;
-		width: 100%;
-		height: 100%;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		border-radius: 0;
-		overflow: hidden;
-		background: linear-gradient(180deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
-		box-shadow:
-			inset 0 10px 30px rgba(0, 0, 0, 0.4),
-			inset -5px 0 15px rgba(0, 0, 0, 0.3),
-			inset 5px 0 15px rgba(0, 0, 0, 0.3),
-			inset 0 -5px 15px rgba(0, 0, 0, 0.4);
-		padding: 2vmin;
-	}
-
-	.cabinet-plastic::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		border-radius: 0;
-		background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.1), transparent 70%);
-		pointer-events: none;
-	}
-
-	.cabinet-background {
-		background: linear-gradient(
-			45deg,
-			rgba(20, 20, 20, 0.4) 0%,
-			rgba(40, 40, 40, 0.4) 50%,
-			rgba(20, 20, 20, 0.4) 100%
-		);
-		border-radius: 0;
-	}
-
-	:global(html.light) .side-panel {
-		border-color: rgba(0, 0, 0, 0.06);
-	}
-
-	/* ==========================================================================
-   Screen Effects and Overlays
-   ========================================================================== */
-	#scanline-overlay {
-		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.1) 51%);
-		background-size: 100% 4px;
-		animation: scanline 0.2s linear infinite;
-		border-radius: calc(var(--border-radius) - 0.5vmin);
-		z-index: 1;
-	}
-
-	:global(html.light) #scanline-overlay {
-		opacity: 0.4;
-		background-size: 100% 3px;
-	}
-
-	#arcade-screen.glow::after {
-		content: '';
-		position: absolute;
-		inset: -2px;
-		border-radius: calc(var(--border-radius) + 0.5vmin);
-		background: linear-gradient(45deg, #00ffff80, #0000ff80, #ff00ff80, #ff000080);
-		filter: blur(12px);
-		opacity: var(--screen-glow-opacity);
-		z-index: -1;
-		mix-blend-mode: screen;
-	}
-
-	.screen-flicker {
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(transparent 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%);
-		opacity: 0;
-		animation: screenFlicker 0.1s steps(2) infinite;
-	}
-
-	/* ==========================================================================
-   Additional CRT Effects
-   ========================================================================== */
-	.interlace {
-		position: absolute;
-		inset: 0;
-		background: repeating-linear-gradient(
-			0deg,
-			rgba(0, 0, 0, 0.2) 0px,
-			transparent 1px,
-			transparent 2px
-		);
-		animation: interlaceFlicker calc(1000ms / var(--refresh-rate)) steps(2) infinite;
-	}
-
-	.color-bleed {
-		position: absolute;
-		inset: 0;
-		filter: blur(1.5px);
-		opacity: 0.4;
-		mix-blend-mode: screen;
-	}
-
-	.misconvergence {
-		position: absolute;
-		inset: 0;
-		transform: translate3d(var(--misconvergence-offset), 0, 0);
-		mix-blend-mode: screen;
-		opacity: 0.4;
-	}
-
-	.power-sequence {
-		animation: powerUpSequence 2.5s ease-out;
-	}
-
-	/* ==========================================================================
-   Root Variables
-   ========================================================================== */
-	:root {
-		/* Layout */
-		--arcade-screen-width: min(95vw, 800px);
-		--arcade-screen-height: min(70vh, 600px);
-		--border-radius: 4vmin;
-		--cabinet-depth: 2.5vmin;
-		--screen-recess: 1.8vmin;
-		--bezel-thickness: 0.8vmin;
-
-		/* Typography */
-		--header-font-size: 70px;
-		--insert-concept-font-size: 4.45vmin;
-
-		/* Colors */
-		--screen-border-color: rgba(226, 226, 189, 1);
-		--header-text-color: rgba(227, 255, 238, 1);
-		--insert-concept-color: rgba(245, 245, 220, 1);
-		--cabinet-specular: rgba(255, 255, 255, 0.7);
-		--glass-reflection: rgba(255, 255, 255, 0.15);
-		--screen-glow-opacity: 0.6;
-
-		/* Shadows & Effects */
-		--cabinet-shadow: 0 20px 40px rgba(0, 0, 0, 0.25), 0 5px 15px rgba(0, 0, 0, 0.15),
-			inset 0 3px 8px rgba(0, 0, 0, 0.2);
-
-		--screen-shadow: 0 0 30px rgba(0, 0, 0, 0.8), inset 0 0 50px rgba(0, 0, 0, 0.9),
-			inset 0 0 2px rgba(255, 255, 255, 0.3), inset 0 0 100px rgba(0, 0, 0, 0.7);
-
-		--bezel-shadow: inset 0 0 20px rgba(0, 0, 0, 0.9), 0 0 2px var(--glass-reflection),
-			0 0 15px rgba(39, 255, 153, 0.2);
-
-		--screen-curve: radial-gradient(
-			circle at 50% 50%,
-			rgba(255, 255, 255, 0.1) 0%,
-			rgba(255, 255, 255, 0.05) 40%,
-			transparent 60%
-		);
-	}
-
-	/* ==========================================================================
-   Media Queries
-   ========================================================================== */
-	@media (min-width: 1020px) {
-		:root {
-			--arcade-screen-width: 80vw;
-			--arcade-screen-height: 600px;
-			--header-font-size: 100px;
-			--insert-concept-font-size: 2.45vmin;
-		}
-	}
-
-	/* ==========================================================================
-   Layout Components
-   ========================================================================== */
-	section {
-		height: calc(100vh - var(--navbar-height, 64px));
-	}
-
-	.fixed-game-controls {
-		display: none;
-	}
-
-	@media (max-width: 1023px) {
-		.fixed-game-controls {
-			display: block;
-		}
-	}
-
-	#arcade-cabinet {
-		width: 100%;
-		height: 100%;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		position: relative;
-		isolation: isolate;
-		transform-style: preserve-3d;
-		background: linear-gradient(180deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
-		box-shadow: var(--cabinet-shadow);
-	}
-
-	/* ==========================================================================
-   Screen Components
-   ========================================================================== */
-	.arcade-screen-wrapper {
-		position: absolute;
-		padding: var(--screen-recess);
-		transform: perspective(1000px) rotateX(2deg);
-		transform-style: preserve-3d;
-		width: fit-content;
-		height: fit-content;
-		margin: 0 auto;
-		border-radius: calc(var(--border-radius) + 8px);
-		overflow: hidden;
-	}
-
-	#arcade-screen {
-		width: var(--arcade-screen-width);
-		height: var(--arcade-screen-height);
-		border: none;
-		border-radius: var(--border-radius);
-		position: relative;
-		overflow: hidden;
-		z-index: 0;
-		aspect-ratio: 4/3;
-		box-shadow: var(--screen-shadow);
-		background: linear-gradient(145deg, #111 0%, #444 100%);
-		transform-style: preserve-3d;
-		overflow: hidden;
-	}
-
-	/* ==========================================================================
-   Visual Effects
-   ========================================================================== */
-	.screen-reflection,
-	.screen-glare,
-	.screen-glass,
-	.glow-effect,
-	.phosphor-decay,
-	.shadow-mask,
-	.interlace {
-		border-radius: var(--border-radius);
-	}
-
-	/* Additional helper class for consistent border radius */
-	.rounded-arcade {
-		border-radius: var(--border-radius);
-		overflow: hidden;
-	}
-
-	.screen-reflection {
-		position: absolute;
-		inset: 0;
-		background: var(--screen-curve),
-			linear-gradient(
-				35deg,
-				transparent 0%,
-				rgba(255, 255, 255, 0.02) 25%,
-				rgba(255, 255, 255, 0.05) 47%,
-				rgba(255, 255, 255, 0.02) 50%,
-				transparent 100%
-			);
-		mix-blend-mode: overlay;
-		opacity: 0.7;
-	}
-
-	:global(html.light) .screen-reflection {
-		opacity: 0.4;
-		background: linear-gradient(
-			35deg,
-			transparent 0%,
-			rgba(255, 255, 255, 0.03) 25%,
-			rgba(255, 255, 255, 0.06) 47%,
-			rgba(255, 255, 255, 0.03) 50%,
-			transparent 100%
-		);
-	}
-
-	:global(html.light) #arcade-screen.glow::after {
-		opacity: 0.15;
-		filter: blur(8px);
-		background: linear-gradient(
-			45deg,
-			rgba(0, 255, 255, 0.4),
-			rgba(0, 0, 255, 0.4),
-			rgba(255, 0, 255, 0.4),
-			rgba(255, 0, 0, 0.4)
-		);
-	}
-
-	.glow-effect {
-		will-change: opacity;
-	}
-
-	/* ==========================================================================
-   Typography
-   ========================================================================== */
-	#header {
-		font-family: 'Pixelify Sans', sans-serif;
-		font-size: var(--header-font-size);
-		letter-spacing: 0.2vmin;
-		line-height: 1.11;
-		font-weight: 700;
-		color: var(--header-text-color);
-		text-shadow:
-			0 0 1vmin rgba(39, 255, 153, 0.8),
-			0 0 2vmin rgba(39, 255, 153, 0.7),
-			0 0 3vmin rgba(39, 255, 153, 0.6),
-			0 0 4vmin rgba(245, 245, 220, 0.5),
-			0 0 7vmin rgba(245, 245, 220, 0.3),
-			0 0 8vmin rgba(245, 245, 220, 0.1);
-		position: relative;
-		isolation: isolate;
-		will-change: transform, filter;
-		transition:
-			transform 50ms ease-out,
-			filter 50ms ease-out;
-	}
-
-	#header::before {
-		content: '';
-		position: absolute;
-		inset: -2px;
-		background: linear-gradient(
-			90deg,
-			transparent 0%,
-			rgba(39, 255, 153, 0.2) 15%,
-			transparent 25%
-		);
-		opacity: 0;
-		animation: glitch-scan 4s linear infinite;
-		pointer-events: none;
-		mix-blend-mode: overlay;
-	}
-
-	:global(html.light) .arcade-text {
-		color: var(--arcade-black-500);
-		opacity: 0.8;
-	}
-
-	@keyframes glitch-scan {
-		0% {
-			opacity: 0;
-			transform: translateX(-100%);
-		}
-		10%,
-		15% {
-			opacity: 0.5;
-		}
-		50%,
-		100% {
-			opacity: 0;
-			transform: translateX(100%);
-		}
-	}
-
-	/* ==========================================================================
-   Animations
-   ========================================================================== */
-	@keyframes scanline {
-		0% {
-			background-position: 0 0;
-		}
-		100% {
-			background-position: 0 4px;
-		}
-	}
-
-	@keyframes tmoldingPulse {
-		0%,
-		100% {
-			opacity: 0.8;
-		}
-		50% {
-			opacity: 1;
-		}
-	}
-
-	/* ==========================================================================
-   Theme-Specific Styles
-   ========================================================================== */
-	/* Light Theme */
-	:global(html.light) #arcade-cabinet {
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, transparent 15%),
-			linear-gradient(
-				90deg,
-				rgba(160, 160, 160, 1) 0%,
-				rgba(200, 200, 200, 0) 15%,
-				rgba(200, 200, 200, 0) 85%,
-				rgba(160, 160, 160, 1) 100%
-			),
-			linear-gradient(170deg, #e0e0e0 0%, #b0b0b0 40%, #909090 70%, #808080 100%);
-		box-shadow:
-			0 20px 40px rgba(0, 0, 0, 0.3),
-			0 10px 30px rgba(0, 0, 0, 0.2),
-			inset 0 2px 3px rgba(255, 255, 255, 0.9),
-			inset -3px 0 8px rgba(0, 0, 0, 0.15),
-			inset 3px 0 8px rgba(0, 0, 0, 0.15),
-			inset 0 -3px 6px rgba(0, 0, 0, 0.2);
-	}
-
-	/* Dark Theme */
-	:global(html.dark) #arcade-screen::after {
-		background: linear-gradient(45deg, #00ffff, #0000ff, #ff00ff, #ff0000);
-		filter: blur(4vmin);
-	}
-
-	/* ==========================================================================
-   Utility Classes
-   ========================================================================== */
-	.hardware-accelerated {
-		transform: translateZ(0);
-		backface-visibility: hidden;
-		perspective: 1000px;
-		will-change: transform, opacity;
-		contain: layout style paint;
-		content-visibility: auto;
-		view-transition-name: screen;
-	}
-
-	/* ==========================================================================
-   CRT Effects
-   ========================================================================== */
-	.crt-screen {
-		--phosphor-decay: 16ms;
-		--refresh-rate: 60Hz;
-		--shadow-mask-size: 3px;
-		--bloom-intensity: 0.4;
-		--misconvergence-offset: 0.5px;
-		position: relative;
-		overflow: hidden;
-		background: #000;
-		border-radius: var(--border-radius);
-		overflow: hidden;
-	}
-
-	.phosphor-decay {
-		position: absolute;
-		inset: 0;
-		mix-blend-mode: screen;
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 20%);
-		animation: phosphorPersistence var(--phosphor-decay) linear infinite;
-	}
-
-	.shadow-mask {
-		position: absolute;
-		inset: 0;
-		background-image: repeating-linear-gradient(
-			90deg,
-			rgba(255, 0, 0, 0.1),
-			rgba(0, 255, 0, 0.1),
-			rgba(0, 0, 255, 0.1)
-		);
-		background-size: var(--shadow-mask-size) var(--shadow-mask-size);
-		pointer-events: none;
-		opacity: 0.3;
-	}
-
-	/* ==========================================================================
-   Cabinet Effects
-   ========================================================================== */
-	.cabinet-wear {
-		border-radius: 0;
-		background: repeating-linear-gradient(
-			45deg,
-			transparent 0px,
-			transparent 5px,
-			rgba(0, 0, 0, 0.02) 5px,
-			rgba(0, 0, 0, 0.02) 6px
-		);
-		opacity: 0.3;
-		mix-blend-mode: multiply;
-		backdrop-filter: contrast(1.02);
-	}
-
-	.screen-bezel {
-		position: absolute;
-		inset: 0;
-		border-radius: calc(var(--border-radius) + var(--bezel-thickness));
-		background: repeating-linear-gradient(
-				45deg,
-				rgba(255, 255, 255, 0.03) 0px,
-				rgba(255, 255, 255, 0.03) 1px,
-				transparent 1px,
-				transparent 2px
-			),
-			linear-gradient(to bottom, rgba(40, 40, 40, 1), rgba(60, 60, 60, 1));
-		transform: translateZ(-1px);
-		box-shadow: var(--bezel-shadow);
-		overflow: hidden;
-	}
-
-	.screen-glare {
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(
-			35deg,
-			transparent 0%,
-			rgba(255, 255, 255, 0.05) 25%,
-			rgba(255, 255, 255, 0.1) 47%,
-			rgba(255, 255, 255, 0.05) 50%,
-			transparent 100%
-		);
-		pointer-events: none;
-		z-index: 2;
-	}
-
-	.screen-glass {
-		position: absolute;
-		inset: 0;
-		border-radius: var(--border-radius);
-		background: linear-gradient(
-			35deg,
-			transparent 0%,
-			rgba(255, 255, 255, 0.02) 25%,
-			rgba(255, 255, 255, 0.05) 47%,
-			rgba(255, 255, 255, 0.02) 50%,
-			transparent 100%
-		);
-		pointer-events: none;
-		mix-blend-mode: overlay;
-		opacity: 0.8;
-		z-index: 2;
-	}
-
-	:global(html.light) .screen-glass {
-		background: linear-gradient(
-			35deg,
-			transparent 0%,
-			rgba(255, 255, 255, 0.01) 25%,
-			rgba(255, 255, 255, 0.02) 47%,
-			rgba(255, 255, 255, 0.01) 50%,
-			transparent 100%
-		);
-		opacity: 0.6;
-	}
-
-	/* ==========================================================================
-   Lighting Effects
-   ========================================================================== */
-	.t-molding {
-		position: absolute;
-		inset: -4px;
-		border-radius: calc(var(--border-radius) + 8px);
-		background: transparent;
-		overflow: hidden;
-		z-index: -1;
-	}
-
-	.t-molding::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(
-			90deg,
-			rgba(255, 0, 98, 0.8) 0%,
-			rgba(255, 0, 98, 0.4) 50%,
-			rgba(255, 0, 98, 0.8) 100%
-		);
-		filter: blur(3px);
-		animation: tmoldingPulse 4s infinite;
-	}
-
-	.t-molding::after {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: rgba(255, 255, 255, 0.1);
-		box-shadow:
-			inset 0 0 15px rgba(255, 255, 255, 0.2),
-			0 0 20px rgba(255, 0, 98, 0.4);
-	}
-
-	.control-panel-light {
-		position: absolute;
-		bottom: -20px;
-		left: 10%;
-		right: 10%;
-		height: 20px;
-		background: linear-gradient(to bottom, rgba(0, 255, 255, 0.4), transparent);
-		filter: blur(8px);
-		transform: perspective(500px) rotateX(60deg);
-		transform-origin: top;
-		opacity: 0.6;
-		animation: controlPanelGlow 2s ease-in-out infinite alternate;
-	}
-
-	.corner-accent {
-		position: absolute;
-		width: 30px;
-		height: 30px;
-		background: radial-gradient(
-			circle at center,
-			rgba(255, 255, 255, 0.9),
-			rgba(255, 255, 255, 0.1) 70%,
-			transparent 100%
-		);
-		filter: blur(2px);
-		opacity: 0.7;
-	}
-
-	/* Corner accent positions */
-	.corner-accent.top-left {
-		top: -15px;
-		left: -15px;
-	}
-	.corner-accent.top-right {
-		top: -15px;
-		right: -15px;
-	}
-	.corner-accent.bottom-left {
-		bottom: -15px;
-		left: -15px;
-	}
-	.corner-accent.bottom-right {
-		bottom: -15px;
-		right: -15px;
-	}
-
-	.light-spill {
-		position: absolute;
-		inset: -50px;
-		background: radial-gradient(circle at 50% 50%, rgba(255, 0, 98, 0.15), transparent 70%);
-		filter: blur(20px);
-		mix-blend-mode: screen;
-		pointer-events: none;
-		z-index: -2;
-	}
-
-	/* ==========================================================================
-   Space Background
-   ========================================================================== */
-	#space-background {
-		position: absolute;
-		inset: 0;
-		background: radial-gradient(circle at center, #000 20%, #001c4d 80%, #000000);
-		border-radius: var(--border-radius);
-		overflow: hidden;
-		z-index: 0;
-		perspective: 1000px;
-	}
-
-	.star-container {
-		position: absolute;
-		inset: 0;
-		perspective: 500px;
-		transform-style: preserve-3d;
-		z-index: 1;
-		border-radius: var(--border-radius);
-	}
-
-	.star {
-		position: absolute;
-		background: #fff;
-		border-radius: 50%;
-		box-shadow: 0 0 2px 1px rgba(255, 255, 255, 0.5);
-		pointer-events: none;
-		transform: translateZ(0);
-		will-change: transform;
-		contain: layout style;
-	}
-
-	/* ==========================================================================
-   Additional Animations
-   ========================================================================== */
-	@keyframes controlPanelGlow {
-		from {
-			opacity: 0.5;
-		}
-		to {
-			opacity: 0.7;
-		}
-	}
-
-	@keyframes screenFlicker {
-		0%,
-		100% {
-			opacity: 0;
-		}
-		50% {
-			opacity: 1;
-		}
-	}
-
-	@keyframes powerUpSequence {
-		0% {
-			filter: brightness(0) blur(2px);
-			transform: scale(0.98);
-		}
-		5% {
-			filter: brightness(0.3) blur(1px);
-			transform: scale(0.99);
-		}
-		10% {
-			filter: brightness(0.1) blur(2px);
-			transform: scale(0.98);
-		}
-		15% {
-			filter: brightness(0.5) blur(0.5px);
-			transform: scale(1);
-		}
-		30% {
-			filter: brightness(0.3) blur(1px);
-			transform: scale(0.99);
-		}
-		100% {
-			filter: brightness(1) blur(0);
-			transform: scale(1);
-		}
-	}
-
-	@keyframes phosphorPersistence {
-		0% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.7;
-		}
-		100% {
-			opacity: 0;
-		}
-	}
-
-	@keyframes interlaceFlicker {
-		0% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.7;
-		}
-		100% {
-			opacity: 1;
-		}
-	}
-
-	/* ==========================================================================
-   Additional Theme-Specific Styles
-   ========================================================================== */
-	:global(html.light) .cabinet-wear {
-		background: repeating-linear-gradient(
-			45deg,
-			transparent 0px,
-			transparent 5px,
-			rgba(0, 0, 0, 0.03) 5px,
-			rgba(0, 0, 0, 0.03) 6px
-		);
-		opacity: 0.4;
-	}
-
-	:global(html.light) .screen-bezel {
-		background: linear-gradient(to bottom, rgba(210, 210, 210, 1) 0%, rgba(190, 190, 190, 1) 100%);
-		box-shadow:
-        /* Inner shadow for depth */
-			inset 0 2px 4px rgba(0, 0, 0, 0.15),
-			/* Subtle outer glow */ 0 0 1px rgba(255, 255, 255, 0.8),
-			/* Gentle ambient shadow */ 0 4px 6px rgba(0, 0, 0, 0.06);
-		border-radius: calc(var(--border-radius) + 0.5vmin);
-	}
-
-	:global(html.light) .t-molding::before {
-		opacity: 0.4;
-		background: linear-gradient(
-			90deg,
-			rgba(0, 150, 255, 0.6) 0%,
-			rgba(0, 150, 255, 0.3) 50%,
-			rgba(0, 150, 255, 0.6) 100%
-		);
-	}
-
-	:global(html.light) .control-panel-light {
-		opacity: 0.3;
-		background: linear-gradient(to bottom, rgba(0, 150, 255, 0.3), transparent);
-	}
-
-	:global(html.light) .crt-screen {
-		--bloom-intensity: 0.3;
-		--shadow-mask-size: 2.5px;
-		background: linear-gradient(180deg, #111 0%, #222 100%);
-	}
-
-	:global(html.light) .shadow-mask {
-		opacity: 0.2;
-	}
-
-	/* Cabinet Materials Light Theme */
-	:global(html.light) .cabinet-metal {
-		background: linear-gradient(
-			180deg,
-			rgba(255, 255, 255, 1) 0%,
-			rgba(240, 240, 240, 1) 15%,
-			rgba(230, 230, 230, 1) 85%,
-			rgba(220, 220, 220, 1) 100%
-		);
-		box-shadow:
-			0 20px 40px rgba(0, 0, 0, 0.1),
-			0 10px 30px rgba(0, 0, 0, 0.05),
-			inset 0 2px 4px rgba(255, 255, 255, 1),
-			inset -3px 0 10px rgba(0, 0, 0, 0.03),
-			inset 3px 0 10px rgba(0, 0, 0, 0.03),
-			inset 0 -5px 15px rgba(0, 0, 0, 0.05);
-	}
-	:global(html.light) .cabinet-plastic {
-		background: linear-gradient(
-			180deg,
-			rgba(240, 240, 240, 1) 0%,
-			rgba(230, 230, 230, 1) 50%,
-			rgba(225, 225, 225, 1) 100%
-		);
-		box-shadow:
-        /* Top highlight */
-			inset 0 1px 2px rgba(255, 255, 255, 0.95),
-			/* Subtle depth shadows */ inset 0 10px 20px rgba(0, 0, 0, 0.02),
-			inset -4px 0 15px rgba(0, 0, 0, 0.01),
-			inset 4px 0 15px rgba(0, 0, 0, 0.01),
-			inset 0 -4px 15px rgba(0, 0, 0, 0.02);
-	}
-
-	:global(html.light) .cabinet-background {
-		background: linear-gradient(
-			45deg,
-			rgba(140, 140, 140, 0.5) 0%,
-			rgba(180, 180, 180, 0.5) 50%,
-			rgba(140, 140, 140, 0.5) 100%
-		);
-		mix-blend-mode: multiply;
-	}
-
-	/* ==========================================================================
-   Cabinet Materials and Structure
-   ========================================================================== */
-	.cabinet-metal {
-		background: linear-gradient(180deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
-		box-shadow: var(--cabinet-shadow);
-	}
-
-	.cabinet-plastic {
-		position: relative;
-		width: 100%;
-		height: 100%;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		border-radius: 0;
-		overflow: hidden;
-		background: linear-gradient(180deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
-		box-shadow:
-			inset 0 10px 30px rgba(0, 0, 0, 0.4),
-			inset -5px 0 15px rgba(0, 0, 0, 0.3),
-			inset 5px 0 15px rgba(0, 0, 0, 0.3),
-			inset 0 -5px 15px rgba(0, 0, 0, 0.4);
-		padding: 2vmin;
-	}
-
-	.cabinet-plastic::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		border-radius: 0;
-		background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.1), transparent 70%);
-		pointer-events: none;
-	}
-
-	.cabinet-background {
-		background: linear-gradient(
-			45deg,
-			rgba(20, 20, 20, 0.4) 0%,
-			rgba(40, 40, 40, 0.4) 50%,
-			rgba(20, 20, 20, 0.4) 100%
-		);
-		border-radius: 0;
-	}
-
-	:global(html.light) .side-panel {
-		border-color: rgba(0, 0, 0, 0.06);
-	}
-
-	/* ==========================================================================
-   Screen Effects and Overlays
-   ========================================================================== */
-	#scanline-overlay {
-		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.1) 51%);
-		background-size: 100% 4px;
-		animation: scanline 0.2s linear infinite;
-		border-radius: calc(var(--border-radius) - 0.5vmin);
-		z-index: 1;
-	}
-
-	:global(html.light) #scanline-overlay {
-		opacity: 0.4;
-		background-size: 100% 3px;
-	}
-
-	#arcade-screen.glow::after {
-		content: '';
-		position: absolute;
-		inset: -2px;
-		border-radius: calc(var(--border-radius) + 0.5vmin);
-		background: linear-gradient(45deg, #00ffff80, #0000ff80, #ff00ff80, #ff000080);
-		filter: blur(12px);
-		opacity: var(--screen-glow-opacity);
-		z-index: -1;
-		mix-blend-mode: screen;
-	}
-
-	.screen-flicker {
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(transparent 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%);
-		opacity: 0;
-		animation: screenFlicker 0.1s steps(2) infinite;
-	}
-
-	/* ==========================================================================
-   Additional CRT Effects
-   ========================================================================== */
-	.interlace {
-		position: absolute;
-		inset: 0;
-		background: repeating-linear-gradient(
-			0deg,
-			rgba(0, 0, 0, 0.2) 0px,
-			transparent 1px,
-			transparent 2px
-		);
-		animation: interlaceFlicker calc(1000ms / var(--refresh-rate)) steps(2) infinite;
-	}
-
-	.color-bleed {
-		position: absolute;
-		inset: 0;
-		filter: blur(1.5px);
-		opacity: 0.4;
-		mix-blend-mode: screen;
-	}
-
-	.misconvergence {
-		position: absolute;
-		inset: 0;
-		transform: translate3d(var(--misconvergence-offset), 0, 0);
-		mix-blend-mode: screen;
-		opacity: 0.4;
-	}
-
-	.power-sequence {
-		animation: powerUpSequence 2.5s ease-out;
-	}
-
-	/* ==========================================================================
-   Insert Concept Styles
-   ========================================================================== */
+	   Insert Concept Styles
+	   ========================================================================== */
 	#insert-concept {
 		font-family: 'Press Start 2P', sans-serif;
 		text-transform: uppercase;
@@ -2042,27 +789,569 @@
 	}
 
 	/* ==========================================================================
-   Performance Optimizations
-   ========================================================================== */
+	   Animations
+	   ========================================================================== */
+	@keyframes scanline {
+		0% {
+			background-position: 0 0;
+		}
+		100% {
+			background-position: 0 4px;
+		}
+	}
+
+	@keyframes tmoldingPulse {
+		0%,
+		100% {
+			opacity: 0.8;
+		}
+		50% {
+			opacity: 1;
+		}
+	}
+
+	@keyframes controlPanelGlow {
+		from {
+			opacity: 0.5;
+		}
+		to {
+			opacity: 0.7;
+		}
+	}
+
+	@keyframes screenFlicker {
+		0%,
+		100% {
+			opacity: 0;
+		}
+		50% {
+			opacity: 1;
+		}
+	}
+
+	@keyframes powerUpSequence {
+		0% {
+			filter: brightness(0) blur(2px);
+			transform: scale(0.98);
+		}
+		5% {
+			filter: brightness(0.3) blur(1px);
+			transform: scale(0.99);
+		}
+		10% {
+			filter: brightness(0.1) blur(2px);
+			transform: scale(0.98);
+		}
+		15% {
+			filter: brightness(0.5) blur(0.5px);
+			transform: scale(1);
+		}
+		30% {
+			filter: brightness(0.3) blur(1px);
+			transform: scale(0.99);
+		}
+		100% {
+			filter: brightness(1) blur(0);
+			transform: scale(1);
+		}
+	}
+
+	@keyframes phosphorPersistence {
+		0% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.7;
+		}
+		100% {
+			opacity: 0;
+		}
+	}
+
+	@keyframes interlaceFlicker {
+		0% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.7;
+		}
+		100% {
+			opacity: 1;
+		}
+	}
+
+	/* ==========================================================================
+	   Theme-Specific Styles
+	   ========================================================================== */
+	/* Light Theme */
+	:global(html.light) #arcade-cabinet {
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, transparent 15%),
+			linear-gradient(
+				90deg,
+				rgba(160, 160, 160, 1) 0%,
+				rgba(200, 200, 200, 0) 15%,
+				rgba(200, 200, 200, 0) 85%,
+				rgba(160, 160, 160, 1) 100%
+			),
+			linear-gradient(170deg, #e0e0e0 0%, #b0b0b0 40%, #909090 70%, #808080 100%);
+		box-shadow:
+			0 20px 40px rgba(0, 0, 0, 0.3),
+			0 10px 30px rgba(0, 0, 0, 0.2),
+			inset 0 2px 3px rgba(255, 255, 255, 0.9),
+			inset -3px 0 8px rgba(0, 0, 0, 0.15),
+			inset 3px 0 8px rgba(0, 0, 0, 0.15),
+			inset 0 -3px 6px rgba(0, 0, 0, 0.2);
+	}
+
+	/* Dark Theme */
+	:global(html.dark) #arcade-screen::after {
+		background: linear-gradient(45deg, #00ffff, #0000ff, #ff00ff, #ff0000);
+		filter: blur(4vmin);
+	}
+
+	/* ==========================================================================
+	   Utility Classes
+	   ========================================================================== */
 	.hardware-accelerated {
 		transform: translateZ(0);
 		backface-visibility: hidden;
 		perspective: 1000px;
 		will-change: transform, opacity;
+		contain: layout style paint;
+		content-visibility: auto;
+		view-transition-name: screen;
+	}
+
+	/* Only animate these properties, not both */
+	@media (max-width: 768px) {
+		#header {
+			will-change: transform;
+		}
+
+		#insert-concept {
+			will-change: opacity;
+		}
+	}
+
+	.animate-transform {
+		will-change: transform;
+		transform: translateZ(0);
+	}
+
+	.animate-opacity {
+		will-change: opacity;
 	}
 
 	/* ==========================================================================
-   Additional Theme-Specific Adjustments
-   ========================================================================== */
+	   CRT Effects
+	   ========================================================================== */
+	.crt-screen {
+		--phosphor-decay: 16ms;
+		--refresh-rate: 60Hz;
+		--shadow-mask-size: 3px;
+		--bloom-intensity: 0.4;
+		--misconvergence-offset: 0.5px;
+		position: relative;
+		overflow: hidden;
+		background: #000;
+		border-radius: var(--border-radius);
+		overflow: hidden;
+	}
+
+	.phosphor-decay {
+		position: absolute;
+		inset: 0;
+		mix-blend-mode: screen;
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 20%);
+		animation: phosphorPersistence var(--phosphor-decay) linear infinite;
+	}
+
+	.shadow-mask {
+		position: absolute;
+		inset: 0;
+		background-image: repeating-linear-gradient(
+			90deg,
+			rgba(255, 0, 0, 0.1),
+			rgba(0, 255, 0, 0.1),
+			rgba(0, 0, 255, 0.1)
+		);
+		background-size: var(--shadow-mask-size) var(--shadow-mask-size);
+		pointer-events: none;
+		opacity: 0.3;
+	}
+
+	.interlace {
+		position: absolute;
+		inset: 0;
+		background: repeating-linear-gradient(
+			0deg,
+			rgba(0, 0, 0, 0.2) 0px,
+			transparent 1px,
+			transparent 2px
+		);
+		animation: interlaceFlicker calc(1000ms / var(--refresh-rate)) steps(2) infinite;
+	}
+
+	.color-bleed {
+		position: absolute;
+		inset: 0;
+		filter: blur(1.5px);
+		opacity: 0.4;
+		mix-blend-mode: screen;
+	}
+
+	.misconvergence {
+		position: absolute;
+		inset: 0;
+		transform: translate3d(var(--misconvergence-offset), 0, 0);
+		mix-blend-mode: screen;
+		opacity: 0.4;
+	}
+
+	.power-sequence {
+		animation: powerUpSequence 2.5s ease-out;
+	}
+
+	/* ==========================================================================
+	   Cabinet Effects
+	   ========================================================================== */
+	.cabinet-wear {
+		border-radius: 0;
+		background: repeating-linear-gradient(
+			45deg,
+			transparent 0px,
+			transparent 5px,
+			rgba(0, 0, 0, 0.02) 5px,
+			rgba(0, 0, 0, 0.02) 6px
+		);
+		opacity: 0.3;
+		mix-blend-mode: multiply;
+		backdrop-filter: contrast(1.02);
+	}
+
+	.screen-bezel {
+		position: absolute;
+		inset: 0;
+		border-radius: calc(var(--border-radius) + var(--bezel-thickness));
+		background: repeating-linear-gradient(
+				45deg,
+				rgba(255, 255, 255, 0.03) 0px,
+				rgba(255, 255, 255, 0.03) 1px,
+				transparent 1px,
+				transparent 2px
+			),
+			linear-gradient(to bottom, rgba(40, 40, 40, 1), rgba(60, 60, 60, 1));
+		transform: translateZ(-1px);
+		box-shadow: var(--bezel-shadow);
+		overflow: hidden;
+	}
+
+	.screen-glare {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			35deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.05) 25%,
+			rgba(255, 255, 255, 0.1) 47%,
+			rgba(255, 255, 255, 0.05) 50%,
+			transparent 100%
+		);
+		pointer-events: none;
+		z-index: 2;
+	}
+
+	.screen-glass {
+		position: absolute;
+		inset: 0;
+		border-radius: var(--border-radius);
+		background: linear-gradient(
+			35deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.02) 25%,
+			rgba(255, 255, 255, 0.05) 47%,
+			rgba(255, 255, 255, 0.02) 50%,
+			transparent 100%
+		);
+		pointer-events: none;
+		mix-blend-mode: overlay;
+		opacity: 0.8;
+		z-index: 2;
+	}
+
+	/* ==========================================================================
+	   Lighting Effects
+	   ========================================================================== */
+	.t-molding {
+		position: absolute;
+		inset: -4px;
+		border-radius: calc(var(--border-radius) + 8px);
+		background: transparent;
+		overflow: hidden;
+		z-index: -1;
+	}
+
+	.t-molding::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			90deg,
+			rgba(255, 0, 98, 0.8) 0%,
+			rgba(255, 0, 98, 0.4) 50%,
+			rgba(255, 0, 98, 0.8) 100%
+		);
+		filter: blur(3px);
+		animation: tmoldingPulse 4s infinite;
+	}
+
+	.t-molding::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: rgba(255, 255, 255, 0.1);
+		box-shadow:
+			inset 0 0 15px rgba(255, 255, 255, 0.2),
+			0 0 20px rgba(255, 0, 98, 0.4);
+	}
+
+	.control-panel-light {
+		position: absolute;
+		bottom: -20px;
+		left: 10%;
+		right: 10%;
+		height: 20px;
+		background: linear-gradient(to bottom, rgba(0, 255, 255, 0.4), transparent);
+		filter: blur(8px);
+		transform: perspective(500px) rotateX(60deg);
+		transform-origin: top;
+		opacity: 0.6;
+		animation: controlPanelGlow 2s ease-in-out infinite alternate;
+	}
+
+	.corner-accent {
+		position: absolute;
+		width: 30px;
+		height: 30px;
+		background: radial-gradient(
+			circle at center,
+			rgba(255, 255, 255, 0.9),
+			rgba(255, 255, 255, 0.1) 70%,
+			transparent 100%
+		);
+		filter: blur(2px);
+		opacity: 0.7;
+	}
+
+	/* Corner accent positions */
+	.corner-accent.top-left {
+		top: -15px;
+		left: -15px;
+	}
+	.corner-accent.top-right {
+		top: -15px;
+		right: -15px;
+	}
+	.corner-accent.bottom-left {
+		bottom: -15px;
+		left: -15px;
+	}
+	.corner-accent.bottom-right {
+		bottom: -15px;
+		right: -15px;
+	}
+
+	.light-spill {
+		position: absolute;
+		inset: -50px;
+		background: radial-gradient(circle at 50% 50%, rgba(255, 0, 98, 0.15), transparent 70%);
+		filter: blur(20px);
+		mix-blend-mode: screen;
+		pointer-events: none;
+		z-index: -2;
+	}
+
+	/* ==========================================================================
+	   Space Background
+	   ========================================================================== */
+	#space-background {
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(circle at center, #000 20%, #001c4d 80%, #000000);
+		border-radius: var(--border-radius);
+		overflow: hidden;
+		z-index: 0;
+		perspective: 1000px;
+	}
+
+	.star-container {
+		position: absolute;
+		inset: 0;
+		perspective: 500px;
+		transform-style: preserve-3d;
+		z-index: 1;
+		border-radius: var(--border-radius);
+	}
+
+	.star {
+		position: absolute;
+		background: #fff;
+		border-radius: 50%;
+		box-shadow: 0 0 2px 1px rgba(255, 255, 255, 0.5);
+		pointer-events: none;
+		transform: translateZ(0);
+		will-change: transform;
+		contain: layout style;
+	}
+
+	/* ==========================================================================
+	   Screen Effects and Overlays
+	   ========================================================================== */
+	#scanline-overlay {
+		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.1) 51%);
+		background-size: 100% 4px;
+		animation: scanline 0.2s linear infinite;
+		border-radius: calc(var(--border-radius) - 0.5vmin);
+		z-index: 1;
+	}
+
+	#arcade-screen.glow::after {
+		content: '';
+		position: absolute;
+		inset: -2px;
+		border-radius: calc(var(--border-radius) + 0.5vmin);
+		background: linear-gradient(45deg, #00ffff80, #0000ff80, #ff00ff80, #ff000080);
+		filter: blur(12px);
+		opacity: var(--screen-glow-opacity);
+		z-index: -1;
+		mix-blend-mode: screen;
+	}
+
+	.screen-flicker {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(transparent 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%);
+		opacity: 0;
+		animation: screenFlicker 0.1s steps(2) infinite;
+	}
+
+	/* ==========================================================================
+	   Cabinet Materials and Structure
+	   ========================================================================== */
+	.cabinet-metal {
+		background: linear-gradient(180deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
+		box-shadow: var(--cabinet-shadow);
+	}
+
+	.cabinet-plastic {
+		position: relative;
+		width: 100%;
+		height: 100%;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		border-radius: 0;
+		overflow: hidden;
+		background: linear-gradient(180deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
+		box-shadow:
+			inset 0 10px 30px rgba(0, 0, 0, 0.4),
+			inset -5px 0 15px rgba(0, 0, 0, 0.3),
+			inset 5px 0 15px rgba(0, 0, 0, 0.3),
+			inset 0 -5px 15px rgba(0, 0, 0, 0.4);
+		padding: 2vmin;
+	}
+
+	.cabinet-plastic::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: 0;
+		background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.1), transparent 70%);
+		pointer-events: none;
+	}
+
+	.cabinet-background {
+		background: linear-gradient(
+			45deg,
+			rgba(20, 20, 20, 0.4) 0%,
+			rgba(40, 40, 40, 0.4) 50%,
+			rgba(20, 20, 20, 0.4) 100%
+		);
+		border-radius: 0;
+	}
+
+	/* ==========================================================================
+	   Light Theme Variants
+	   ========================================================================== */
+	:global(html.light) .screen-glass {
+		background: linear-gradient(
+			35deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.01) 25%,
+			rgba(255, 255, 255, 0.02) 47%,
+			rgba(255, 255, 255, 0.01) 50%,
+			transparent 100%
+		);
+		opacity: 0.6;
+	}
+
+	:global(html.light) .cabinet-wear {
+		background: repeating-linear-gradient(
+			45deg,
+			transparent 0px,
+			transparent 5px,
+			rgba(0, 0, 0, 0.03) 5px,
+			rgba(0, 0, 0, 0.03) 6px
+		);
+		opacity: 0.4;
+	}
+
+	:global(html.light) .screen-bezel {
+		background: linear-gradient(to bottom, rgba(210, 210, 210, 1) 0%, rgba(190, 190, 190, 1) 100%);
+		box-shadow:
+        /* Inner shadow for depth */
+			inset 0 2px 4px rgba(0, 0, 0, 0.15),
+			/* Subtle outer glow */ 0 0 1px rgba(255, 255, 255, 0.8),
+			/* Gentle ambient shadow */ 0 4px 6px rgba(0, 0, 0, 0.06);
+		border-radius: calc(var(--border-radius) + 0.5vmin);
+	}
+
+	:global(html.light) .t-molding::before {
+		opacity: 0.4;
+		background: linear-gradient(
+			90deg,
+			rgba(0, 150, 255, 0.6) 0%,
+			rgba(0, 150, 255, 0.3) 50%,
+			rgba(0, 150, 255, 0.6) 100%
+		);
+	}
+
+	:global(html.light) .control-panel-light {
+		opacity: 0.3;
+		background: linear-gradient(to bottom, rgba(0, 150, 255, 0.3), transparent);
+	}
+
+	:global(html.light) .crt-screen {
+		--bloom-intensity: 0.3;
+		--shadow-mask-size: 2.5px;
+		background: linear-gradient(180deg, #111 0%, #222 100%);
+	}
+
+	:global(html.light) .shadow-mask {
+		opacity: 0.2;
+	}
+
+	:global(html.light) #scanline-overlay {
+		opacity: 0.4;
+		background-size: 100% 3px;
+	}
+
 	:global(html.light) #arcade-screen {
 		box-shadow:
 			0 0 30px rgba(0, 0, 0, 0.1),
 			inset 0 0 50px rgba(0, 0, 0, 0.2),
 			inset 0 0 2px rgba(255, 255, 255, 0.5),
 			inset 0 0 100px rgba(0, 0, 0, 0.1);
-	}
-
-	:global(html.light) #arcade-screen {
 		background: linear-gradient(145deg, #111 0%, #222 100%);
 		box-shadow:
         /* Screen recess shadow */
@@ -2071,11 +1360,101 @@
 			/* Subtle glass effect */ inset 0 0 2px rgba(255, 255, 255, 0.4);
 	}
 
+	/* Cabinet Materials Light Theme */
+	:global(html.light) .cabinet-metal {
+		background: linear-gradient(
+			180deg,
+			rgba(255, 255, 255, 1) 0%,
+			rgba(240, 240, 240, 1) 15%,
+			rgba(230, 230, 230, 1) 85%,
+			rgba(220, 220, 220, 1) 100%
+		);
+		box-shadow:
+			0 20px 40px rgba(0, 0, 0, 0.1),
+			0 10px 30px rgba(0, 0, 0, 0.05),
+			inset 0 2px 4px rgba(255, 255, 255, 1),
+			inset -3px 0 10px rgba(0, 0, 0, 0.03),
+			inset 3px 0 10px rgba(0, 0, 0, 0.03),
+			inset 0 -5px 15px rgba(0, 0, 0, 0.05);
+	}
+
+	:global(html.light) .cabinet-plastic {
+		background: linear-gradient(
+			180deg,
+			rgba(240, 240, 240, 1) 0%,
+			rgba(230, 230, 230, 1) 50%,
+			rgba(225, 225, 225, 1) 100%
+		);
+		box-shadow:
+       /* Top highlight */
+			inset 0 1px 2px rgba(255, 255, 255, 0.95),
+			/* Subtle depth shadows */ inset 0 10px 20px rgba(0, 0, 0, 0.02),
+			inset -4px 0 15px rgba(0, 0, 0, 0.01),
+			inset 4px 0 15px rgba(0, 0, 0, 0.01),
+			inset 0 -4px 15px rgba(0, 0, 0, 0.02);
+	}
+
+	:global(html.light) .cabinet-background {
+		background: linear-gradient(
+			45deg,
+			rgba(140, 140, 140, 0.5) 0%,
+			rgba(180, 180, 180, 0.5) 50%,
+			rgba(140, 140, 140, 0.5) 100%
+		);
+		mix-blend-mode: multiply;
+	}
+
+	:global(html.light) .side-panel {
+		border-color: rgba(0, 0, 0, 0.06);
+	}
+
 	/* ==========================================================================
-   Mobile Dark Mode Cabinet Rounded Corners (768px and below)
-   ========================================================================== */
+      Mobile Optimizations
+      ========================================================================== */
 	@media (max-width: 768px) {
-		/* Apply rounded cabinet styles to dark mode */
+		/* Optimize star rendering on mobile */
+		.star {
+			will-change: transform;
+			position: absolute;
+			background: #fff;
+			border-radius: 50%;
+			box-shadow: 0 0 1px rgba(255, 255, 255, 0.5); /* Reduced shadow */
+			pointer-events: none;
+			contain: layout style;
+		}
+
+		/* Optimize CRT effects for mobile */
+		.crt-screen {
+			--shadow-mask-size: 2px; /* Smaller mask for better performance */
+			--bloom-intensity: 0.3; /* Reduced bloom effect */
+		}
+
+		.shadow-mask {
+			opacity: 0.2; /* Reduce opacity for better performance */
+			background-size: 2px 2px; /* Simpler pattern */
+		}
+
+		.interlace {
+			background: repeating-linear-gradient(
+				0deg,
+				rgba(0, 0, 0, 0.15) 0px,
+				/* Less contrast */ transparent 1px,
+				transparent 3px /* Wider spacing */
+			);
+		}
+
+		/* Optimize phosphor decay animation */
+		.phosphor-decay {
+			animation: phosphorPersistence 24ms linear infinite; /* Slower updates */
+		}
+
+		/* Streamlined scanline effect */
+		#scanline-overlay {
+			background-size: 100% 6px; /* Wider scanlines */
+			animation: scanline 0.3s linear infinite; /* Slower movement */
+		}
+
+		/* Apply rounded cabinet styles for mobile */
 		#arcade-cabinet {
 			border-radius: var(--border-radius, 12px);
 			overflow: hidden;
@@ -2096,17 +1475,27 @@
 			overflow: hidden;
 		}
 
-		/* Ensure proper border-radius on all elements that need it */
+		/* Ensure proper border-radius on all elements */
 		.arcade-screen-wrapper,
 		.screen-bezel {
 			overflow: hidden;
 			border-radius: var(--border-radius, 12px);
 		}
+
+		.hardware-accelerated {
+			/* More targeted will-change on mobile */
+			will-change: transform;
+			/* Simplify containment for better mobile performance */
+			contain: layout;
+			content-visibility: auto;
+			/* Don't use view transitions on mobile */
+			view-transition-name: none;
+		}
 	}
 
 	/* ==========================================================================
-   Mobile Light Mode Animation Adjustments
-   ========================================================================== */
+      Mobile Light Mode Optimizations
+      ========================================================================== */
 	@media (max-width: 768px) {
 		/* Soften glitch effects for mobile light mode */
 		:global(html.light) #header::before {
@@ -2146,12 +1535,8 @@
 		:global(html.light) .power-sequence {
 			animation-name: mobileLightPowerUp;
 		}
-	}
 
-	/* ==========================================================================
-   Mobile Light Mode Cabinet Styles (768px and below)
-   ========================================================================== */
-	@media (max-width: 768px) {
+		/* Mobile Light Mode Cabinet Styles */
 		:global(html.light) #arcade-cabinet {
 			background: linear-gradient(
 				180deg,
@@ -2265,12 +1650,34 @@
 			margin-top: calc(-0.8 * var(--navbar-height, 64px));
 		}
 
-		/* Ensure proper border-radius on all elements that need it */
+		/* Ensure proper border-radius on light mode elements */
 		:global(html.light) .cabinet-plastic,
 		:global(html.light) .arcade-screen-wrapper,
 		:global(html.light) .screen-bezel {
 			overflow: hidden;
 			border-radius: var(--light-cabinet-border-radius);
 		}
+	}
+
+	/* ==========================================================================
+      Low Performance Device Optimizations
+      ========================================================================== */
+	html[data-device-type='low-performance'] .shadow-mask,
+	html[data-device-type='low-performance'] .interlace,
+	html[data-device-type='low-performance'] .phosphor-decay {
+		display: none; /* Disable expensive effects on low-performance devices */
+	}
+
+	html[data-device-type='low-performance'] #scanline-overlay {
+		opacity: 0.5;
+		background-size: 100% 8px; /* Even simpler scanlines */
+		animation: scanline 0.4s linear infinite; /* Even slower movement */
+	}
+
+	html[data-device-type='low-performance'] .screen-glass,
+	html[data-device-type='low-performance'] .screen-reflection,
+	html[data-device-type='low-performance'] .screen-glare {
+		animation: none;
+		transition: none;
 	}
 </style>
