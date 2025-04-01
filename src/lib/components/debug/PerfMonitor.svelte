@@ -2,6 +2,11 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 
+	// Add props
+	export let visible = true;
+	export let expanded = false;
+	export let showSettings = false;
+
 	let active = false;
 	let monitor: HTMLDivElement;
 	let frameCount = 0;
@@ -40,9 +45,23 @@
 	});
 </script>
 
-<div
-	bind:this={monitor}
-	class="fixed top-4 left-4 bg-black/80 text-lime-500 font-mono p-2 rounded z-[999999] text-sm pointer-events-none"
->
-	FPS: --
-</div>
+{#if visible}
+	<div
+		bind:this={monitor}
+		class="fixed top-4 left-4 bg-black/80 text-lime-500 font-mono p-2 rounded z-[999999] text-sm pointer-events-none
+           {expanded ? 'w-64' : 'w-auto'}
+           {showSettings ? 'h-auto' : 'h-8'}"
+	>
+		FPS: --
+		{#if expanded}
+			<div class="mt-2">
+				<!-- Add expanded stats here if needed -->
+			</div>
+		{/if}
+		{#if showSettings}
+			<div class="mt-2">
+				<!-- Add settings here if needed -->
+			</div>
+		{/if}
+	</div>
+{/if}

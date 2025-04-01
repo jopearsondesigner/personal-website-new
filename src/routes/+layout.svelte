@@ -18,6 +18,14 @@
 	import MobileNavMenu from '$lib/components/layout/MobileNavMenu.svelte';
 	import Navigation from '$lib/components/layout/Navigation.svelte';
 	import { dev } from '$app/environment';
+	import PerformanceMonitor from '$lib/components/devtools/PerformanceMonitor.svelte';
+	import { frameRateController, debugFrameRateController } from '$lib/utils/frame-rate-controller';
+	import { setupPerformanceMonitoring, deviceCapabilities } from '$lib/utils/device-performance';
+
+	// Performance monitoring state
+	let showPerformanceMonitor = dev; // Only show in development by default
+	let perfMonitorExpanded = false;
+	let perfMonitorSettings = false;
 
 	// Set loading to true initially to ensure LoadingScreen shows first
 	loadingStore.set(true);
@@ -127,87 +135,59 @@
 		});
 	}
 
-	// Remove both existing monitor implementations and replace with this:
-	let perfMonitorActive = false;
+	// Initialize performance monitoring
+	function initPerformanceFramework() {
+		if (!browser) return;
 
-	function initPerformanceMonitor() {
-		if (perfMonitorActive || !browser) return;
-		perfMonitorActive = true;
+		// Only run once
+		if (window.__performanceInitialized) return;
+		window.__performanceInitialized = true;
 
-		console.log('Initializing performance monitor...');
+		console.log('Initializing performance framework...');
 
-		// Create performance monitor element with high z-index
-		const monitor = document.createElement('div');
-		monitor.id = 'perf-monitor';
-		monitor.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: black;
-    color: lime;
-    font-family: monospace;
-    padding: 10px;
-    border-radius: 4px;
-    z-index: 10000000;
-    font-size: 16px;
-    text-align: left;
-    width: auto;
-    box-shadow: 0 0 5px rgba(0,0,0,0.5);
-  `;
-
-		document.body.appendChild(monitor);
-		console.log('Monitor element added to DOM');
-
-		// FPS tracking
-		let frameCount = 0;
-		let lastTime = performance.now();
-		let fps = 0;
-
-		// Memory tracking
-		let memoryReadings = [];
-		let startTime = performance.now();
-
-		function updateStats() {
-			// Update FPS
-			frameCount++;
-			const now = performance.now();
-			if (now - lastTime >= 1000) {
-				fps = Math.round((frameCount * 1000) / (now - lastTime));
-				frameCount = 0;
-				lastTime = now;
-
-				// Track memory if available
-				if (performance.memory) {
-					const memoryUsed = Math.round(performance.memory.usedJSHeapSize / (1024 * 1024));
-					memoryReadings.push(memoryUsed);
-				}
-
-				// Update display text
-				monitor.innerHTML = `
-        <div>FPS: ${fps}</div>
-        ${
-					performance.memory
-						? `<div>Memory: ${Math.round(performance.memory.usedJSHeapSize / (1024 * 1024))}MB</div>`
-						: '<div>Memory: Not available</div>'
-				}
-        <div>Runtime: ${Math.floor((now - startTime) / 1000)}s</div>
-      `;
-
-				// Log every 30 seconds
-				const runTime = Math.floor((now - startTime) / 1000);
-				if (runTime > 0 && runTime % 30 === 0 && fps > 0) {
-					console.log(`=== PERFORMANCE DATA (${runTime}s) ===`);
-					console.log(`Current FPS: ${fps}`);
-					if (memoryReadings.length > 0) {
-						console.log(`Memory readings: ${memoryReadings.join(', ')}MB`);
-					}
-				}
+		// Setup keyboard shortcut to toggle performance monitor
+		window.addEventListener('keydown', (e) => {
+			// Alt+P to toggle performance monitor
+			if (e.altKey && e.key === 'p') {
+				showPerformanceMonitor = !showPerformanceMonitor;
+				e.preventDefault();
 			}
+		});
 
-			requestAnimationFrame(updateStats);
+		// Initialize the performance monitoring system
+		const cleanup = setupPerformanceMonitoring();
+
+		// Set appropriate quality level based on device type
+		if (browser) {
+			const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+			// Detect if we're on an iPhone 14/15 with performance issues
+			if (isIOS && /iPhone 1[45]/.test(navigator.userAgent)) {
+				// Force low quality for problematic devices
+				deviceCapabilities.update((caps) => ({
+					...caps,
+					tier: 'low',
+					subTier: 5,
+					frameSkip: 2,
+					updateInterval: 32,
+					renderScale: 0.6,
+					animateInBackground: false,
+					enableGlow: false,
+					enableBlur: false,
+					enableShadows: false,
+					enableReflections: false
+				}));
+
+				console.info('Applied specific optimizations for iPhone 14/15');
+			}
 		}
 
-		requestAnimationFrame(updateStats);
+		// Enable specific optimizations for development
+		if (dev) {
+			debugFrameRateController(true);
+		}
+
+		return cleanup;
 	}
 
 	// Initialization and cleanup logic
@@ -236,6 +216,14 @@
 			window.addEventListener('orientationchange', () => {
 				setTimeout(updateLogoPosition, 100);
 			});
+
+			// Initialize performance framework after component is mounted
+			const perfCleanup = initPerformanceFramework();
+
+			// Store cleanup function
+			if (perfCleanup) {
+				onDestroy(perfCleanup);
+			}
 		}
 
 		// Loading screen handling
@@ -259,10 +247,6 @@
 				initialLoader.style.display = 'none';
 			}
 		}
-
-		setTimeout(() => {
-			initPerformanceMonitor();
-		}, 1000);
 	});
 
 	onDestroy(() => {
@@ -278,8 +262,27 @@
 	});
 </script>
 
+<!-- Make TypeScript happy by adding this to the global window object -->
+<svelte:head>
+	{#if browser}
+		<script>
+			// Extend window interface for TypeScript
+			window.__performanceInitialized = false;
+		</script>
+	{/if}
+</svelte:head>
+
 <!-- Template section -->
 <LoadingScreen />
+
+<!-- Performance Monitor Component -->
+{#if browser}
+	<PerformanceMonitor
+		visible={showPerformanceMonitor}
+		expanded={perfMonitorExpanded}
+		showSettings={perfMonitorSettings}
+	/>
+{/if}
 
 <nav
 	bind:this={navbarElement}
