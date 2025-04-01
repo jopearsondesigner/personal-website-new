@@ -17,6 +17,7 @@
 	import { layoutStore } from '$lib/stores/store';
 	import MobileNavMenu from '$lib/components/layout/MobileNavMenu.svelte';
 	import Navigation from '$lib/components/layout/Navigation.svelte';
+	import { dev } from '$app/environment';
 
 	// Set loading to true initially to ensure LoadingScreen shows first
 	loadingStore.set(true);

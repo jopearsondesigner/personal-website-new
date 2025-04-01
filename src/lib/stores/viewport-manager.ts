@@ -1,5 +1,4 @@
-// src/lib/stores/viewport-manager.ts
-
+// Optimized viewport-manager.ts
 interface ViewportMetrics {
 	width: number;
 	height: number;
@@ -20,6 +19,28 @@ export class ViewportManager {
 	private controls: HTMLElement | null;
 	private cleanup: () => void;
 
+	// Cache values to prevent unnecessary DOM updates
+	private lastContainerHeight: number = 0;
+	private lastControlsHeight: number = 0;
+	private lastSafeAreaBottom: number = 0;
+	private lastScale: number = 0;
+
+	// Use a threshold for updates to avoid minor pixel differences
+	private updateThreshold: number = 1;
+
+	// Add a RAF ID for debouncing updates
+	private rafId: number | null = null;
+
+	// Add a resize timeout for debouncing
+	private resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	// Track if we're throttling updates during rapid resizes
+	private isThrottling: boolean = false;
+
+	// Gaming canvas base size
+	private baseGameWidth: number = 800;
+	private baseGameHeight: number = 600;
+
 	constructor(container: HTMLElement, screen: HTMLElement, controls?: HTMLElement) {
 		this.container = container;
 		this.screen = screen;
@@ -28,6 +49,9 @@ export class ViewportManager {
 		// Initialize viewport
 		this.updateViewport();
 		this.cleanup = this.setupEventListeners();
+
+		// Apply initial GPU acceleration
+		this.applyGPUAcceleration();
 	}
 
 	private getDeviceMetrics(): ViewportMetrics {
@@ -47,9 +71,24 @@ export class ViewportManager {
 		};
 	}
 
+	private applyGPUAcceleration(): void {
+		// Force GPU acceleration on key elements
+		this.screen.style.transform = 'translateZ(0)';
+		this.screen.style.backfaceVisibility = 'hidden';
+		this.screen.style.willChange = 'transform';
+
+		if (this.controls) {
+			this.controls.style.transform = 'translateZ(0)';
+			this.controls.style.backfaceVisibility = 'hidden';
+			this.controls.style.willChange = 'transform';
+		}
+	}
+
 	private calculateControlsHeight(isLandscape: boolean): number {
 		if (!this.controls) return 0;
-		return isLandscape ? 120 : 180; // Base control heights
+
+		// Cache the control height calculation to avoid DOM reads
+		return isLandscape ? 120 : 180;
 	}
 
 	private calculateOptimalScale(containerRect: DOMRect, gameSize: GameDimensions): number {
@@ -60,20 +99,16 @@ export class ViewportManager {
 	}
 
 	private optimizeRendering(scale: number): void {
-		// Force GPU acceleration
-		this.screen.style.willChange = 'transform';
-		// Use transform instead of top/left for positioning
-		this.screen.style.transform = `translate3d(0,0,0) scale(${scale})`;
-		this.screen.style.transformOrigin = 'center center';
+		// Only update if scale has changed significantly
+		if (Math.abs(this.lastScale - scale) > 0.01) {
+			// Use transform instead of top/left for positioning to avoid layout recalculation
+			this.screen.style.transform = `translate3d(0,0,0) scale(${scale})`;
+			this.screen.style.transformOrigin = 'center center';
+			this.lastScale = scale;
+		}
 	}
 
 	// Optimized implementation
-	private lastScale: number = 0;
-	private lastHeight: number = 0;
-	private lastControlsHeight: number = 0;
-	private lastSafeAreaBottom: number = 0;
-	private rafId: number | null = null;
-
 	public updateViewport(): void {
 		// Cancel any pending RAF to avoid multiple updates in same frame
 		if (this.rafId !== null) {
@@ -94,83 +129,126 @@ export class ViewportManager {
 		// Calculate available height
 		const availableHeight = metrics.height - controlsHeight - metrics.safeAreaBottom;
 
-		// Only update DOM if values changed significantly (avoid layout thrashing)
-		if (Math.abs(this.lastHeight - availableHeight) > 1) {
+		// Only update DOM if values changed significantly to avoid layout thrashing
+		if (Math.abs(this.lastContainerHeight - availableHeight) > this.updateThreshold) {
 			this.container.style.height = `${availableHeight}px`;
-			this.lastHeight = availableHeight;
+			this.lastContainerHeight = availableHeight;
 		}
 
-		// Use cached rect when possible, or get new one
-		let containerRect: DOMRect;
-		// If height changed significantly, we need a fresh rect
-		if (Math.abs(this.lastHeight - availableHeight) > 1) {
-			containerRect = this.container.getBoundingClientRect();
-		} else {
-			// Create a DOMRect-like object with cached dimensions
-			containerRect = {
-				width: this.container.offsetWidth,
-				height: this.container.offsetHeight,
+		// Use a unified object for container dimensions
+		const containerDimensions = {
+			width: this.container.offsetWidth,
+			height: this.container.offsetHeight
+		};
+
+		// Calculate optimal game screen scale
+		const scale = this.calculateOptimalScale(
+			// Create a DOMRect-like object without forcing layout recalculation
+			{
+				width: containerDimensions.width,
+				height: containerDimensions.height,
 				x: 0,
 				y: 0,
 				top: 0,
 				left: 0,
-				right: 0,
-				bottom: 0,
+				right: containerDimensions.width,
+				bottom: containerDimensions.height,
 				toJSON: () => {}
-			};
-		}
-
-		// Calculate optimal game screen scale
-		const scale = this.calculateOptimalScale(containerRect, {
-			width: 800, // Game canvas base width
-			height: 600 // Game canvas base height
-		});
+			} as DOMRect,
+			{
+				width: this.baseGameWidth,
+				height: this.baseGameHeight
+			}
+		);
 
 		// Only update transform if scale changed significantly
-		if (Math.abs(this.lastScale - scale) > 0.01) {
-			this.optimizeRendering(scale);
-			this.lastScale = scale;
-		}
+		this.optimizeRendering(scale);
 
-		// Position controls if they exist
+		// Position controls if they exist - batch DOM updates
 		if (this.controls) {
-			if (Math.abs(this.lastControlsHeight - controlsHeight) > 1) {
-				this.controls.style.height = `${controlsHeight}px`;
-				this.lastControlsHeight = controlsHeight;
-			}
+			const needsHeightUpdate =
+				Math.abs(this.lastControlsHeight - controlsHeight) > this.updateThreshold;
+			const needsBottomUpdate =
+				Math.abs(this.lastSafeAreaBottom - metrics.safeAreaBottom) > this.updateThreshold;
 
-			if (Math.abs(this.lastSafeAreaBottom - metrics.safeAreaBottom) > 1) {
-				this.controls.style.bottom = `${metrics.safeAreaBottom}px`;
-				this.lastSafeAreaBottom = metrics.safeAreaBottom;
+			if (needsHeightUpdate || needsBottomUpdate) {
+				// Batch DOM writes
+				requestAnimationFrame(() => {
+					if (needsHeightUpdate) {
+						this.controls!.style.height = `${controlsHeight}px`;
+						this.lastControlsHeight = controlsHeight;
+					}
+
+					if (needsBottomUpdate) {
+						this.controls!.style.bottom = `${metrics.safeAreaBottom}px`;
+						this.lastSafeAreaBottom = metrics.safeAreaBottom;
+					}
+				});
 			}
 		}
 	}
 
 	private setupEventListeners(): () => void {
-		let resizeTimeout: number;
-
+		// Debounce resize handler with proper timing
 		const debouncedResize = () => {
-			if (resizeTimeout) {
-				clearTimeout(resizeTimeout);
+			if (this.resizeTimeout) {
+				clearTimeout(this.resizeTimeout);
 			}
-			resizeTimeout = setTimeout(() => this.updateViewport(), 100);
+
+			// If we're already throttling, wait until throttling period ends
+			if (this.isThrottling) return;
+
+			// Set throttling flag to avoid excessive updates
+			this.isThrottling = true;
+
+			// Update immediately for responsive feel
+			this.updateViewport();
+
+			// Then use timeout for full update after resizing stops
+			this.resizeTimeout = setTimeout(() => {
+				this.isThrottling = false;
+				this.updateViewport();
+			}, 150);
 		};
 
+		// Add passive option for better performance
 		window.addEventListener('resize', debouncedResize, { passive: true });
-		window.addEventListener(
-			'orientationchange',
-			() => {
-				setTimeout(() => this.updateViewport(), 100);
-			},
-			{ passive: true }
-		);
+
+		// Handle orientation changes with slight delay to ensure dimensions settled
+		const orientationHandler = () => {
+			// Clear any existing timeout
+			if (this.resizeTimeout) {
+				clearTimeout(this.resizeTimeout);
+			}
+
+			// Initial immediate update
+			this.updateViewport();
+
+			// Then after a delay to catch any animation transitions
+			this.resizeTimeout = setTimeout(() => {
+				this.updateViewport();
+			}, 250);
+		};
+
+		window.addEventListener('orientationchange', orientationHandler, { passive: true });
 
 		// Create ResizeObserver for more accurate size tracking
+		// Use it only for the container element
 		const resizeObserver = new ResizeObserver((entries) => {
-			for (const entry of entries) {
-				if (entry.target === this.container) {
-					debouncedResize();
+			// Process resize events more efficiently
+			if (!this.isThrottling) {
+				this.updateViewport();
+
+				// Set throttling to true and reset after a delay
+				this.isThrottling = true;
+
+				if (this.resizeTimeout) {
+					clearTimeout(this.resizeTimeout);
 				}
+
+				this.resizeTimeout = setTimeout(() => {
+					this.isThrottling = false;
+				}, 150);
 			}
 		});
 
@@ -179,12 +257,26 @@ export class ViewportManager {
 		// Return cleanup function
 		return () => {
 			window.removeEventListener('resize', debouncedResize);
-			window.removeEventListener('orientationchange', () => this.updateViewport());
+			window.removeEventListener('orientationchange', orientationHandler);
 			resizeObserver.disconnect();
-			if (resizeTimeout) {
-				clearTimeout(resizeTimeout);
+
+			if (this.resizeTimeout) {
+				clearTimeout(this.resizeTimeout);
+			}
+
+			if (this.rafId) {
+				cancelAnimationFrame(this.rafId);
 			}
 		};
+	}
+
+	// Add a method to update base game dimensions if needed
+	public updateGameDimensions(width: number, height: number): void {
+		if (width !== this.baseGameWidth || height !== this.baseGameHeight) {
+			this.baseGameWidth = width;
+			this.baseGameHeight = height;
+			this.updateViewport();
+		}
 	}
 
 	public destroy(): void {

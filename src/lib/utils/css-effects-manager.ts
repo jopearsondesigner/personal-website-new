@@ -1,8 +1,9 @@
-// src/lib/utils/css-effects-manager.ts
+// Optimized css-effects-manager.ts
 import { browser } from '$app/environment';
 import { get } from 'svelte/store';
 import { animationMode, type AnimationMode } from './animation-mode';
 import { frameRateController } from './frame-rate-controller';
+import { deviceCapabilities } from './device-performance';
 
 interface CssEffectsConfig {
 	// Shadow effects
@@ -53,6 +54,12 @@ export class CssEffectsManager {
 	private root: HTMLElement | null = null;
 	private previousConfig: Partial<CssEffectsConfig> = {};
 	private pendingRaf: number | null = null;
+	private cssVars: Map<string, string> = new Map();
+	private isIOS: boolean = false;
+	private isThrottling: boolean = false;
+	private throttleTimeout: ReturnType<typeof setTimeout> | null = null;
+	private hasLowQualityMode: boolean = false;
+	private updateThreshold: number = 250; // ms
 
 	constructor() {
 		// Initialize with sensible defaults
@@ -78,6 +85,11 @@ export class CssEffectsManager {
 			batchDomUpdates: true,
 			enableViewTransitions: false
 		};
+
+		// Detect iOS for special handling
+		if (browser) {
+			this.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+		}
 	}
 
 	// Initialize manager with document root
@@ -85,6 +97,11 @@ export class CssEffectsManager {
 		if (!browser) return;
 
 		this.root = root;
+
+		// Apply iOS specific settings
+		if (this.isIOS) {
+			this.applyIOSOptimizations();
+		}
 
 		// Initial configuration based on animation mode
 		this.configureForAnimationMode(get(animationMode));
@@ -101,10 +118,59 @@ export class CssEffectsManager {
 			this.applyConfiguration();
 		});
 
+		// Subscribe to device capabilities changes
+		deviceCapabilities.subscribe((capabilities) => {
+			this.configureForDeviceCapabilities(capabilities);
+		});
+
 		// Apply initial configuration
 		this.applyConfiguration();
 
 		return this;
+	}
+
+	private applyIOSOptimizations(): void {
+		// Special settings for iOS devices which struggle with certain effects
+		this.config.enableBlur = false;
+		this.config.enableScanlines = false;
+		this.config.enablePhosphorDecay = false;
+		this.config.enableInterlace = false;
+		this.config.simplifyGradients = true;
+		this.config.enableGlow = true; // iOS does well with glow/gradients
+		this.config.glowOpacity = 0.4; // But we'll use reduced opacity
+		this.config.glowBlur = 5; // And smaller blur radius
+
+		// iOS benefits from containment but not from some other optimizations
+		this.config.useContainment = true;
+		this.config.useContentVisibility = false; // Causes issues on iOS
+
+		// Force hardware acceleration but be selective
+		this.config.useHardwareAcceleration = true;
+
+		// Special iOS class for extra CSS optimizations
+		if (this.root) {
+			this.root.classList.add('ios-device');
+		}
+	}
+
+	private configureForDeviceCapabilities(capabilities: any): void {
+		// Set low quality mode flag
+		this.hasLowQualityMode = capabilities.tier === 'low';
+
+		// Apply different settings based on device capabilities
+		switch (capabilities.tier) {
+			case 'low':
+				this.configureForAnimationMode('minimal');
+				break;
+
+			case 'medium':
+				this.configureForAnimationMode('reduced');
+				break;
+
+			case 'high':
+				// Keep current mode
+				break;
+		}
 	}
 
 	// Configure effects based on animation mode
@@ -179,10 +245,22 @@ export class CssEffectsManager {
 				this.config.enableViewTransitions = true;
 				break;
 		}
+
+		// Override specific effects for iOS regardless of mode
+		if (this.isIOS) {
+			this.config.enableInterlace = false;
+			this.config.enablePhosphorDecay = false;
+			this.config.enableContentVisibility = false;
+		}
 	}
 
 	// Adjust effects based on quality level (0.0 - 1.0)
 	private adjustEffectsForQuality(quality: number) {
+		// If in minimal mode or set to low quality via hasLowQualityMode flag, don't adjust
+		if (get(animationMode) === 'minimal' || this.hasLowQualityMode) {
+			return;
+		}
+
 		// Gradually reduce effects as quality decreases
 		this.config.enableShadows = quality > 0.4;
 
@@ -207,11 +285,32 @@ export class CssEffectsManager {
 		this.config.enableScanlines = quality > 0.2;
 		this.config.enablePhosphorDecay = quality > 0.6;
 		this.config.enableInterlace = quality > 0.5;
+
+		// Override specific effects for iOS
+		if (this.isIOS) {
+			this.config.enableInterlace = false;
+			this.config.enablePhosphorDecay = false;
+		}
 	}
 
 	// Apply configuration to document root
 	private applyConfiguration() {
 		if (!browser || !this.root) return;
+
+		// Throttle rapid updates to avoid performance hit
+		if (this.isThrottling) return;
+
+		// Mark as throttling
+		this.isThrottling = true;
+
+		// Schedule release of throttle
+		if (this.throttleTimeout) {
+			clearTimeout(this.throttleTimeout);
+		}
+
+		this.throttleTimeout = setTimeout(() => {
+			this.isThrottling = false;
+		}, this.updateThreshold);
 
 		// Cancel any pending animation frame
 		if (this.pendingRaf !== null) {
@@ -237,7 +336,7 @@ export class CssEffectsManager {
 		// Helper to check if config item changed
 		const hasChanged = <T>(key: keyof CssEffectsConfig, value: T): boolean => {
 			if (this.previousConfig[key] !== value) {
-				this.previousConfig[key] = value;
+				this.previousConfig[key] = value as any;
 				return true;
 			}
 			return false;
@@ -324,7 +423,7 @@ export class CssEffectsManager {
 				classesToAdd.push('use-contain');
 			}
 
-			if (hasChanged('useContentVisibility', true)) {
+			if (hasChanged('useContentVisibility', true && !this.isIOS)) {
 				classesToAdd.push('use-content-visibility');
 			}
 
@@ -347,7 +446,7 @@ export class CssEffectsManager {
 				});
 			}
 		} else {
-			// Desktop - apply full effects
+			// Desktop - apply full effects based on quality setting
 			this.processEffectClass(
 				'shadows',
 				this.config.enableShadows,
@@ -446,7 +545,7 @@ export class CssEffectsManager {
 			);
 			this.processOptimizationClass(
 				'useContentVisibility',
-				this.config.useContentVisibility,
+				this.config.useContentVisibility && !this.isIOS,
 				'use-content-visibility',
 				classesToAdd,
 				classesToRemove
@@ -485,20 +584,24 @@ export class CssEffectsManager {
 
 		// Apply all class changes in one batch
 		if (classesToRemove.length > 0) {
-			this.root.classList.remove(...classesToRemove);
+			this.root!.classList.remove(...classesToRemove);
 			// Remove from tracked classes
 			classesToRemove.forEach((cls) => this.appliedClasses.delete(cls));
 		}
 
 		if (classesToAdd.length > 0) {
-			this.root.classList.add(...classesToAdd);
+			this.root!.classList.add(...classesToAdd);
 			// Add to tracked classes
 			classesToAdd.forEach((cls) => this.appliedClasses.add(cls));
 		}
 
-		// Apply CSS variable updates
+		// Apply CSS variable updates with caching to avoid unnecessary updates
 		cssVarsToUpdate.forEach(({ name, value }) => {
-			this.root!.style.setProperty(name, value);
+			// Only update if value has changed
+			if (this.cssVars.get(name) !== value) {
+				this.root!.style.setProperty(name, value);
+				this.cssVars.set(name, value);
+			}
 		});
 	}
 
@@ -515,7 +618,7 @@ export class CssEffectsManager {
 
 		const key = `${effect}-${variant}-${enabled}` as keyof CssEffectsConfig;
 		if (this.previousConfig[key] !== enabled) {
-			this.previousConfig[key] = enabled;
+			this.previousConfig[key] = enabled as any;
 
 			if (enabled) {
 				classesToAdd.push(className);
@@ -574,7 +677,11 @@ export class CssEffectsManager {
 	private setRootVariable(name: string, value: string) {
 		if (!this.root) return;
 
-		this.root.style.setProperty(name, value);
+		// Only update if value changed
+		if (this.cssVars.get(name) !== value) {
+			this.root.style.setProperty(name, value);
+			this.cssVars.set(name, value);
+		}
 	}
 
 	// Enable or disable a specific effect

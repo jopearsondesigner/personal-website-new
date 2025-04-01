@@ -1,3 +1,4 @@
+// src/lib/utils/device-performance.ts
 import { browser } from '$app/environment';
 import { writable } from 'svelte/store';
 
@@ -179,15 +180,20 @@ function determineDeviceCapabilities(): DeviceCapabilities {
 		}
 	}
 
-	// If it's an iPhone that you specifically mentioned with performance issues
+	// If it's an iPhone 14 specifically (as mentioned in the prompt)
 	if (isIOS && /iPhone 14/.test(ua)) {
 		// Special optimization for iPhone 14
 		capabilities.tier = 'medium';
 		capabilities.maxStars = 30;
 		capabilities.useCanvas = true;
+		capabilities.frameSkip = 2; // Skip more frames
 		capabilities.updateInterval = 32; // ~30fps initially
 		capabilities.enableChromaticAberration = false;
 		capabilities.enableInterlace = false;
+		capabilities.enablePhosphorDecay = false;
+		capabilities.enableBlur = false;
+		capabilities.enableShadows = false;
+		capabilities.enableReflections = false;
 	}
 
 	return capabilities;
@@ -214,6 +220,8 @@ export function setupPerformanceMonitoring(): () => void {
 	let lastFrameTime = performance.now();
 	let monitoringActive = true;
 	let monitoringFrameId: number;
+	let consecutiveLowFpsCount = 0;
+	const maxConsecutiveLowFps = 3; // Number of consecutive low FPS measurements before reducing quality
 
 	const calculateFPS = () => {
 		const now = performance.now();
@@ -232,32 +240,66 @@ export function setupPerformanceMonitoring(): () => void {
 			const fps = 1000 / avgFrameTime;
 
 			// If FPS is consistently below target, reduce quality
-			if (frameTimes.length >= 10 && fps < 30) {
-				deviceCapabilities.update((current) => {
-					// Already at low settings
-					if (current.tier === 'low') return current;
+			// For iOS, be more aggressive
+			const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+			const fpsThreshold = isIOS ? 20 : 30;
 
-					console.log(`Performance optimization: Reducing effects (FPS: ${fps.toFixed(1)})`);
+			if (frameTimes.length >= 10) {
+				if (fps < fpsThreshold) {
+					consecutiveLowFpsCount++;
 
-					// Reduce to next lower tier
-					const newTier = current.tier === 'high' ? 'medium' : 'low';
-					const baseCapabilities = newTier === 'medium' ? mediumCapabilities : lowCapabilities;
+					// If we've had multiple consecutive low FPS readings, reduce quality
+					if (consecutiveLowFpsCount >= maxConsecutiveLowFps) {
+						deviceCapabilities.update((current) => {
+							// Already at low settings
+							if (current.tier === 'low' && isIOS) {
+								// For iOS, try even more aggressive reductions
+								return {
+									...current,
+									maxStars: Math.max(10, current.maxStars - 5),
+									frameSkip: Math.min(4, current.frameSkip + 1),
+									enableGlow: false,
+									enableBlur: false,
+									enableShadows: false,
+									enableReflections: false,
+									enableParallax: false,
+									enablePulse: false,
+									enableScanlines: false,
+									enablePhosphorDecay: false,
+									enableInterlace: false,
+									enableChromaticAberration: false
+								};
+							}
 
-					return {
-						...current,
-						...baseCapabilities,
-						tier: newTier,
-						devicePixelRatio: current.devicePixelRatio,
-						isMobile: current.isMobile,
-						isIOS: current.isIOS,
-						isAndroid: current.isAndroid,
-						isTablet: current.isTablet,
-						isDesktop: current.isDesktop
-					};
-				});
+							if (current.tier === 'low') return current;
 
-				// Clear measurements after adjustment
-				frameTimes = [];
+							console.log(`Performance optimization: Reducing effects (FPS: ${fps.toFixed(1)})`);
+
+							// Reduce to next lower tier
+							const newTier = current.tier === 'high' ? 'medium' : 'low';
+							const baseCapabilities = newTier === 'medium' ? mediumCapabilities : lowCapabilities;
+
+							return {
+								...current,
+								...baseCapabilities,
+								tier: newTier,
+								devicePixelRatio: current.devicePixelRatio,
+								isMobile: current.isMobile,
+								isIOS: current.isIOS,
+								isAndroid: current.isAndroid,
+								isTablet: current.isTablet,
+								isDesktop: current.isDesktop
+							};
+						});
+
+						// Clear measurements after adjustment
+						frameTimes = [];
+						consecutiveLowFpsCount = 0;
+					}
+				} else {
+					// Reset if FPS is good
+					consecutiveLowFpsCount = 0;
+				}
 			}
 		}
 
