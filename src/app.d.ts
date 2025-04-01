@@ -1,11 +1,17 @@
+// src/app.d.ts
+/// <reference types="@sveltejs/kit" />
+
+// Import the ServerDeviceInfo type from hooks
+import type { ServerDeviceInfo } from './hooks.server';
+
 // See https://kit.svelte.dev/docs/types#app
-// for information about these interfaces
 declare global {
 	namespace App {
 		// interface Error {}
-		// interface Locals {}
+		interface Locals {
+			deviceInfo: ServerDeviceInfo;
+		}
 		// interface PageData {}
-		// interface PageState {}
 		// interface Platform {}
 	}
 }

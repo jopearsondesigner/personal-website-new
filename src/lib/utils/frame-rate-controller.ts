@@ -736,6 +736,24 @@ class FrameRateController {
 		this.notifyQualitySubscribers(this.currentQuality, this.currentQualityLevel);
 	}
 
+	// Helper to get quality factor from a tier name
+	public getQualityFactorForTier(tier: 'ultra' | 'high' | 'medium' | 'low' | 'minimal'): number {
+		switch (tier) {
+			case 'ultra':
+				return 1.0;
+			case 'high':
+				return 0.8;
+			case 'medium':
+				return 0.6;
+			case 'low':
+				return 0.4;
+			case 'minimal':
+				return 0.2;
+			default:
+				return 0.6;
+		}
+	}
+
 	// Update throttling parameters based on quality
 	private updateAdaptiveThrottling(quality: number) {
 		if (!this.adaptiveThrottling) return;
@@ -877,6 +895,20 @@ class FrameRateController {
 		this.debugMode = enabled;
 		this.logEvent('Debug mode toggled', { enabled });
 		this.updatePerformanceMetrics();
+	}
+
+	// Make transitionToQuality public
+	public transitionToQuality(targetQuality: number) {
+		// Avoid redundant transitions
+		if (targetQuality === this.currentQuality) return;
+
+		this.previousQuality = this.currentQuality;
+		this.targetQuality = targetQuality;
+		this.qualityTransitionStartTime = performance.now();
+		this.isTransitioningQuality = true;
+
+		// Immediately notify of transition start
+		this.notifyQualitySubscribers(this.currentQuality, this.currentQualityLevel);
 	}
 
 	// Get current estimated FPS

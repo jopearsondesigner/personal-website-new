@@ -1,3 +1,4 @@
+// src/lib/utils/device-capabilities.ts
 import { browser } from '$app/environment';
 import { writable, derived } from 'svelte/store';
 

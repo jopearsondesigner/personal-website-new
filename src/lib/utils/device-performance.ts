@@ -2,6 +2,9 @@
 import { browser } from '$app/environment';
 import { writable, get } from 'svelte/store';
 
+// Performance feature tests state
+let performanceTestsRun = false;
+
 // Advanced device capabilities model with more granular control
 export interface DeviceCapabilities {
 	// Core tier classification
@@ -65,6 +68,9 @@ export interface DeviceCapabilities {
 
 	// User preferences
 	userQualityPreference: 'auto' | 'low' | 'medium' | 'high' | 'ultra';
+
+	deviceDetectionSource?: 'server' | 'client';
+	qualityFactor?: number; // Add for easier integration with frame rate controller
 }
 
 // Default ultra-high capability settings
@@ -195,18 +201,46 @@ export const runtimeCapabilities = writable({
 	lastUpdated: 0
 });
 
-// Performance feature tests state
-let performanceTestsRun = false;
-
 // Function to determine device capabilities using multiple detection methods
 function determineDeviceCapabilities(): DeviceCapabilities {
 	if (!browser) {
-		return highCapabilities; // Default to high for SSR
+		return { ...highCapabilities, deviceDetectionSource: 'server' }; // Default to high for SSR
 	}
 
 	try {
+		// Check if we have server-provided hints
+		const serverHint = document.head.querySelector('meta[name="device-tier"]');
+		const serverTier = serverHint ? serverHint.getAttribute('content') : null;
+
 		// Start with feature detection (more reliable than UA sniffing)
 		const capabilities = detectBasicCapabilities();
+
+		// If we have a server hint and we're in the initial detection phase,
+		// trust the server's assessment for initial rendering
+		if (serverTier && !performanceTestsRun) {
+			capabilities.tier = serverTier as 'low' | 'medium' | 'high' | 'ultra';
+
+			// Apply preset based on server tier
+			const basePreset =
+				serverTier === 'ultra'
+					? ultraCapabilities
+					: serverTier === 'high'
+						? highCapabilities
+						: serverTier === 'medium'
+							? mediumCapabilities
+							: lowCapabilities;
+
+			Object.assign(capabilities, basePreset);
+
+			// Keep device detection data
+			preserveDeviceInfo(capabilities);
+		}
+
+		// Mark as client-detected once runtime tests run
+		capabilities.deviceDetectionSource = performanceTestsRun ? 'client' : 'server';
+
+		// Calculate quality factor based on tier and subtier
+		capabilities.qualityFactor = calculateQualityFactor(capabilities);
 
 		// Enhance with advanced runtime detection
 		enhanceWithUserAgentData(capabilities);
@@ -220,8 +254,26 @@ function determineDeviceCapabilities(): DeviceCapabilities {
 		return capabilities;
 	} catch (error) {
 		console.error('Error determining device capabilities:', error);
-		return mediumCapabilities; // Fallback to medium on error
+		return { ...mediumCapabilities, deviceDetectionSource: 'client' }; // Fallback to medium on error
 	}
+}
+
+// Helper to calculate quality factor from tier and subtier
+function calculateQualityFactor(capabilities: DeviceCapabilities): number {
+	// Base quality by tier
+	const baseFactor =
+		capabilities.tier === 'ultra'
+			? 1.0
+			: capabilities.tier === 'high'
+				? 0.8
+				: capabilities.tier === 'medium'
+					? 0.5
+					: 0.3;
+
+	// Adjust by subtier (0-9 scale)
+	const subtierAdjustment = (capabilities.subTier / 9) * 0.2;
+
+	return Math.min(1.0, baseFactor + subtierAdjustment);
 }
 
 // Basic capability detection using feature detection

@@ -1,8 +1,9 @@
-// Optimized canvas-star-field.ts
+// src/lib/utils/canvas-star-field.ts
 import { browser } from '$app/environment';
 import type { Writable } from 'svelte/store';
 import { frameRateController } from './frame-rate-controller';
 import { deviceCapabilities } from './device-performance';
+import { get } from 'svelte/store';
 
 interface Star {
 	x: number;
@@ -15,6 +16,7 @@ interface Star {
 interface AnimationState {
 	isAnimating: boolean;
 	canvasId: string;
+	stars?: Star[];
 }
 
 export class CanvasStarFieldManager {
@@ -267,9 +269,20 @@ export class CanvasStarFieldManager {
 		});
 	}
 
-	setStarCount(count: number) {
-		this.initializeStars(count);
-	}
+	// Using arrow function syntax for method definition to avoid TypeScript issues
+	setStarCount = (count) => {
+		// Scale based on device capability
+		const capabilities = get(deviceCapabilities);
+		let adjustedCount = count;
+
+		if (capabilities.tier === 'low') {
+			adjustedCount = Math.min(count, 20); // Max 20 stars for low-end
+		} else if (capabilities.tier === 'medium') {
+			adjustedCount = Math.min(count, 40); // Max 40 stars for medium
+		}
+
+		this.initializeStars(adjustedCount);
+	};
 
 	setUseWorker(useWorker: boolean) {
 		if (this.useWorker === useWorker) return;
@@ -320,9 +333,9 @@ export class CanvasStarFieldManager {
 		}
 	}
 
-	setUseContainerParallax(useParallax: boolean) {
+	setUseContainerParallax = (useParallax) => {
 		this.useContainerParallax = useParallax;
-	}
+	};
 
 	start() {
 		if (!browser || this.isRunning) return;
@@ -375,8 +388,8 @@ export class CanvasStarFieldManager {
 		}
 	}
 
-	animate = (timestamp: number) => {
-		if (!browser || !this.isRunning || !this.ctx || !this.canvas || !this.isVisible) return;
+	animate = (timestamp) => {
+		if (!this.isRunning || !this.ctx || !this.canvas || !this.isVisible) return;
 
 		const elapsed = timestamp - this.lastTime;
 
@@ -411,8 +424,6 @@ export class CanvasStarFieldManager {
 	};
 
 	private updateStars() {
-		const isDesktop = browser && window.innerWidth >= 1024;
-
 		this.stars.forEach((star) => {
 			// Update z-position (depth)
 			star.z -= 0.004;
@@ -432,36 +443,34 @@ export class CanvasStarFieldManager {
 		// Clear canvas with full opacity black
 		this.ctx.clearRect(0, 0, this.containerWidth, this.containerHeight);
 
-		// Draw stars
+		// Draw stars with performance optimizations
 		this.stars.forEach((star) => {
+			// Update calculations
 			const scale = 0.2 / star.z;
 			const x = (star.x - 50) * scale + 50;
 			const y = (star.y - 50) * scale + 50;
-
-			// Convert percentage to actual pixels
 			const pixelX = (x / 100) * this.containerWidth;
 			const pixelY = (y / 100) * this.containerHeight;
 
-			// Scale for desktop/mobile
+			// Get device-appropriate star size
 			const isDesktop = browser && window.innerWidth >= 1024;
 			const sizeMultiplier = isDesktop ? 2.0 : 1.5;
 			const size = Math.max(scale * sizeMultiplier * this.qualityScale, isDesktop ? 1.5 : 0.75);
 			const opacity = Math.min(1, star.opacity * (scale * 3));
 
-			// Draw the star with optimized path
+			// Draw only if visible
 			if (size > 0 && opacity > 0) {
 				this.ctx.beginPath();
 				this.ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
 
-				// For very small stars use a rectangle (more efficient than arc)
+				// Use rectangles for small stars (more efficient than arcs)
 				if (size < 1.5) {
 					this.ctx.fillRect(pixelX - size / 2, pixelY - size / 2, size, size);
 				} else {
-					// For larger stars use an arc for better appearance
 					this.ctx.arc(pixelX, pixelY, size / 2, 0, Math.PI * 2);
 					this.ctx.fill();
 
-					// Optional: Add glow effect for larger stars, but only on high-end devices
+					// Optional glow for larger stars on high-end devices only
 					if (size > 2 && this.qualityScale > 0.8) {
 						this.ctx.beginPath();
 						this.ctx.arc(pixelX, pixelY, size, 0, Math.PI * 2);
@@ -473,12 +482,12 @@ export class CanvasStarFieldManager {
 		});
 	}
 
-	private updateParallax(timestamp: number) {
+	private updateParallax = (timestamp) => {
 		if (!this.container || !this.useContainerParallax) return;
 
 		const isMobile = window.innerWidth < 768;
 
-		// Use smaller amplitudes on lower quality settings
+		// Scale parallax effect based on quality
 		const qualityFactor = this.qualityScale * 0.8 + 0.2; // 0.2-1.0 range
 
 		// Adjust amplitude based on device and quality
@@ -489,19 +498,36 @@ export class CanvasStarFieldManager {
 		const xOffset = Math.sin(timestamp / 4000) * xAmplitude;
 		const yOffset = Math.cos(timestamp / 5000) * yAmplitude;
 
-		// Use transform: translate3d for hardware acceleration
-		// Batch DOM update to avoid layout thrashing
-		if (this.container && (Math.abs(xOffset) > 0.1 || Math.abs(yOffset) > 0.1)) {
-			// Use requestAnimationFrame for smoother updates
+		// Only update when significant enough to be visible
+		if (Math.abs(xOffset) > 0.1 || Math.abs(yOffset) > 0.1) {
 			requestAnimationFrame(() => {
 				if (this.container) {
 					this.container.style.transform = `translate3d(${xOffset}px, ${yOffset}px, 0)`;
 				}
 			});
 		}
-	}
+	};
 
-	cleanup() {
+	getStars = () => {
+		return this.stars.map((star) => {
+			const scale = 0.2 / star.z;
+			const x = (star.x - 50) * scale + 50;
+			const y = (star.y - 50) * scale + 50;
+			const pixelX = (x / 100) * this.containerWidth;
+			const pixelY = (y / 100) * this.containerHeight;
+			const size = Math.max(star.size * scale, 1);
+			const opacity = Math.min(1, star.opacity * scale);
+
+			const style = `left: ${pixelX}px; top: ${pixelY}px; width: ${size}px; height: ${size}px; opacity: ${opacity};`;
+
+			return {
+				id: `star-${star.x}-${star.y}-${star.z}`,
+				style
+			};
+		});
+	};
+
+	cleanup = () => {
 		if (!browser) return;
 
 		this.stop();
@@ -533,5 +559,5 @@ export class CanvasStarFieldManager {
 		this.ctx = null;
 		this.container = null;
 		this.stars = [];
-	}
+	};
 }

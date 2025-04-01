@@ -20,7 +20,18 @@
 	import { dev } from '$app/environment';
 	import PerformanceMonitor from '$lib/components/devtools/PerformanceMonitor.svelte';
 	import { frameRateController, debugFrameRateController } from '$lib/utils/frame-rate-controller';
-	import { setupPerformanceMonitoring, deviceCapabilities } from '$lib/utils/device-performance';
+	import {
+		setupPerformanceMonitoring,
+		deviceCapabilities,
+		overrideCapabilities
+	} from '$lib/utils/device-performance';
+
+	// Get server-detected device info
+	export let data;
+	const serverDeviceInfo = data?.deviceInfo;
+
+	// Flag to track if client-side detection has completed
+	let clientDetectionComplete = false;
 
 	// Performance monitoring state
 	let showPerformanceMonitor = dev; // Only show in development by default
@@ -135,6 +146,47 @@
 		});
 	}
 
+	// Initialize from server data
+	function initializeFromServerData(serverInfo) {
+		if (!serverInfo) return;
+
+		// Map server tier to initial device capabilities
+		let initialSettings = {
+			tier: serverInfo.tier,
+			isMobile: serverInfo.isMobile,
+			isTablet: serverInfo.isTablet,
+			isDesktop: serverInfo.isDesktop,
+			isIOS: serverInfo.isIOS,
+			isAndroid: serverInfo.isAndroid,
+			isSafari: serverInfo.isSafari,
+			browserEngine: serverInfo.browserEngine,
+			deviceYear: serverInfo.deviceYear,
+			// Add a flag to identify that these are server-detected values
+			deviceDetectionSource: 'server'
+		};
+
+		// For iOS devices, apply more aggressive optimizations
+		if (serverInfo.isIOS && serverInfo.isMobile) {
+			// iPhone-specific optimizations
+			initialSettings = {
+				...initialSettings,
+				// Disable expensive effects
+				enableGlow: false,
+				enableBlur: false,
+				enableShadows: false,
+				enableReflections: false,
+				// Reduce animation complexity
+				maxStars: serverInfo.tier === 'low' ? 10 : 20,
+				frameSkip: serverInfo.tier === 'low' ? 3 : 2,
+				renderScale: serverInfo.tier === 'low' ? 0.5 : 0.7,
+				useWebGL: false // WebGL is problematic on iOS
+			};
+		}
+
+		// Apply the initial server-detected settings
+		overrideCapabilities(initialSettings);
+	}
+
 	// Initialize performance monitoring
 	function initPerformanceFramework() {
 		if (!browser) return;
@@ -182,16 +234,43 @@
 			}
 		}
 
+		// Subscribe to device capabilities changes to detect when client-side
+		// detection has completed and updated the store
+		const unsubscribe = deviceCapabilities.subscribe((capabilities) => {
+			if (!clientDetectionComplete && capabilities.deviceDetectionSource === 'client') {
+				clientDetectionComplete = true;
+
+				// Smoothly transition to client-detected settings
+				// instead of an abrupt change
+				frameRateController.transitionToQuality(capabilities.qualityFactor || 0.8);
+			}
+		});
+
 		// Enable specific optimizations for development
 		if (dev) {
 			debugFrameRateController(true);
 		}
 
-		return cleanup;
+		return () => {
+			cleanup && cleanup();
+			unsubscribe();
+		};
 	}
 
 	// Initialization and cleanup logic
 	onMount(() => {
+		// Initialize with server-detected capabilities while client detection runs
+		if (serverDeviceInfo) {
+			initializeFromServerData(serverDeviceInfo);
+			console.log('Initialized with server-detected device tier:', serverDeviceInfo.tier);
+		}
+
+		// Set a timeout to ensure we revert to client detection if it doesn't complete quickly
+		const detectionTimeout = setTimeout(() => {
+			// Mark client detection as complete (even if it failed)
+			clientDetectionComplete = true;
+		}, 1000);
+
 		// Theme initialization
 		const savedTheme = localStorage.getItem('theme') || 'dark';
 		theme.set(savedTheme);
@@ -247,6 +326,10 @@
 				initialLoader.style.display = 'none';
 			}
 		}
+
+		return () => {
+			clearTimeout(detectionTimeout);
+		};
 	});
 
 	onDestroy(() => {
@@ -269,6 +352,9 @@
 			// Extend window interface for TypeScript
 			window.__performanceInitialized = false;
 		</script>
+	{/if}
+	{#if data && data.deviceTierMeta}
+		{@html data.deviceTierMeta}
 	{/if}
 </svelte:head>
 

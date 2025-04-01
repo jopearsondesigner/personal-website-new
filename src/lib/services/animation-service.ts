@@ -2,21 +2,20 @@
 import { browser } from '$app/environment';
 import { get } from 'svelte/store';
 import { animationMode, type AnimationMode } from '$lib/utils/animation-mode';
+import { deviceCapabilities } from '$lib/utils/device-performance';
+import {
+	createOptimizedTimeline,
+	createOptimizedTween,
+	animationController
+} from '$lib/utils/animation-controller';
+import { frameRateController } from '$lib/utils/frame-rate-controller';
 
-// Animation configuration interface
-interface AnimationConfig {
-	[key: string]: any;
-	starCount: number;
-}
-
-// Simple animation service
+// Enhanced animation service using performance infrastructure
 class AnimationService {
 	private timelines: Map<string, any> = new Map();
 	private isInitialized: boolean = false;
-	private gsapInstance: any = null;
 
 	constructor() {
-		// Initialize in browser only
 		if (browser) {
 			this.init();
 		}
@@ -24,45 +23,18 @@ class AnimationService {
 
 	init() {
 		if (this.isInitialized || !browser) return;
-
-		try {
-			// Get GSAP instance and configure it
-			if (typeof window !== 'undefined' && (window as any).gsap) {
-				this.gsapInstance = (window as any).gsap;
-				this.gsapInstance.config({
-					force3D: true,
-					nullTargetWarn: false
-				});
-
-				this.isInitialized = true;
-			} else {
-				// Wait for GSAP to load
-				window.addEventListener('DOMContentLoaded', () => {
-					if ((window as any).gsap) {
-						this.gsapInstance = (window as any).gsap;
-						this.gsapInstance.config({
-							force3D: true,
-							nullTargetWarn: false
-						});
-
-						this.isInitialized = true;
-					}
-				});
-			}
-		} catch (error) {
-			console.error('Failed to initialize GSAP:', error);
-		}
+		this.isInitialized = true;
 	}
 
 	createTimeline(id: string, config: any = {}) {
-		if (!browser || !this.gsapInstance) return null;
+		if (!browser) return null;
 
 		// Clean up existing timeline
 		this.killTimeline(id);
 
 		try {
-			// Create new timeline
-			const timeline = this.gsapInstance.timeline({
+			// Create new timeline with optimized controller
+			const timeline = createOptimizedTimeline({
 				paused: true,
 				...config
 			});
@@ -85,18 +57,20 @@ class AnimationService {
 			} catch (error) {
 				console.error('Failed to kill timeline:', error);
 			}
-
 			this.timelines.delete(id);
 		}
 	}
 
-	getAnimationConfig(elementType: string): AnimationConfig {
+	getAnimationConfig(elementType: string): any {
 		if (!browser) return { starCount: 30 };
 
 		try {
 			const mode = get(animationMode) as AnimationMode;
+			const capabilities = get(deviceCapabilities);
+			const quality = frameRateController.getQuality();
 
-			const configs: Record<AnimationMode, AnimationConfig> = {
+			// Base configs for different animation modes
+			const configs: Record<AnimationMode, any> = {
 				minimal: {
 					header: {
 						duration: 0.5,
@@ -126,17 +100,47 @@ class AnimationService {
 				}
 			};
 
-			return configs[mode] || configs.normal;
+			// Get base config
+			let config = configs[mode] || configs.normal;
+
+			// Further adjust based on device capabilities
+			if (capabilities.tier === 'low' || quality < 0.3) {
+				config = {
+					...config,
+					starCount: Math.min(config.starCount, 20),
+					header: {
+						...config.header,
+						ease: 'power1.out', // Simpler easing
+						duration: config.header.duration * 1.5, // Slower animations
+						repeat: Math.min(config.header.repeat, 1) // Fewer repeats
+					}
+				};
+			}
+
+			return config;
 		} catch (error) {
 			console.error('Error getting animation config:', error);
 			return { starCount: 30 };
 		}
 	}
 
+	// New method for conditional animations
+	conditionalAnimate(
+		element: any,
+		qualityThreshold: number,
+		highQualityAnimation: any,
+		lowQualityAnimation: any
+	) {
+		return animationController.conditionalAnimate(
+			qualityThreshold,
+			() => createOptimizedTween(element, highQualityAnimation),
+			() => createOptimizedTween(element, lowQualityAnimation)
+		);
+	}
+
 	cleanup() {
 		if (!browser) return;
 
-		// Kill all timelines
 		this.timelines.forEach((timeline) => {
 			try {
 				timeline.kill();

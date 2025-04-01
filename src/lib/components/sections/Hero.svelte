@@ -2,7 +2,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
-	import { gsap } from 'gsap';
 	import { get } from 'svelte/store';
 	import ArcadeCtaButton from '$lib/components/ui/ArcadeCtaButton.svelte';
 	import ArcadeNavigation from '$lib/components/ui/ArcadeNavigation.svelte';
@@ -13,6 +12,12 @@
 	import GameControls from '$lib/components/game/GameControls.svelte';
 	import { deviceCapabilities, setupPerformanceMonitoring } from '$lib/utils/device-performance';
 	import { CanvasStarFieldManager } from '$lib/utils/canvas-star-field';
+	import {
+		createOptimizedTimeline,
+		createOptimizedTween,
+		animationController
+	} from '$lib/utils/animation-controller';
+	import { frameRateController } from '$lib/utils/frame-rate-controller';
 
 	// Device detection state
 	let isMobileDevice = false;
@@ -143,12 +148,14 @@
 	}
 
 	// Timeline creation helper
-	function createOptimizedTimeline(elements: any) {
+	function createHeroTimeline(elements: any) {
 		if (!browser) return null;
 
 		try {
 			const isMobile = window.innerWidth < 768;
 			const isLowPerformance = isLowPerformanceDevice;
+			const capabilities = get(deviceCapabilities);
+			const quality = frameRateController.getCurrentQuality();
 
 			// Clear any existing timelines
 			if (currentTimeline) {
@@ -156,9 +163,9 @@
 			}
 
 			// When in lower performance mode, use simpler animations
-			if (isLowPerformance) {
-				// Create simpler timeline
-				const timeline = gsap.timeline({
+			if (isLowPerformance || quality < 0.4 || capabilities.tier === 'low') {
+				// Create simpler timeline using the animation controller
+				const timeline = createOptimizedTimeline({
 					paused: true,
 					repeat: -1,
 					defaults: {
@@ -178,8 +185,8 @@
 				return timeline;
 			}
 
-			// Standard timeline with device-appropriate settings
-			const timeline = gsap.timeline({
+			// Standard timeline with device-appropriate settings using the animation controller
+			const timeline = createOptimizedTimeline({
 				paused: true,
 				defaults: {
 					ease: 'power1.inOut',
@@ -193,24 +200,52 @@
 			const animDistance = isMobile ? 1 : 2; // Less movement on mobile
 			const opacityDuration = isMobile ? 1.5 : 1; // Slower fade on mobile
 
-			timeline
-				.to([elements.header, elements.insertConcept], {
-					duration: animDuration,
-					y: `+=${animDistance}`,
-					repeat: -1,
-					yoyo: true
-				})
-				.to(
-					elements.insertConcept,
-					{
-						duration: opacityDuration,
-						opacity: 0,
-						repeat: -1,
-						yoyo: true,
-						ease: 'none'
-					},
-					0
-				);
+			// Use conditional animation based on quality
+			animationController.conditionalAnimate(
+				0.7, // Only run more complex animation when quality is 70% or higher
+				() => {
+					// More complex animation for higher quality
+					timeline
+						.to([elements.header, elements.insertConcept], {
+							duration: animDuration,
+							y: `+=${animDistance}`,
+							repeat: -1,
+							yoyo: true
+						})
+						.to(
+							elements.insertConcept,
+							{
+								duration: opacityDuration,
+								opacity: 0,
+								repeat: -1,
+								yoyo: true,
+								ease: 'none'
+							},
+							0
+						);
+				},
+				() => {
+					// Simpler animation for medium quality
+					timeline
+						.to(elements.header, {
+							duration: animDuration * 1.2,
+							y: `+=${animDistance * 0.8}`,
+							repeat: -1,
+							yoyo: true
+						})
+						.to(
+							elements.insertConcept,
+							{
+								duration: opacityDuration * 1.2,
+								opacity: 0.3,
+								repeat: -1,
+								yoyo: true,
+								ease: 'power1.inOut'
+							},
+							0
+						);
+				}
+			);
 
 			return timeline;
 		} catch (error) {
@@ -231,6 +266,10 @@
 				stopAnimations(); // Stop existing animations first
 			}
 
+			// Get device capabilities and current quality
+			const capabilities = get(deviceCapabilities);
+			const quality = frameRateController.getCurrentQuality();
+
 			// Initialize star field manager with device-appropriate settings
 			if (!starFieldManager) {
 				// Get device-appropriate star count
@@ -238,11 +277,13 @@
 				starFieldManager = new animations.StarFieldManager(animationState, starCount);
 
 				// Configure worker usage based on device
-				const useWorker = !isLowPerformanceDevice; // Workers can be expensive on low-end devices
+				const useWorker = !isLowPerformanceDevice && capabilities.tier !== 'low'; // Workers can be expensive on low-end devices
 				starFieldManager.setUseWorker(useWorker);
 
 				// Start with minimal or full parallax based on device
-				starFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
+				starFieldManager.setUseContainerParallax(
+					!isLowPerformanceDevice && capabilities.tier !== 'low'
+				);
 
 				starFieldManager.start();
 			}
@@ -252,8 +293,8 @@
 				glitchManager.cleanup();
 			}
 
-			// Only use glitch effects on capable devices
-			if (!isLowPerformanceDevice) {
+			// Only use glitch effects on capable devices with good quality
+			if (!isLowPerformanceDevice && capabilities.tier !== 'low' && quality > 0.6) {
 				glitchManager = new animations.GlitchManager();
 
 				// Use less intense glitch on mobile
@@ -266,11 +307,22 @@
 			}
 
 			// Create and start optimized GSAP timeline
-			const timeline = createOptimizedTimeline(elements);
+			const timeline = createHeroTimeline(elements);
 
 			if (timeline) {
 				currentTimeline = timeline;
-				timeline.play();
+
+				// Only play when frame rate controller allows
+				if (frameRateController.shouldRenderFrame()) {
+					timeline.play();
+				} else {
+					// Try again on next frame
+					requestAnimationFrame(() => {
+						if (timeline && frameRateController.shouldRenderFrame()) {
+							timeline.play();
+						}
+					});
+				}
 			}
 
 			// Update animation state
@@ -305,12 +357,6 @@
 
 			// Remove reference
 			currentTimeline = null;
-		}
-
-		// Clear any animation frames
-		if (typeof window !== 'undefined' && gsap && gsap.ticker) {
-			// No need for animateFunction reference that doesn't exist
-			gsap.ticker.remove(null);
 		}
 
 		// Don't reset animation state entirely, just update isAnimating
@@ -349,25 +395,70 @@
 			arcadeScreen?.classList.add('power-sequence');
 			handleOrientation();
 
+			// Check if it's a device that needs delay for initial render
+			const needsDelay = isMobileDevice || isLowPerformanceDevice;
+			const delayTime = isLowPerformanceDevice ? 500 : 300; // Longer delay for low-perf
+
 			// Start animations with a slight delay on mobile to allow initial render to complete
-			if (isMobileDevice) {
+			if (needsDelay) {
 				setTimeout(() => {
 					if (currentScreen === 'main') {
 						const elements = { header, insertConcept, arcadeScreen };
 						if (elements.header && elements.insertConcept && elements.arcadeScreen) {
 							animationState.resetAnimationState();
 							if (!starFieldManager) {
-								starFieldManager = new animations.StarFieldManager(animationState);
+								// Use device-appropriate settings
+								const capabilities = get(deviceCapabilities);
+								const starCount = isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60;
+								starFieldManager = new animations.StarFieldManager(animationState, starCount);
+
+								// Disable worker for low-performance devices
+								starFieldManager.setUseWorker(capabilities.tier !== 'low');
+
+								// Disable parallax for low-performance devices
+								starFieldManager.setUseContainerParallax(capabilities.tier !== 'low');
 							}
-							// Start with reduced stars on mobile
-							if (isMobileDevice) {
-								starFieldManager.setStarCount(isLowPerformanceDevice ? 20 : 40);
+
+							// Only start if the frame rate controller allows
+							if (frameRateController.shouldRenderFrame()) {
+								starFieldManager?.start();
+								startAnimations(elements);
+							} else {
+								// Try again on next frame
+								requestAnimationFrame(() => {
+									if (frameRateController.shouldRenderFrame()) {
+										starFieldManager?.start();
+										startAnimations(elements);
+									}
+								});
 							}
-							starFieldManager?.start();
-							startAnimations(elements);
 						}
 					}
-				}, 300); // Small delay for initial render
+				}, delayTime);
+			} else {
+				// For high-performance devices, start immediately
+				if (currentScreen === 'main') {
+					const elements = { header, insertConcept, arcadeScreen };
+					if (elements.header && elements.insertConcept && elements.arcadeScreen) {
+						animationState.resetAnimationState();
+						if (!starFieldManager) {
+							starFieldManager = new animations.StarFieldManager(animationState);
+						}
+
+						// Only start when frame rate controller allows
+						if (frameRateController.shouldRenderFrame()) {
+							starFieldManager?.start();
+							startAnimations(elements);
+						} else {
+							requestAnimationFrame(() => {
+								if (frameRateController.shouldRenderFrame()) {
+									starFieldManager?.start();
+									startAnimations(elements);
+								}
+							});
+						}
+					}
+				}
 			}
 		});
 

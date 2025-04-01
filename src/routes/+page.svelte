@@ -1,13 +1,43 @@
 <!-- src/routes/+page.svelte -->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getAllSections } from '$lib/config/sections';
+	import Hero from '$lib/components/sections/Hero.svelte';
+	import About from '$lib/components/sections/About.svelte';
+	import Work from '$lib/components/sections/Work.svelte';
+	import Contact from '$lib/components/sections/Contact.svelte';
 	import SectionWrapper from '$lib/components/layout/SectionWrapper.svelte';
 	import { navigationStore } from '$lib/stores/navigation';
 	import { layoutStore } from '$lib/stores/store';
+	import { deviceCapabilities } from '$lib/utils/device-performance';
 
-	// Get all sections in their proper order
-	const orderedSections = getAllSections();
+	// Get server-provided data including initial device assessment
+	export let data;
+	const { sections: serverOptimizedSections } = data;
+
+	// Map component names to actual components
+	const componentMap = {
+		Hero: Hero,
+		About: About,
+		Work: Work,
+		Contact: Contact
+	};
+
+	// Create fully hydrated sections with actual component references
+	// Use a different variable name to avoid conflict
+	const hydratedSections = serverOptimizedSections.map((section) => ({
+		...section,
+		component: componentMap[section.name]
+	}));
+
+	// Instead of using orderedSections from getAllSections(),
+	// use the hydrated sections from the server
+	const orderedSections = hydratedSections;
+
+	// Track device capabilities for dynamic adjustments
+	let currentDeviceTier;
+	const unsubscribe = deviceCapabilities.subscribe((caps) => {
+		currentDeviceTier = caps.tier;
+	});
 
 	onMount(() => {
 		// Initialize section observer for scroll tracking
@@ -19,6 +49,7 @@
 		return () => {
 			// Clean up any observers when component is destroyed
 			if (typeof cleanup === 'function') cleanup();
+			unsubscribe();
 		};
 	});
 </script>
@@ -37,7 +68,12 @@
 >
 	<div class="container-fluid sections-container">
 		{#each orderedSections as section (section.id)}
-			<SectionWrapper {section} />
+			<SectionWrapper
+				{section}
+				useSimplifiedAnimations={section.useSimplifiedAnimations}
+				reducedParticles={section.reducedParticles}
+				initialAnimationComplexity={section.initialAnimationComplexity}
+			/>
 		{/each}
 	</div>
 </div>
