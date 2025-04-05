@@ -17,6 +17,13 @@
 	import { layoutStore } from '$lib/stores/store';
 	import MobileNavMenu from '$lib/components/layout/MobileNavMenu.svelte';
 	import Navigation from '$lib/components/layout/Navigation.svelte';
+	import {
+		deviceCapabilities,
+		setupPerformanceMonitoring,
+		setupEventListeners
+	} from '$lib/utils/device-performance';
+	import { frameRateController } from '$lib/utils/frame-rate-controller';
+	import PerformanceMonitor from '$lib/components/devtools/PerformanceMonitor.svelte';
 
 	// Set loading to true initially to ensure LoadingScreen shows first
 	loadingStore.set(true);
@@ -30,6 +37,9 @@
 	let viewportWidth = 0;
 	let viewportHeight = 0;
 	let isScrolled = false; // New state for tracking scroll position
+
+	let cleanupPerformanceMonitoring: (() => void) | undefined = undefined;
+	let cleanupEventListeners: (() => void) | undefined = undefined;
 
 	// Create stores with initial values
 	export const navbarHeight = writable(0);
@@ -214,16 +224,31 @@
 		// Theme initialization
 		const savedTheme = localStorage.getItem('theme') || 'dark';
 		theme.set(savedTheme);
-		document.documentElement.classList.add(savedTheme);
 
-		// Initialize ResizeObserver for navbar height
-		if (navbarElement) {
-			resizeObserver = new ResizeObserver(updateNavHeight);
-			resizeObserver.observe(navbarElement);
-		}
-
-		// Setup logo positioning - only in browser
 		if (browser) {
+			document.documentElement.classList.add(savedTheme);
+
+			// Initialize ResizeObserver for navbar height
+			if (navbarElement) {
+				resizeObserver = new ResizeObserver(updateNavHeight);
+				resizeObserver.observe(navbarElement);
+			}
+
+			// Enable performance monitoring
+			if (typeof setupPerformanceMonitoring === 'function') {
+				cleanupPerformanceMonitoring = setupPerformanceMonitoring();
+			}
+
+			if (typeof setupEventListeners === 'function') {
+				cleanupEventListeners = setupEventListeners();
+			}
+
+			// Enable debug mode during development
+			if (import.meta.env.DEV) {
+				frameRateController.setDebugMode(true);
+			}
+
+			// Setup logo positioning
 			updateLogoPosition();
 
 			// Add multiple event listeners to catch all possible triggers
@@ -238,41 +263,51 @@
 		}
 
 		// Loading screen handling
-		Promise.all([
-			document.fonts.ready,
-			new Promise((resolve) => {
-				if (document.readyState === 'complete') {
-					resolve(true);
-				} else {
-					window.addEventListener('load', () => resolve(true), { once: true });
-				}
-			})
-		]).then(() => {
-			setTimeout(() => loadingStore.set(false), 1500);
-		});
-
-		// Immediately try to remove any lingering initial-loader from app.html
 		if (browser) {
+			Promise.all([
+				document.fonts.ready,
+				new Promise((resolve) => {
+					if (document.readyState === 'complete') {
+						resolve(true);
+					} else {
+						window.addEventListener('load', () => resolve(true), { once: true });
+					}
+				})
+			]).then(() => {
+				setTimeout(() => loadingStore.set(false), 1500);
+			});
+
+			// Immediately try to remove any lingering initial-loader from app.html
 			const initialLoader = document.getElementById('initial-loader');
 			if (initialLoader) {
 				initialLoader.style.display = 'none';
 			}
-		}
 
-		setTimeout(() => {
-			initPerformanceMonitor();
-		}, 1000);
+			setTimeout(() => {
+				initPerformanceMonitor();
+			}, 1000);
+		}
 	});
 
 	onDestroy(() => {
-		if (resizeObserver) {
-			resizeObserver.disconnect();
-		}
-		// Remove event listeners only if in browser
 		if (browser) {
+			if (resizeObserver) {
+				resizeObserver.disconnect();
+			}
+
+			// Remove event listeners
 			window.removeEventListener('resize', updateLogoPosition);
 			window.removeEventListener('orientationchange', updateLogoPosition);
 			window.removeEventListener('scroll', handleScroll); // Clean up scroll listener
+
+			// Clean up monitoring
+			if (cleanupPerformanceMonitoring) cleanupPerformanceMonitoring();
+			if (cleanupEventListeners) cleanupEventListeners();
+		}
+
+		// Safely clean up controller only in browser context
+		if (browser) {
+			frameRateController.cleanup();
 		}
 	});
 </script>
@@ -343,6 +378,11 @@
 </main>
 
 <Footer />
+
+<!-- Add the Performance Monitor component if in development mode -->
+{#if import.meta.env.DEV}
+	<PerformanceMonitor />
+{/if}
 
 <style>
 	:global(:root) {
