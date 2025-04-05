@@ -1,9 +1,16 @@
+// src/lib/stores/performance-monitor.ts
 import { browser } from '$app/environment';
 import { writable } from 'svelte/store';
+
+// Create a visibility store for the performance monitor
+export const perfMonitorVisible = writable(
+	browser ? localStorage.getItem('perfMonitorVisible') === 'true' : false
+);
 
 // Performance metrics interface
 interface PerformanceMetrics {
 	fps: number;
+	d;
 	memory?: {
 		used: number;
 		limit: number;

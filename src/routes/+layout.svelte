@@ -24,6 +24,8 @@
 	} from '$lib/utils/device-performance';
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
 	import PerformanceMonitor from '$lib/components/devtools/PerformanceMonitor.svelte';
+	// Import performance monitor visibility store
+	import { perfMonitorVisible } from '$lib/stores/performance-monitor';
 
 	// Set loading to true initially to ensure LoadingScreen shows first
 	loadingStore.set(true);
@@ -136,87 +138,13 @@
 		});
 	}
 
-	// Remove both existing monitor implementations and replace with this:
-	let perfMonitorActive = false;
-
-	function initPerformanceMonitor() {
-		if (perfMonitorActive || !browser) return;
-		perfMonitorActive = true;
-
-		console.log('Initializing performance monitor...');
-
-		// Create performance monitor element with high z-index
-		const monitor = document.createElement('div');
-		monitor.id = 'perf-monitor';
-		monitor.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: black;
-    color: lime;
-    font-family: monospace;
-    padding: 10px;
-    border-radius: 4px;
-    z-index: 10000000;
-    font-size: 16px;
-    text-align: left;
-    width: auto;
-    box-shadow: 0 0 5px rgba(0,0,0,0.5);
-  `;
-
-		document.body.appendChild(monitor);
-		console.log('Monitor element added to DOM');
-
-		// FPS tracking
-		let frameCount = 0;
-		let lastTime = performance.now();
-		let fps = 0;
-
-		// Memory tracking
-		let memoryReadings = [];
-		let startTime = performance.now();
-
-		function updateStats() {
-			// Update FPS
-			frameCount++;
-			const now = performance.now();
-			if (now - lastTime >= 1000) {
-				fps = Math.round((frameCount * 1000) / (now - lastTime));
-				frameCount = 0;
-				lastTime = now;
-
-				// Track memory if available
-				if (performance.memory) {
-					const memoryUsed = Math.round(performance.memory.usedJSHeapSize / (1024 * 1024));
-					memoryReadings.push(memoryUsed);
-				}
-
-				// Update display text
-				monitor.innerHTML = `
-        <div>FPS: ${fps}</div>
-        ${
-					performance.memory
-						? `<div>Memory: ${Math.round(performance.memory.usedJSHeapSize / (1024 * 1024))}MB</div>`
-						: '<div>Memory: Not available</div>'
-				}
-        <div>Runtime: ${Math.floor((now - startTime) / 1000)}s</div>
-      `;
-
-				// Log every 30 seconds
-				const runTime = Math.floor((now - startTime) / 1000);
-				if (runTime > 0 && runTime % 30 === 0 && fps > 0) {
-					console.log(`=== PERFORMANCE DATA (${runTime}s) ===`);
-					console.log(`Current FPS: ${fps}`);
-					if (memoryReadings.length > 0) {
-						console.log(`Memory readings: ${memoryReadings.join(', ')}MB`);
-					}
-				}
-			}
-
-			requestAnimationFrame(updateStats);
+	// Add keyboard event handler for performance monitor toggle
+	function handleKeyDown(event: KeyboardEvent) {
+		// Use Alt+Shift+P to toggle performance monitor
+		if (event.altKey && event.shiftKey && event.key === 'P') {
+			perfMonitorVisible.update((value) => !value);
+			event.preventDefault();
 		}
-
-		requestAnimationFrame(updateStats);
 	}
 
 	// Initialization and cleanup logic
@@ -256,6 +184,9 @@
 			window.addEventListener('orientationchange', updateLogoPosition);
 			window.addEventListener('scroll', handleScroll, { passive: true }); // Add scroll listener with passive flag
 
+			// Add keyboard event listener for performance monitor toggle
+			window.addEventListener('keydown', handleKeyDown);
+
 			// Force repaint on orientation change with a slight delay
 			window.addEventListener('orientationchange', () => {
 				setTimeout(updateLogoPosition, 100);
@@ -282,10 +213,6 @@
 			if (initialLoader) {
 				initialLoader.style.display = 'none';
 			}
-
-			setTimeout(() => {
-				initPerformanceMonitor();
-			}, 1000);
 		}
 	});
 
@@ -299,6 +226,7 @@
 			window.removeEventListener('resize', updateLogoPosition);
 			window.removeEventListener('orientationchange', updateLogoPosition);
 			window.removeEventListener('scroll', handleScroll); // Clean up scroll listener
+			window.removeEventListener('keydown', handleKeyDown); // Clean up keyboard listener
 
 			// Clean up monitoring
 			if (cleanupPerformanceMonitoring) cleanupPerformanceMonitoring();
@@ -379,10 +307,8 @@
 
 <Footer />
 
-<!-- Add the Performance Monitor component if in development mode -->
-{#if import.meta.env.DEV}
-	<PerformanceMonitor />
-{/if}
+<!-- Add the Performance Monitor component in all environments, but control visibility with the store -->
+<PerformanceMonitor />
 
 <style>
 	:global(:root) {
