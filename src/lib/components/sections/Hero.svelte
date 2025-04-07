@@ -1,3 +1,4 @@
+<!-- src/lib/components/section/Hero.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
@@ -36,6 +37,12 @@
 	let orientationTimeout: number | null = null;
 	let hasError = false;
 	let memoryMonitor: MemoryMonitor | null = null;
+	let eventHandlers: {
+		resize?: EventListener;
+		orientationChange?: EventListener;
+		visibility?: EventListener;
+		touchStart?: EventListener;
+	} = {};
 
 	// Reactive statements with performance optimizations
 	$: stars = $animationState.stars;
@@ -132,24 +139,47 @@
 		const newScreen = event.detail;
 		const prevScreen = currentScreen;
 
+		// Don't do anything if screen hasn't changed
+		if (newScreen === prevScreen) return;
+
 		// Update the screen state
 		screenStore.set(newScreen);
 		currentScreen = newScreen;
 
-		// If we're returning to the main screen from another screen
-		if (newScreen === 'main' && prevScreen !== 'main') {
-			// We need to ensure the star field is properly reinitialized
-			// This will trigger our reactive statement that handles initialization
-			Promise.resolve().then(() => {
+		// Create a transition function to handle the change
+		const performTransition = () => {
+			// Stop current animations only if needed
+			if (prevScreen === 'main' && newScreen !== 'main') {
+				// We're leaving the main screen, stop animations
+				stopAnimations();
+			} else if (newScreen === 'main' && prevScreen !== 'main') {
+				// We're returning to main screen, restart animations
 				if (canvasStarFieldManager && starContainer) {
 					// First ensure the container is properly set
 					canvasStarFieldManager.setContainer(starContainer);
 
 					// Then restart the animation
 					canvasStarFieldManager.start();
+
+					// Start other animations if elements exist
+					const elements = { header, insertConcept, arcadeScreen };
+					if (elements.header && elements.insertConcept && elements.arcadeScreen) {
+						// Only reset animation state flags, not the whole state
+						animationState.resetAnimationState();
+						startAnimations(elements);
+					}
 				}
-			});
-		}
+			}
+
+			// Dispatch a custom event for screen transition complete
+			const detail = { from: prevScreen, to: newScreen };
+			if (arcadeScreen) {
+				arcadeScreen.dispatchEvent(new CustomEvent('screentransitioncomplete', { detail }));
+			}
+		};
+
+		// Use requestAnimationFrame for smoother transitions
+		requestAnimationFrame(performTransition);
 	}
 
 	function handleControlInput(event: CustomEvent) {
@@ -425,19 +455,113 @@
 		}));
 	}
 
-	// Lifecycle hooks
-	onMount(() => {
-		if (!browser) return;
-
-		currentScreen = 'main';
-
+	// Focused initialization functions
+	function initializeComponents() {
 		// Detect device capabilities
 		detectDeviceCapabilities();
 
-		// Use passive option for all event listeners
-		const passiveOptions = { passive: true };
+		// Initialize memory monitoring
+		initializeMemoryMonitoring();
 
-		// Setup resize observer with optimized callback
+		// Add iOS-specific fixes
+		if (browser && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
+			// Apply iOS fixes to the arcade screen
+			if (arcadeScreen) {
+				// Use transform for hardware acceleration
+				arcadeScreen.style.transform = 'translateZ(0)';
+				arcadeScreen.style.backfaceVisibility = 'hidden';
+
+				// Fix flickering on scroll
+				arcadeScreen.style.WebkitBackfaceVisibility = 'hidden';
+
+				// Simplify effects for iOS performance
+				arcadeScreen.classList.add('ios-optimized');
+			}
+
+			// Apply fixes to the star container
+			if (starContainer) {
+				starContainer.style.transform = 'translateZ(0)';
+				starContainer.style.backfaceVisibility = 'hidden';
+				starContainer.style.WebkitBackfaceVisibility = 'hidden';
+			}
+		}
+	}
+
+	function initializeMemoryMonitoring() {
+		if (!memoryMonitor && browser && 'performance' in window && 'memory' in (performance as any)) {
+			memoryMonitor = new MemoryMonitor(
+				30000, // Check every 30 seconds
+				0.7, // Warning at 70%
+				0.85, // Critical at 85%
+				() => {
+					// On warning - reduce effects
+					if (canvasStarFieldManager) {
+						canvasStarFieldManager.enableGlow = false;
+					}
+				},
+				() => {
+					// On critical - reduce star count and effects
+					if (canvasStarFieldManager) {
+						const currentCount = canvasStarFieldManager.getStarCount();
+						canvasStarFieldManager.setStarCount(Math.floor(currentCount * 0.6)); // Reduce by 40%
+						canvasStarFieldManager.enableGlow = false;
+						canvasStarFieldManager.setUseContainerParallax(false);
+					}
+
+					// Suggest garbage collection
+					memoryMonitor?.suggestGarbageCollection();
+				}
+			);
+
+			memoryMonitor.start();
+		}
+	}
+
+	function initializeAnimations() {
+		if (currentScreen === 'main') {
+			const elements = { header, insertConcept, arcadeScreen };
+			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
+				// Reset animation state flags only
+				animationState.resetAnimationState();
+
+				// Initialize and start starfield
+				initializeStarField();
+
+				// Start animations
+				startAnimations(elements);
+			}
+		}
+	}
+
+	function initializeStarField() {
+		if (!starContainer) return;
+
+		// Get device-appropriate star count
+		const capabilities = get(deviceCapabilities);
+		const starCount =
+			capabilities.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
+
+		// Create a new canvas star field manager if needed
+		if (!canvasStarFieldManager) {
+			canvasStarFieldManager = new CanvasStarFieldManager(animationState, starCount);
+
+			// Set the container for the canvas
+			canvasStarFieldManager.setContainer(starContainer);
+
+			// Configure features based on device capabilities
+			canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice);
+			canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
+		} else {
+			// Reuse existing manager
+			canvasStarFieldManager.setContainer(starContainer);
+		}
+
+		// Start the animation
+		canvasStarFieldManager.start();
+	}
+
+	function setupEventListeners() {
+		// Define optimized event handlers
 		const optimizedResizeCheck = () => {
 			// Update device capabilities on resize
 			detectDeviceCapabilities();
@@ -445,102 +569,112 @@
 
 			// Notify canvas manager of resize if it exists
 			if (canvasStarFieldManager) {
-				// Call internal resize method
 				canvasStarFieldManager.resizeCanvas();
 			}
 		};
 
+		const visibilityHandler = () => {
+			if (document.hidden) {
+				// Pause animations when tab is not visible
+				if (canvasStarFieldManager) {
+					canvasStarFieldManager.pause();
+				}
+			} else {
+				// Resume animations when tab is visible again
+				if (canvasStarFieldManager) {
+					canvasStarFieldManager.resume();
+				}
+			}
+		};
+
+		const orientationChangeHandler = () => {
+			// Detect new device capabilities after orientation change
+			setTimeout(detectDeviceCapabilities, 300);
+		};
+
+		// Create touch event handler for mobile
+		const touchStartHandler = (e: TouchEvent) => {
+			if (currentScreen === 'game') {
+				e.preventDefault();
+			}
+		};
+
+		// Use passive option for all event listeners
+		const passiveOptions = { passive: true };
+		const nonPassiveOptions = { passive: false };
+
+		// Setup resize observer with optimized callback
 		resizeObserver = new ResizeObserver(optimizedResizeCheck);
 		if (arcadeScreen) {
 			resizeObserver.observe(arcadeScreen);
+
+			// Add touch handler to arcade screen
+			if (isMobileDevice) {
+				arcadeScreen.addEventListener('touchstart', touchStartHandler as any, nonPassiveOptions);
+			}
 		}
+
+		// Add event listeners
+		window.addEventListener('resize', optimizedResizeCheck, passiveOptions);
+		window.addEventListener('orientationchange', orientationChangeHandler, passiveOptions);
+		document.addEventListener('visibilitychange', visibilityHandler, passiveOptions);
+
+		// Add passive touch events for better scrolling performance on mobile
+		if (isMobileDevice) {
+			document.addEventListener('touchstart', () => {}, { passive: true });
+			document.addEventListener('touchmove', () => {}, { passive: true });
+		}
+
+		// Store handlers for cleanup
+		eventHandlers = {
+			resize: optimizedResizeCheck as EventListener,
+			orientationChange: orientationChangeHandler as EventListener,
+			visibility: visibilityHandler as EventListener,
+			touchStart: touchStartHandler as EventListener
+		};
+	}
+
+	// Lifecycle hooks
+	onMount(() => {
+		if (!browser) return;
+
+		currentScreen = 'main';
+
+		// Initialize core components
+		initializeComponents();
+
+		// Set up event listeners (with passive option)
+		setupEventListeners();
 
 		// Initial setup - use RAF for first render timing
 		const initialRaf = requestAnimationFrame(() => {
-			arcadeScreen?.classList.add('power-sequence');
+			// Apply power-up sequence effect
+			if (arcadeScreen) {
+				arcadeScreen.classList.add('power-sequence');
+			}
+
+			// Check orientation initially
 			handleOrientation();
 
-			// Start animations with a slight delay on mobile to allow initial render to complete
+			// Delayed start of animations (helps with initial render)
 			if (isMobileDevice) {
-				setTimeout(() => {
-					if (currentScreen === 'main') {
-						const elements = { header, insertConcept, arcadeScreen };
-						if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-							animationState.resetAnimationState();
-
-							// Initialize canvas star field manager
-							if (!canvasStarFieldManager && starContainer) {
-								// Get device-appropriate star count
-								const capabilities = get(deviceCapabilities);
-								const starCount =
-									capabilities.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
-
-								// Create a new canvas star field manager
-								canvasStarFieldManager = new CanvasStarFieldManager(animationState, starCount);
-
-								// Set the container for the canvas
-								canvasStarFieldManager.setContainer(starContainer);
-
-								// Configure features based on device capabilities
-								canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice);
-								canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
-							}
-
-							// Start the star field and animations
-							canvasStarFieldManager?.start();
-							startAnimations(elements);
-						}
-					}
-				}, 300); // Small delay for initial render
+				setTimeout(initializeAnimations, 300);
+			} else {
+				initializeAnimations();
 			}
 		});
 
-		// Add event listener with passive option for better touch performance
-		window.addEventListener('resize', optimizedResizeCheck, passiveOptions);
-
-		// Add orientation change listener with passive option
-		window.addEventListener(
-			'orientationchange',
-			() => {
-				// Detect new device capabilities after orientation change
-				setTimeout(detectDeviceCapabilities, 300);
-			},
-			passiveOptions
-		);
-
-		// Setup visibility handler for pausing animations when tab not visible
-		document.addEventListener(
-			'visibilitychange',
-			() => {
-				if (document.hidden) {
-					// Pause animations when tab is not visible
-					if (canvasStarFieldManager) {
-						canvasStarFieldManager.pause();
-					}
-				} else {
-					// Resume animations when tab is visible again
-					if (canvasStarFieldManager) {
-						canvasStarFieldManager.resume();
-					}
-				}
-			},
-			passiveOptions
-		);
-
 		return () => {
-			window.removeEventListener('resize', optimizedResizeCheck);
-			window.removeEventListener('orientationchange', detectDeviceCapabilities);
-			document.removeEventListener('visibilitychange', () => {});
-			orientationTimeout && clearTimeout(orientationTimeout);
+			// Cleanup function called if component is unmounted before destroy
 			if (initialRaf) cancelAnimationFrame(initialRaf);
-
-			// Ensure animations are stopped
-			stopAnimations();
 		};
 	});
 
 	onDestroy(() => {
 		if (!browser) return;
+
+		// Get handlers
+		const { resize, orientationChange, visibility, touchStart } = eventHandlers || {};
 
 		// Cleanup all animations and managers
 		stopAnimations();
@@ -578,6 +712,23 @@
 			orientationTimeout = null;
 		}
 
+		// Remove event listeners with the same handlers that were added
+		if (resize) window.removeEventListener('resize', resize);
+		if (orientationChange) window.removeEventListener('orientationchange', orientationChange);
+		if (visibility) document.removeEventListener('visibilitychange', visibility);
+
+		// Remove any other event listeners that might have been added
+		if (arcadeScreen && touchStart) {
+			arcadeScreen.removeEventListener('touchstart', touchStart);
+		}
+
+		// Manually nullify references to DOM elements
+		header = null;
+		insertConcept = null;
+		arcadeScreen = null;
+		starContainer = null;
+		spaceBackground = null;
+
 		// Force garbage collection hint when available
 		if ((window as any).gc) {
 			try {
@@ -585,6 +736,16 @@
 			} catch (e) {
 				// Ignore errors in garbage collection
 			}
+		}
+
+		// Clear any other references or pending operations
+		currentTimeline = null;
+		stars = [];
+
+		// Clean up any GSAP animations that might still be running
+		if (typeof window !== 'undefined' && gsap && gsap.ticker) {
+			gsap.ticker.remove(null);
+			gsap.globalTimeline.clear();
 		}
 	});
 </script>
@@ -1830,5 +1991,44 @@
 	html[data-device-type='low-performance'] .screen-glare {
 		animation: none;
 		transition: none;
+	}
+
+	/* iOS-specific optimizations */
+	.ios-optimized .shadow-mask,
+	.ios-optimized .phosphor-decay {
+		display: none;
+	}
+
+	.ios-optimized .interlace {
+		opacity: 0.3;
+		background-size: 100% 6px;
+	}
+
+	.ios-optimized #scanline-overlay {
+		opacity: 0.5;
+		background-size: 100% 6px;
+	}
+
+	/* ==========================================================================
+      Fix iOS overscroll issues
+      ========================================================================== */
+	@supports (-webkit-overflow-scrolling: touch) {
+		body,
+		html {
+			position: fixed;
+			width: 100%;
+			height: 100%;
+			overflow: hidden;
+		}
+
+		#hero {
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			-webkit-overflow-scrolling: touch;
+			overflow-y: scroll;
+		}
 	}
 </style>

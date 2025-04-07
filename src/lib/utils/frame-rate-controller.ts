@@ -68,6 +68,14 @@ class FrameRateController {
 		if (this.isMonitoring || !browser) return;
 		this.isMonitoring = true;
 
+		// Pre-allocate arrays with fixed size to avoid resizing
+		this.frameTimeDiffs = new Array(this.fpsHistorySize).fill(0);
+		this.lastFrameTimestamps = new Array(this.fpsHistorySize).fill(0);
+
+		// Track array indices for circular buffer pattern
+		let frameTimeIndex = 0;
+		let timestampIndex = 0;
+
 		const monitorLoop = () => {
 			const now = performance.now();
 
@@ -77,56 +85,66 @@ class FrameRateController {
 
 				// Filter out unreasonable values (tab switches, etc)
 				if (frameDiff > 0 && frameDiff < 1000) {
-					this.frameTimeDiffs.push(frameDiff);
-
-					// Keep buffer size in check
-					while (this.frameTimeDiffs.length > this.fpsHistorySize) {
-						this.frameTimeDiffs.shift();
-					}
+					// Use circular buffer for frameTimeDiffs
+					this.frameTimeDiffs[frameTimeIndex] = frameDiff;
+					frameTimeIndex = (frameTimeIndex + 1) % this.fpsHistorySize;
 				}
 			}
 
 			this.lastFrameTime = now;
 
-			// Process timestamps to calculate FPS
-			this.lastFrameTimestamps.push(now);
+			// Use circular buffer for timestamps
+			this.lastFrameTimestamps[timestampIndex] = now;
+			timestampIndex = (timestampIndex + 1) % this.fpsHistorySize;
 
-			// Keep buffer size in check
-			while (this.lastFrameTimestamps.length > this.fpsHistorySize) {
-				this.lastFrameTimestamps.shift();
-			}
+			// Calculate FPS using a sliding window
+			const oldestTimestampIndex = (timestampIndex + 1) % this.fpsHistorySize;
+			const timeSpan = now - this.lastFrameTimestamps[oldestTimestampIndex];
 
-			if (this.lastFrameTimestamps.length >= 2) {
-				// Calculate FPS from the sliding window of frames
-				const timeSpan =
-					this.lastFrameTimestamps[this.lastFrameTimestamps.length - 1] -
-					this.lastFrameTimestamps[0];
-				const frameCount = this.lastFrameTimestamps.length - 1;
-				if (timeSpan > 0) {
-					// More accurate FPS calculation using frame time diffs
-					if (this.frameTimeDiffs.length > 0) {
-						const avgFrameTime =
-							this.frameTimeDiffs.reduce((sum, time) => sum + time, 0) / this.frameTimeDiffs.length;
-						this.currentFPS = avgFrameTime > 0 ? 1000 / avgFrameTime : this.targetFPS;
-					} else {
-						this.currentFPS = (frameCount * 1000) / timeSpan;
+			if (timeSpan > 0 && this.lastFrameTimestamps[oldestTimestampIndex] !== 0) {
+				// Calculate frames in the time span
+				const frameCount = this.fpsHistorySize - 1;
+
+				// Calculate average frame time
+				let sumFrameTime = 0;
+				let validFrames = 0;
+
+				for (let i = 0; i < this.fpsHistorySize; i++) {
+					if (this.frameTimeDiffs[i] > 0) {
+						sumFrameTime += this.frameTimeDiffs[i];
+						validFrames++;
 					}
-
-					// Notify FPS subscribers
-					this.notifyFPSSubscribers(this.currentFPS);
 				}
+
+				if (validFrames > 0) {
+					const avgFrameTime = sumFrameTime / validFrames;
+					this.currentFPS = avgFrameTime > 0 ? 1000 / avgFrameTime : this.targetFPS;
+				} else {
+					this.currentFPS = (frameCount * 1000) / timeSpan;
+				}
+
+				// Notify FPS subscribers
+				this.notifyFPSSubscribers(this.currentFPS);
 
 				// Adjust quality if needed (every second)
 				if (now - this.lastMeasurementTime > this.measurementInterval) {
 					this.lastMeasurementTime = now;
 					this.adjustQuality();
-
-					// Check for consistent performance trends
 					this.analyzePerformanceTrend();
 				}
 			}
 
-			this.monitoringRAFId = requestAnimationFrame(monitorLoop);
+			// Use requestIdleCallback when available for less critical task
+			if ('requestIdleCallback' in window) {
+				(window as any).requestIdleCallback(
+					() => {
+						this.monitoringRAFId = requestAnimationFrame(monitorLoop);
+					},
+					{ timeout: 1000 / 30 }
+				); // Ensure we run at least at 30fps
+			} else {
+				this.monitoringRAFId = requestAnimationFrame(monitorLoop);
+			}
 		};
 
 		this.monitoringRAFId = requestAnimationFrame(monitorLoop);

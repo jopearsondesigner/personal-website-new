@@ -250,8 +250,10 @@ export class CanvasStarFieldManager {
 		const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
 
 		if (isIOS && isSafari) {
-			// Reduce update frequency
-			this.updateInterval = 32; // ~30fps
+			// More aggressive optimizations for iOS Safari
+
+			// Reduce update frequency even more
+			this.updateInterval = Math.max(32, this.updateInterval); // At least 30fps
 
 			// Use simpler star rendering
 			this.enableGlow = false;
@@ -259,9 +261,36 @@ export class CanvasStarFieldManager {
 			// Disable parallax to prevent scrolling issues
 			this.useContainerParallax = false;
 
+			// Reduce star count by 30%
+			if (this.stars.length > 20) {
+				this.setStarCount(Math.floor(this.stars.length * 0.7));
+			}
+
+			// Add touch-action: none to prevent double-tap zoom issues
+			if (this.canvas) {
+				this.canvas.style.touchAction = 'none';
+			}
+
 			// Add CSS overscroll fix for iOS Safari
 			if (this.container) {
 				this.container.style.WebkitOverflowScrolling = 'touch';
+
+				// Prevent momentum scrolling issues
+				this.container.style.overscrollBehavior = 'none';
+
+				// Improve transform performance
+				this.container.style.transform = 'translateZ(0)';
+				this.container.style.willChange = 'transform';
+			}
+
+			// Use a smaller canvas size on older iOS devices
+			const isOlderDevice = /(iPhone [6-8]|iOS 1[0-2])/.test(navigator.userAgent);
+			if (isOlderDevice && this.canvas) {
+				// Reduce resolution by 25% on older devices
+				const scaleFactor = 0.75 * this.devicePixelRatio;
+				this.canvas.width = this.containerWidth * scaleFactor;
+				this.canvas.height = this.containerHeight * scaleFactor;
+				this.ctx?.scale(scaleFactor, scaleFactor);
 			}
 		}
 	}
@@ -398,43 +427,72 @@ export class CanvasStarFieldManager {
 				// Clear canvas with full opacity black
 				this.ctx.clearRect(0, 0, this.containerWidth, this.containerHeight);
 
-				// Update stars either with worker or directly
-				if (this.useWorker && this.worker) {
-					this.updateStarsWithWorker();
-				} else {
-					// Update stars directly on main thread
-					this.stars.forEach((star) => this.updateStar(star));
+				// Pre-calculate values used in the loop
+				const isDesktop = browser && window.innerWidth >= 1024;
+				const sizeMultiplier = isDesktop ? 2.0 : 1.5;
+				const containerWidthRatio = this.containerWidth / 100;
+				const containerHeightRatio = this.containerHeight / 100;
+
+				// Group stars by size once per frame using a cached size property
+				if (!this.starCache) {
+					this.starCache = {
+						smallStars: [],
+						mediumStars: [],
+						largeStars: [],
+						needsRebatch: true
+					};
 				}
 
-				// Begin path once for all stars of similar size (batching)
-				const smallStars: Star[] = [];
-				const mediumStars: Star[] = [];
-				const largeStars: Star[] = [];
-
-				// Group stars by size for batched rendering
+				// Update stars positions and cache their rendering values
 				this.stars.forEach((star) => {
-					const scale = 0.2 / star.z;
-					const size = Math.max(
-						scale * (browser && window.innerWidth >= 1024 ? 2.0 : 1.5),
-						browser && window.innerWidth >= 1024 ? 2 : 1
-					);
+					// Update z-position (depth)
+					star.z -= 0.004;
 
-					if (size <= 1.5) smallStars.push(star);
-					else if (size <= 2.5) mediumStars.push(star);
-					else largeStars.push(star);
+					// Reset star if it goes too far
+					if (star.z <= 0) {
+						star.z = 0.8;
+						star.x = Math.random() * 100;
+						star.y = Math.random() * 100;
+						this.starCache.needsRebatch = true;
+					}
+
+					// Cache calculated values for rendering if not already cached
+					if (!star.renderedX || this.starCache.needsRebatch) {
+						const scale = 0.2 / star.z;
+						star.scale = scale;
+						star.renderedX = (star.x - 50) * scale + 50;
+						star.renderedY = (star.y - 50) * scale + 50;
+						star.pixelX = star.renderedX * containerWidthRatio;
+						star.pixelY = star.renderedY * containerHeightRatio;
+						star.size = Math.max(scale * sizeMultiplier, isDesktop ? 2 : 1);
+						star.opacity = Math.min(1, star.opacity * (scale * 3));
+					}
 				});
+
+				// Only re-batch stars if needed
+				if (this.starCache.needsRebatch) {
+					this.starCache.smallStars = [];
+					this.starCache.mediumStars = [];
+					this.starCache.largeStars = [];
+
+					this.stars.forEach((star) => {
+						if (star.size <= 1.5) this.starCache.smallStars.push(star);
+						else if (star.size <= 2.5) this.starCache.mediumStars.push(star);
+						else this.starCache.largeStars.push(star);
+					});
+
+					this.starCache.needsRebatch = false;
+				}
+
+				// Draw each batch with a single path operation
+				const { smallStars, mediumStars, largeStars } = this.starCache;
 
 				// Draw small stars in one batch
 				if (smallStars.length > 0) {
 					this.ctx.beginPath();
 					smallStars.forEach((star) => {
-						const scale = 0.2 / star.z;
-						const x = (star.x - 50) * scale + 50;
-						const y = (star.y - 50) * scale + 50;
-						const pixelX = (x / 100) * this.containerWidth;
-						const pixelY = (y / 100) * this.containerHeight;
-						this.ctx.moveTo(pixelX, pixelY);
-						this.ctx.arc(pixelX, pixelY, 0.75, 0, Math.PI * 2);
+						this.ctx.moveTo(star.pixelX, star.pixelY);
+						this.ctx.arc(star.pixelX, star.pixelY, 0.75, 0, Math.PI * 2);
 					});
 					this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
 					this.ctx.fill();
@@ -444,46 +502,42 @@ export class CanvasStarFieldManager {
 				if (mediumStars.length > 0) {
 					this.ctx.beginPath();
 					mediumStars.forEach((star) => {
-						const scale = 0.2 / star.z;
-						const x = (star.x - 50) * scale + 50;
-						const y = (star.y - 50) * scale + 50;
-						const pixelX = (x / 100) * this.containerWidth;
-						const pixelY = (y / 100) * this.containerHeight;
-						const opacity = Math.min(1, star.opacity * (scale * 3));
-						this.ctx.moveTo(pixelX, pixelY);
-						this.ctx.arc(pixelX, pixelY, 1.5, 0, Math.PI * 2);
+						this.ctx.moveTo(star.pixelX, star.pixelY);
+						this.ctx.arc(star.pixelX, star.pixelY, 1.5, 0, Math.PI * 2);
 					});
 					this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
 					this.ctx.fill();
 				}
 
 				// Draw large stars individually (with glow)
-				largeStars.forEach((star) => {
-					const scale = 0.2 / star.z;
-					const x = (star.x - 50) * scale + 50;
-					const y = (star.y - 50) * scale + 50;
-					const pixelX = (x / 100) * this.containerWidth;
-					const pixelY = (y / 100) * this.containerHeight;
-					const size = Math.max(
-						scale * (browser && window.innerWidth >= 1024 ? 2.0 : 1.5),
-						browser && window.innerWidth >= 1024 ? 2 : 1
-					);
-					const opacity = Math.min(1, star.opacity * (scale * 3));
-
-					// Draw the star
+				if (this.enableGlow && largeStars.length > 0) {
+					// Draw glows in a single batch first
 					this.ctx.beginPath();
-					this.ctx.arc(pixelX, pixelY, size / 2, 0, Math.PI * 2);
-					this.ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+					largeStars.forEach((star) => {
+						this.ctx.moveTo(star.pixelX, star.pixelY);
+						this.ctx.arc(star.pixelX, star.pixelY, star.size, 0, Math.PI * 2);
+					});
+					this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
 					this.ctx.fill();
 
-					// Add glow for larger stars
-					if (this.enableGlow) {
-						this.ctx.beginPath();
-						this.ctx.arc(pixelX, pixelY, size, 0, Math.PI * 2);
-						this.ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.3})`;
-						this.ctx.fill();
-					}
-				});
+					// Then draw stars in a single batch
+					this.ctx.beginPath();
+					largeStars.forEach((star) => {
+						this.ctx.moveTo(star.pixelX, star.pixelY);
+						this.ctx.arc(star.pixelX, star.pixelY, star.size / 2, 0, Math.PI * 2);
+					});
+					this.ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+					this.ctx.fill();
+				} else if (largeStars.length > 0) {
+					// If glow is disabled, just draw the stars
+					this.ctx.beginPath();
+					largeStars.forEach((star) => {
+						this.ctx.moveTo(star.pixelX, star.pixelY);
+						this.ctx.arc(star.pixelX, star.pixelY, star.size / 2, 0, Math.PI * 2);
+					});
+					this.ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+					this.ctx.fill();
+				}
 
 				// Add container movement for parallax effect only if enabled
 				if (this.container && this.useContainerParallax) {

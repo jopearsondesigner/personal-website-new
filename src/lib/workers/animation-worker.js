@@ -1,3 +1,5 @@
+// File: /src/lib/workers/animation-worker.ts
+
 // Optimize worker communication and processing
 let stars = [];
 let isAnimating = false;
