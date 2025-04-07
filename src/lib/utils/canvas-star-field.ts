@@ -98,10 +98,29 @@ export class CanvasStarFieldManager {
 	}
 
 	setContainer(element: HTMLElement) {
-		if (!browser || this.initialized) return;
+		if (!browser) return;
 
 		this.container = element;
-		this.setupCanvas();
+
+		// Check if we already have a canvas in this container
+		const existingCanvas = element.querySelector('.star-field-canvas');
+		if (existingCanvas) {
+			// Reuse the existing canvas if possible
+			this.canvas = existingCanvas as HTMLCanvasElement;
+			this.ctx = this.canvas.getContext('2d', {
+				alpha: true,
+				desynchronized: true,
+				willReadFrequently: false
+			});
+		} else {
+			// Create a new canvas if needed
+			this.setupCanvas();
+		}
+
+		// Always resize the canvas to match current container dimensions
+		this.resizeCanvas();
+
+		// Mark as initialized
 		this.initialized = true;
 
 		// Apply iOS Safari optimizations

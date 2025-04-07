@@ -81,11 +81,24 @@
 			};
 
 			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-				// Reset animation state before starting new animations
+				// We need to reset animation state AND check if we need to reinitialize the star field
 				animationState.resetAnimationState();
 
-				// Initialize canvas star field manager
-				if (!canvasStarFieldManager && starContainer) {
+				// If the star field manager exists but was stopped, we should restart it
+				if (canvasStarFieldManager) {
+					// First check if the canvas still exists - it might have been removed when switching screens
+					const canvasExists = starContainer && starContainer.querySelector('.star-field-canvas');
+
+					if (!canvasExists) {
+						// Canvas was removed, we need to re-create it
+						canvasStarFieldManager.setContainer(starContainer);
+					}
+
+					// Start the star field animation
+					canvasStarFieldManager.start();
+				}
+				// Initialize canvas star field manager if it doesn't exist
+				else if (starContainer) {
 					// Get device-appropriate star count
 					const capabilities = get(deviceCapabilities);
 					const starCount =
@@ -104,6 +117,7 @@
 
 				// Use Promise.resolve().then to ensure DOM is ready
 				Promise.resolve().then(() => {
+					// Make sure we start the stars
 					canvasStarFieldManager?.start();
 					startAnimations(elements);
 				});
@@ -116,8 +130,26 @@
 	// Event handlers
 	function handleScreenChange(event: CustomEvent) {
 		const newScreen = event.detail;
+		const prevScreen = currentScreen;
+
+		// Update the screen state
 		screenStore.set(newScreen);
 		currentScreen = newScreen;
+
+		// If we're returning to the main screen from another screen
+		if (newScreen === 'main' && prevScreen !== 'main') {
+			// We need to ensure the star field is properly reinitialized
+			// This will trigger our reactive statement that handles initialization
+			Promise.resolve().then(() => {
+				if (canvasStarFieldManager && starContainer) {
+					// First ensure the container is properly set
+					canvasStarFieldManager.setContainer(starContainer);
+
+					// Then restart the animation
+					canvasStarFieldManager.start();
+				}
+			});
+		}
 	}
 
 	function handleControlInput(event: CustomEvent) {
