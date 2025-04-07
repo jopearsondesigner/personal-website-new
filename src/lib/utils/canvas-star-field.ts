@@ -1,5 +1,4 @@
 // File: /src/lib/utils/canvas-star-field.ts
-// This is already a canvas implementation, but with additional optimizations
 
 import { browser } from '$app/environment';
 import type { Writable } from 'svelte/store';
@@ -15,6 +14,13 @@ interface Star {
 	z: number;
 	size: number;
 	opacity: number;
+	renderedX?: number;
+	renderedY?: number;
+	pixelX?: number;
+	pixelY?: number;
+	scale?: number;
+	prevX?: number;
+	prevY?: number;
 }
 
 interface AnimationState {
@@ -43,6 +49,17 @@ export class CanvasStarFieldManager {
 	private enableGlow = true;
 	private visibilityHandler: (() => void) | null = null;
 	private memoryMonitor: MemoryMonitor | null = null;
+	private starCache: {
+		smallStars: Star[];
+		mediumStars: Star[];
+		largeStars: Star[];
+		needsRebatch: boolean;
+	} | null = null;
+	private frameTimeHistory: number[] = [];
+	private frameTimeHistoryMax = 60;
+	private debugMode = false;
+	private fpsDisplay: HTMLElement | null = null;
+	private lastFrameTime = 0;
 
 	constructor(store: any, count = 60, useWorker = false, useContainerParallax = true) {
 		this.store = store;
@@ -70,6 +87,9 @@ export class CanvasStarFieldManager {
 
 			// Setup visibility handling
 			this.setupVisibilityHandler();
+
+			// Initialize debug display if enabled
+			this.initializeDebugDisplay();
 		}
 
 		if (browser && 'performance' in window && 'memory' in (performance as any)) {
@@ -125,6 +145,9 @@ export class CanvasStarFieldManager {
 
 		// Apply iOS Safari optimizations
 		this.applyIOSSafariOptimizations();
+
+		// Apply Firefox optimizations
+		this.applyFirefoxOptimizations();
 
 		// Adapt to device capabilities
 		const capabilities = get(deviceCapabilities);
@@ -250,25 +273,52 @@ export class CanvasStarFieldManager {
 		const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
 
 		if (isIOS && isSafari) {
+			// Prevent the address bar from appearing/disappearing during scroll
+			document.documentElement.style.height = '100%';
+			document.body.style.height = '100%';
+			document.body.style.position = 'fixed';
+			document.body.style.overflow = 'hidden';
+
+			// Use a simplified animation approach
+			this.enableGlow = false;
+			this.useContainerParallax = false;
+
+			// Use a fixed small canvas size for better performance
+			if (this.canvas) {
+				// Reduce resolution on iOS
+				const scaleFactor = 0.75 * this.devicePixelRatio;
+				this.canvas.width = this.containerWidth * scaleFactor;
+				this.canvas.height = this.containerHeight * scaleFactor;
+				this.ctx?.scale(scaleFactor, scaleFactor);
+
+				// Prevent touch actions that might interfere with animation
+				this.canvas.style.touchAction = 'none';
+			}
+
+			// Use hardware accelerated layers
+			if (this.container) {
+				this.container.style.transform = 'translateZ(0)';
+				this.container.style.willChange = 'transform';
+				this.container.style.webkitBackfaceVisibility = 'hidden';
+				this.container.style.webkitPerspective = '1000';
+			}
+
+			// Replace standard RAF with a more consistent approach for iOS
+			const originalAnimate = this.animate;
+			this.animate = (timestamp: number) => {
+				// iOS Safari can have inconsistent RAF timing
+				// Use a fixed delta time approach
+				originalAnimate(timestamp);
+			};
+
 			// More aggressive optimizations for iOS Safari
 
 			// Reduce update frequency even more
 			this.updateInterval = Math.max(32, this.updateInterval); // At least 30fps
 
-			// Use simpler star rendering
-			this.enableGlow = false;
-
-			// Disable parallax to prevent scrolling issues
-			this.useContainerParallax = false;
-
 			// Reduce star count by 30%
 			if (this.stars.length > 20) {
 				this.setStarCount(Math.floor(this.stars.length * 0.7));
-			}
-
-			// Add touch-action: none to prevent double-tap zoom issues
-			if (this.canvas) {
-				this.canvas.style.touchAction = 'none';
 			}
 
 			// Add CSS overscroll fix for iOS Safari
@@ -277,10 +327,6 @@ export class CanvasStarFieldManager {
 
 				// Prevent momentum scrolling issues
 				this.container.style.overscrollBehavior = 'none';
-
-				// Improve transform performance
-				this.container.style.transform = 'translateZ(0)';
-				this.container.style.willChange = 'transform';
 			}
 
 			// Use a smaller canvas size on older iOS devices
@@ -292,6 +338,28 @@ export class CanvasStarFieldManager {
 				this.canvas.height = this.containerHeight * scaleFactor;
 				this.ctx?.scale(scaleFactor, scaleFactor);
 			}
+		}
+	}
+
+	private applyFirefoxOptimizations() {
+		if (!browser) return;
+
+		const isFirefox = navigator.userAgent.indexOf('Firefox') !== -1;
+
+		if (isFirefox) {
+			// Firefox performs better with fewer, larger stars
+			if (this.stars.length > 40) {
+				this.setStarCount(40);
+			}
+
+			// Firefox benefits from explicit hardware acceleration hints
+			if (this.canvas) {
+				this.canvas.style.transform = 'translateZ(0)';
+				this.canvas.style.willChange = 'transform';
+			}
+
+			// Use simpler drawing operations
+			this.enableGlow = false;
 		}
 	}
 
@@ -327,11 +395,26 @@ export class CanvasStarFieldManager {
 		}
 	}
 
+	private initializeDebugDisplay() {
+		if (!browser || !this.debugMode) return;
+
+		this.fpsDisplay = document.createElement('div');
+		this.fpsDisplay.style.position = 'fixed';
+		this.fpsDisplay.style.bottom = '10px';
+		this.fpsDisplay.style.right = '10px';
+		this.fpsDisplay.style.background = 'rgba(0,0,0,0.7)';
+		this.fpsDisplay.style.color = 'white';
+		this.fpsDisplay.style.padding = '5px';
+		this.fpsDisplay.style.zIndex = '9999';
+		document.body.appendChild(this.fpsDisplay);
+	}
+
 	start() {
 		if (!browser || this.isRunning) return;
 
 		this.isRunning = true;
 		this.lastTime = performance.now();
+		this.lastFrameTime = performance.now();
 
 		// Update store state
 		if (this.store) {
@@ -413,146 +496,219 @@ export class CanvasStarFieldManager {
 		this.useContainerParallax = useParallax;
 	}
 
+	private interpolateStarPositions(
+		stars: Star[],
+		alpha: number,
+		containerWidthRatio: number,
+		containerHeightRatio: number
+	) {
+		for (let i = 0; i < stars.length; i++) {
+			const star = stars[i];
+
+			if (star.prevX !== undefined && star.prevY !== undefined) {
+				// Interpolate between previous and current position
+				star.renderedX = star.prevX + (star.renderedX! - star.prevX) * alpha;
+				star.renderedY = star.prevY + (star.renderedY! - star.prevY) * alpha;
+				star.pixelX = star.renderedX * containerWidthRatio;
+				star.pixelY = star.renderedY * containerHeightRatio;
+			}
+
+			// Store current position as previous for next frame
+			star.prevX = star.renderedX;
+			star.prevY = star.renderedY;
+		}
+	}
+
 	animate = (timestamp: number) => {
 		if (!browser || !this.isRunning || !this.ctx || !this.canvas) return;
 
-		const elapsed = timestamp - this.lastTime;
+		// Calculate delta time properly
+		const currentTime = timestamp;
+		const deltaTime = this.lastTime ? (currentTime - this.lastTime) / 1000 : 0; // Convert to seconds
+		this.lastTime = currentTime;
 
-		// Limit updates for consistent performance
-		if (elapsed > this.updateInterval) {
-			this.lastTime = timestamp;
+		// Use a fixed timestep for physics
+		const fixedDeltaTime = Math.min(deltaTime, 0.1); // Cap at 100ms to prevent huge jumps
 
-			// Only render when frameRateController allows
-			if (frameRateController.shouldRenderFrame()) {
-				// Clear canvas with full opacity black
-				this.ctx.clearRect(0, 0, this.containerWidth, this.containerHeight);
+		// Clear canvas with full opacity black
+		this.ctx.clearRect(0, 0, this.containerWidth, this.containerHeight);
 
-				// Pre-calculate values used in the loop
-				const isDesktop = browser && window.innerWidth >= 1024;
-				const sizeMultiplier = isDesktop ? 2.0 : 1.5;
-				const containerWidthRatio = this.containerWidth / 100;
-				const containerHeightRatio = this.containerHeight / 100;
+		// Add to the animate method after clearing the canvas
+		// Apply a subtle motion blur effect for smoother visuals
+		if (this.enableGlow && !isLowPerformanceDevice) {
+			// Create a blurred effect of the previous frame
+			this.ctx.globalAlpha = 0.2; // Subtle trailing effect
+			this.ctx.drawImage(this.canvas, 0, 0);
+			this.ctx.globalAlpha = 1.0;
+		}
 
-				// Group stars by size once per frame using a cached size property
-				if (!this.starCache) {
-					this.starCache = {
-						smallStars: [],
-						mediumStars: [],
-						largeStars: [],
-						needsRebatch: true
-					};
-				}
+		// Pre-calculate values used in the loop
+		const isDesktop = browser && window.innerWidth >= 1024;
+		const sizeMultiplier = isDesktop ? 2.0 : 1.5;
+		const containerWidthRatio = this.containerWidth / 100;
+		const containerHeightRatio = this.containerHeight / 100;
 
-				// Update stars positions and cache their rendering values
-				this.stars.forEach((star) => {
-					// Update z-position (depth)
-					star.z -= 0.004;
+		// Use frame interpolation for smoother animation
+		const starSpeed = 0.004 * (60 * fixedDeltaTime); // Scale speed by time elapsed for consistent motion
 
-					// Reset star if it goes too far
-					if (star.z <= 0) {
-						star.z = 0.8;
-						star.x = Math.random() * 100;
-						star.y = Math.random() * 100;
-						this.starCache.needsRebatch = true;
-					}
+		// Update stars positions with proper time-based movement
+		for (let i = 0; i < this.stars.length; i++) {
+			const star = this.stars[i];
 
-					// Cache calculated values for rendering if not already cached
-					if (!star.renderedX || this.starCache.needsRebatch) {
-						const scale = 0.2 / star.z;
-						star.scale = scale;
-						star.renderedX = (star.x - 50) * scale + 50;
-						star.renderedY = (star.y - 50) * scale + 50;
-						star.pixelX = star.renderedX * containerWidthRatio;
-						star.pixelY = star.renderedY * containerHeightRatio;
-						star.size = Math.max(scale * sizeMultiplier, isDesktop ? 2 : 1);
-						star.opacity = Math.min(1, star.opacity * (scale * 3));
-					}
-				});
+			// Update z-position (depth) based on time elapsed
+			star.z -= starSpeed;
 
-				// Only re-batch stars if needed
-				if (this.starCache.needsRebatch) {
-					this.starCache.smallStars = [];
-					this.starCache.mediumStars = [];
-					this.starCache.largeStars = [];
+			// Reset star if it goes too far
+			if (star.z <= 0) {
+				star.z = 0.8;
+				star.x = Math.random() * 100;
+				star.y = Math.random() * 100;
+				// Clear cached values when position resets
+				star.renderedX = undefined;
+				star.renderedY = undefined;
+				star.pixelX = undefined;
+				star.pixelY = undefined;
+				star.prevX = undefined;
+				star.prevY = undefined;
+			}
 
-					this.stars.forEach((star) => {
-						if (star.size <= 1.5) this.starCache.smallStars.push(star);
-						else if (star.size <= 2.5) this.starCache.mediumStars.push(star);
-						else this.starCache.largeStars.push(star);
-					});
+			// Calculate render values only once per frame
+			const scale = 0.2 / star.z;
+			star.renderedX = (star.x - 50) * scale + 50;
+			star.renderedY = (star.y - 50) * scale + 50;
+			star.pixelX = star.renderedX * containerWidthRatio;
+			star.pixelY = star.renderedY * containerHeightRatio;
+			star.size = Math.max(scale * sizeMultiplier, isDesktop ? 2 : 1);
+			star.opacity = Math.min(1, (Math.random() * 0.5 + 0.5) * (scale * 3));
+		}
 
-					this.starCache.needsRebatch = false;
-				}
+		// Apply interpolation for smoother movement
+		this.interpolateStarPositions(this.stars, 0.5, containerWidthRatio, containerHeightRatio);
 
-				// Draw each batch with a single path operation
-				const { smallStars, mediumStars, largeStars } = this.starCache;
+		// Sort stars by z-index for proper layering and more efficient batching
+		this.stars.sort((a, b) => a.z - b.z);
 
-				// Draw small stars in one batch
-				if (smallStars.length > 0) {
-					this.ctx.beginPath();
-					smallStars.forEach((star) => {
-						this.ctx.moveTo(star.pixelX, star.pixelY);
-						this.ctx.arc(star.pixelX, star.pixelY, 0.75, 0, Math.PI * 2);
-					});
-					this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-					this.ctx.fill();
-				}
+		// Use fewer draw calls by drawing stars in fewer batches
+		// Small stars
+		this.ctx.beginPath();
+		this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
 
-				// Draw medium stars
-				if (mediumStars.length > 0) {
-					this.ctx.beginPath();
-					mediumStars.forEach((star) => {
-						this.ctx.moveTo(star.pixelX, star.pixelY);
-						this.ctx.arc(star.pixelX, star.pixelY, 1.5, 0, Math.PI * 2);
-					});
-					this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-					this.ctx.fill();
-				}
+		for (let i = 0; i < this.stars.length; i++) {
+			const star = this.stars[i];
+			if (star.size <= 1.5) {
+				this.ctx.moveTo(star.pixelX, star.pixelY);
+				this.ctx.arc(star.pixelX, star.pixelY, 0.75, 0, Math.PI * 2);
+			}
+		}
+		this.ctx.fill();
 
-				// Draw large stars individually (with glow)
-				if (this.enableGlow && largeStars.length > 0) {
-					// Draw glows in a single batch first
-					this.ctx.beginPath();
-					largeStars.forEach((star) => {
+		// Medium stars
+		this.ctx.beginPath();
+		this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+
+		for (let i = 0; i < this.stars.length; i++) {
+			const star = this.stars[i];
+			if (star.size > 1.5 && star.size <= 2.5) {
+				this.ctx.moveTo(star.pixelX, star.pixelY);
+				this.ctx.arc(star.pixelX, star.pixelY, 1.5, 0, Math.PI * 2);
+			}
+		}
+		this.ctx.fill();
+
+		// Large stars
+		if (this.stars.some((s) => s.size > 2.5)) {
+			// Draw glow effect first if enabled
+			if (this.enableGlow) {
+				this.ctx.beginPath();
+				this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+
+				for (let i = 0; i < this.stars.length; i++) {
+					const star = this.stars[i];
+					if (star.size > 2.5) {
 						this.ctx.moveTo(star.pixelX, star.pixelY);
 						this.ctx.arc(star.pixelX, star.pixelY, star.size, 0, Math.PI * 2);
-					});
-					this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-					this.ctx.fill();
-
-					// Then draw stars in a single batch
-					this.ctx.beginPath();
-					largeStars.forEach((star) => {
-						this.ctx.moveTo(star.pixelX, star.pixelY);
-						this.ctx.arc(star.pixelX, star.pixelY, star.size / 2, 0, Math.PI * 2);
-					});
-					this.ctx.fillStyle = 'rgba(255, 255, 255, 1)';
-					this.ctx.fill();
-				} else if (largeStars.length > 0) {
-					// If glow is disabled, just draw the stars
-					this.ctx.beginPath();
-					largeStars.forEach((star) => {
-						this.ctx.moveTo(star.pixelX, star.pixelY);
-						this.ctx.arc(star.pixelX, star.pixelY, star.size / 2, 0, Math.PI * 2);
-					});
-					this.ctx.fillStyle = 'rgba(255, 255, 255, 1)';
-					this.ctx.fill();
+					}
 				}
+				this.ctx.fill();
+			}
 
-				// Add container movement for parallax effect only if enabled
-				if (this.container && this.useContainerParallax) {
-					const isMobile = window.innerWidth < 768;
-					const xAmplitude = isMobile ? 10 : 5;
-					const yAmplitude = isMobile ? 5 : 2;
+			// Draw star centers
+			this.ctx.beginPath();
+			this.ctx.fillStyle = 'rgba(255, 255, 255, 1)';
 
-					const xOffset = Math.sin(timestamp / 4000) * xAmplitude;
-					const yOffset = Math.cos(timestamp / 5000) * yAmplitude;
-
-					this.container.style.transform = `translate3d(${xOffset}px, ${yOffset}px, 0)`;
+			for (let i = 0; i < this.stars.length; i++) {
+				const star = this.stars[i];
+				if (star.size > 2.5) {
+					this.ctx.moveTo(star.pixelX, star.pixelY);
+					this.ctx.arc(star.pixelX, star.pixelY, star.size / 2, 0, Math.PI * 2);
 				}
+			}
+			this.ctx.fill();
+		}
+
+		// Add container movement for parallax effect only if enabled
+		if (this.container && this.useContainerParallax) {
+			const isMobile = window.innerWidth < 768;
+			const xAmplitude = isMobile ? 10 : 5;
+			const yAmplitude = isMobile ? 5 : 2;
+
+			// Use animation time for smooth parallax
+			const xOffset = Math.sin(timestamp / 4000) * xAmplitude;
+			const yOffset = Math.cos(timestamp / 5000) * yAmplitude;
+
+			// Use transform3d for hardware acceleration and add will-change for better performance
+			if (!this.container.style.willChange) {
+				this.container.style.willChange = 'transform';
+			}
+
+			this.container.style.transform = `translate3d(${xOffset}px, ${yOffset}px, 0)`;
+		}
+
+		// Calculate frame time variance to detect jank
+		const frameTime = timestamp - this.lastFrameTime;
+		this.frameTimeHistory.push(frameTime);
+		if (this.frameTimeHistory.length > this.frameTimeHistoryMax) {
+			this.frameTimeHistory.shift();
+		}
+
+		// Calculate frame time variance to detect jank
+		if (this.frameTimeHistory.length > 10) {
+			const avgFrameTime =
+				this.frameTimeHistory.reduce((a, b) => a + b, 0) / this.frameTimeHistory.length;
+			const variance =
+				this.frameTimeHistory.reduce((a, b) => a + Math.pow(b - avgFrameTime, 2), 0) /
+				this.frameTimeHistory.length;
+			const stdDev = Math.sqrt(variance);
+
+			// High standard deviation indicates inconsistent frame times (jank)
+			if (stdDev > avgFrameTime * 0.5) {
+				console.warn(
+					'Detected animation jank, std dev:',
+					stdDev.toFixed(2),
+					'avg:',
+					avgFrameTime.toFixed(2)
+				);
 			}
 		}
 
+		// Update debug display in animation frame
+		if (this.debugMode && this.fpsDisplay) {
+			const fps = 1000 / frameTime;
+			this.fpsDisplay.textContent = `FPS: ${fps.toFixed(1)} | Frame: ${frameTime.toFixed(1)}ms`;
+
+			// Color-code based on performance
+			if (fps < 30) {
+				this.fpsDisplay.style.color = 'red';
+			} else if (fps < 50) {
+				this.fpsDisplay.style.color = 'yellow';
+			} else {
+				this.fpsDisplay.style.color = 'lime';
+			}
+		}
+
+		this.lastFrameTime = timestamp;
+
+		// Request next frame directly without frameRateController for smoother animation
 		this.animationFrameId = requestAnimationFrame(this.animate);
 	};
 
@@ -621,6 +777,12 @@ export class CanvasStarFieldManager {
 		if (this.visibilityHandler) {
 			document.removeEventListener('visibilitychange', this.visibilityHandler);
 			this.visibilityHandler = null;
+		}
+
+		// Clean up debug display
+		if (this.fpsDisplay && this.fpsDisplay.parentNode) {
+			this.fpsDisplay.parentNode.removeChild(this.fpsDisplay);
+			this.fpsDisplay = null;
 		}
 
 		this.canvas = null;

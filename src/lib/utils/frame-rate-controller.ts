@@ -351,25 +351,30 @@ class FrameRateController {
 
 		const now = performance.now();
 		const elapsed = now - this.lastFrameTime;
-		this.frameCount++;
 
-		// Get the maximum frame skip from device capabilities
-		const capabilities = get(deviceCapabilities);
-		const maxSkip = capabilities.frameSkip;
+		// Always render first frame after initialization
+		if (this.lastFrameTime === 0) {
+			this.lastFrameTime = now;
+			return true;
+		}
 
 		// Always render if enough time has passed regardless of skipping
 		// This ensures animations don't appear frozen
-		if (elapsed > 100) {
+		if (elapsed > 33) {
+			// ~30fps minimum
 			this.lastFrameTime = now;
 			this.skippedFrames = 0;
 			return true;
 		}
 
-		// Adaptive frame skipping based on quality level
-		// Higher quality = less skipping, lower quality = more skipping
-		const adaptiveMaxSkip = Math.round(maxSkip + (1 - this.currentQuality) * 2);
+		// Get the maximum frame skip from device capabilities
+		const capabilities = get(deviceCapabilities);
+		const maxSkip = capabilities.frameSkip;
 
-		// Skip frames based on quality and device capability
+		// Adaptive frame skipping based on quality level
+		const adaptiveMaxSkip = Math.min(1, maxSkip + (1 - this.currentQuality) * 1);
+
+		// Skip frames based on quality and device capability, but limit to ensure smoothness
 		if (this.skippedFrames >= adaptiveMaxSkip) {
 			this.lastFrameTime = now;
 			this.skippedFrames = 0;

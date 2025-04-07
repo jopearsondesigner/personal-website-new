@@ -29,11 +29,11 @@ let config: WorkerConfig = {
 	starSpeed: 0.004,
 	maxStars: 60
 };
-let animationFrameId: number | null = null;
 let isProcessing = false;
 let isDesktop = false;
 let containerWidth = 0;
 let containerHeight = 0;
+let previousTimeStamp = 0;
 
 // Listen for messages from the main thread
 self.onmessage = (event) => {
@@ -50,11 +50,10 @@ self.onmessage = (event) => {
 			containerWidth = data.containerWidth || 0;
 			containerHeight = data.containerHeight || 0;
 			lastUpdateTime = performance.now();
+			previousTimeStamp = lastUpdateTime;
 
-			// Start update loop if not already running
-			if (!animationFrameId) {
-				startUpdateLoop();
-			}
+			// Start update loop
+			scheduleUpdate();
 			break;
 
 		case 'updateConfig':
@@ -68,11 +67,7 @@ self.onmessage = (event) => {
 			// Update stars array (when receiving new stars from main thread)
 			stars = data.stars;
 			isDesktop = data.isDesktop || isDesktop;
-
-			// Only start update loop if it's not already running
-			if (!animationFrameId) {
-				startUpdateLoop();
-			}
+			scheduleUpdate();
 			break;
 
 		case 'updateDimensions':
@@ -82,17 +77,15 @@ self.onmessage = (event) => {
 			break;
 
 		case 'stop':
-			// Stop the update loop
-			if (animationFrameId) {
-				clearTimeout(animationFrameId);
-				animationFrameId = null;
-			}
+			// Stop the update loop by not rescheduling
+			isProcessing = false;
 			break;
 
 		case 'resume':
-			// Resume the update loop if not already running
-			if (!animationFrameId) {
-				startUpdateLoop();
+			// Resume the update loop
+			if (!isProcessing) {
+				previousTimeStamp = performance.now();
+				scheduleUpdate();
 			}
 			break;
 
@@ -101,45 +94,40 @@ self.onmessage = (event) => {
 	}
 };
 
-// Function to start the update loop with throttling
-function startUpdateLoop() {
+// Improved update scheduling with consistent timing
+function scheduleUpdate() {
 	if (isProcessing) return;
+	isProcessing = true;
 
-	const updateLoop = () => {
-		const now = performance.now();
-		const elapsed = now - lastUpdateTime;
+	const now = performance.now();
+	const elapsed = now - previousTimeStamp;
+	previousTimeStamp = now;
 
-		// Only update at specified interval for consistent performance
-		if (elapsed >= config.updateInterval) {
-			lastUpdateTime = now;
-			isProcessing = true;
+	// Use a fixed timestep for physics updates
+	const fixedDeltaTime = Math.min(elapsed / 1000, 0.1); // Cap at 100ms to prevent huge jumps
 
-			// Batch update all stars
-			updateStarPositions();
+	// Calculate star speed based on elapsed time
+	const starSpeed = config.starSpeed * (60 * fixedDeltaTime);
 
-			// Send updated stars back to main thread
-			self.postMessage({
-				type: 'starsUpdated',
-				data: stars
-			});
+	// Update stars with proper time-based movement
+	updateStarPositions(starSpeed);
 
-			isProcessing = false;
-		}
+	// Send updated stars back to main thread
+	self.postMessage({
+		type: 'starsUpdated',
+		data: stars,
+		timestamp: now
+	});
 
-		// Use setTimeout instead of requestAnimationFrame (not available in workers)
-		// This provides more control over timing
-		animationFrameId = setTimeout(
-			updateLoop,
-			Math.max(1, config.updateInterval - (performance.now() - now))
-		);
-	};
-
-	// Start the loop
-	updateLoop();
+	// Schedule next update with proper timing
+	setTimeout(() => {
+		isProcessing = false;
+		scheduleUpdate();
+	}, config.updateInterval);
 }
 
 // More efficient update function that modifies stars in place
-function updateStarPositions() {
+function updateStarPositions(starSpeed) {
 	const sizeMultiplier = isDesktop ? 2.0 : 1.5;
 	const minSize = isDesktop ? 2 : 1;
 
@@ -151,8 +139,8 @@ function updateStarPositions() {
 	for (let i = 0; i < stars.length; i++) {
 		const star = stars[i];
 
-		// Update z-position (depth)
-		star.z -= config.starSpeed;
+		// Update z-position (depth) with time-based movement
+		star.z -= starSpeed;
 
 		// Reset star if it goes too far
 		if (star.z <= 0) {
@@ -173,18 +161,7 @@ function updateStarPositions() {
 			star.renderedY = (star.y - 50) * scale + 50;
 			star.pixelX = star.renderedX * containerWidthRatio;
 			star.pixelY = star.renderedY * containerHeightRatio;
+			star.size = Math.max(scale * sizeMultiplier, minSize);
 		}
 	}
-}
-
-// Self-cleanup function
-function cleanup() {
-	if (animationFrameId) {
-		clearTimeout(animationFrameId);
-		animationFrameId = null;
-	}
-
-	// Clear references
-	stars = [];
-	isProcessing = false;
 }
