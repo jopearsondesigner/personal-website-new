@@ -1,4 +1,3 @@
-<!-- src/lib/components/sections/Hero.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
@@ -13,6 +12,9 @@
 	import GameControls from '$lib/components/game/GameControls.svelte';
 	import { deviceCapabilities, setupPerformanceMonitoring } from '$lib/utils/device-performance';
 	import { CanvasStarFieldManager } from '$lib/utils/canvas-star-field';
+	import { MemoryMonitor } from '$lib/utils/memory-monitor';
+	import { frameRateController } from '$lib/utils/frame-rate-controller';
+	import { createThrottledRAF } from '$lib/utils/animation-helpers';
 
 	// Device detection state
 	let isMobileDevice = false;
@@ -28,10 +30,12 @@
 	let currentScreen = 'main';
 	let stars: ReturnType<StarFieldManager['getStars']> = [];
 	let starFieldManager: InstanceType<typeof animations.StarFieldManager>;
+	let canvasStarFieldManager: CanvasStarFieldManager | null = null;
 	let glitchManager: InstanceType<typeof animations.GlitchManager>;
 	let resizeObserver: ResizeObserver | null = null;
 	let orientationTimeout: number | null = null;
 	let hasError = false;
+	let memoryMonitor: MemoryMonitor | null = null;
 
 	// Reactive statements with performance optimizations
 	$: stars = $animationState.stars;
@@ -80,14 +84,27 @@
 				// Reset animation state before starting new animations
 				animationState.resetAnimationState();
 
-				// Initialize starFieldManager if it doesn't exist
-				if (!starFieldManager) {
-					starFieldManager = new animations.StarFieldManager(animationState);
+				// Initialize canvas star field manager
+				if (!canvasStarFieldManager && starContainer) {
+					// Get device-appropriate star count
+					const capabilities = get(deviceCapabilities);
+					const starCount =
+						capabilities.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
+
+					// Create a new canvas star field manager
+					canvasStarFieldManager = new CanvasStarFieldManager(animationState, starCount);
+
+					// Set the container for the canvas
+					canvasStarFieldManager.setContainer(starContainer);
+
+					// Configure features based on device capabilities
+					canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice);
+					canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
 				}
 
 				// Use Promise.resolve().then to ensure DOM is ready
 				Promise.resolve().then(() => {
-					starFieldManager?.start();
+					canvasStarFieldManager?.start();
 					startAnimations(elements);
 				});
 			}
@@ -231,20 +248,37 @@
 				stopAnimations(); // Stop existing animations first
 			}
 
-			// Initialize star field manager with device-appropriate settings
-			if (!starFieldManager) {
+			// Start canvas star field if it exists
+			if (canvasStarFieldManager) {
+				// Get device-appropriate settings from capabilities
+				const capabilities = get(deviceCapabilities);
+
+				// Apply device capability adaptations if available
+				if (capabilities) {
+					canvasStarFieldManager.adaptToDeviceCapabilities(capabilities);
+				}
+
+				canvasStarFieldManager.start();
+			}
+			// Initialize canvas star field manager if it doesn't exist
+			else if (starContainer) {
 				// Get device-appropriate star count
-				const starCount = isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60;
-				starFieldManager = new animations.StarFieldManager(animationState, starCount);
+				const capabilities = get(deviceCapabilities);
+				const starCount =
+					capabilities.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
 
-				// Configure worker usage based on device
-				const useWorker = !isLowPerformanceDevice; // Workers can be expensive on low-end devices
-				starFieldManager.setUseWorker(useWorker);
+				// Create a new canvas star field manager
+				canvasStarFieldManager = new CanvasStarFieldManager(animationState, starCount);
 
-				// Start with minimal or full parallax based on device
-				starFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
+				// Set the container for the canvas
+				canvasStarFieldManager.setContainer(starContainer);
 
-				starFieldManager.start();
+				// Configure features based on device capabilities
+				canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice);
+				canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
+
+				// Start the animation
+				canvasStarFieldManager.start();
 			}
 
 			// Initialize glitch manager with enhanced settings
@@ -263,6 +297,40 @@
 				}
 
 				glitchManager.start([elements.header]); // Apply only to header
+			}
+
+			// Initialize memory monitoring if not already
+			if (
+				!memoryMonitor &&
+				browser &&
+				'performance' in window &&
+				'memory' in (performance as any)
+			) {
+				memoryMonitor = new MemoryMonitor(
+					30000, // Check every 30 seconds
+					0.7, // Warning at 70%
+					0.85, // Critical at 85%
+					() => {
+						// On warning - reduce effects
+						if (canvasStarFieldManager) {
+							canvasStarFieldManager.enableGlow = false;
+						}
+					},
+					() => {
+						// On critical - reduce star count and effects
+						if (canvasStarFieldManager) {
+							const currentCount = canvasStarFieldManager.getStarCount();
+							canvasStarFieldManager.setStarCount(Math.floor(currentCount * 0.6)); // Reduce by 40%
+							canvasStarFieldManager.enableGlow = false;
+							canvasStarFieldManager.setUseContainerParallax(false);
+						}
+
+						// Suggest garbage collection
+						memoryMonitor?.suggestGarbageCollection();
+					}
+				);
+
+				memoryMonitor.start();
 			}
 
 			// Create and start optimized GSAP timeline
@@ -286,6 +354,11 @@
 
 	function stopAnimations() {
 		if (!browser) return;
+
+		// Stop canvas star field
+		if (canvasStarFieldManager) {
+			canvasStarFieldManager.stop();
+		}
 
 		// Stop glitch manager
 		if (glitchManager) {
@@ -337,6 +410,12 @@
 			// Update device capabilities on resize
 			detectDeviceCapabilities();
 			debouncedOrientationCheck();
+
+			// Notify canvas manager of resize if it exists
+			if (canvasStarFieldManager) {
+				// Call internal resize method
+				canvasStarFieldManager.resizeCanvas();
+			}
 		};
 
 		resizeObserver = new ResizeObserver(optimizedResizeCheck);
@@ -356,14 +435,27 @@
 						const elements = { header, insertConcept, arcadeScreen };
 						if (elements.header && elements.insertConcept && elements.arcadeScreen) {
 							animationState.resetAnimationState();
-							if (!starFieldManager) {
-								starFieldManager = new animations.StarFieldManager(animationState);
+
+							// Initialize canvas star field manager
+							if (!canvasStarFieldManager && starContainer) {
+								// Get device-appropriate star count
+								const capabilities = get(deviceCapabilities);
+								const starCount =
+									capabilities.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
+
+								// Create a new canvas star field manager
+								canvasStarFieldManager = new CanvasStarFieldManager(animationState, starCount);
+
+								// Set the container for the canvas
+								canvasStarFieldManager.setContainer(starContainer);
+
+								// Configure features based on device capabilities
+								canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice);
+								canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
 							}
-							// Start with reduced stars on mobile
-							if (isMobileDevice) {
-								starFieldManager.setStarCount(isLowPerformanceDevice ? 20 : 40);
-							}
-							starFieldManager?.start();
+
+							// Start the star field and animations
+							canvasStarFieldManager?.start();
 							startAnimations(elements);
 						}
 					}
@@ -384,9 +476,29 @@
 			passiveOptions
 		);
 
+		// Setup visibility handler for pausing animations when tab not visible
+		document.addEventListener(
+			'visibilitychange',
+			() => {
+				if (document.hidden) {
+					// Pause animations when tab is not visible
+					if (canvasStarFieldManager) {
+						canvasStarFieldManager.pause();
+					}
+				} else {
+					// Resume animations when tab is visible again
+					if (canvasStarFieldManager) {
+						canvasStarFieldManager.resume();
+					}
+				}
+			},
+			passiveOptions
+		);
+
 		return () => {
 			window.removeEventListener('resize', optimizedResizeCheck);
 			window.removeEventListener('orientationchange', detectDeviceCapabilities);
+			document.removeEventListener('visibilitychange', () => {});
 			orientationTimeout && clearTimeout(orientationTimeout);
 			if (initialRaf) cancelAnimationFrame(initialRaf);
 
@@ -404,15 +516,22 @@
 		// Reset animation state
 		animationState.reset();
 
-		// Proper cleanup of managers
-		if (starFieldManager) {
-			starFieldManager.cleanup();
-			starFieldManager = null;
+		// Properly cleanup canvas star field manager
+		if (canvasStarFieldManager) {
+			canvasStarFieldManager.cleanup();
+			canvasStarFieldManager = null;
 		}
 
+		// Cleanup other managers
 		if (glitchManager) {
 			glitchManager.cleanup();
 			glitchManager = null;
+		}
+
+		// Stop memory monitoring
+		if (memoryMonitor) {
+			memoryMonitor.stop();
+			memoryMonitor = null;
 		}
 
 		// Cleanup resize observer
@@ -428,9 +547,9 @@
 		}
 
 		// Force garbage collection hint when available
-		if (window.gc) {
+		if ((window as any).gc) {
 			try {
-				window.gc();
+				(window as any).gc();
 			} catch (e) {
 				// Ignore errors in garbage collection
 			}
@@ -491,7 +610,7 @@
 							bind:this={spaceBackground}
 						>
 							<div
-								class="star-container absolute inset-0 pointer-events-none rounded-[3vmin]"
+								class="canvas-star-container absolute inset-0 pointer-events-none rounded-[3vmin]"
 								bind:this={starContainer}
 							>
 								{#each $animationState.stars as star (star.id)}
