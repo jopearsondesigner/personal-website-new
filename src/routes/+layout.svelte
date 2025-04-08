@@ -261,6 +261,8 @@
 	<!-- Adjusted image path -->
 	<meta property="og:image" content={seo.image} />
 	<meta property="og:url" content={seo.url + currentPath} />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
 
 	<!-- Twitter Card meta tags -->
 	<meta name="twitter:title" content={seo.title} />
