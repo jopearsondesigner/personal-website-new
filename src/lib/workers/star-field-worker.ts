@@ -5,42 +5,35 @@ interface Star {
 	x: number;
 	y: number;
 	z: number;
-	size: number;
-	opacity: number;
-	// Add calculated rendering properties to avoid recalculations
-	renderedX?: number;
-	renderedY?: number;
-	pixelX?: number;
-	pixelY?: number;
-	scale?: number;
-	prevX?: number;
-	prevY?: number;
+	prevX: number;
+	prevY: number;
 }
 
 interface WorkerConfig {
-	updateInterval: number;
-	speed: number;
+	starCount: number;
 	maxDepth: number;
-	maxStars: number;
 	boosting: boolean;
+	speed: number;
+	baseSpeed: number;
+	boostSpeed: number;
+	containerWidth: number;
+	containerHeight: number;
 }
 
-// Keep state in the worker to reduce message passing
-let stars: Star[] = [];
-let lastUpdateTime = 0;
-let config: WorkerConfig = {
-	updateInterval: 16, // ~60fps
-	speed: 0.25,
+// Default configuration that matches the reference implementation
+const defaultConfig: WorkerConfig = {
+	starCount: 300,
 	maxDepth: 32,
-	maxStars: 60,
-	boosting: false
+	boosting: false,
+	speed: 0.25,
+	baseSpeed: 0.25,
+	boostSpeed: 2,
+	containerWidth: 800,
+	containerHeight: 600
 };
-let isProcessing = false;
-let isDesktop = false;
-let containerWidth = 0;
-let containerHeight = 0;
-let previousTimeStamp = 0;
-let starColors: string[] = [
+
+// Colors (blue to white gradient for stars) - exact match from reference
+const starColors = [
 	'#0033ff', // Dim blue
 	'#4477ff',
 	'#6699ff',
@@ -49,119 +42,39 @@ let starColors: string[] = [
 	'#ffffff' // Bright white
 ];
 
-// Listen for messages from the main thread
-self.onmessage = (event) => {
-	const { type, data } = event.data;
+// Keep state in the worker to reduce message passing
+let stars: Star[] = [];
+let config = { ...defaultConfig };
+let isProcessing = false;
 
-	switch (type) {
-		case 'init':
-			// Initialize worker with stars and configuration
-			stars = data.stars;
-			if (data.config) {
-				config = { ...config, ...data.config };
-			}
-			isDesktop = data.isDesktop || false;
-			containerWidth = data.containerWidth || 0;
-			containerHeight = data.containerHeight || 0;
-			lastUpdateTime = performance.now();
-			previousTimeStamp = lastUpdateTime;
-
-			// Start update loop
-			scheduleUpdate();
-			break;
-
-		case 'updateConfig':
-			// Update configuration without restarting
-			if (data.config) {
-				config = { ...config, ...data.config };
-			}
-			break;
-
-		case 'updateStars':
-			// Update stars array (when receiving new stars from main thread)
-			stars = data.stars;
-			isDesktop = data.isDesktop || isDesktop;
-
-			// Update boost mode and speed if included
-			if (data.boosting !== undefined) {
-				config.boosting = data.boosting;
-			}
-
-			if (data.speed !== undefined) {
-				config.speed = data.speed;
-			}
-
-			if (data.maxDepth !== undefined) {
-				config.maxDepth = data.maxDepth;
-			}
-
-			scheduleUpdate();
-			break;
-
-		case 'updateDimensions':
-			// Update container dimensions
-			containerWidth = data.width || containerWidth;
-			containerHeight = data.height || containerHeight;
-			break;
-
-		case 'stop':
-			// Stop the update loop by not rescheduling
-			isProcessing = false;
-			break;
-
-		case 'resume':
-			// Resume the update loop
-			if (!isProcessing) {
-				previousTimeStamp = performance.now();
-				scheduleUpdate();
-			}
-			break;
-
-		default:
-			console.error('Unknown message type in star-field-worker:', type);
+// Initialize stars
+function initStars() {
+	stars = [];
+	for (let i = 0; i < config.starCount; i++) {
+		createStar();
 	}
-};
-
-// Improved update scheduling with consistent timing
-function scheduleUpdate() {
-	if (isProcessing) return;
-	isProcessing = true;
-
-	const now = performance.now();
-	const elapsed = now - previousTimeStamp;
-	previousTimeStamp = now;
-
-	// Use a fixed timestep for physics updates
-	const fixedDeltaTime = Math.min(elapsed / 1000, 0.1); // Cap at 100ms to prevent huge jumps
-
-	// Calculate star speed based on elapsed time
-	const starSpeed = config.speed * (60 * fixedDeltaTime);
-
-	// Update stars with proper time-based movement
-	updateStarPositions(starSpeed);
-
-	// Send updated stars back to main thread
-	self.postMessage({
-		type: 'starsUpdated',
-		data: stars,
-		timestamp: now
-	});
-
-	// Schedule next update with proper timing
-	setTimeout(() => {
-		isProcessing = false;
-		scheduleUpdate();
-	}, config.updateInterval);
+	return stars;
 }
 
-// More efficient update function that modifies stars in place
-function updateStarPositions(starSpeed) {
-	const sizeMultiplier = isDesktop ? 2.0 : 1.5;
-	const minSize = isDesktop ? 2 : 1;
-	const centerX = containerWidth / 2;
-	const centerY = containerHeight / 2;
+function createStar() {
+	// Random position in 3D space - exact match to reference
+	const star = {
+		x: Math.random() * config.containerWidth * 2 - config.containerWidth,
+		y: Math.random() * config.containerHeight * 2 - config.containerHeight,
+		z: Math.random() * config.maxDepth,
+		prevX: 0,
+		prevY: 0
+	};
 
-	// Update each star in place
+	stars.push(star);
+}
+
+// Update star positions
+function updateStars() {
+	const centerX = config.containerWidth / 2;
+	const centerY = config.containerHeight / 2;
+
+	// Update each star's position
 	for (let i = 0; i < stars.length; i++) {
 		const star = stars[i];
 
@@ -169,33 +82,97 @@ function updateStarPositions(starSpeed) {
 		star.prevX = star.x;
 		star.prevY = star.y;
 
-		// Update z-position (depth) with time-based movement
-		star.z -= starSpeed;
+		// Move star closer to viewer
+		star.z -= config.speed;
 
-		// Reset star if it goes too far
+		// If star passed the viewer, reset it to far distance
 		if (star.z <= 0) {
+			star.x = Math.random() * config.containerWidth * 2 - config.containerWidth;
+			star.y = Math.random() * config.containerHeight * 2 - config.containerHeight;
 			star.z = config.maxDepth;
-			star.x = Math.random() * containerWidth * 2 - containerWidth;
-			star.y = Math.random() * containerHeight * 2 - containerHeight;
 			star.prevX = star.x;
 			star.prevY = star.y;
 			continue;
 		}
-
-		// Project 3D position to 2D screen coordinates
-		const scale = config.maxDepth / star.z;
-		const x2d = (star.x - centerX) * scale + centerX;
-		const y2d = (star.y - centerY) * scale + centerY;
-
-		// Store calculated properties
-		star.renderedX = x2d;
-		star.renderedY = y2d;
-		star.scale = scale;
-
-		// Star size based on depth
-		star.size = (1 - star.z / config.maxDepth) * 3;
-
-		// Star opacity
-		star.opacity = Math.min(1, (Math.random() * 0.5 + 0.5) * (star.z * 3));
 	}
+
+	// Gradually return to base speed when not boosting
+	if (!config.boosting && config.speed > config.baseSpeed) {
+		config.speed = Math.max(config.baseSpeed, config.speed * 0.98);
+	}
+
+	return stars;
 }
+
+// Listen for messages from the main thread
+self.onmessage = (event) => {
+	const { type, data } = event.data;
+
+	switch (type) {
+		case 'init':
+			// Initialize worker with configuration
+			if (data.config) {
+				config = { ...config, ...data.config };
+			}
+
+			// Initialize stars
+			stars = initStars();
+
+			// Send stars back to main thread
+			self.postMessage({
+				type: 'initialized',
+				stars: stars
+			});
+			break;
+
+		case 'updateConfig':
+			// Update configuration
+			if (data.config) {
+				config = { ...config, ...data.config };
+			}
+			break;
+
+		case 'requestFrame':
+			// Update star positions
+			stars = updateStars();
+
+			// Send updated stars back to main thread
+			self.postMessage({
+				type: 'frameUpdate',
+				stars: stars,
+				config: {
+					speed: config.speed,
+					boosting: config.boosting
+				}
+			});
+			break;
+
+		case 'setBoost':
+			// Update boost state
+			config.boosting = data.boosting;
+			config.speed = data.boosting ? config.boostSpeed : config.baseSpeed;
+			break;
+
+		case 'setDimensions':
+			// Update container dimensions
+			if (data.width && data.height) {
+				config.containerWidth = data.width;
+				config.containerHeight = data.height;
+			}
+			break;
+
+		case 'reset':
+			// Reset stars
+			stars = initStars();
+
+			// Send reset stars back to main thread
+			self.postMessage({
+				type: 'reset',
+				stars: stars
+			});
+			break;
+
+		default:
+			console.error('Unknown message type:', type);
+	}
+};

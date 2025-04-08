@@ -826,10 +826,9 @@
 										bind:this={starFieldComponent}
 										containerElement={starContainer}
 										autoStart={true}
-										starCount={get(deviceCapabilities).maxStars ||
-											(isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60)}
+										starCount={300}
 										enableBoost={true}
-										enableGlow={!isLowPerformanceDevice}
+										enableGlow={true}
 									/>
 								{/if}
 

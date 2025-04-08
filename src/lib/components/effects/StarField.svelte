@@ -3,13 +3,12 @@
 	import { browser } from '$app/environment';
 	import { get } from 'svelte/store';
 	import { deviceCapabilities } from '$lib/utils/device-performance';
-	import { CanvasStarFieldManager } from '$lib/utils/canvas-star-field';
 	import { animationState } from '$lib/stores/animation-store';
 
 	// Props
 	export let containerElement: HTMLElement | null = null;
 	export let autoStart = true;
-	export let starCount: number | undefined = undefined;
+	export let starCount = 300; // Updated to match reference
 	export let enableBoost = true;
 	export let enableGlow = true;
 	export let gameTitle: string | undefined = undefined;
@@ -18,100 +17,262 @@
 
 	// Component state
 	let canvasElement: HTMLCanvasElement;
-	let starfieldManager: CanvasStarFieldManager | null = null;
+	let ctx: CanvasRenderingContext2D | null = null;
+	let stars: Star[] = [];
 	let isRunning = false;
 	let isBoosting = false;
 	let isPaused = false;
-	let isLowPerformanceDevice = false;
-	let isInitialized = false;
+	let animationFrameId: number | null = null;
 	let dispatch = createEventDispatcher();
 
-	// Define throttle function
-	function throttle(func: Function, wait: number) {
-		let lastCall = 0;
-		return function (...args: any[]) {
-			const now = Date.now();
-			if (now - lastCall < wait) return;
-			lastCall = now;
-			return func(...args);
-		};
+	// Star properties directly from reference implementation
+	let maxDepth = 32;
+	let speed = 0.25;
+	let baseSpeed = 0.25;
+	let boostSpeed = 2;
+	let lastTime = 0;
+
+	// Colors (blue to white gradient for stars) - exact match from reference
+	const starColors = [
+		'#0033ff', // Dim blue
+		'#4477ff',
+		'#6699ff',
+		'#88bbff',
+		'#aaddff',
+		'#ffffff' // Bright white
+	];
+
+	// Star interface
+	interface Star {
+		x: number;
+		y: number;
+		z: number;
+		prevX: number;
+		prevY: number;
 	}
 
-	// Initialize star field
-	function initStarField() {
-		if (!browser || !containerElement) return;
+	// Initialize stars
+	function initStars() {
+		stars = [];
+		const containerWidth = containerElement?.clientWidth || window.innerWidth;
+		const containerHeight = containerElement?.clientHeight || window.innerHeight;
 
-		// Detect device capabilities
-		const capabilities = get(deviceCapabilities);
-		isLowPerformanceDevice = capabilities.tier === 'low';
+		for (let i = 0; i < starCount; i++) {
+			createStar(containerWidth, containerHeight);
+		}
+	}
 
-		// Determine appropriate star count based on device capabilities
-		const autoStarCount =
-			capabilities.maxStars || (isLowPerformanceDevice ? 100 : capabilities.isMobile ? 200 : 300);
+	function createStar(containerWidth: number, containerHeight: number) {
+		// Random position in 3D space - exact logic from reference
+		const star = {
+			x: Math.random() * containerWidth * 2 - containerWidth,
+			y: Math.random() * containerHeight * 2 - containerHeight,
+			z: Math.random() * maxDepth,
+			prevX: 0,
+			prevY: 0
+		};
 
-		// Create star field manager with appropriate star count
-		starfieldManager = new CanvasStarFieldManager(
-			animationState,
-			starCount || autoStarCount,
-			!isLowPerformanceDevice, // Use worker on capable devices
-			!isLowPerformanceDevice // Use parallax on capable devices
-		);
+		stars.push(star);
+	}
 
-		// Set container for the canvas
-		starfieldManager.setContainer(containerElement);
+	// Set up canvas
+	function setupCanvas() {
+		if (!containerElement) return;
 
-		// Apply device-specific optimizations
-		if (capabilities) {
-			starfieldManager.adaptToDeviceCapabilities(capabilities);
+		// Check if canvas already exists
+		canvasElement = containerElement.querySelector('.star-field-canvas') as HTMLCanvasElement;
+
+		if (!canvasElement) {
+			// Create new canvas
+			canvasElement = document.createElement('canvas');
+			canvasElement.className = 'star-field-canvas';
+			canvasElement.style.position = 'absolute';
+			canvasElement.style.top = '0';
+			canvasElement.style.left = '0';
+			canvasElement.style.width = '100%';
+			canvasElement.style.height = '100%';
+			canvasElement.style.pointerEvents = 'none';
+			containerElement.appendChild(canvasElement);
 		}
 
-		// Mark as initialized
-		isInitialized = true;
+		// Set canvas size to match container
+		resizeCanvas();
 
-		// Auto start if enabled
-		if (autoStart) {
-			start();
+		// Get context
+		ctx = canvasElement.getContext('2d');
+	}
+
+	// Resize canvas to match container
+	function resizeCanvas() {
+		if (!canvasElement || !containerElement) return;
+
+		const { width, height } = containerElement.getBoundingClientRect();
+		const dpr = window.devicePixelRatio || 1;
+
+		canvasElement.width = width * dpr;
+		canvasElement.height = height * dpr;
+
+		if (ctx) {
+			ctx.scale(dpr, dpr);
 		}
+	}
+
+	// Animation function - directly based on reference implementation
+	function animate(timestamp: number) {
+		if (!isRunning || !ctx || !canvasElement || !containerElement) return;
+
+		const now = timestamp;
+		const deltaTime = now - lastTime;
+		lastTime = now;
+
+		const containerWidth = containerElement.clientWidth;
+		const containerHeight = containerElement.clientHeight;
+
+		// Clear canvas with slight fade for motion blur - exactly like reference
+		ctx.fillStyle = 'rgba(0, 0, 0, 0.0)';
+		ctx.fillRect(0, 0, containerWidth, containerHeight);
+
+		// Center of the screen (our viewing point)
+		const centerX = containerWidth / 2;
+		const centerY = containerHeight / 2;
+
+		// Update and draw stars - exactly like reference
+		for (let i = 0; i < stars.length; i++) {
+			const star = stars[i];
+
+			// Store previous position for trails
+			star.prevX = star.x;
+			star.prevY = star.y;
+
+			// Move star closer to viewer
+			star.z -= speed;
+
+			// If star passed the viewer, reset it to far distance
+			if (star.z <= 0) {
+				star.x = Math.random() * containerWidth * 2 - containerWidth;
+				star.y = Math.random() * containerHeight * 2 - containerHeight;
+				star.z = maxDepth;
+				star.prevX = star.x;
+				star.prevY = star.y;
+				continue;
+			}
+
+			// Project 3D position to 2D screen coordinates
+			const scale = maxDepth / star.z;
+			const x2d = (star.x - centerX) * scale + centerX;
+			const y2d = (star.y - centerY) * scale + centerY;
+
+			// Only draw stars on screen
+			if (x2d < 0 || x2d >= containerWidth || y2d < 0 || y2d >= containerHeight) {
+				continue;
+			}
+
+			// Star size based on depth
+			const size = (1 - star.z / maxDepth) * 3;
+
+			// Star color based on depth (closer = brighter)
+			const colorIndex = Math.floor((1 - star.z / maxDepth) * (starColors.length - 1));
+			const color = starColors[colorIndex];
+
+			// Draw star trail when moving fast
+			if (speed > baseSpeed * 1.5) {
+				const prevScale = maxDepth / (star.z + speed);
+				const prevX = (star.prevX - centerX) * prevScale + centerX;
+				const prevY = (star.prevY - centerY) * prevScale + centerY;
+
+				ctx.beginPath();
+				ctx.moveTo(prevX, prevY);
+				ctx.lineTo(x2d, y2d);
+				ctx.strokeStyle = color;
+				ctx.lineWidth = size;
+				ctx.stroke();
+			} else {
+				// Draw star as circle
+				ctx.beginPath();
+				ctx.arc(x2d, y2d, size, 0, Math.PI * 2);
+				ctx.fillStyle = color;
+				ctx.fill();
+			}
+		}
+
+		// Gradually return to base speed when not boosting
+		if (!isBoosting && speed > baseSpeed) {
+			speed = Math.max(baseSpeed, speed * 0.98);
+		}
+
+		// Request next frame
+		animationFrameId = requestAnimationFrame(animate);
 	}
 
 	// Start animation
 	export function start() {
-		if (!starfieldManager || isRunning) return;
-		starfieldManager.start();
+		if (isRunning) return;
+
+		if (!containerElement) return;
+
+		// Setup canvas if not already done
+		if (!canvasElement) {
+			setupCanvas();
+		}
+
+		// Initialize stars if needed
+		if (stars.length === 0) {
+			initStars();
+		}
+
 		isRunning = true;
+		lastTime = performance.now();
+		animationFrameId = requestAnimationFrame(animate);
+
 		dispatch('start');
 	}
 
 	// Stop animation
 	export function stop() {
-		if (!starfieldManager || !isRunning) return;
-		starfieldManager.stop();
+		if (!isRunning) return;
+
 		isRunning = false;
+
+		if (animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+			animationFrameId = null;
+		}
+
 		dispatch('stop');
 	}
 
 	// Pause animation
 	export function pause() {
-		if (!starfieldManager || !isRunning || isPaused) return;
-		starfieldManager.pause();
+		if (!isRunning || isPaused) return;
+
 		isPaused = true;
+
+		if (animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+			animationFrameId = null;
+		}
+
 		dispatch('pause');
 	}
 
 	// Resume animation
 	export function resume() {
-		if (!starfieldManager || !isRunning || !isPaused) return;
-		starfieldManager.resume();
+		if (!isRunning || !isPaused) return;
+
 		isPaused = false;
+		lastTime = performance.now();
+		animationFrameId = requestAnimationFrame(animate);
+
 		dispatch('resume');
 	}
 
 	// Toggle boost mode
 	export function toggleBoost(boost: boolean) {
-		if (!starfieldManager || !enableBoost) return;
+		if (!enableBoost) return;
 
-		starfieldManager.setBoostMode(boost);
 		isBoosting = boost;
+		speed = boost ? boostSpeed : baseSpeed;
+
 		dispatch('boost', { active: boost });
 	}
 
@@ -143,17 +304,13 @@
 	}
 
 	function handleVisibilityChange() {
-		if (!starfieldManager) return;
-
 		if (document.hidden) {
 			if (isRunning && !isPaused) {
-				starfieldManager.pause();
-				isPaused = true;
+				pause();
 			}
 		} else {
 			if (isRunning && isPaused) {
-				starfieldManager.resume();
-				isPaused = false;
+				resume();
 			}
 		}
 	}
@@ -164,9 +321,14 @@
 
 		// Wait for next tick to ensure DOM is ready
 		setTimeout(() => {
-			// Initialize starfield when containerElement is available
-			if (containerElement && !isInitialized) {
-				initStarField();
+			// Initialize if containerElement is available
+			if (containerElement) {
+				setupCanvas();
+				initStars();
+
+				if (autoStart) {
+					start();
+				}
 			}
 		}, 0);
 
@@ -186,10 +348,7 @@
 		if (!browser) return;
 
 		// Cleanup
-		if (starfieldManager) {
-			starfieldManager.cleanup();
-			starfieldManager = null;
-		}
+		stop();
 
 		// Remove event listeners
 		if (enableBoost) {
@@ -204,10 +363,15 @@
 	});
 
 	// Watch for container element changes and initialize if needed
-	$: if (containerElement && browser && !isInitialized) {
+	$: if (containerElement && browser && !canvasElement) {
 		// Use a small delay to ensure the DOM is ready
 		setTimeout(() => {
-			initStarField();
+			setupCanvas();
+			initStars();
+
+			if (autoStart) {
+				start();
+			}
 		}, 0);
 	}
 </script>
