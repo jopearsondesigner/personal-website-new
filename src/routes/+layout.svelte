@@ -26,6 +26,7 @@
 	import PerformanceMonitor from '$lib/components/devtools/PerformanceMonitor.svelte';
 	// Import performance monitor visibility store
 	import { perfMonitorVisible } from '$lib/stores/performance-monitor';
+	import SEO from '$lib/components/seo/SEO.svelte';
 
 	// Set loading to true initially to ensure LoadingScreen shows first
 	loadingStore.set(true);
@@ -45,6 +46,10 @@
 
 	// Create stores with initial values
 	export const navbarHeight = writable(0);
+
+	export let data;
+
+	const { seo, currentPath } = data;
 
 	// Debounced navbar height update function
 	const updateNavHeight = (() => {
@@ -242,6 +247,28 @@
 
 <!-- Template section -->
 <LoadingScreen />
+
+<svelte:head>
+	<!-- Standard SEO title -->
+	<title>{seo.title}</title>
+
+	<!-- Standard SEO description -->
+	<meta name="description" content={seo.description} />
+
+	<!-- Open Graph meta tags for social media sharing -->
+	<meta property="og:title" content={seo.title} />
+	<meta property="og:description" content={seo.description} />
+	<!-- Adjusted image path -->
+	<meta property="og:image" content={seo.image} />
+	<meta property="og:url" content={seo.url + currentPath} />
+
+	<!-- Twitter Card meta tags -->
+	<meta name="twitter:title" content={seo.title} />
+	<meta name="twitter:description" content={seo.description} />
+	<!-- Adjusted image path for Twitter -->
+	<meta name="twitter:image" content={seo.image} />
+	<meta name="twitter:card" content="summary_large_image" />
+</svelte:head>
 
 <nav
 	bind:this={navbarElement}
