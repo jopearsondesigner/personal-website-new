@@ -4,6 +4,7 @@
 	import { get } from 'svelte/store';
 	import { deviceCapabilities } from '$lib/utils/device-performance';
 	import { animationState } from '$lib/stores/animation-store';
+	import { createThrottledRAF } from '$lib/utils/animation-helpers';
 
 	// Props
 	export let containerElement: HTMLElement | null = null;
@@ -24,15 +25,24 @@
 	let isPaused = false;
 	let animationFrameId: number | null = null;
 	let dispatch = createEventDispatcher();
+	let resizeObserver: ResizeObserver | null = null;
+	let lastTime = 0;
+	let frameCount = 0;
 
-	// Star properties directly from reference implementation
+	// Performance monitoring
+	let fpsMonitor = {
+		frames: 0,
+		lastCheck: 0,
+		fps: 0
+	};
+
+	// Star properties
 	let maxDepth = 32;
 	let speed = 0.25;
 	let baseSpeed = 0.25;
 	let boostSpeed = 2;
-	let lastTime = 0;
 
-	// Colors (blue to white gradient for stars) - exact match from reference
+	// Colors (blue to white gradient for stars)
 	const starColors = [
 		'#0033ff', // Dim blue
 		'#4477ff',
@@ -63,7 +73,7 @@
 	}
 
 	function createStar(containerWidth: number, containerHeight: number) {
-		// Random position in 3D space - exact logic from reference
+		// Random position in 3D space
 		const star = {
 			x: Math.random() * containerWidth * 2 - containerWidth,
 			y: Math.random() * containerHeight * 2 - containerHeight,
@@ -98,8 +108,14 @@
 		// Set canvas size to match container
 		resizeCanvas();
 
-		// Get context
-		ctx = canvasElement.getContext('2d');
+		// Get context with alpha for proper blending
+		ctx = canvasElement.getContext('2d', { alpha: true });
+
+		// Apply hardware acceleration hints
+		if (canvasElement) {
+			canvasElement.style.transform = 'translateZ(0)';
+			canvasElement.style.backfaceVisibility = 'hidden';
+		}
 	}
 
 	// Resize canvas to match container
@@ -109,34 +125,81 @@
 		const { width, height } = containerElement.getBoundingClientRect();
 		const dpr = window.devicePixelRatio || 1;
 
+		// Set internal dimensions for high DPI displays
 		canvasElement.width = width * dpr;
 		canvasElement.height = height * dpr;
 
+		// Set display size
+		canvasElement.style.width = `${width}px`;
+		canvasElement.style.height = `${height}px`;
+
+		// Scale context to account for high DPI displays
 		if (ctx) {
+			ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
 			ctx.scale(dpr, dpr);
 		}
 	}
 
-	// Animation function - directly based on reference implementation
+	function setupResizeObserver() {
+		if (!containerElement || !browser) return;
+
+		// Create throttled resize handler using RAF
+		const handleResize = createThrottledRAF(() => {
+			if (!ctx || !canvasElement || !containerElement) return;
+			resizeCanvas();
+		});
+
+		// Use ResizeObserver for efficient size updates
+		resizeObserver = new ResizeObserver(handleResize);
+		resizeObserver.observe(containerElement);
+	}
+
+	// Animation function with time-based movement
 	function animate(timestamp: number) {
 		if (!isRunning || !ctx || !canvasElement || !containerElement) return;
 
-		const now = timestamp;
-		const deltaTime = now - lastTime;
-		lastTime = now;
+		// Request next frame first for smoother animation
+		animationFrameId = requestAnimationFrame(animate);
+
+		// Calculate delta time with a maximum to prevent large jumps after tab switching
+		const deltaTime = Math.min(timestamp - lastTime, 50);
+		lastTime = timestamp;
+
+		// FPS monitoring
+		fpsMonitor.frames++;
+		if (timestamp - fpsMonitor.lastCheck >= 1000) {
+			fpsMonitor.fps = fpsMonitor.frames;
+			fpsMonitor.frames = 0;
+			fpsMonitor.lastCheck = timestamp;
+		}
+
+		// Skip frames if necessary based on device capability
+		const capabilities = get(deviceCapabilities);
+		if (capabilities.frameSkip > 0) {
+			frameCount = (frameCount + 1) % (capabilities.frameSkip + 1);
+			if (frameCount !== 0) {
+				return; // Skip this frame
+			}
+		}
 
 		const containerWidth = containerElement.clientWidth;
 		const containerHeight = containerElement.clientHeight;
 
-		// Clear canvas with slight fade for motion blur - exactly like reference
-		ctx.fillStyle = 'rgba(0, 0, 0, 0.0)';
+		// Clear canvas with slight alpha for motion blur effect
+		ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
 		ctx.fillRect(0, 0, containerWidth, containerHeight);
 
 		// Center of the screen (our viewing point)
 		const centerX = containerWidth / 2;
 		const centerY = containerHeight / 2;
 
-		// Update and draw stars - exactly like reference
+		// Calculate time-based movement scale
+		const timeScale = deltaTime / 16.7; // Normalized to 60fps
+
+		// Batch stars by color/mode for efficient rendering
+		const starsBatches = new Map();
+
+		// Update star positions and group by rendering properties
 		for (let i = 0; i < stars.length; i++) {
 			const star = stars[i];
 
@@ -144,8 +207,8 @@
 			star.prevX = star.x;
 			star.prevY = star.y;
 
-			// Move star closer to viewer
-			star.z -= speed;
+			// Move star closer to viewer with time-based movement
+			star.z -= speed * timeScale;
 
 			// If star passed the viewer, reset it to far distance
 			if (star.z <= 0) {
@@ -157,51 +220,88 @@
 				continue;
 			}
 
-			// Project 3D position to 2D screen coordinates
+			// Project 3D position to 2D screen
 			const scale = maxDepth / star.z;
 			const x2d = (star.x - centerX) * scale + centerX;
 			const y2d = (star.y - centerY) * scale + centerY;
 
-			// Only draw stars on screen
-			if (x2d < 0 || x2d >= containerWidth || y2d < 0 || y2d >= containerHeight) {
+			// Skip stars that are offscreen
+			if (x2d < -10 || x2d > containerWidth + 10 || y2d < -10 || y2d > containerHeight + 10) {
 				continue;
 			}
 
 			// Star size based on depth
-			const size = (1 - star.z / maxDepth) * 3;
+			const size = Math.max(0.5, (1 - star.z / maxDepth) * 3);
 
 			// Star color based on depth (closer = brighter)
-			const colorIndex = Math.floor((1 - star.z / maxDepth) * (starColors.length - 1));
+			const colorIndex = Math.min(
+				starColors.length - 1,
+				Math.floor((1 - star.z / maxDepth) * starColors.length)
+			);
 			const color = starColors[colorIndex];
 
-			// Draw star trail when moving fast
-			if (speed > baseSpeed * 1.5) {
-				const prevScale = maxDepth / (star.z + speed);
-				const prevX = (star.prevX - centerX) * prevScale + centerX;
-				const prevY = (star.prevY - centerY) * prevScale + centerY;
+			// Group by rendering mode and color
+			const key = speed > baseSpeed * 1.5 ? `trail_${color}` : `circle_${color}`;
 
-				ctx.beginPath();
-				ctx.moveTo(prevX, prevY);
-				ctx.lineTo(x2d, y2d);
+			if (!starsBatches.has(key)) {
+				starsBatches.set(key, []);
+			}
+
+			// Store calculated values to avoid recalculations
+			starsBatches.get(key).push({
+				x2d,
+				y2d,
+				size,
+				prevX: star.prevX,
+				prevY: star.prevY,
+				z: star.z
+			});
+		}
+
+		// Draw stars batched by type/color to minimize context changes
+		starsBatches.forEach((starsOfType, key) => {
+			const isTrail = key.startsWith('trail_');
+			const color = key.substring(key.indexOf('_') + 1);
+
+			// Set style only once per batch
+			if (isTrail) {
 				ctx.strokeStyle = color;
-				ctx.lineWidth = size;
+			} else {
+				ctx.fillStyle = color;
+			}
+
+			// Begin a single path for all stars of same type
+			ctx.beginPath();
+
+			for (const star of starsOfType) {
+				if (isTrail) {
+					// Calculate previous projected position
+					const prevScale = maxDepth / (star.z + speed * timeScale);
+					const prevX = (star.prevX - centerX) * prevScale + centerX;
+					const prevY = (star.prevY - centerY) * prevScale + centerY;
+
+					ctx.lineWidth = star.size;
+					ctx.moveTo(prevX, prevY);
+					ctx.lineTo(star.x2d, star.y2d);
+				} else {
+					// For circle, add to the current path
+					ctx.moveTo(star.x2d + star.size, star.y2d);
+					ctx.arc(star.x2d, star.y2d, star.size, 0, Math.PI * 2);
+				}
+			}
+
+			// Draw all stars of this type at once
+			if (isTrail) {
 				ctx.stroke();
 			} else {
-				// Draw star as circle
-				ctx.beginPath();
-				ctx.arc(x2d, y2d, size, 0, Math.PI * 2);
-				ctx.fillStyle = color;
 				ctx.fill();
 			}
-		}
+		});
 
 		// Gradually return to base speed when not boosting
 		if (!isBoosting && speed > baseSpeed) {
 			speed = Math.max(baseSpeed, speed * 0.98);
 		}
-
-		// Request next frame
-		animationFrameId = requestAnimationFrame(animate);
 	}
 
 	// Start animation
@@ -325,6 +425,7 @@
 			if (containerElement) {
 				setupCanvas();
 				initStars();
+				setupResizeObserver();
 
 				if (autoStart) {
 					start();
@@ -347,7 +448,7 @@
 	onDestroy(() => {
 		if (!browser) return;
 
-		// Cleanup
+		// Stop animation loop
 		stop();
 
 		// Remove event listeners
@@ -360,6 +461,32 @@
 
 		// Remove visibility change handler
 		document.removeEventListener('visibilitychange', handleVisibilityChange);
+
+		// Clean up resize observer
+		if (resizeObserver) {
+			resizeObserver.disconnect();
+			resizeObserver = null;
+		}
+
+		// Clean up canvas
+		if (ctx) {
+			ctx = null;
+		}
+
+		if (canvasElement && canvasElement.parentNode) {
+			canvasElement.parentNode.removeChild(canvasElement);
+		}
+
+		canvasElement = null;
+		containerElement = null;
+
+		// Clear arrays
+		stars = [];
+
+		// Clear state
+		isRunning = false;
+		isPaused = false;
+		isBoosting = false;
 	});
 
 	// Watch for container element changes and initialize if needed
@@ -390,7 +517,6 @@
 		width: 100%;
 		height: 100%;
 		overflow: hidden;
-		/* Ensure the wrapper fills its container */
 		display: block;
 	}
 

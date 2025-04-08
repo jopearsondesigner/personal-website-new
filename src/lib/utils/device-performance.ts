@@ -331,6 +331,36 @@ async function determineDeviceCapabilities(): Promise<DeviceCapabilities> {
 	// Run performance benchmark
 	const benchmarkScore = await performBenchmark();
 
+	// Enhanced detection for low-end devices
+	const isLowEndDevice =
+		benchmarkScore < 0.4 ||
+		hardwareConcurrency <= 2 ||
+		(isAndroid && /Android [1-4]\./.test(ua)) ||
+		navigator.deviceMemory < 2 || // Check device memory if available
+		(isIOS && /iPhone [5-8]|iPad [1-4]|iPod/.test(ua)); // Older iOS devices
+
+	if (isLowEndDevice) {
+		// Ultra-low settings for very weak devices
+		return {
+			...lowCapabilities,
+			maxStars: 50, // Even fewer stars
+			frameSkip: 3, // Render every 4th frame
+			updateInterval: 100, // ~10fps target
+			useCanvas: true,
+			useWebGL: false,
+			enableGlow: false,
+			enableBlur: false,
+			enableShadows: false,
+			enableReflections: false,
+			enableParallax: false,
+			enablePulse: false,
+			enableScanlines: false,
+			enablePhosphorDecay: false,
+			enableInterlace: false,
+			enableChromaticAberration: false
+		};
+	}
+
 	// Choose appropriate device profile based on multiple factors
 	let capabilities: DeviceCapabilities;
 

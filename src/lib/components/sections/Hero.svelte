@@ -571,7 +571,7 @@
 
 	function setupEventListeners() {
 		// Define optimized event handlers
-		const optimizedResizeCheck = throttle(() => {
+		const optimizedResizeCheck = createThrottledRAF(() => {
 			// Update device capabilities on resize
 			detectDeviceCapabilities();
 			debouncedOrientationCheck();

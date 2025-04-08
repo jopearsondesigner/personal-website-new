@@ -1,6 +1,6 @@
 // File: /src/lib/workers/star-field-worker.ts
 
-// Type definitions
+// Star interface
 interface Star {
 	x: number;
 	y: number;
@@ -9,10 +9,10 @@ interface Star {
 	prevY: number;
 }
 
-interface WorkerConfig {
+// Configuration interface
+interface StarFieldConfig {
 	starCount: number;
 	maxDepth: number;
-	boosting: boolean;
 	speed: number;
 	baseSpeed: number;
 	boostSpeed: number;
@@ -20,11 +20,11 @@ interface WorkerConfig {
 	containerHeight: number;
 }
 
-// Default configuration that matches the reference implementation
-const defaultConfig: WorkerConfig = {
+// Global state
+let stars: Star[] = [];
+let config: StarFieldConfig = {
 	starCount: 300,
 	maxDepth: 32,
-	boosting: false,
 	speed: 0.25,
 	baseSpeed: 0.25,
 	boostSpeed: 2,
@@ -32,49 +32,53 @@ const defaultConfig: WorkerConfig = {
 	containerHeight: 600
 };
 
-// Colors (blue to white gradient for stars) - exact match from reference
-const starColors = [
-	'#0033ff', // Dim blue
-	'#4477ff',
-	'#6699ff',
-	'#88bbff',
-	'#aaddff',
-	'#ffffff' // Bright white
-];
+/**
+ * Initialize the star field with given configuration
+ */
+function initializeStars(count: number, width: number, height: number, depth: number): Star[] {
+	const newStars: Star[] = [];
 
-// Keep state in the worker to reduce message passing
-let stars: Star[] = [];
-let config = { ...defaultConfig };
-let isProcessing = false;
-
-// Initialize stars
-function initStars() {
-	stars = [];
-	for (let i = 0; i < config.starCount; i++) {
-		createStar();
+	for (let i = 0; i < count; i++) {
+		newStars.push(createStar(width, height, depth));
 	}
-	return stars;
+
+	return newStars;
 }
 
-function createStar() {
-	// Random position in 3D space - exact match to reference
-	const star = {
-		x: Math.random() * config.containerWidth * 2 - config.containerWidth,
-		y: Math.random() * config.containerHeight * 2 - config.containerHeight,
-		z: Math.random() * config.maxDepth,
+/**
+ * Create a single star at random position
+ */
+function createStar(width: number, height: number, depth: number): Star {
+	return {
+		x: Math.random() * width * 2 - width,
+		y: Math.random() * height * 2 - height,
+		z: Math.random() * depth,
 		prevX: 0,
 		prevY: 0
 	};
-
-	stars.push(star);
 }
 
-// Update star positions
-function updateStars() {
-	const centerX = config.containerWidth / 2;
-	const centerY = config.containerHeight / 2;
+/**
+ * Reset a star to a new position
+ */
+function resetStar(star: Star, width: number, height: number, depth: number): void {
+	star.x = Math.random() * width * 2 - width;
+	star.y = Math.random() * height * 2 - height;
+	star.z = depth;
+	star.prevX = star.x;
+	star.prevY = star.y;
+}
 
-	// Update each star's position
+/**
+ * Update star positions based on time delta
+ */
+function updateStars(deltaTime: number): void {
+	const { containerWidth, containerHeight, maxDepth, speed } = config;
+
+	// Calculate time-based movement scale
+	const timeScale = deltaTime / 16.7; // Normalized to 60fps
+
+	// Update each star position
 	for (let i = 0; i < stars.length; i++) {
 		const star = stars[i];
 
@@ -82,97 +86,109 @@ function updateStars() {
 		star.prevX = star.x;
 		star.prevY = star.y;
 
-		// Move star closer to viewer
-		star.z -= config.speed;
+		// Move star closer to viewer with time-based movement
+		star.z -= speed * timeScale;
 
 		// If star passed the viewer, reset it to far distance
 		if (star.z <= 0) {
-			star.x = Math.random() * config.containerWidth * 2 - config.containerWidth;
-			star.y = Math.random() * config.containerHeight * 2 - config.containerHeight;
-			star.z = config.maxDepth;
-			star.prevX = star.x;
-			star.prevY = star.y;
-			continue;
+			resetStar(star, containerWidth, containerHeight, maxDepth);
 		}
 	}
-
-	// Gradually return to base speed when not boosting
-	if (!config.boosting && config.speed > config.baseSpeed) {
-		config.speed = Math.max(config.baseSpeed, config.speed * 0.98);
-	}
-
-	return stars;
 }
 
-// Listen for messages from the main thread
-self.onmessage = (event) => {
-	const { type, data } = event.data;
+/**
+ * Set boost mode for the stars
+ */
+function setBoost(boosting: boolean): void {
+	config.speed = boosting ? config.boostSpeed : config.baseSpeed;
+}
+
+/**
+ * Process incoming messages
+ */
+self.onmessage = function (e: MessageEvent) {
+	const { type, data } = e.data;
 
 	switch (type) {
 		case 'init':
-			// Initialize worker with configuration
-			if (data.config) {
-				config = { ...config, ...data.config };
-			}
+			// Initialize with new configuration
+			config = { ...config, ...data.config };
+			stars = initializeStars(
+				config.starCount,
+				config.containerWidth,
+				config.containerHeight,
+				config.maxDepth
+			);
 
-			// Initialize stars
-			stars = initStars();
-
-			// Send stars back to main thread
+			// Send back the initialized stars
 			self.postMessage({
 				type: 'initialized',
-				stars: stars
+				data: { stars, config }
 			});
-			break;
-
-		case 'updateConfig':
-			// Update configuration
-			if (data.config) {
-				config = { ...config, ...data.config };
-			}
 			break;
 
 		case 'requestFrame':
 			// Update star positions
-			stars = updateStars();
+			updateStars(data.deltaTime);
 
-			// Send updated stars back to main thread
+			// If dimensions changed, update container size
+			if (data.dimensions) {
+				config.containerWidth = data.dimensions.width;
+				config.containerHeight = data.dimensions.height;
+			}
+
+			// Gradually return to base speed when not boosting
+			if (config.speed > config.baseSpeed) {
+				config.speed = Math.max(config.baseSpeed, config.speed * 0.98);
+			}
+
+			// Send back updated stars
 			self.postMessage({
 				type: 'frameUpdate',
-				stars: stars,
-				config: {
-					speed: config.speed,
-					boosting: config.boosting
-				}
+				data: { stars, config }
 			});
 			break;
 
 		case 'setBoost':
 			// Update boost state
-			config.boosting = data.boosting;
-			config.speed = data.boosting ? config.boostSpeed : config.baseSpeed;
+			setBoost(data.boosting);
 			break;
 
 		case 'setDimensions':
 			// Update container dimensions
-			if (data.width && data.height) {
-				config.containerWidth = data.width;
-				config.containerHeight = data.height;
+			config.containerWidth = data.width;
+			config.containerHeight = data.height;
+			break;
+
+		case 'updateConfig':
+			// Update any configuration properties
+			config = { ...config, ...data.config };
+
+			// If star count changed, reinitialize stars
+			if (data.config.starCount && data.config.starCount !== stars.length) {
+				stars = initializeStars(
+					config.starCount,
+					config.containerWidth,
+					config.containerHeight,
+					config.maxDepth
+				);
 			}
 			break;
 
 		case 'reset':
-			// Reset stars
-			stars = initStars();
+			// Reinitialize the stars
+			stars = initializeStars(
+				config.starCount,
+				config.containerWidth,
+				config.containerHeight,
+				config.maxDepth
+			);
 
-			// Send reset stars back to main thread
+			// Send back the reset stars
 			self.postMessage({
 				type: 'reset',
-				stars: stars
+				data: { stars, config }
 			});
 			break;
-
-		default:
-			console.error('Unknown message type:', type);
 	}
 };
