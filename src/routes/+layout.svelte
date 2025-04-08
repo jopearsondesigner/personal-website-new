@@ -249,27 +249,30 @@
 <LoadingScreen />
 
 <svelte:head>
-	<!-- Standard SEO title -->
-	<title>{seo.title}</title>
-
-	<!-- Standard SEO description -->
-	<meta name="description" content={seo.description} />
-
-	<!-- Open Graph meta tags for social media sharing -->
-	<meta property="og:title" content={seo.title} />
-	<meta property="og:description" content={seo.description} />
-	<!-- Adjusted image path -->
-	<meta property="og:image" content={seo.image} />
-	<meta property="og:url" content={seo.url + currentPath} />
+	<!-- Open Graph Meta Tags for Social Media Sharing -->
+	<meta property="og:title" content="Jo Pearson | Design Engineer" />
+	<meta property="og:description" content="Personal design and development web portfolio" />
+	<!-- Make sure to update +layout.ts when updating URL too!!! -->
+	<meta
+		property="og:image"
+		content="https://jopearsondesigner.github.io/personal-website-new/assets/images/seo/social-share.png"
+	/>
 	<meta property="og:image:width" content="1200" />
 	<meta property="og:image:height" content="630" />
+	<meta
+		property="og:url"
+		content="https://jopearsondesigner.github.io/personal-website-new/#hero"
+	/>
+	<meta property="og:type" content="website" />
 
-	<!-- Twitter Card meta tags -->
-	<meta name="twitter:title" content={seo.title} />
-	<meta name="twitter:description" content={seo.description} />
-	<!-- Adjusted image path for Twitter -->
-	<meta name="twitter:image" content={seo.image} />
+	<!-- Twitter Card Meta Tags -->
 	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content="Jo Pearson | Design Engineer" />
+	<meta name="twitter:description" content="Personal design and development web portfolio" />
+	<meta
+		name="twitter:image"
+		content="https://jopearsondesigner.github.io/personal-website-new/assets/images/seo/social-share.png"
+	/>
 </svelte:head>
 
 <nav

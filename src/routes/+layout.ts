@@ -7,8 +7,10 @@ export const load = ({ url, params }) => {
 		seo: {
 			title: 'Jo Pearson | Design Engineer',
 			description: 'Personal design and development web portfolio',
-			image: '/assets/images/seo/social-share.png',
-			url: 'https://jopearsondesigner.com'
+			// Make sure to update +layout.svelte when updating URL too!!!
+			image:
+				'https://jopearsondesigner.github.io/personal-website-new/assets/images/seo/social-share.png',
+			url: 'https://jopearsondesigner.github.io/personal-website-new/#hero'
 		},
 		currentPath: url.pathname,
 		params
