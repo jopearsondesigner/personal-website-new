@@ -16,6 +16,7 @@
 	import { MemoryMonitor } from '$lib/utils/memory-monitor';
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
 	import { createThrottledRAF } from '$lib/utils/animation-helpers';
+	import StarField from '$lib/components/effects/StarField.svelte';
 
 	// Device detection state
 	let isMobileDevice = false;
@@ -44,16 +45,15 @@
 		touchStart?: EventListener;
 	} = {};
 
+	// StarField component reference
+	let starFieldComponent: StarField;
+
 	// Reactive statements with performance optimizations
 	$: stars = $animationState.stars;
 
 	$: if (browser) {
-		requestAnimationFrame(() => {
-			document.documentElement.style.setProperty(
-				'--navbar-height',
-				`${$layoutStore.navbarHeight}px`
-			);
-		});
+		// Immediately update the CSS variable without RAF
+		document.documentElement.style.setProperty('--navbar-height', `${$layoutStore.navbarHeight}px`);
 	}
 
 	// Device detection function
@@ -91,8 +91,12 @@
 				// We need to reset animation state AND check if we need to reinitialize the star field
 				animationState.resetAnimationState();
 
+				// If we're using the StarField component, start/restart it
+				if (starFieldComponent && starContainer) {
+					starFieldComponent.start();
+				}
 				// If the star field manager exists but was stopped, we should restart it
-				if (canvasStarFieldManager) {
+				else if (canvasStarFieldManager) {
 					// First check if the canvas still exists - it might have been removed when switching screens
 					const canvasExists = starContainer && starContainer.querySelector('.star-field-canvas');
 
@@ -124,8 +128,10 @@
 
 				// Use Promise.resolve().then to ensure DOM is ready
 				Promise.resolve().then(() => {
-					// Make sure we start the stars
-					canvasStarFieldManager?.start();
+					// Make sure we start the stars if not using the StarField component
+					if (!starFieldComponent && canvasStarFieldManager) {
+						canvasStarFieldManager.start();
+					}
 					startAnimations(elements);
 				});
 			}
@@ -154,7 +160,10 @@
 				stopAnimations();
 			} else if (newScreen === 'main' && prevScreen !== 'main') {
 				// We're returning to main screen, restart animations
-				if (canvasStarFieldManager && starContainer) {
+				if (starFieldComponent && starContainer) {
+					// First ensure the container is properly set
+					starFieldComponent.start();
+				} else if (canvasStarFieldManager && starContainer) {
 					// First ensure the container is properly set
 					canvasStarFieldManager.setContainer(starContainer);
 
@@ -310,8 +319,12 @@
 				stopAnimations(); // Stop existing animations first
 			}
 
-			// Start canvas star field if it exists
-			if (canvasStarFieldManager) {
+			// Start StarField component if available
+			if (starFieldComponent) {
+				starFieldComponent.start();
+			}
+			// Start canvas star field if it exists and StarField component isn't used
+			else if (canvasStarFieldManager) {
 				// Get device-appropriate settings from capabilities
 				const capabilities = get(deviceCapabilities);
 
@@ -323,7 +336,7 @@
 				canvasStarFieldManager.start();
 			}
 			// Initialize canvas star field manager if it doesn't exist
-			else if (starContainer) {
+			else if (starContainer && !starFieldComponent) {
 				// Get device-appropriate star count
 				const capabilities = get(deviceCapabilities);
 				const starCount =
@@ -377,6 +390,9 @@
 						if (canvasStarFieldManager) {
 							canvasStarFieldManager.enableGlow = false;
 						}
+						if (starFieldComponent) {
+							starFieldComponent.enableGlow = false;
+						}
 					},
 					() => {
 						// On critical - reduce star count and effects
@@ -385,6 +401,14 @@
 							canvasStarFieldManager.setStarCount(Math.floor(currentCount * 0.6)); // Reduce by 40%
 							canvasStarFieldManager.enableGlow = false;
 							canvasStarFieldManager.setUseContainerParallax(false);
+						}
+						if (starFieldComponent) {
+							// Reduce the star count in the StarField component
+							const capabilities = get(deviceCapabilities);
+							const currentCount = capabilities.maxStars || 60;
+							const reducedCount = Math.floor(currentCount * 0.6);
+							starFieldComponent.starCount = reducedCount;
+							starFieldComponent.enableGlow = false;
 						}
 
 						// Suggest garbage collection
@@ -417,8 +441,12 @@
 	function stopAnimations() {
 		if (!browser) return;
 
+		// Stop StarField component if available
+		if (starFieldComponent) {
+			starFieldComponent.stop();
+		}
 		// Stop canvas star field
-		if (canvasStarFieldManager) {
+		else if (canvasStarFieldManager) {
 			canvasStarFieldManager.stop();
 		}
 
@@ -498,6 +526,9 @@
 					if (canvasStarFieldManager) {
 						canvasStarFieldManager.enableGlow = false;
 					}
+					if (starFieldComponent) {
+						starFieldComponent.enableGlow = false;
+					}
 				},
 				() => {
 					// On critical - reduce star count and effects
@@ -506,6 +537,14 @@
 						canvasStarFieldManager.setStarCount(Math.floor(currentCount * 0.6)); // Reduce by 40%
 						canvasStarFieldManager.enableGlow = false;
 						canvasStarFieldManager.setUseContainerParallax(false);
+					}
+					if (starFieldComponent) {
+						// Reduce the star count in the StarField component
+						const capabilities = get(deviceCapabilities);
+						const currentCount = capabilities.maxStars || 60;
+						const reducedCount = Math.floor(currentCount * 0.6);
+						starFieldComponent.starCount = reducedCount;
+						starFieldComponent.enableGlow = false;
 					}
 
 					// Suggest garbage collection
@@ -524,45 +563,15 @@
 				// Reset animation state flags only
 				animationState.resetAnimationState();
 
-				// Initialize and start starfield
-				initializeStarField();
-
 				// Start animations
 				startAnimations(elements);
 			}
 		}
 	}
 
-	function initializeStarField() {
-		if (!starContainer) return;
-
-		// Get device-appropriate star count
-		const capabilities = get(deviceCapabilities);
-		const starCount =
-			capabilities.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
-
-		// Create a new canvas star field manager if needed
-		if (!canvasStarFieldManager) {
-			canvasStarFieldManager = new CanvasStarFieldManager(animationState, starCount);
-
-			// Set the container for the canvas
-			canvasStarFieldManager.setContainer(starContainer);
-
-			// Configure features based on device capabilities
-			canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice);
-			canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
-		} else {
-			// Reuse existing manager
-			canvasStarFieldManager.setContainer(starContainer);
-		}
-
-		// Start the animation
-		canvasStarFieldManager.start();
-	}
-
 	function setupEventListeners() {
 		// Define optimized event handlers
-		const optimizedResizeCheck = () => {
+		const optimizedResizeCheck = throttle(() => {
 			// Update device capabilities on resize
 			detectDeviceCapabilities();
 			debouncedOrientationCheck();
@@ -571,7 +580,7 @@
 			if (canvasStarFieldManager) {
 				canvasStarFieldManager.resizeCanvas();
 			}
-		};
+		}, 100);
 
 		const visibilityHandler = () => {
 			if (document.hidden) {
@@ -579,10 +588,16 @@
 				if (canvasStarFieldManager) {
 					canvasStarFieldManager.pause();
 				}
+				if (starFieldComponent) {
+					starFieldComponent.pause();
+				}
 			} else {
 				// Resume animations when tab is visible again
 				if (canvasStarFieldManager) {
 					canvasStarFieldManager.resume();
+				}
+				if (starFieldComponent) {
+					starFieldComponent.resume();
 				}
 			}
 		};
@@ -778,7 +793,7 @@
 				<div class="screen-bezel rounded-[3vmin] overflow-hidden"></div>
 				<div
 					id="arcade-screen"
-					class="crt-screen hardware-accelerated relative w-[90vw] h-[70vh] md:w-[80vw] md:h-[600px] glow rounded-[3vmin] overflow-hidden"
+					class="crt-screen hardware-accelerated relative glow rounded-[3vmin] overflow-hidden"
 					bind:this={arcadeScreen}
 				>
 					<div class="phosphor-decay rounded-[3vmin]"></div>
@@ -806,6 +821,19 @@
 								class="canvas-star-container absolute inset-0 pointer-events-none rounded-[3vmin]"
 								bind:this={starContainer}
 							>
+								{#if starContainer}
+									<StarField
+										bind:this={starFieldComponent}
+										containerElement={starContainer}
+										autoStart={true}
+										starCount={get(deviceCapabilities).maxStars ||
+											(isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60)}
+										enableBoost={true}
+										enableGlow={!isLowPerformanceDevice}
+									/>
+								{/if}
+
+								<!-- Fallback stars -->
 								{#each $animationState.stars as star (star.id)}
 									<div class="star absolute" style={star.style}></div>
 								{/each}
@@ -841,7 +869,7 @@
 	{/if}
 </section>
 
-<style>
+<style lang="css">
 	/* ==========================================================================
 	   Root Variables
 	   ========================================================================== */
@@ -885,9 +913,9 @@
 	}
 
 	/* ==========================================================================
-	   Media Queries
-	   ========================================================================== */
-	@media (min-width: 1020px) {
+   Media Queries
+   ========================================================================== */
+	@media (min-width: 768px) {
 		:root {
 			--arcade-screen-width: 80vw;
 			--arcade-screen-height: 600px;
@@ -897,8 +925,8 @@
 	}
 
 	/* ==========================================================================
-	   Layout Components
-	   ========================================================================== */
+   Layout Components
+   ========================================================================== */
 	section {
 		height: calc(100vh - var(--navbar-height, 64px));
 	}

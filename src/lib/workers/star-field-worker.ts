@@ -13,12 +13,16 @@ interface Star {
 	pixelX?: number;
 	pixelY?: number;
 	scale?: number;
+	prevX?: number;
+	prevY?: number;
 }
 
 interface WorkerConfig {
 	updateInterval: number;
-	starSpeed: number;
+	speed: number;
+	maxDepth: number;
 	maxStars: number;
+	boosting: boolean;
 }
 
 // Keep state in the worker to reduce message passing
@@ -26,14 +30,24 @@ let stars: Star[] = [];
 let lastUpdateTime = 0;
 let config: WorkerConfig = {
 	updateInterval: 16, // ~60fps
-	starSpeed: 0.004,
-	maxStars: 60
+	speed: 0.25,
+	maxDepth: 32,
+	maxStars: 60,
+	boosting: false
 };
 let isProcessing = false;
 let isDesktop = false;
 let containerWidth = 0;
 let containerHeight = 0;
 let previousTimeStamp = 0;
+let starColors: string[] = [
+	'#0033ff', // Dim blue
+	'#4477ff',
+	'#6699ff',
+	'#88bbff',
+	'#aaddff',
+	'#ffffff' // Bright white
+];
 
 // Listen for messages from the main thread
 self.onmessage = (event) => {
@@ -67,6 +81,20 @@ self.onmessage = (event) => {
 			// Update stars array (when receiving new stars from main thread)
 			stars = data.stars;
 			isDesktop = data.isDesktop || isDesktop;
+
+			// Update boost mode and speed if included
+			if (data.boosting !== undefined) {
+				config.boosting = data.boosting;
+			}
+
+			if (data.speed !== undefined) {
+				config.speed = data.speed;
+			}
+
+			if (data.maxDepth !== undefined) {
+				config.maxDepth = data.maxDepth;
+			}
+
 			scheduleUpdate();
 			break;
 
@@ -107,7 +135,7 @@ function scheduleUpdate() {
 	const fixedDeltaTime = Math.min(elapsed / 1000, 0.1); // Cap at 100ms to prevent huge jumps
 
 	// Calculate star speed based on elapsed time
-	const starSpeed = config.starSpeed * (60 * fixedDeltaTime);
+	const starSpeed = config.speed * (60 * fixedDeltaTime);
 
 	// Update stars with proper time-based movement
 	updateStarPositions(starSpeed);
@@ -130,38 +158,44 @@ function scheduleUpdate() {
 function updateStarPositions(starSpeed) {
 	const sizeMultiplier = isDesktop ? 2.0 : 1.5;
 	const minSize = isDesktop ? 2 : 1;
-
-	// Pre-calculate container ratios once
-	const containerWidthRatio = containerWidth / 100;
-	const containerHeightRatio = containerHeight / 100;
+	const centerX = containerWidth / 2;
+	const centerY = containerHeight / 2;
 
 	// Update each star in place
 	for (let i = 0; i < stars.length; i++) {
 		const star = stars[i];
+
+		// Store previous position for trails
+		star.prevX = star.x;
+		star.prevY = star.y;
 
 		// Update z-position (depth) with time-based movement
 		star.z -= starSpeed;
 
 		// Reset star if it goes too far
 		if (star.z <= 0) {
-			star.z = 0.8;
-			star.x = Math.random() * 100;
-			star.y = Math.random() * 100;
-
-			// Recalculate size and opacity for new position
-			star.size = Math.max(star.z * sizeMultiplier, minSize);
-			star.opacity = Math.min(1, (Math.random() * 0.5 + 0.5) * (star.z * 3));
+			star.z = config.maxDepth;
+			star.x = Math.random() * containerWidth * 2 - containerWidth;
+			star.y = Math.random() * containerHeight * 2 - containerHeight;
+			star.prevX = star.x;
+			star.prevY = star.y;
+			continue;
 		}
 
-		// Pre-calculate rendering properties if container dimensions are known
-		if (containerWidth > 0 && containerHeight > 0) {
-			const scale = 0.2 / star.z;
-			star.scale = scale;
-			star.renderedX = (star.x - 50) * scale + 50;
-			star.renderedY = (star.y - 50) * scale + 50;
-			star.pixelX = star.renderedX * containerWidthRatio;
-			star.pixelY = star.renderedY * containerHeightRatio;
-			star.size = Math.max(scale * sizeMultiplier, minSize);
-		}
+		// Project 3D position to 2D screen coordinates
+		const scale = config.maxDepth / star.z;
+		const x2d = (star.x - centerX) * scale + centerX;
+		const y2d = (star.y - centerY) * scale + centerY;
+
+		// Store calculated properties
+		star.renderedX = x2d;
+		star.renderedY = y2d;
+		star.scale = scale;
+
+		// Star size based on depth
+		star.size = (1 - star.z / config.maxDepth) * 3;
+
+		// Star opacity
+		star.opacity = Math.min(1, (Math.random() * 0.5 + 0.5) * (star.z * 3));
 	}
 }

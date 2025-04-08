@@ -26,6 +26,7 @@ interface Star {
 interface AnimationState {
 	isAnimating: boolean;
 	canvasId: string;
+	stars: any[];
 }
 
 export class CanvasStarFieldManager {
@@ -46,7 +47,7 @@ export class CanvasStarFieldManager {
 	private containerHeight = 0;
 	private devicePixelRatio = 1;
 	private initialized = false;
-	private enableGlow = true;
+	public enableGlow = true;
 	private visibilityHandler: (() => void) | null = null;
 	private memoryMonitor: MemoryMonitor | null = null;
 	private starCache: {
@@ -60,6 +61,19 @@ export class CanvasStarFieldManager {
 	private debugMode = false;
 	private fpsDisplay: HTMLElement | null = null;
 	private lastFrameTime = 0;
+	private speed = 0.25;
+	private baseSpeed = 0.25;
+	private boostSpeed = 2;
+	private boosting = false;
+	private starColors: string[] = [
+		'#0033ff', // Dim blue
+		'#4477ff',
+		'#6699ff',
+		'#88bbff',
+		'#aaddff',
+		'#ffffff' // Bright white
+	];
+	private maxDepth = 32;
 
 	constructor(store: any, count = 60, useWorker = false, useContainerParallax = true) {
 		this.store = store;
@@ -173,22 +187,18 @@ export class CanvasStarFieldManager {
 		// Set up canvas context
 		this.ctx = this.canvas.getContext('2d', {
 			alpha: true,
-			desynchronized: true, // Potentially improve performance by reducing main thread blocking
+			desynchronized: true,
 			willReadFrequently: false
 		});
 
-		// Set initial size and listen for container size changes
+		// Set initial size
 		this.resizeCanvas();
-
-		// Setup minimal ResizeObserver to handle size changes efficiently
-		const resizeObserver = new ResizeObserver(this.resizeCanvas.bind(this));
-		resizeObserver.observe(this.container);
 	}
 
-	private resizeCanvas() {
+	resizeCanvas() {
 		if (!this.canvas || !this.container || !this.ctx) return;
 
-		// Get container dimensions
+		// Get container dimensions directly from the element
 		const rect = this.container.getBoundingClientRect();
 		this.containerWidth = rect.width;
 		this.containerHeight = rect.height;
@@ -197,23 +207,41 @@ export class CanvasStarFieldManager {
 		this.canvas.width = this.containerWidth * this.devicePixelRatio;
 		this.canvas.height = this.containerHeight * this.devicePixelRatio;
 
+		// Clear any existing transformation
+		this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+
 		// Scale context to match device pixel ratio
 		this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
+
+		// Force a redraw if animation is running
+		if (this.isRunning) {
+			// Use next animation frame to ensure smooth rendering
+			if (this.animationFrameId === null) {
+				this.animationFrameId = requestAnimationFrame(this.animate);
+			}
+		}
 	}
 
 	private initializeStars(count: number) {
 		const isDesktop = browser && window.innerWidth >= 1024;
-		const sizeMultiplier = isDesktop ? 2.0 : 1.5;
 
-		this.stars = Array.from({ length: count }, () => {
-			const x = Math.random() * 100;
-			const y = Math.random() * 100;
-			const z = Math.random() * 0.7 + 0.1;
-			const size = Math.max(z * sizeMultiplier, isDesktop ? 2 : 1);
-			const opacity = Math.min(1, (Math.random() * 0.5 + 0.5) * (z * 3));
+		this.stars = [];
+		for (let i = 0; i < count; i++) {
+			this.createStar();
+		}
+	}
 
-			return { x, y, z, size, opacity };
-		});
+	private createStar() {
+		// Random position in 3D space
+		const star = {
+			x: Math.random() * this.containerWidth * 2 - this.containerWidth,
+			y: Math.random() * this.containerHeight * 2 - this.containerHeight,
+			z: Math.random() * this.maxDepth,
+			size: 0,
+			opacity: 0
+		};
+
+		this.stars.push(star);
 	}
 
 	private initWorker() {
@@ -245,7 +273,10 @@ export class CanvasStarFieldManager {
 			type: 'updateStars',
 			data: {
 				stars: this.stars,
-				isDesktop
+				isDesktop,
+				boosting: this.boosting,
+				speed: this.speed,
+				maxDepth: this.maxDepth
 			}
 		});
 	}
@@ -473,6 +504,11 @@ export class CanvasStarFieldManager {
 		this.start();
 	}
 
+	// Get current star count
+	getStarCount(): number {
+		return this.stars.length;
+	}
+
 	setStarCount(count: number) {
 		if (!browser || count === this.stars.length) return;
 
@@ -494,6 +530,12 @@ export class CanvasStarFieldManager {
 
 	setUseContainerParallax(useParallax: boolean) {
 		this.useContainerParallax = useParallax;
+	}
+
+	// New method to control boost mode
+	setBoostMode(boost: boolean) {
+		this.boosting = boost;
+		this.speed = boost ? this.boostSpeed : this.baseSpeed;
 	}
 
 	private interpolateStarPositions(
@@ -535,245 +577,272 @@ export class CanvasStarFieldManager {
 
 		// Add to the animate method after clearing the canvas
 		// Apply a subtle motion blur effect for smoother visuals
-		if (this.enableGlow && !isLowPerformanceDevice) {
+		if (this.enableGlow) {
 			// Create a blurred effect of the previous frame
 			this.ctx.globalAlpha = 0.2; // Subtle trailing effect
 			this.ctx.drawImage(this.canvas, 0, 0);
 			this.ctx.globalAlpha = 1.0;
+
+			// Apply a blue tint to the canvas for a space effect
+			this.ctx.fillStyle = 'rgba(0, 0, 20, 0.1)';
+			this.ctx.fillRect(0, 0, this.containerWidth, this.containerHeight);
 		}
 
-		// Pre-calculate values used in the loop
-		const isDesktop = browser && window.innerWidth >= 1024;
-		const sizeMultiplier = isDesktop ? 2.0 : 1.5;
-		const containerWidthRatio = this.containerWidth / 100;
-		const containerHeightRatio = this.containerHeight / 100;
+		// Center of the screen (our viewing point)
+		const centerX = this.containerWidth / 2;
+		const centerY = this.containerHeight / 2;
 
-		// Use frame interpolation for smoother animation
-		const starSpeed = 0.004 * (60 * fixedDeltaTime); // Scale speed by time elapsed for consistent motion
+		// Use Worker if available
+		if (this.useWorker && this.worker) {
+			this.updateStarsWithWorker();
+		} else {
+			// Update star positions directly
+			this.updateStarsDirectly(fixedDeltaTime, centerX, centerY);
+		}
 
-		// Update stars positions with proper time-based movement
+		// Draw stars
+		this.drawStars(centerX, centerY);
+
+		// Add container movement for parallax effect only if enabled
+		this.applyParallaxEffect(timestamp);
+
+		// Monitor performance
+		this.monitorPerformance(timestamp);
+
+		// Request next frame
+		this.animationFrameId = requestAnimationFrame(this.animate);
+	};
+
+	private updateStarsDirectly(fixedDeltaTime: number, centerX: number, centerY: number) {
+		// Star speed based on time elapsed for consistent motion
+		const starSpeed = this.speed * (60 * fixedDeltaTime);
+
+		// Update stars positions
 		for (let i = 0; i < this.stars.length; i++) {
 			const star = this.stars[i];
 
-			// Update z-position (depth) based on time elapsed
+			// Store previous position for trails
+			star.prevX = star.x;
+			star.prevY = star.y;
+
+			// Move star closer to viewer
 			star.z -= starSpeed;
 
-			// Reset star if it goes too far
+			// If star passed the viewer, reset it to far distance
 			if (star.z <= 0) {
-				star.z = 0.8;
-				star.x = Math.random() * 100;
-				star.y = Math.random() * 100;
-				// Clear cached values when position resets
-				star.renderedX = undefined;
-				star.renderedY = undefined;
-				star.pixelX = undefined;
-				star.pixelY = undefined;
-				star.prevX = undefined;
-				star.prevY = undefined;
+				star.x = Math.random() * this.containerWidth * 2 - this.containerWidth;
+				star.y = Math.random() * this.containerHeight * 2 - this.containerHeight;
+				star.z = this.maxDepth;
+				star.prevX = star.x;
+				star.prevY = star.y;
+				continue;
 			}
-
-			// Calculate render values only once per frame
-			const scale = 0.2 / star.z;
-			star.renderedX = (star.x - 50) * scale + 50;
-			star.renderedY = (star.y - 50) * scale + 50;
-			star.pixelX = star.renderedX * containerWidthRatio;
-			star.pixelY = star.renderedY * containerHeightRatio;
-			star.size = Math.max(scale * sizeMultiplier, isDesktop ? 2 : 1);
-			star.opacity = Math.min(1, (Math.random() * 0.5 + 0.5) * (scale * 3));
 		}
+	}
 
-		// Apply interpolation for smoother movement
-		this.interpolateStarPositions(this.stars, 0.5, containerWidthRatio, containerHeightRatio);
+	private drawStars(centerX: number, centerY: number) {
+		if (!this.ctx) return;
 
-		// Sort stars by z-index for proper layering and more efficient batching
+		// Sort stars by z-index for proper layering
 		this.stars.sort((a, b) => a.z - b.z);
 
-		// Use fewer draw calls by drawing stars in fewer batches
+		// Use fewer draw calls by drawing stars in batches
 		// Small stars
 		this.ctx.beginPath();
 		this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
 
-		for (let i = 0; i < this.stars.length; i++) {
-			const star = this.stars[i];
-			if (star.size <= 1.5) {
-				this.ctx.moveTo(star.pixelX, star.pixelY);
-				this.ctx.arc(star.pixelX, star.pixelY, 0.75, 0, Math.PI * 2);
-			}
-		}
-		this.ctx.fill();
-
 		// Medium stars
-		this.ctx.beginPath();
-		this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-
-		for (let i = 0; i < this.stars.length; i++) {
-			const star = this.stars[i];
-			if (star.size > 1.5 && star.size <= 2.5) {
-				this.ctx.moveTo(star.pixelX, star.pixelY);
-				this.ctx.arc(star.pixelX, star.pixelY, 1.5, 0, Math.PI * 2);
-			}
-		}
-		this.ctx.fill();
+		const mediumStars: Star[] = [];
 
 		// Large stars
-		if (this.stars.some((s) => s.size > 2.5)) {
-			// Draw glow effect first if enabled
-			if (this.enableGlow) {
-				this.ctx.beginPath();
-				this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+		const largeStars: Star[] = [];
+		const largeStarsWithGlow: Star[] = [];
 
-				for (let i = 0; i < this.stars.length; i++) {
-					const star = this.stars[i];
-					if (star.size > 2.5) {
-						this.ctx.moveTo(star.pixelX, star.pixelY);
-						this.ctx.arc(star.pixelX, star.pixelY, star.size, 0, Math.PI * 2);
-					}
-				}
-				this.ctx.fill();
+		// Pre-sort stars into batches
+		for (let i = 0; i < this.stars.length; i++) {
+			const star = this.stars[i];
+
+			// Project 3D position to 2D screen coordinates
+			const scale = this.maxDepth / star.z;
+			const x2d = (star.x - centerX) * scale + centerX;
+			const y2d = (star.y - centerY) * scale + centerY;
+
+			// Only process stars on screen
+			if (x2d < 0 || x2d >= this.containerWidth || y2d < 0 || y2d >= this.containerHeight) {
+				continue;
 			}
 
-			// Draw star centers
-			this.ctx.beginPath();
-			this.ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+			// Star size based on depth
+			const size = (1 - star.z / this.maxDepth) * 3;
 
-			for (let i = 0; i < this.stars.length; i++) {
-				const star = this.stars[i];
-				if (star.size > 2.5) {
-					this.ctx.moveTo(star.pixelX, star.pixelY);
-					this.ctx.arc(star.pixelX, star.pixelY, star.size / 2, 0, Math.PI * 2);
+			// Store projected coordinates
+			star.renderedX = x2d;
+			star.renderedY = y2d;
+			star.size = size;
+
+			// Sort stars by size for batch rendering
+			if (size <= 1.5) {
+				// Small stars
+				this.ctx.moveTo(x2d, y2d);
+				this.ctx.arc(x2d, y2d, 0.75, 0, Math.PI * 2);
+			} else if (size <= 2.5) {
+				// Medium stars
+				mediumStars.push(star);
+			} else {
+				// Large stars
+				largeStars.push(star);
+				if (this.enableGlow) {
+					largeStarsWithGlow.push(star);
 				}
+			}
+		}
+
+		this.ctx.fill();
+
+		// Draw medium stars
+		if (mediumStars.length > 0) {
+			this.ctx.beginPath();
+			this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+
+			for (let i = 0; i < mediumStars.length; i++) {
+				const star = mediumStars[i];
+				this.ctx.moveTo(star.renderedX!, star.renderedY!);
+				this.ctx.arc(star.renderedX!, star.renderedY!, 1.5, 0, Math.PI * 2);
 			}
 			this.ctx.fill();
 		}
 
-		// Add container movement for parallax effect only if enabled
-		if (this.container && this.useContainerParallax) {
-			const isMobile = window.innerWidth < 768;
-			const xAmplitude = isMobile ? 10 : 5;
-			const yAmplitude = isMobile ? 5 : 2;
+		// Draw glow for large stars
+		if (largeStarsWithGlow.length > 0 && this.enableGlow) {
+			this.ctx.beginPath();
+			this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
 
-			// Use animation time for smooth parallax
-			const xOffset = Math.sin(timestamp / 4000) * xAmplitude;
-			const yOffset = Math.cos(timestamp / 5000) * yAmplitude;
-
-			// Use transform3d for hardware acceleration and add will-change for better performance
-			if (!this.container.style.willChange) {
-				this.container.style.willChange = 'transform';
+			for (let i = 0; i < largeStarsWithGlow.length; i++) {
+				const star = largeStarsWithGlow[i];
+				this.ctx.moveTo(star.renderedX!, star.renderedY!);
+				this.ctx.arc(star.renderedX!, star.renderedY!, star.size!, 0, Math.PI * 2);
 			}
-
-			this.container.style.transform = `translate3d(${xOffset}px, ${yOffset}px, 0)`;
+			this.ctx.fill();
 		}
 
-		// Calculate frame time variance to detect jank
+		// Draw large stars
+		if (largeStars.length > 0) {
+			this.ctx.beginPath();
+			this.ctx.fillStyle = 'rgba(255, 255, 255, 1)';
+
+			for (let i = 0; i < largeStars.length; i++) {
+				const star = largeStars[i];
+				this.ctx.moveTo(star.renderedX!, star.renderedY!);
+				this.ctx.arc(star.renderedX!, star.renderedY!, star.size! / 2, 0, Math.PI * 2);
+			}
+			this.ctx.fill();
+		}
+
+		// Draw star trails when boosting
+		if (this.boosting || this.speed > this.baseSpeed * 1.5) {
+			this.drawStarTrails(centerX, centerY);
+		}
+	}
+
+	private drawStarTrails(centerX: number, centerY: number) {
+		if (!this.ctx) return;
+
+		for (let i = 0; i < this.stars.length; i++) {
+			const star = this.stars[i];
+
+			// Skip stars that don't have previous positions or rendered positions
+			if (
+				star.prevX === undefined ||
+				star.prevY === undefined ||
+				star.renderedX === undefined ||
+				star.renderedY === undefined
+			) {
+				continue;
+			}
+
+			// Skip offscreen stars
+			if (
+				star.renderedX < 0 ||
+				star.renderedX >= this.containerWidth ||
+				star.renderedY < 0 ||
+				star.renderedY >= this.containerHeight
+			) {
+				continue;
+			}
+
+			// Star color based on depth (closer = brighter)
+			const colorIndex = Math.floor((1 - star.z / this.maxDepth) * (this.starColors.length - 1));
+			const color = this.starColors[colorIndex];
+
+			// Calculate previous position
+			const prevScale = this.maxDepth / (star.z + this.speed);
+			const prevX = (star.prevX - centerX) * prevScale + centerX;
+			const prevY = (star.prevY - centerY) * prevScale + centerY;
+
+			// Draw trail
+			this.ctx.beginPath();
+			this.ctx.moveTo(prevX, prevY);
+			this.ctx.lineTo(star.renderedX, star.renderedY);
+			this.ctx.strokeStyle = color;
+			this.ctx.lineWidth = star.size || 1;
+			this.ctx.stroke();
+		}
+	}
+
+	private applyParallaxEffect(timestamp: number) {
+		if (!this.useContainerParallax || !this.container) return;
+
+		// Apply subtle parallax effect based on container position
+		// This adds depth to the star field
+		const rect = this.container.getBoundingClientRect();
+		const centerX = window.innerWidth / 2;
+		const centerY = window.innerHeight / 2;
+		const offsetX = (rect.left + rect.width / 2 - centerX) / centerX;
+		const offsetY = (rect.top + rect.height / 2 - centerY) / centerY;
+
+		// Apply subtle tilt to the star container
+		this.container.style.transform = `perspective(1000px) rotateX(${offsetY * 5}deg) rotateY(${
+			-offsetX * 5
+		}deg)`;
+	}
+
+	private monitorPerformance(timestamp: number) {
+		if (!this.debugMode || !this.fpsDisplay) return;
+
+		// Calculate FPS
 		const frameTime = timestamp - this.lastFrameTime;
+		this.lastFrameTime = timestamp;
+
+		// Add to history
 		this.frameTimeHistory.push(frameTime);
 		if (this.frameTimeHistory.length > this.frameTimeHistoryMax) {
 			this.frameTimeHistory.shift();
 		}
 
-		// Calculate frame time variance to detect jank
-		if (this.frameTimeHistory.length > 10) {
-			const avgFrameTime =
-				this.frameTimeHistory.reduce((a, b) => a + b, 0) / this.frameTimeHistory.length;
-			const variance =
-				this.frameTimeHistory.reduce((a, b) => a + Math.pow(b - avgFrameTime, 2), 0) /
-				this.frameTimeHistory.length;
-			const stdDev = Math.sqrt(variance);
+		// Calculate average FPS
+		const averageFrameTime =
+			this.frameTimeHistory.reduce((sum, time) => sum + time, 0) / this.frameTimeHistory.length;
+		const fps = Math.round(1000 / averageFrameTime);
 
-			// High standard deviation indicates inconsistent frame times (jank)
-			if (stdDev > avgFrameTime * 0.5) {
-				console.warn(
-					'Detected animation jank, std dev:',
-					stdDev.toFixed(2),
-					'avg:',
-					avgFrameTime.toFixed(2)
-				);
-			}
-		}
-
-		// Update debug display in animation frame
-		if (this.debugMode && this.fpsDisplay) {
-			const fps = 1000 / frameTime;
-			this.fpsDisplay.textContent = `FPS: ${fps.toFixed(1)} | Frame: ${frameTime.toFixed(1)}ms`;
-
-			// Color-code based on performance
-			if (fps < 30) {
-				this.fpsDisplay.style.color = 'red';
-			} else if (fps < 50) {
-				this.fpsDisplay.style.color = 'yellow';
-			} else {
-				this.fpsDisplay.style.color = 'lime';
-			}
-		}
-
-		this.lastFrameTime = timestamp;
-
-		// Request next frame directly without frameRateController for smoother animation
-		this.animationFrameId = requestAnimationFrame(this.animate);
-	};
-
-	private updateStar(star: Star) {
-		const isDesktop = browser && window.innerWidth >= 1024;
-
-		// Update z-position (depth)
-		star.z -= 0.004;
-
-		// Reset star if it goes too far
-		if (star.z <= 0) {
-			star.z = 0.8;
-			star.x = Math.random() * 100;
-			star.y = Math.random() * 100;
-		}
-	}
-
-	private drawStar(star: Star) {
-		if (!this.ctx) return;
-
-		const scale = 0.2 / star.z;
-		const x = (star.x - 50) * scale + 50;
-		const y = (star.y - 50) * scale + 50;
-
-		// Convert percentage to actual pixels
-		const pixelX = (x / 100) * this.containerWidth;
-		const pixelY = (y / 100) * this.containerHeight;
-
-		// Scale for desktop/mobile
-		const isDesktop = browser && window.innerWidth >= 1024;
-		const sizeMultiplier = isDesktop ? 2.0 : 1.5;
-		const size = Math.max(scale * sizeMultiplier, isDesktop ? 2 : 1);
-		const opacity = Math.min(1, star.opacity * (scale * 3));
-
-		// Draw the star
-		this.ctx.beginPath();
-		this.ctx.arc(pixelX, pixelY, size / 2, 0, Math.PI * 2);
-		this.ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-		this.ctx.fill();
-
-		// Optional: Add glow effect for larger stars
-		if (this.enableGlow && size > 1.5) {
-			this.ctx.beginPath();
-			this.ctx.arc(pixelX, pixelY, size, 0, Math.PI * 2);
-			this.ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.3})`;
-			this.ctx.fill();
+		// Update display
+		if (this.fpsDisplay) {
+			this.fpsDisplay.textContent = `FPS: ${fps} | Stars: ${this.stars.length}`;
 		}
 	}
 
 	cleanup() {
 		if (!browser) return;
 
+		// Stop animation
 		this.stop();
 
+		// Terminate worker if exists
 		if (this.worker) {
 			this.worker.terminate();
 			this.worker = null;
 		}
 
-		// Remove canvas element
-		if (this.canvas && this.canvas.parentNode) {
-			this.canvas.parentNode.removeChild(this.canvas);
-		}
-
-		// Remove event listeners
+		// Remove visibility handler
 		if (this.visibilityHandler) {
 			document.removeEventListener('visibilitychange', this.visibilityHandler);
 			this.visibilityHandler = null;
@@ -785,9 +854,44 @@ export class CanvasStarFieldManager {
 			this.fpsDisplay = null;
 		}
 
-		this.canvas = null;
-		this.ctx = null;
+		// Stop memory monitoring
+		if (this.memoryMonitor) {
+			this.memoryMonitor.stop();
+			this.memoryMonitor = null;
+		}
+
+		// Nullify context first (important for memory cleanup)
+		if (this.ctx) {
+			this.ctx = null;
+		}
+
+		// Remove canvas element
+		if (this.canvas && this.canvas.parentNode) {
+			this.canvas.parentNode.removeChild(this.canvas);
+			this.canvas = null; // Nullify after removal
+		}
+
+		// Clear all references to DOM elements
 		this.container = null;
+
+		// Clear data structures
 		this.stars = [];
+		this.frameTimeHistory = [];
+		this.starCache = null;
+
+		// Clear any remaining timeouts or intervals
+		if (this.animationFrameId) {
+			cancelAnimationFrame(this.animationFrameId);
+			this.animationFrameId = null;
+		}
+
+		// Force garbage collection hint when available (optional)
+		if (typeof window !== 'undefined' && (window as any).gc) {
+			try {
+				(window as any).gc();
+			} catch (e) {
+				// Ignore errors in garbage collection
+			}
+		}
 	}
 }
