@@ -109,20 +109,11 @@
 	// Improved smooth scroll function
 	async function smoothScroll(target: string, e: MouseEvent) {
 		e.preventDefault();
+
 		if (!browser) return;
 
-		// Close the menu first
-		closeMenu();
-
 		// Extract section ID from target
-		const isHashLink = target.includes('#');
-		const sectionId = isHashLink ? target.split('#')[1] : '';
-
-		// If not a section link, just navigate normally
-		if (!isHashLink) {
-			window.location.href = target;
-			return;
-		}
+		const sectionId = target.replace('#', '');
 
 		// Check if we're on the homepage
 		const isHomePage =
@@ -131,46 +122,22 @@
 			window.location.pathname === '/' ||
 			window.location.pathname === base + '/';
 
-		if (isHomePage) {
-			// We're on homepage - use the robust hybrid approach
-			await tick();
+		// Close the menu first
+		closeMenu();
 
-			// Find the section element
-			const section = document.getElementById(sectionId);
-			if (!section) {
-				console.warn(`Section with ID '${sectionId}' not found`);
-				return;
+		// Wait for a tick to ensure the menu closing state is properly updated
+		await tick();
+
+		// Then handle navigation differently based on current page
+		setTimeout(() => {
+			if (isHomePage) {
+				// We're on the homepage - use the navigationStore to scroll
+				navigationStore.scrollToSection(sectionId);
+			} else {
+				// We're on another page (e.g., blog) - navigate to homepage with hash
+				window.location.href = `${base}/#${sectionId}`;
 			}
-
-			// Get navbar height for offset
-			const navbarHeight = parseInt(
-				document.documentElement.style.getPropertyValue('--navbar-height') || '64',
-				10
-			);
-
-			// Calculate position with offset
-			const top = section.getBoundingClientRect().top + window.scrollY - navbarHeight;
-
-			// Update active section in store
-			navigationStore.setActiveSection(sectionId);
-
-			// Update URL hash without jumping (using history API)
-			if (history.pushState) {
-				// Avoid duplicate base paths in URL
-				const basePath = base || '';
-				history.pushState(null, '', `${basePath}/#${sectionId}`);
-			}
-
-			// Smooth scroll
-			window.scrollTo({
-				top,
-				behavior: 'smooth'
-			});
-		} else {
-			// We're on a different page - navigate to homepage with hash
-			const basePath = base || '';
-			window.location.href = `${basePath}/#${sectionId}`;
-		}
+		}, 150); // Add a small delay to ensure menu closing animation completes
 	}
 
 	// Improved close menu function
@@ -201,8 +168,11 @@
 
 					// Restore scroll position with a small delay for iOS
 					setTimeout(() => {
-						window.scrollTo(0, scrollY);
-					}, 50);
+						window.scrollTo({
+							top: scrollY,
+							behavior: 'auto' // Use 'auto' to prevent any smooth scrolling interference
+						});
+					}, 10);
 				}
 			});
 		}
@@ -266,18 +236,22 @@
 	<div
 		bind:this={mobileMenuContainer}
 		class="mobile-menu-container"
-		on:click={closeMenu}
-		on:keydown={(e) => e.key === 'Enter' && closeMenu()}
-		role="presentation"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Mobile Navigation Menu"
 	>
-		<!-- Fixed overlay for when menu is open - directly in body -->
-		<div
-			class="fixed inset-0 z-[9999] bg-black/30 backdrop-blur-sm"
-			style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100vh; width: 100vw;"
+		<!-- Fixed overlay - using a proper button element -->
+		<button
+			class="fixed inset-0 z-[9999] bg-black/30 backdrop-blur-sm w-full h-full"
+			style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100vh; width: 100vw; border: none;"
+			on:click={closeMenu}
+			on:keydown={(e) => e.key === 'Enter' && closeMenu()}
+			aria-label="Close menu"
 			transition:fade={{ duration: 200 }}
-		></div>
+		></button>
 
 		<!-- Menu Panel -->
+		<!-- Fixed: Removed role="menu" and using simple div structure -->
 		<div
 			bind:this={mobileMenuPanel}
 			id="mobile-menu"
@@ -287,41 +261,41 @@
 			transform will-change-transform"
 			style="position: fixed; top: 0; bottom: 0; right: 0; height: 100vh; max-height: 100vh; width: 100%; max-width: 20rem;"
 			transition:fly={{ x: 300, duration: 300, easing: cubicInOut }}
-			on:click|stopPropagation
-			on:keydown={(e) => e.key === 'Enter' && closeMenu()}
-			role="dialog"
-			tabindex="0"
 		>
 			<!-- Top spacing area - no button here -->
 			<div class="px-4 py-4 h-16"></div>
 
-			<!-- Navigation Links - Updated to use navSections -->
+			<!-- Navigation Links - Using proper buttons for navigation -->
 			<nav class="flex-1 px-6 py-2">
-				<div class="space-y-5">
+				<ul class="space-y-5 list-none p-0 m-0">
 					{#each $navSections as section}
-						<a
-							href="{base}#{section.id}"
-							class="block text-base
-								text-arcadeBlack-500 dark:text-arcadeWhite-300
-								hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500
-								{section.isActive ? 'text-arcadeNeonGreen-500' : ''}"
-							on:click={(e) => smoothScroll(`#${section.id}`, e)}
-						>
-							{section.title}
-						</a>
+						<li>
+							<a
+								href="{base}#{section.id}"
+								class="block text-base
+									text-arcadeBlack-500 dark:text-arcadeWhite-300
+									hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500
+									{section.isActive ? 'text-arcadeNeonGreen-500' : ''}"
+								on:click={(e) => smoothScroll(`#${section.id}`, e)}
+							>
+								{section.title}
+							</a>
+						</li>
 					{/each}
 
 					<!-- Add blog link separately if needed -->
-					<a
-						href="{base}/blog"
-						class="block text-base
-							text-arcadeBlack-500 dark:text-arcadeWhite-300
-							hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500
-							{currentPath === '/blog' || currentPath === base + '/blog' ? 'text-arcadeNeonGreen-500' : ''}"
-					>
-						Blog
-					</a>
-				</div>
+					<li>
+						<a
+							href="{base}/blog"
+							class="block text-base
+								text-arcadeBlack-500 dark:text-arcadeWhite-300
+								hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500
+								{currentPath === '/blog' || currentPath === base + '/blog' ? 'text-arcadeNeonGreen-500' : ''}"
+						>
+							Blog
+						</a>
+					</li>
+				</ul>
 			</nav>
 
 			<!-- Footer -->
@@ -347,6 +321,7 @@
 						fill="none"
 						stroke="currentColor"
 						viewBox="0 0 24 24"
+						aria-hidden="true"
 					>
 						<path
 							stroke-linecap="round"
