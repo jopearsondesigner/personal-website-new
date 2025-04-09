@@ -327,7 +327,7 @@
 				class="canvas-pixel-art"
 				style="image-rendering: pixelated; image-rendering: crisp-edges; -webkit-backface-visibility: hidden; backface-visibility: hidden;"
 			/>
-			<div id="scanline-overlay" class="absolute inset-0 pointer-events-none z-10" />
+
 			<div class="neon-glow" />
 
 			<!-- Error message overlay -->
@@ -421,13 +421,6 @@
 		background: black;
 		position: relative;
 		z-index: 1;
-	}
-
-	/* Visual Effects */
-	#scanline-overlay {
-		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.1) 51%);
-		background-size: 100% 4px;
-		animation: scanline 0.2s linear infinite;
 	}
 
 	#reflection {
@@ -539,16 +532,6 @@
 		overflow-y: auto;
 		padding: 8px;
 		margin: 4px 0;
-	}
-
-	/* Animations */
-	@keyframes scanline {
-		0% {
-			background-position: 0 0;
-		}
-		100% {
-			background-position: 0 4px;
-		}
 	}
 
 	/* Media Queries */
