@@ -1547,7 +1547,7 @@
 	   Screen Effects and Overlays
 	   ========================================================================== */
 	#scanline-overlay {
-		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.1) 51%);
+		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.0675) 51%);
 		background-size: 100% 4px;
 		animation: scanline 0.2s linear infinite;
 		border-radius: calc(var(--border-radius) - 0.5vmin);
