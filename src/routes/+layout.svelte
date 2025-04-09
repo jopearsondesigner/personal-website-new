@@ -17,6 +17,7 @@
 	import { layoutStore } from '$lib/stores/store';
 	import MobileNavMenu from '$lib/components/layout/MobileNavMenu.svelte';
 	import Navigation from '$lib/components/layout/Navigation.svelte';
+	import { togglePerformanceMonitor } from '$lib/stores/performance-monitor';
 	import {
 		deviceCapabilities,
 		setupPerformanceMonitoring,
@@ -143,16 +144,14 @@
 		});
 	}
 
-	// Add keyboard event handler for performance monitor toggle
 	function handleKeyDown(event: KeyboardEvent) {
-		// Use Alt+Shift+P to toggle performance monitor
-		if (event.altKey && event.shiftKey && event.key === 'P') {
-			perfMonitorVisible.update((value) => !value);
+		// Use Ctrl+M to toggle performance monitor
+		if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === 'm') {
+			togglePerformanceMonitor();
 			event.preventDefault();
 		}
 	}
 
-	// Initialization and cleanup logic
 	onMount(() => {
 		// Theme initialization
 		const savedTheme = localStorage.getItem('theme') || 'dark';
@@ -160,6 +159,15 @@
 
 		if (browser) {
 			document.documentElement.classList.add(savedTheme);
+
+			// Initialize performance monitor visibility from localStorage
+			const savedVisibility = localStorage.getItem('perfMonitorVisible');
+			if (savedVisibility !== null) {
+				perfMonitorVisible.set(savedVisibility === 'true');
+			} else if (import.meta.env.DEV) {
+				// Default to visible in development
+				perfMonitorVisible.set(true);
+			}
 
 			// Initialize ResizeObserver for navbar height
 			if (navbarElement) {
@@ -337,10 +345,10 @@
 	<slot />
 </main>
 
-<Footer />
-
-<!-- Add the Performance Monitor component in all environments, but control visibility with the store -->
+<!-- Always include the Performance Monitor, visibility controlled by the store -->
 <PerformanceMonitor />
+
+<Footer />
 
 <style>
 	:global(:root) {
