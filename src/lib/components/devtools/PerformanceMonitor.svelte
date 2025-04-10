@@ -3,7 +3,10 @@
 	import { onMount } from 'svelte';
 	import { fpsStore } from '$lib/utils/frame-rate-controller';
 	import { deviceCapabilities, memoryUsageStore } from '$lib/utils/device-performance';
-	import { perfMonitorVisible } from '$lib/stores/performance-monitor';
+	import {
+		perfMonitorVisible,
+		setPerformanceMonitorVisibility
+	} from '$lib/stores/performance-monitor';
 	import { browser } from '$app/environment';
 
 	// Monitor element for touch event handling
@@ -83,12 +86,35 @@
 
 	// Click outside to dismiss
 	function handleClickOutside(event: MouseEvent) {
+		// Skip processing if the click was part of the mobile menu interaction
+		const mobileMenuButton = document.querySelector('button[aria-controls="mobile-menu"]');
+		const mobileMenuOverlay = document.querySelector('.mobile-menu-container button.fixed');
+		const settingsButton = document.querySelector('button[aria-controls="settings-submenu"]');
+		const settingsSubmenu = document.querySelector('#settings-submenu');
+
+		// Check if the click was on the mobile menu toggle, settings button, or within the settings submenu
+		if (
+			(mobileMenuButton && mobileMenuButton.contains(event.target as Node)) ||
+			(mobileMenuOverlay && mobileMenuOverlay.contains(event.target as Node)) ||
+			(settingsButton && settingsButton.contains(event.target as Node)) ||
+			(settingsSubmenu && settingsSubmenu.contains(event.target as Node))
+		) {
+			return; // Skip processing for mobile menu and settings interactions
+		}
+
+		// Regular behavior for other clicks
 		if (monitorElement && !monitorElement.contains(event.target as Node) && $perfMonitorVisible) {
 			// Only dismiss if we didn't just finish dragging
 			if (!isDragging) {
-				perfMonitorVisible.set(false);
+				setPerformanceMonitorVisibility(false);
 			}
 		}
+	}
+
+	// Handle close button click
+	function handleCloseClick(event: MouseEvent) {
+		event.stopPropagation(); // Prevent event bubbling
+		setPerformanceMonitorVisibility(false);
 	}
 
 	// Always monitor, visibility controlled by store
@@ -155,7 +181,7 @@
 	>
 		<div class="monitor-header" on:mousedown={handleMouseDown}>
 			<span class="title">Performance Monitor</span>
-			<span class="close-btn" on:click={() => perfMonitorVisible.set(false)}>×</span>
+			<span class="close-btn" on:click={() => setPerformanceMonitorVisibility(false)}>×</span>
 		</div>
 
 		<div class="basic-metrics">
@@ -188,7 +214,7 @@
 			</div>
 		{/if}
 
-		<div class="shortcut-hint">Ctrl+M to toggle | Drag to move</div>
+		<div class="shortcut-hint">Ctrl+Shift+P to toggle | Drag to move</div>
 	</div>
 {/if}
 
@@ -202,7 +228,7 @@
 		padding: 0;
 		border-radius: 6px;
 		font-size: 12px;
-		z-index: 9999;
+		z-index: 9000; /* Lower than mobile menu's z-index of 9999/10000 */
 		transition:
 			opacity 0.3s ease,
 			transform 0.3s ease;

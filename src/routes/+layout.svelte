@@ -1,4 +1,5 @@
 <!-- src/routes/+layout.svelte -->
+
 <script lang="ts">
 	import '../app.css';
 	import Navbar from '$lib/components/layout/Navbar.svelte';
@@ -145,8 +146,8 @@
 	}
 
 	function handleKeyDown(event: KeyboardEvent) {
-		// Use Ctrl+M to toggle performance monitor
-		if (event.ctrlKey && !event.shiftKey && !event.altKey && event.key === 'm') {
+		// Use Ctrl+Shift+P to toggle performance monitor
+		if (event.ctrlKey && event.shiftKey && event.key === 'P') {
 			togglePerformanceMonitor();
 			event.preventDefault();
 		}
@@ -160,13 +161,14 @@
 		if (browser) {
 			document.documentElement.classList.add(savedTheme);
 
-			// Initialize performance monitor visibility from localStorage
+			// Initialize performance monitor visibility from localStorage - simplified
 			const savedVisibility = localStorage.getItem('perfMonitorVisible');
 			if (savedVisibility !== null) {
 				perfMonitorVisible.set(savedVisibility === 'true');
-			} else if (import.meta.env.DEV) {
-				// Default to visible in development
-				perfMonitorVisible.set(true);
+			} else {
+				// Always default to hidden
+				perfMonitorVisible.set(false);
+				localStorage.setItem('perfMonitorVisible', 'false');
 			}
 
 			// Initialize ResizeObserver for navbar height
@@ -196,8 +198,6 @@
 			window.addEventListener('resize', updateLogoPosition);
 			window.addEventListener('orientationchange', updateLogoPosition);
 			window.addEventListener('scroll', handleScroll, { passive: true }); // Add scroll listener with passive flag
-
-			// Add keyboard event listener for performance monitor toggle
 			window.addEventListener('keydown', handleKeyDown);
 
 			// Force repaint on orientation change with a slight delay
@@ -238,8 +238,8 @@
 			// Remove event listeners
 			window.removeEventListener('resize', updateLogoPosition);
 			window.removeEventListener('orientationchange', updateLogoPosition);
-			window.removeEventListener('scroll', handleScroll); // Clean up scroll listener
-			window.removeEventListener('keydown', handleKeyDown); // Clean up keyboard listener
+			window.removeEventListener('scroll', handleScroll);
+			window.removeEventListener('keydown', handleKeyDown);
 
 			// Clean up monitoring
 			if (cleanupPerformanceMonitoring) cleanupPerformanceMonitoring();
