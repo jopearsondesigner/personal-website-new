@@ -7,29 +7,109 @@
 
 /* Root Variables */
 :root {
-	/* Colors */
-	--arcade-red-500: #ff5426;
-	--arcade-black-200: #d5d5d5;
+	/* Arcade Red */
+	--arcade-red-50: #ffe8e0;
+	--arcade-red-100: #ffc6b3;
+	--arcade-red-200: #ff9b80;
+	--arcade-red-300: #ff704d;
+	--arcade-red-400: #ff5426;
+	--arcade-red-500: #ff4500; /* base color */
+	--arcade-red-600: #e63e00;
+	--arcade-red-700: #cc3700;
+	--arcade-red-800: #b33000;
+	--arcade-red-900: #992900;
+
+	/* Arcade Black */
+	--arcade-black-50: #eaeaea;
+	--arcade-black-100: #d5d5d5;
+	--arcade-black-200: #ababab; /* base color */
 	--arcade-black-300: #808080;
 	--arcade-black-400: #555555;
 	--arcade-black-500: #2b2b2b;
 	--arcade-black-600: #262626;
 	--arcade-black-700: #1a1a1a;
+	--arcade-black-800: #0d0d0d;
+	--arcade-black-900: #000000;
+
+	/* Arcade White */
+	--arcade-white-50: #fafaf0;
 	--arcade-white-100: #f7f7e6;
-	--arcade-white-200: #f5f5dc;
+	--arcade-white-200: #f5f5dc; /* base color */
 	--arcade-white-300: #ececce;
-	--arcade-electric-blue-500: #1e90ff;
-	--arcade-bright-yellow-200: #ffe480;
+	--arcade-white-400: #e2e2bd;
+	--arcade-white-500: #d9d9ab;
+	--arcade-white-600: #c0c08d;
+	--arcade-white-700: #a7a770;
+	--arcade-white-800: #8d8d56;
+	--arcade-white-900: #73733b;
+
+	/* Arcade Electric Blue */
+	--arcade-electric-blue-50: #e6f3ff;
+	--arcade-electric-blue-100: #cce7ff;
+	--arcade-electric-blue-200: #99cfff;
+	--arcade-electric-blue-300: #66b8ff;
+	--arcade-electric-blue-400: #339fff;
+	--arcade-electric-blue-500: #1e90ff; /* base color */
+	--arcade-electric-blue-600: #1a82e6;
+	--arcade-electric-blue-700: #156bbf;
+	--arcade-electric-blue-800: #104d99;
+	--arcade-electric-blue-900: #0b3973;
+
+	/* Arcade Bright Yellow */
+	--arcade-bright-yellow-50: #fff8e1;
+	--arcade-bright-yellow-100: #ffeeb2;
+	--arcade-bright-yellow-200: #ffe480; /* base color */
+	--arcade-bright-yellow-300: #ffda4e;
+	--arcade-bright-yellow-400: #ffd024;
 	--arcade-bright-yellow-500: #ffd700;
+	--arcade-bright-yellow-600: #e6c200;
+	--arcade-bright-yellow-700: #b39a00;
+	--arcade-bright-yellow-800: #806f00;
+	--arcade-bright-yellow-900: #4d4600;
+
+	/* Arcade Neon Green */
+	--arcade-neon-green-50: #e3ffee;
 	--arcade-neon-green-100: #c7ffdd;
 	--arcade-neon-green-200: #9fffbf;
-	--arcade-neon-green-500: #27ff99;
-	--arcade-magenta-500: #ff00ff;
-	--teal-500: #00a8a8;
+	--arcade-neon-green-300: #77ffa1;
+	--arcade-neon-green-400: #4fffae;
+	--arcade-neon-green-500: #27ff99; /* base color */
+	--arcade-neon-green-600: #00ff80;
+	--arcade-neon-green-700: #00e670;
+	--arcade-neon-green-800: #00b35a;
+	--arcade-neon-green-900: #00804d;
 
-	/* Theme */
+	/* Arcade Magenta */
+	--arcade-magenta-50: #ffe6ff;
+	--arcade-magenta-100: #ffb3ff;
+	--arcade-magenta-200: #ff80ff;
+	--arcade-magenta-300: #ff4dff;
+	--arcade-magenta-400: #ff1aff;
+	--arcade-magenta-500: #ff00ff; /* base color */
+	--arcade-magenta-600: #e600e6;
+	--arcade-magenta-700: #b300b3;
+	--arcade-magenta-800: #800080;
+	--arcade-magenta-900: #4d004d;
+
+	/* Teal */
+	--teal-50: #e0f7f7;
+	--teal-100: #b3efef;
+	--teal-200: #80e7e7;
+	--teal-300: #4ddcdc;
+	--teal-400: #1ad1d1;
+	--teal-500: #00a8a8; /* base color */
+	--teal-600: #008f8f;
+	--teal-700: #006666;
+	--teal-800: #004d4d;
+	--teal-900: #003333;
+
+	/* Dark Mode Background */
 	--dark-mode-bg: #1a1a1a;
+
+	/* Light Mode Background */
 	--light-mode-bg: #d0d0d0;
+
+	/* Adjusted Light Mode Text Color */
 	--light-mode-text: #2b2b2b;
 
 	/* Fonts */

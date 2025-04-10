@@ -161,16 +161,6 @@
 		if (browser) {
 			document.documentElement.classList.add(savedTheme);
 
-			// Initialize performance monitor visibility from localStorage - simplified
-			const savedVisibility = localStorage.getItem('perfMonitorVisible');
-			if (savedVisibility !== null) {
-				perfMonitorVisible.set(savedVisibility === 'true');
-			} else {
-				// Always default to hidden
-				perfMonitorVisible.set(false);
-				localStorage.setItem('perfMonitorVisible', 'false');
-			}
-
 			// Initialize ResizeObserver for navbar height
 			if (navbarElement) {
 				resizeObserver = new ResizeObserver(updateNavHeight);

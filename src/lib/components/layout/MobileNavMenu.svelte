@@ -10,10 +10,7 @@
 	import { navSections, navigationStore } from '$lib/stores/navigation';
 	import { tick } from 'svelte';
 	import { base } from '$app/paths'; // Import the base path
-	import {
-		perfMonitorVisible,
-		togglePerformanceMonitor as togglePerfMonitor
-	} from '$lib/stores/performance-monitor';
+	import { perfMonitorVisible, togglePerformanceMonitor } from '$lib/stores/performance-monitor';
 
 	export let isOpen = false;
 
@@ -140,15 +137,15 @@
 		});
 	}
 
-	// Toggle performance monitor - with isolated event handling
+	// Toggle performance monitor - with isolated event handling to prevent menu interference
 	function handleTogglePerfMonitor(event?: Event) {
 		if (event) {
 			event.preventDefault();
 			event.stopPropagation();
 		}
 
-		// Use the imported function
-		togglePerfMonitor();
+		// Use the imported function rather than directly modifying the store
+		togglePerformanceMonitor();
 	}
 
 	// Improved smooth scroll function
@@ -296,7 +293,6 @@
 		></button>
 
 		<!-- Menu Panel -->
-		<!-- Fixed: Removed role="menu" and using simple div structure -->
 		<div
 			bind:this={mobileMenuPanel}
 			id="mobile-menu"
@@ -331,74 +327,77 @@
 					transition:slide={{ duration: 200 }}
 				>
 					<div
-						class="text-[10px] uppercase tracking-wide mb-1 font-normal text-arcadeBlack-300 dark:text-arcadeBlack-300"
+						class="text-[10px] uppercase tracking-wide mb-2 font-normal text-arcadeBlack-300 dark:text-arcadeBlack-400"
 					>
 						settings
 					</div>
-
-					<!-- Theme toggle -->
-					<button
-						on:click={toggleTheme}
-						class="flex items-center justify-between w-full py-1 px-1
+					<div class="ml-3">
+						<!-- Theme toggle -->
+						<button
+							on:click={toggleTheme}
+							class="flex items-center justify-between w-full py-1 px-1
 							text-arcadeBlack-500 dark:text-arcadeWhite-300
 							hover:bg-arcadeBlack-200/30 dark:hover:bg-arcadeBlack-600/30
 							transition-colors duration-200 text-xs"
-						aria-label={$theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-					>
-						<div class="flex items-center space-x-2">
-							{#if $theme === 'dark'}
-								<Sun class="w-3 h-3 text-arcadeNeonOrange-500" />
-								<span>Light Mode</span>
-							{:else}
-								<Moon class="w-3 h-3 text-arcadeNeonBlue-500" />
-								<span>Dark Mode</span>
-							{/if}
-						</div>
-						<div
-							class="w-8 h-4 rounded-full
+							aria-label={$theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+						>
+							<div class="flex items-center space-x-2">
+								{#if $theme === 'dark'}
+									<Sun class="w-3 h-3 text-arcadeBlack-300 dark:text-arcadeBlack-400" />
+									<span>Light Mode</span>
+								{:else}
+									<Moon class="w-3 h-3 text-arcadeBlack-300 dark:text-arcadeBlack-400" />
+									<span>Dark Mode</span>
+								{/if}
+							</div>
+							<div
+								class="w-8 h-4 rounded-full
 							{$theme === 'dark' ? 'bg-arcadeNeonOrange-500/20' : 'bg-arcadeNeonBlue-500/20'}
 							relative flex items-center px-1"
-						>
-							<div
-								class="w-2 h-2 rounded-full
+							>
+								<div
+									class="w-2 h-2 rounded-full
 								{$theme === 'dark' ? 'bg-arcadeNeonOrange-500 ml-auto' : 'bg-arcadeNeonBlue-500'}
 								transition-transform duration-300"
-							></div>
-						</div>
-					</button>
+								></div>
+							</div>
+						</button>
 
-					<!-- Performance Monitor toggle -->
-					<button
-						on:click={handleTogglePerfMonitor}
-						class="flex items-center justify-between w-full py-1 px-1
+						<!-- Performance Monitor toggle -->
+						<button
+							on:click={handleTogglePerfMonitor}
+							class="flex items-center justify-between w-full py-1 px-1
 						text-arcadeBlack-500 dark:text-arcadeWhite-300
 						hover:bg-arcadeBlack-200/30 dark:hover:bg-arcadeBlack-600/30
 						transition-colors duration-200 mt-1 text-xs"
-						aria-label="Toggle Performance Monitor"
-						aria-pressed={$perfMonitorVisible}
-					>
-						<div class="flex items-center space-x-2">
-							<div class="w-3 h-3 flex items-center justify-center text-arcadeNeonGreen-400">
-								<span class="text-xs font-mono scale-75">FPS</span>
-							</div>
-							<span>Performance Monitor</span>
-						</div>
-						<div
-							class="w-8 h-4 rounded-full
-						{$perfMonitorVisible
-								? 'bg-arcadeNeonGreen-500/20'
-								: 'bg-arcadeBlack-300/20 dark:bg-arcadeBlack-600/20'}
-						relative flex items-center px-1"
+							aria-label="Toggle Performance Monitor"
+							aria-pressed={$perfMonitorVisible}
 						>
+							<div class="flex items-center space-x-2">
+								<div
+									class="w-3 h-3 flex items-center justify-center text-arcadeBlack-300 dark:text-arcadeBlack-400"
+								>
+									<span class="text-xs font-mono scale-75">FPS</span>
+								</div>
+								<span>Performance Monitor</span>
+							</div>
 							<div
-								class="w-2 h-2 rounded-full
+								class="w-8 h-4 rounded-full
+						{$perfMonitorVisible
+									? 'bg-arcadeNeonGreen-500/20'
+									: 'bg-arcadeBlack-300/20 dark:bg-arcadeBlack-600/20'}
+						relative flex items-center px-1"
+							>
+								<div
+									class="w-2 h-2 rounded-full
 							{$perfMonitorVisible
-									? 'bg-arcadeNeonGreen-500 ml-auto'
-									: 'bg-arcadeBlack-300 dark:bg-arcadeBlack-500'}
+										? 'bg-arcadeNeonGreen-500 ml-auto'
+										: 'bg-arcadeBlack-300 dark:bg-arcadeBlack-500'}
 							transition-transform duration-300"
-							></div>
-						</div>
-					</button>
+								></div>
+							</div>
+						</button>
+					</div>
 				</div>
 			{/if}
 			<nav class="flex-1 px-6 py-2">
@@ -468,5 +467,111 @@
 {/if}
 
 <style lang="postcss">
-	/* Styles remain unchanged */
+	/* Remove tap highlight on mobile */
+	button,
+	a {
+		-webkit-tap-highlight-color: transparent;
+		-webkit-touch-callout: none;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	/* Smooth scrolling for menu panel with hardware acceleration */
+	div {
+		scrollbar-width: none;
+		-ms-overflow-style: none;
+	}
+
+	div::-webkit-scrollbar {
+		display: none;
+	}
+
+	/* Enable hardware acceleration for smoother animations */
+	div {
+		transform: translateZ(0);
+		backface-visibility: hidden;
+		perspective: 1000px;
+	}
+
+	/* iOS-specific fixes */
+	:global(.mobile-menu-container) {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		width: 100vw;
+		height: 100vh;
+		height: -webkit-fill-available;
+		max-height: -webkit-fill-available;
+		overflow: hidden;
+		z-index: 9999;
+		/* Force new stacking context outside of any other element */
+		transform: translateZ(0);
+		will-change: transform;
+	}
+
+	/* Fix for iOS - ensure proper positioning and dimensions */
+	#mobile-menu {
+		height: 100vh;
+		height: -webkit-fill-available;
+		max-height: -webkit-fill-available;
+		width: 100%;
+		max-width: 20rem;
+		overflow-y: auto;
+		position: fixed;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		left: auto;
+		/* Force hardware acceleration */
+		-webkit-transform: translateZ(0);
+		transform: translateZ(0);
+		will-change: transform;
+	}
+
+	/* Improved iOS body lock */
+	:global(body.menu-open) {
+		overflow: hidden !important;
+		position: fixed !important;
+		width: 100% !important;
+		height: 100% !important;
+		touch-action: none !important;
+		-webkit-overflow-scrolling: auto !important;
+	}
+
+	/* iOS height fixes for menu */
+	@supports (-webkit-touch-callout: none) {
+		#mobile-menu {
+			height: -webkit-fill-available;
+		}
+
+		:global(.mobile-menu-container) {
+			height: -webkit-fill-available;
+		}
+	}
+
+	/* Active indicator for nav links */
+	.arcade-active-indicator {
+		position: absolute;
+		left: -8px;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 2px;
+		height: 0;
+		background: theme('colors.arcadeNeonGreen.100');
+		opacity: 0;
+		transition:
+			height 0.3s ease,
+			opacity 0.3s ease;
+	}
+
+	/* Show the active indicator for active links */
+	.active-link .arcade-active-indicator {
+		height: 16px;
+		opacity: 1;
+		box-shadow:
+			0 0 8px theme('colors.arcadeNeonGreen.300'),
+			0 0 12px theme('colors.arcadeNeonGreen.200');
+	}
 </style>

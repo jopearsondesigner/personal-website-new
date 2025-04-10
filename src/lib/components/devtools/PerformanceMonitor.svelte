@@ -15,6 +15,8 @@
 	// Touch handling variables
 	let touchStartX = 0;
 	let touchStartY = 0;
+	let touchDragStartX = 0; // Added missing variable
+	let touchDragStartY = 0; // Added missing variable
 	let touchTimeout: number | null = null;
 	let initialTouchLeft = 0;
 	let initialTouchTop = 0;
@@ -108,10 +110,14 @@
 
 	// Dragging handlers
 	function handleMouseDown(event: MouseEvent) {
-		isDragging = true;
-		offsetX = event.clientX - monitorElement.getBoundingClientRect().left;
-		offsetY = event.clientY - monitorElement.getBoundingClientRect().top;
-		event.preventDefault();
+		// Only start dragging on header element to avoid interference
+		const header = monitorElement?.querySelector('.monitor-header');
+		if (header && event.target && header.contains(event.target as Node)) {
+			isDragging = true;
+			offsetX = event.clientX - monitorElement.getBoundingClientRect().left;
+			offsetY = event.clientY - monitorElement.getBoundingClientRect().top;
+			event.preventDefault();
+		}
 	}
 
 	function handleMouseMove(event: MouseEvent) {
@@ -134,17 +140,19 @@
 	}
 
 	function handleMouseUp() {
-		isDragging = false;
+		if (isDragging) {
+			isDragging = false;
 
-		// Save position
-		if (browser && monitorElement) {
-			const rect = monitorElement.getBoundingClientRect();
-			localStorage.setItem('perfMonitorX', String(rect.left));
-			localStorage.setItem('perfMonitorY', String(rect.top));
+			// Save position
+			if (browser && monitorElement) {
+				const rect = monitorElement.getBoundingClientRect();
+				localStorage.setItem('perfMonitorX', String(rect.left));
+				localStorage.setItem('perfMonitorY', String(rect.top));
+			}
 		}
 	}
 
-	// Click outside to dismiss
+	// Click outside to dismiss - fixed to prevent mobile menu conflicts
 	function handleClickOutside(event: MouseEvent) {
 		// Skip processing if the click was part of the mobile menu interaction
 		const mobileMenuButton = document.querySelector('button[aria-controls="mobile-menu"]');
@@ -164,25 +172,22 @@
 
 		// Regular behavior for other clicks
 		if (monitorElement && !monitorElement.contains(event.target as Node) && $perfMonitorVisible) {
-			// Only dismiss if we didn't just finish dragging
+			// Only dismiss if we didn't just finish dragging and not clicking UI elements
 			if (!isDragging) {
 				setPerformanceMonitorVisibility(false);
 			}
 		}
 	}
 
-	// Handle close button click
+	// Handle close button click - ensure we properly stop propagation
 	function handleCloseClick(event: MouseEvent) {
 		event.stopPropagation(); // Prevent event bubbling
 		setPerformanceMonitorVisibility(false);
 	}
 
-	// Always monitor, visibility controlled by store
-	const shouldMonitor = true;
-
 	onMount(() => {
 		if (browser && monitorElement) {
-			// Add swipe gesture to hide the monitor
+			// Add event listeners with proper passive setting
 			monitorElement.addEventListener('touchstart', handleTouchStart, { passive: false });
 
 			// Add drag handlers
@@ -190,10 +195,10 @@
 			document.addEventListener('mousemove', handleMouseMove);
 			document.addEventListener('mouseup', handleMouseUp);
 
-			// Add click outside handler
-			document.addEventListener('mousedown', handleClickOutside);
+			// Add click outside handler - with capture to ensure it runs first
+			document.addEventListener('mousedown', handleClickOutside, { capture: true });
 
-			monitorElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+			// Touch events with correct passive settings
 			document.addEventListener('touchmove', handleTouchMove, { passive: false });
 			document.addEventListener('touchend', handleTouchEnd, { passive: false });
 
@@ -226,7 +231,6 @@
 				document.removeEventListener('mousemove', handleMouseMove);
 				document.removeEventListener('mouseup', handleMouseUp);
 				document.removeEventListener('mousedown', handleClickOutside);
-
 				document.removeEventListener('touchmove', handleTouchMove);
 				document.removeEventListener('touchend', handleTouchEnd);
 
@@ -238,7 +242,8 @@
 	});
 </script>
 
-{#if shouldMonitor}
+{#if true}
+	<!-- Always render but control visibility with CSS -->
 	<div
 		bind:this={monitorElement}
 		class="performance-monitor debug-panel {$perfMonitorVisible ? 'visible' : 'hidden'}"
@@ -248,13 +253,7 @@
 	>
 		<div class="monitor-header" on:mousedown={handleMouseDown}>
 			<span class="title">Performance Monitor</span>
-			<span
-				class="close-btn"
-				on:click={(event) => {
-					event.stopPropagation();
-					setPerformanceMonitorVisibility(false);
-				}}>×</span
-			>
+			<span class="close-btn" on:click={handleCloseClick}>×</span>
 		</div>
 
 		<div class="basic-metrics">
