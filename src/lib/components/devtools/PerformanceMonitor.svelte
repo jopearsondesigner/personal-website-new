@@ -16,6 +16,9 @@
 	let touchStartX = 0;
 	let touchStartY = 0;
 	let touchTimeout: number | null = null;
+	let initialTouchLeft = 0;
+	let initialTouchTop = 0;
+	let isTouchDragging = false;
 
 	// Dragging functionality
 	let isDragging = false;
@@ -31,6 +34,7 @@
 		touchStartX = touch.clientX;
 		touchStartY = touch.clientY;
 
+		// Double-tap detection remains the same
 		if (touchTimeout === null) {
 			touchTimeout = window.setTimeout(() => {
 				touchTimeout = null;
@@ -42,6 +46,62 @@
 
 			// Toggle visibility on double tap
 			perfMonitorVisible.update((value) => !value);
+			event.preventDefault();
+		}
+
+		// Initialize touch drag if touching the header
+		const header = monitorElement?.querySelector('.monitor-header');
+		if (header && event.target && header.contains(event.target as Node)) {
+			isTouchDragging = true;
+			touchDragStartX = touch.clientX;
+			touchDragStartY = touch.clientY;
+
+			const rect = monitorElement.getBoundingClientRect();
+			initialTouchLeft = rect.left;
+			initialTouchTop = rect.top;
+
+			event.preventDefault(); // Prevent scrolling while dragging the header
+		}
+	}
+
+	// New function to handle touch move for dragging
+	function handleTouchMove(event: TouchEvent) {
+		if (!isTouchDragging) return;
+
+		const touch = event.touches[0];
+		const deltaX = touch.clientX - touchDragStartX;
+		const deltaY = touch.clientY - touchDragStartY;
+
+		const newLeft = initialTouchLeft + deltaX;
+		const newTop = initialTouchTop + deltaY;
+
+		// Constrain to viewport
+		const maxX = window.innerWidth - monitorElement.offsetWidth;
+		const maxY = window.innerHeight - monitorElement.offsetHeight;
+
+		const constrainedX = Math.max(0, Math.min(newLeft, maxX));
+		const constrainedY = Math.max(0, Math.min(newTop, maxY));
+
+		monitorElement.style.right = 'auto';
+		monitorElement.style.bottom = 'auto';
+		monitorElement.style.left = `${constrainedX}px`;
+		monitorElement.style.top = `${constrainedY}px`;
+
+		event.preventDefault(); // Prevent page scrolling during drag
+	}
+
+	// New function to handle touch end
+	function handleTouchEnd(event: TouchEvent) {
+		if (isTouchDragging) {
+			isTouchDragging = false;
+
+			// Save position
+			if (browser && monitorElement) {
+				const rect = monitorElement.getBoundingClientRect();
+				localStorage.setItem('perfMonitorX', String(rect.left));
+				localStorage.setItem('perfMonitorY', String(rect.top));
+			}
+
 			event.preventDefault();
 		}
 	}
@@ -133,6 +193,10 @@
 			// Add click outside handler
 			document.addEventListener('mousedown', handleClickOutside);
 
+			monitorElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+			document.addEventListener('touchmove', handleTouchMove, { passive: false });
+			document.addEventListener('touchend', handleTouchEnd, { passive: false });
+
 			// Load saved position
 			const savedX = localStorage.getItem('perfMonitorX');
 			const savedY = localStorage.getItem('perfMonitorY');
@@ -163,6 +227,9 @@
 				document.removeEventListener('mouseup', handleMouseUp);
 				document.removeEventListener('mousedown', handleClickOutside);
 
+				document.removeEventListener('touchmove', handleTouchMove);
+				document.removeEventListener('touchend', handleTouchEnd);
+
 				if (touchTimeout !== null) {
 					window.clearTimeout(touchTimeout);
 				}
@@ -181,7 +248,13 @@
 	>
 		<div class="monitor-header" on:mousedown={handleMouseDown}>
 			<span class="title">Performance Monitor</span>
-			<span class="close-btn" on:click={() => setPerformanceMonitorVisibility(false)}>×</span>
+			<span
+				class="close-btn"
+				on:click={(event) => {
+					event.stopPropagation();
+					setPerformanceMonitorVisibility(false);
+				}}>×</span
+			>
 		</div>
 
 		<div class="basic-metrics">
