@@ -333,7 +333,7 @@
 		justify-content: space-between;
 		align-items: center;
 		cursor: move;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		border-bottom: 1px solid rgba(0, 179, 90, 0.1);
 	}
 
 	.title {
@@ -367,14 +367,14 @@
 	.metrics-toggle {
 		background: rgba(60, 60, 60, 0.6);
 		border: none;
-		color: rgba(255, 255, 255, 0.8);
+		color: var(--arcade-neon-green-100);
 		padding: 4px;
 		width: 100%;
 		font-size: 10px;
 		cursor: pointer;
 		text-align: center;
-		border-top: 1px solid rgba(255, 255, 255, 0.1);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		border-top: 1px solid rgba(0, 179, 90, 0.1);
+		border-bottom: 1px solid rgba(0, 179, 90, 0.1);
 	}
 
 	.metrics-toggle:hover {
@@ -416,8 +416,8 @@
 	}
 
 	.title {
-		color: rgb(0, 255, 255);
-		text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+		color: var(--arcade-neon-green-100);
+		text-shadow: 0 0 5px rgba(39, 255, 153, o.5);
 	}
 
 	.basic-metrics div,
@@ -428,7 +428,7 @@
 
 	.basic-metrics div::before {
 		content: '>';
-		color: rgb(0, 255, 255);
+		color: var(--arcade-neon-green-100);
 		margin-right: 4px;
 		opacity: 0.7;
 	}
