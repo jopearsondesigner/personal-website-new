@@ -126,7 +126,7 @@
 				aria-expanded={isMenuOpen}
 				aria-controls="menu-container"
 			>
-				MENU
+				Arcade Menu
 			</button>
 		{/if}
 
@@ -216,7 +216,7 @@
 		left: 0;
 		right: 0;
 		bottom: 0;
-		background-color: rgba(43, 43, 43, 0.546);
+		background-color: rgba(43, 43, 43, 0.666);
 		z-index: 9998;
 		/* Enable pointer events for the overlay */
 		pointer-events: auto;
