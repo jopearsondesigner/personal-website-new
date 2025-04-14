@@ -87,11 +87,11 @@
 				const logoWidth = logoWrapper.offsetWidth;
 
 				// Base position calculation for portrait mode
-				let offsetPosition = viewportWidth * 0.23 - logoWidth / 2;
+				let offsetPosition = viewportWidth * 0.36 - logoWidth / 2;
 
 				// Adjust position for landscape mode
 				if (isLandscape) {
-					offsetPosition = viewportWidth * 0.25 - logoWidth / 2;
+					offsetPosition = viewportWidth * 0.5 - logoWidth / 2;
 				}
 
 				// Apply styles efficiently in a single batch
@@ -292,14 +292,14 @@
 		<!-- Logo wrapper with binding for positioning -->
 		<div bind:this={logoWrapper} class="logo-wrapper md:hidden absolute z-30">
 			<NavBrand href="/">
-				<img src={logo} alt="Jo Pearson Logo" class="h-9 w-9 mr-[8px] pt-1 header-logo-pulse" />
+				<img src={logo} alt="Jo Pearson Logo" class="h-10 w-10 mr-[8px] pb-1 header-logo-pulse" />
 			</NavBrand>
 		</div>
 
 		<!-- Desktop logo that remains left-aligned -->
 		<div class="hidden md:block">
 			<NavBrand href="/">
-				<img src={logo} alt="Jo Pearson Logo" class="h-9 w-9 mr-[8px] pt-1 header-logo-pulse" />
+				<img src={logo} alt="Jo Pearson Logo" class="h-10 w-10 mr-[8px] pb-1 header-logo-pulse" />
 				<span
 					class="hidden lg:inline-block text-[16px] header-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[24.96px] mt-[5px]"
 				>
