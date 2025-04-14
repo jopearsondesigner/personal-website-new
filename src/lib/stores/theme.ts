@@ -10,7 +10,7 @@ function createThemeStore() {
 	// Create the writable store with the default theme
 	const { subscribe, set, update } = writable<'dark' | 'light'>(defaultTheme);
 
-	// Function to update favicon theme
+	// Function to update theme metadata
 	const updateThemeMeta = (newTheme: 'dark' | 'light') => {
 		if (browser) {
 			// Update theme-color meta tag
@@ -19,14 +19,8 @@ function createThemeStore() {
 				themeColorMeta.setAttribute('content', newTheme === 'dark' ? '#1a1a1a' : '#d0d0d0');
 			}
 
-			// Optionally switch favicon if you have light/dark versions
-			const faviconLink = document.querySelector('link[rel="shortcut icon"]');
-			if (faviconLink) {
-				faviconLink.setAttribute(
-					'href',
-					`%sveltekit.assets%/assets/favicons/favicon-${newTheme}.ico`
-				);
-			}
+			// Remove the favicon switching code since it's not needed
+			// and was causing the URI malformed error
 		}
 	};
 
