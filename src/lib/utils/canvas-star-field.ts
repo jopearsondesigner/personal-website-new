@@ -3,9 +3,25 @@
 import { browser } from '$app/environment';
 import type { Writable } from 'svelte/store';
 import { get } from 'svelte/store';
-import { deviceCapabilities, type DeviceCapabilities } from './device-performance';
+import { deviceCapabilities } from './device-performance';
 import { frameRateController } from './frame-rate-controller';
 import { StarPool, type StarPoolObject } from './star-pool';
+
+// Spatial partitioning interfaces
+interface SpatialSector {
+	id: string; // Unique sector identifier (e.g. "2,3" for grid position)
+	x: number; // Grid x position
+	y: number; // Grid y position
+	stars: Star[]; // Stars currently in this sector
+	isVisible: boolean; // Whether this sector is currently visible
+}
+
+interface SpatialGrid {
+	sectors: Map<string, SpatialSector>; // Map of sector ID to sector
+	sectorSize: number; // Size of each sector in pixels
+	gridWidth: number; // Number of sectors horizontally
+	gridHeight: number; // Number of sectors vertically
+}
 
 interface Star extends StarPoolObject {
 	inUse: boolean;
@@ -14,7 +30,7 @@ interface Star extends StarPoolObject {
 	z: number;
 	prevX: number;
 	prevY: number;
-	sectorId?: string; // Add this property to track star's sector
+	sectorId?: string; // Added for spatial partitioning
 }
 
 interface AnimationState {
@@ -29,12 +45,14 @@ interface RenderStats {
 	starsRendered: number;
 	lastUpdateTime: number;
 	spatialPartitioning?: {
-		visibleSectors?: number;
-		totalSectors?: number;
-		visibleStars?: number;
-		totalStars?: number;
-		processingRatio?: number;
-		estimatedCpuSavings?: number;
+		visibleSectors: number;
+		totalSectors: number;
+		visibleStars: number;
+		totalStars: number;
+		processingRatio: number;
+		estimatedCpuSavings: number;
+		lastGridRebuildTime: number;
+		gridRebuildInterval: number;
 	};
 }
 
@@ -45,21 +63,6 @@ interface RenderedStar {
 	prevX: number;
 	prevY: number;
 	z: number;
-}
-
-interface SpatialSector {
-	id: string; // Unique sector identifier (e.g. "2,3" for grid position)
-	x: number; // Grid x position
-	y: number; // Grid y position
-	stars: Star[]; // Stars currently in this sector
-	isVisible: boolean; // Whether this sector is currently visible
-}
-
-interface SpatialGrid {
-	sectors: Map<string, SpatialSector>; // Map of sector ID to sector
-	sectorSize: number; // Size of each sector in pixels
-	gridWidth: number; // Number of sectors horizontally
-	gridHeight: number; // Number of sectors vertically
 }
 
 export class CanvasStarFieldManager {
@@ -103,8 +106,25 @@ export class CanvasStarFieldManager {
 	private useImageSmoothing = true;
 	private starPool: StarPool<Star> | null = null;
 	private frameSkip = 0;
+	// Spatial partitioning properties
+	private spatialGrid: SpatialGrid | null = null;
+	private sectorSize = 200; // Size of each grid sector in pixels
+	private visibleSectorsCache: Set<string> = new Set(); // Cache of currently visible sectors
+	private lastGridRebuildTime = 0;
+	private gridRebuildInterval = 5000; // Rebuild grid every 5 seconds
+	private enableSpatialPartitioning = true; // Flag to enable/disable partitioning
+	private sectorSizeAdaptive = true; // Flag to enable dynamic sector sizing
+	private sectorSizeMin = 100; // Minimum sector size in pixels
+	private sectorSizeMax = 400; // Maximum sector size in pixels
+	private sectorStarThreshold = 10; // Target stars per sector for adaptive sizing
+	private spatialPartitioningMetrics = {
+		frameTimeWithPartitioning: 0,
+		frameTimeWithoutPartitioning: 0,
+		sampleCount: 0,
+		performanceImprovement: 0
+	};
 
-	// Feature flags
+	// Original properties
 	public enableGlow = true;
 	public enableParallax = true;
 
@@ -123,24 +143,6 @@ export class CanvasStarFieldManager {
 		'#aaddff',
 		'#ffffff' // Bright white
 	];
-
-	// Spatial partitioning properties
-	private spatialGrid: SpatialGrid | null = null;
-	private sectorSize = 200; // Size of each grid sector in pixels
-	private visibleSectorsCache: Set<string> = new Set(); // Cache of currently visible sectors
-	private lastGridRebuildTime = 0;
-	private gridRebuildInterval = 5000; // Rebuild grid every 5 seconds
-	private enableSpatialPartitioning = true; // Flag to enable/disable partitioning
-	private sectorSizeAdaptive = true; // Flag to enable dynamic sector sizing
-	private sectorSizeMin = 100; // Minimum sector size in pixels
-	private sectorSizeMax = 400; // Maximum sector size in pixels
-	private sectorStarThreshold = 10; // Target stars per sector for adaptive sizing
-	private spatialPartitioningMetrics = {
-		frameTimeWithPartitioning: 0,
-		frameTimeWithoutPartitioning: 0,
-		sampleCount: 0,
-		performanceImprovement: 0
-	};
 
 	constructor(store: any, count = 300, useWorker = false, useContainerParallax = false) {
 		this.store = store;
@@ -481,6 +483,200 @@ export class CanvasStarFieldManager {
 		}
 	}
 
+	// Spatial partitioning methods
+	private initializeSpatialGrid(): void {
+		if (!this.containerWidth || !this.containerHeight) return;
+
+		// Calculate grid dimensions based on container size
+		const gridWidth = Math.ceil(this.containerWidth / this.sectorSize) + 2; // Add buffer zones
+		const gridHeight = Math.ceil(this.containerHeight / this.sectorSize) + 2;
+
+		// Create the grid structure
+		this.spatialGrid = {
+			sectors: new Map<string, SpatialSector>(),
+			sectorSize: this.sectorSize,
+			gridWidth,
+			gridHeight
+		};
+
+		// Initialize all sectors (only create them as needed to save memory)
+		this.updateVisibleSectors();
+
+		// Assign all stars to their initial sectors
+		this.assignStarsToSectors(true); // force rebuild
+	}
+
+	private assignStarsToSectors(forceRebuild = false): void {
+		if (!this.spatialGrid || !this.enableSpatialPartitioning) return;
+
+		const currentTime = performance.now();
+
+		// Only rebuild grid periodically or when forced to save CPU
+		if (!forceRebuild && currentTime - this.lastGridRebuildTime < this.gridRebuildInterval) {
+			// Just update existing assignments without full rebuild
+			this.updateStarSectorAssignments();
+			return;
+		}
+
+		this.lastGridRebuildTime = currentTime;
+
+		// Clear all existing sector assignments
+		this.spatialGrid.sectors.forEach((sector) => {
+			sector.stars = [];
+		});
+
+		// Assign each star to its appropriate sector
+		for (let i = 0; i < this.stars.length; i++) {
+			const star = this.stars[i];
+			const sectorId = this.getSectorIdForPosition(star.x, star.y);
+
+			// Get or create the sector
+			let sector = this.spatialGrid.sectors.get(sectorId);
+			if (!sector) {
+				const sectorX = Math.floor(star.x / this.sectorSize);
+				const sectorY = Math.floor(star.y / this.sectorSize);
+
+				sector = {
+					id: sectorId,
+					x: sectorX,
+					y: sectorY,
+					stars: [],
+					isVisible: this.visibleSectorsCache.has(sectorId)
+				};
+
+				this.spatialGrid.sectors.set(sectorId, sector);
+			}
+
+			// Add star to the sector
+			sector.stars.push(star);
+
+			// Update star's sector id
+			star.sectorId = sectorId;
+		}
+	}
+
+	// Method to update star sector assignments (lighter than full rebuild)
+	private updateStarSectorAssignments(): void {
+		if (!this.spatialGrid || !this.enableSpatialPartitioning) return;
+
+		for (let i = 0; i < this.stars.length; i++) {
+			const star = this.stars[i];
+			const sectorId = this.getSectorIdForPosition(star.x, star.y);
+
+			// Check if star's sector has changed
+			const currentSectorId = star.sectorId;
+			if (currentSectorId !== sectorId) {
+				// Remove from old sector if it exists
+				if (currentSectorId) {
+					const oldSector = this.spatialGrid.sectors.get(currentSectorId);
+					if (oldSector) {
+						const index = oldSector.stars.indexOf(star);
+						if (index !== -1) {
+							oldSector.stars.splice(index, 1);
+						}
+					}
+				}
+
+				// Add to new sector
+				let newSector = this.spatialGrid.sectors.get(sectorId);
+				if (!newSector) {
+					const sectorX = Math.floor(star.x / this.sectorSize);
+					const sectorY = Math.floor(star.y / this.sectorSize);
+
+					newSector = {
+						id: sectorId,
+						x: sectorX,
+						y: sectorY,
+						stars: [],
+						isVisible: this.visibleSectorsCache.has(sectorId)
+					};
+
+					this.spatialGrid.sectors.set(sectorId, newSector);
+				}
+
+				newSector.stars.push(star);
+
+				// Update star's sector id
+				star.sectorId = sectorId;
+			}
+		}
+	}
+
+	// Add this method to determine which sectors are currently visible
+	private updateVisibleSectors(): void {
+		if (!this.spatialGrid || !this.containerWidth || !this.containerHeight) return;
+
+		// Clear the current cache of visible sectors
+		this.visibleSectorsCache.clear();
+
+		// Calculate the range of visible sectors with buffer
+		const startSectorX = Math.floor(-this.sectorSize / this.containerWidth) - 1;
+		const endSectorX = Math.ceil(this.containerWidth / this.sectorSize) + 1;
+		const startSectorY = Math.floor(-this.sectorSize / this.containerHeight) - 1;
+		const endSectorY = Math.ceil(this.containerHeight / this.sectorSize) + 1;
+
+		// Mark sectors as visible
+		for (let x = startSectorX; x <= endSectorX; x++) {
+			for (let y = startSectorY; y <= endSectorY; y++) {
+				const sectorId = `${x},${y}`;
+				this.visibleSectorsCache.add(sectorId);
+
+				// Update existing sector visibility if it exists
+				const sector = this.spatialGrid.sectors.get(sectorId);
+				if (sector) {
+					sector.isVisible = true;
+				}
+			}
+		}
+
+		// Update all other sectors as not visible
+		this.spatialGrid.sectors.forEach((sector) => {
+			if (!this.visibleSectorsCache.has(sector.id)) {
+				sector.isVisible = false;
+			}
+		});
+	}
+
+	// Helper method to get sector ID for a position
+	private getSectorIdForPosition(x: number, y: number): string {
+		if (!this.spatialGrid) return '0,0';
+		const sectorX = Math.floor(x / this.sectorSize);
+		const sectorY = Math.floor(y / this.sectorSize);
+		return `${sectorX},${sectorY}`;
+	}
+
+	// Method to dynamically adjust sector size based on performance
+	private adaptSectorSize(): void {
+		if (!this.spatialGrid || !this.sectorSizeAdaptive) return;
+
+		// Calculate the average number of stars per visible sector
+		let totalStarsInVisibleSectors = 0;
+		let visibleSectorCount = 0;
+
+		this.spatialGrid.sectors.forEach((sector) => {
+			if (sector.isVisible) {
+				totalStarsInVisibleSectors += sector.stars.length;
+				visibleSectorCount++;
+			}
+		});
+
+		const avgStarsPerSector =
+			visibleSectorCount > 0 ? totalStarsInVisibleSectors / visibleSectorCount : 0;
+
+		// Adjust sector size based on average density
+		// If we have too many stars per sector, make sectors smaller
+		// If we have too few stars per sector, make sectors larger
+		if (avgStarsPerSector > this.sectorStarThreshold * 2) {
+			// Too many stars per sector - reduce sector size
+			this.sectorSize = Math.max(this.sectorSizeMin, this.sectorSize * 0.8);
+			this.initializeSpatialGrid(); // Rebuild grid with new size
+		} else if (avgStarsPerSector < this.sectorStarThreshold / 2) {
+			// Too few stars per sector - increase sector size
+			this.sectorSize = Math.min(this.sectorSizeMax, this.sectorSize * 1.2);
+			this.initializeSpatialGrid(); // Rebuild grid with new size
+		}
+	}
+
 	private initializeStarPool() {
 		// Create a star pool with extra capacity for flexibility
 		const poolCapacity = Math.ceil(this.starCount * 1.2); // 20% extra capacity
@@ -610,7 +806,8 @@ export class CanvasStarFieldManager {
 						boostSpeed: this.boostSpeed,
 						containerWidth: this.containerWidth,
 						containerHeight: this.containerHeight,
-						sectorSize: this.sectorSize // Add this property
+						useSpatialPartitioning: this.enableSpatialPartitioning,
+						sectorSize: this.sectorSize
 					}
 				}
 			});
@@ -723,9 +920,9 @@ export class CanvasStarFieldManager {
 			});
 		}
 
-		// Rebuild spatial grid
-		if (this.enableSpatialPartitioning) {
-			this.assignStarsToSectors(true);
+		// Rebuild spatial grid if needed
+		if (this.enableSpatialPartitioning && this.spatialGrid) {
+			this.initializeSpatialGrid();
 		}
 	}
 
@@ -760,6 +957,88 @@ export class CanvasStarFieldManager {
 				}
 			});
 		}
+	}
+
+	// Method to enable/disable spatial partitioning
+	public setSpatialPartitioning(enable: boolean): void {
+		if (this.enableSpatialPartitioning === enable) return;
+
+		this.enableSpatialPartitioning = enable;
+
+		if (enable && !this.spatialGrid) {
+			this.initializeSpatialGrid();
+		} else if (!enable) {
+			// Clean up the spatial grid to free memory
+			this.spatialGrid = null;
+			this.visibleSectorsCache.clear();
+
+			// Clear sector IDs from stars
+			for (let i = 0; i < this.stars.length; i++) {
+				delete this.stars[i].sectorId;
+			}
+		}
+
+		// Update worker if using one
+		this.updateWorkerWithSpatialSettings();
+	}
+
+	// Toggle method for adaptive sector sizing
+	public setAdaptiveSectorSizing(enable: boolean): void {
+		this.sectorSizeAdaptive = enable;
+
+		if (enable && this.enableSpatialPartitioning) {
+			// Calculate and set optimal sector size immediately
+			this.sectorSize = this.calculateOptimalSectorSize();
+			this.initializeSpatialGrid();
+		}
+	}
+
+	// Method to calculate optimal sector size based on star density
+	private calculateOptimalSectorSize(): number {
+		// A good heuristic is to aim for 10-20 stars per sector for a balance
+		// between having too many sectors (overhead) and too few (no partitioning benefit)
+		const optimalStarsPerSector = 15;
+
+		// Calculate total area and density
+		const totalArea = this.containerWidth * this.containerHeight;
+		const starDensity = this.stars.length / totalArea;
+
+		// Calculate the area each sector should have to contain optimal number of stars
+		const optimalSectorArea = optimalStarsPerSector / starDensity;
+
+		// Convert to a square dimension
+		let optimalSize = Math.sqrt(optimalSectorArea);
+
+		// Constrain to reasonable limits
+		optimalSize = Math.max(this.sectorSizeMin, Math.min(this.sectorSizeMax, optimalSize));
+
+		// Round to nearest multiple of 50 for cleaner grid
+		return Math.round(optimalSize / 50) * 50;
+	}
+
+	// Method to update the worker with spatial partitioning settings
+	public updateWorkerWithSpatialSettings(): void {
+		if (!this.useWorker || !this.worker) return;
+
+		this.worker.postMessage({
+			type: 'setSpatialPartitioning',
+			data: {
+				enabled: this.enableSpatialPartitioning,
+				sectorSize: this.sectorSize
+			}
+		});
+	}
+
+	// Method to update sector size in worker
+	public updateWorkerSectorSize(size: number): void {
+		if (!this.useWorker || !this.worker) return;
+
+		this.worker.postMessage({
+			type: 'setSectorSize',
+			data: {
+				sectorSize: size
+			}
+		});
 	}
 
 	start() {
@@ -889,98 +1168,16 @@ export class CanvasStarFieldManager {
 			}
 		}
 
-		// Update performance metrics
-		this.updatePerformanceMetrics(timestamp);
-
 		// Periodically adapt sector size if enabled
 		if (this.sectorSizeAdaptive && this.enableSpatialPartitioning && this.spatialGrid) {
 			if (timestamp - this.lastGridRebuildTime > this.gridRebuildInterval * 10) {
 				this.adaptSectorSize();
 			}
 		}
+
+		// Update performance metrics
+		this.updatePerformanceMetrics(timestamp);
 	};
-
-	private updatePerformanceMetrics(timestamp: number) {
-		// Only update performance metrics once per second
-		if (timestamp - this.renderStats.lastUpdateTime > 1000) {
-			const fps = Math.round(
-				(this.renderStats.frameCount * 1000) / (timestamp - this.renderStats.lastUpdateTime)
-			);
-
-			this.renderStats = {
-				fps,
-				frameCount: 0,
-				renderTime: 0,
-				starsRendered: 0,
-				lastUpdateTime: timestamp
-			};
-
-			// Report to frame rate controller if available
-			if (frameRateController) {
-				frameRateController.reportFPS(fps);
-			}
-
-			// Add spatial partitioning metrics
-			if (this.enableSpatialPartitioning && this.spatialGrid) {
-				const visibleSectors = Array.from(this.visibleSectorsCache).length;
-				const totalSectors = this.spatialGrid.sectors.size;
-				const totalStars = this.stars.length;
-				const visibleStars = this.renderStats.starsRendered;
-
-				// Calculate percentage of stars processed vs total
-				const processingRatio = totalStars > 0 ? visibleStars / totalStars : 0;
-
-				// Add to performance metrics
-				this.renderStats.spatialPartitioning = {
-					visibleSectors,
-					totalSectors,
-					visibleStars,
-					totalStars,
-					processingRatio
-				};
-			}
-		} else {
-			this.renderStats.frameCount++;
-		}
-
-		// Check memory usage periodically to prevent memory leaks
-		if (timestamp - this.lastMemoryCheck > this.memoryCheckInterval) {
-			this.lastMemoryCheck = timestamp;
-			this.checkMemoryUsage();
-		}
-	}
-
-	private checkMemoryUsage() {
-		if (!browser || !('performance' in window) || !('memory' in (performance as any))) return;
-
-		const memory = (performance as any).memory;
-		const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
-
-		// If memory usage is high, take action to reduce it
-		if (memUsage > 0.8) {
-			// Reduce star count if very high memory usage
-			if (memUsage > 0.9 && this.starCount > 100) {
-				this.setStarCount(Math.floor(this.starCount * 0.8));
-			}
-
-			// Suggest garbage collection
-			this.suggestGarbageCollection();
-		}
-	}
-
-	private suggestGarbageCollection() {
-		if (!browser) return;
-
-		// Clear any large arrays and objects
-		// This doesn't directly trigger GC but helps suggest it
-		if ((window as any).gc) {
-			try {
-				(window as any).gc();
-			} catch (e) {
-				// GC not available
-			}
-		}
-	}
 
 	private updateStars(timeScale = 1) {
 		// Center of the screen (our viewing point)
@@ -1152,6 +1349,132 @@ export class CanvasStarFieldManager {
 
 		// Use standard drawing method but with more detail
 		const starsByColor = new Map<string, RenderedStar[]>();
+
+		// Group stars by color/rendering mode
+		for (let i = 0; i < this.stars.length; i++) {
+			const star = this.stars[i];
+
+			// Project coordinates
+			const scale = this.maxDepth / star.z;
+			const x2d = (star.x - centerX) * scale + centerX;
+			const y2d = (star.y - centerY) * scale + centerY;
+
+			// Skip offscreen stars
+			if (x2d < 0 || x2d >= this.containerWidth || y2d < 0 || y2d >= this.containerHeight) {
+				continue;
+			}
+
+			// Calculate size and color with more detail for high DPI
+			const size = (1 - star.z / this.maxDepth) * 4; // Slightly larger stars for high DPI
+			const colorIndex = Math.floor((1 - star.z / this.maxDepth) * (this.starColors.length - 1));
+			const color = this.starColors[colorIndex];
+
+			// Group by rendering mode and color
+			const key = this.speed > this.baseSpeed * 1.5 ? 'trail_' + color : 'circle_' + color;
+
+			if (!starsByColor.has(key)) {
+				starsByColor.set(key, []);
+			}
+
+			// Store calculated values
+			starsByColor.get(key)?.push({
+				x2d,
+				y2d,
+				size,
+				prevX: star.prevX,
+				prevY: star.prevY,
+				z: star.z
+			});
+		}
+
+		// Draw stars grouped by color/mode with enhanced quality
+		starsByColor.forEach((stars, key) => {
+			const isTrail = key.startsWith('trail_');
+			const color = key.substring(key.indexOf('_') + 1);
+
+			if (isTrail) {
+				// For trails, use individual paths with enhanced quality
+				this.ctx!.strokeStyle = color;
+
+				for (const star of stars) {
+					const prevScale = this.maxDepth / (star.z + this.speed);
+					const prevX = (star.prevX - centerX) * prevScale + centerX;
+					const prevY = (star.prevY - centerY) * prevScale + centerY;
+
+					// Add glow effect for high DPI displays
+					if (this.enableGlow) {
+						// Create glow effect
+						this.ctx!.shadowColor = color;
+						this.ctx!.shadowBlur = star.size * 2;
+					}
+
+					this.ctx!.beginPath();
+					this.ctx!.lineWidth = star.size;
+					this.ctx!.moveTo(prevX, prevY);
+					this.ctx!.lineTo(star.x2d, star.y2d);
+					this.ctx!.stroke();
+				}
+
+				// Reset shadow for next batch
+				if (this.enableGlow) {
+					this.ctx!.shadowColor = 'transparent';
+					this.ctx!.shadowBlur = 0;
+				}
+			} else {
+				// For circles, use batched path with glow for brightest stars
+				this.ctx!.fillStyle = color;
+
+				// Separate larger stars for glow effect
+				const largeStars = stars.filter((s) => s.size > 2);
+				const smallStars = stars.filter((s) => s.size <= 2);
+
+				// Draw small stars in one batch without glow
+				if (smallStars.length > 0) {
+					this.ctx!.beginPath();
+					for (const star of smallStars) {
+						this.ctx!.moveTo(star.x2d + star.size, star.y2d);
+						this.ctx!.arc(star.x2d, star.y2d, star.size, 0, Math.PI * 2);
+					}
+					this.ctx!.fill();
+				}
+
+				// Draw large stars individually with glow
+				if (largeStars.length > 0 && this.enableGlow) {
+					for (const star of largeStars) {
+						this.ctx!.shadowColor = color;
+						this.ctx!.shadowBlur = star.size * 1.5;
+
+						this.ctx!.beginPath();
+						this.ctx!.moveTo(star.x2d + star.size, star.y2d);
+						this.ctx!.arc(star.x2d, star.y2d, star.size, 0, Math.PI * 2);
+						this.ctx!.fill();
+					}
+
+					// Reset shadow
+					this.ctx!.shadowColor = 'transparent';
+					this.ctx!.shadowBlur = 0;
+				} else if (largeStars.length > 0) {
+					// Draw large stars without glow
+					this.ctx!.beginPath();
+					for (const star of largeStars) {
+						this.ctx!.moveTo(star.x2d + star.size, star.y2d);
+						this.ctx!.arc(star.x2d, star.y2d, star.size, 0, Math.PI * 2);
+					}
+					this.ctx!.fill();
+				}
+			}
+		});
+	}
+
+	// Spatial partitioning draw methods
+	private drawStarsWithPartitioning(): void {
+		if (!this.ctx || !this.spatialGrid) return;
+
+		const centerX = this.containerWidth / 2;
+		const centerY = this.containerHeight / 2;
+
+		// Pre-sort stars by color and size to batch similar operations
+		const starsByColor = new Map<string, RenderedStar[]>();
 		let totalStarsRendered = 0;
 
 		// Only process stars in visible sectors
@@ -1280,8 +1603,8 @@ export class CanvasStarFieldManager {
 		});
 	}
 
-	// Add debug rendering method to visualize the grid (for development)
-	private renderDebugGrid(): void {
+	// Debug visualization method to visualize the grid (for development)
+	public renderDebugGrid(): void {
 		if (!this.ctx || !this.spatialGrid) return;
 
 		// Save context state
@@ -1291,8 +1614,14 @@ export class CanvasStarFieldManager {
 		this.ctx.strokeStyle = 'rgba(100, 100, 255, 0.3)';
 		this.ctx.lineWidth = 1;
 
+		// Calculate visible sector boundaries
+		const startSectorX = Math.floor(-this.sectorSize / this.containerWidth) - 1;
+		const endSectorX = Math.ceil(this.containerWidth / this.sectorSize) + 1;
+		const startSectorY = Math.floor(-this.sectorSize / this.containerHeight) - 1;
+		const endSectorY = Math.ceil(this.containerHeight / this.sectorSize) + 1;
+
 		// Draw vertical grid lines
-		for (let x = 0; x <= this.spatialGrid.gridWidth; x++) {
+		for (let x = startSectorX; x <= endSectorX; x++) {
 			const posX = x * this.spatialGrid.sectorSize;
 			this.ctx.beginPath();
 			this.ctx.moveTo(posX, 0);
@@ -1301,7 +1630,7 @@ export class CanvasStarFieldManager {
 		}
 
 		// Draw horizontal grid lines
-		for (let y = 0; y <= this.spatialGrid.gridHeight; y++) {
+		for (let y = startSectorY; y <= endSectorY; y++) {
 			const posY = y * this.spatialGrid.sectorSize;
 			this.ctx.beginPath();
 			this.ctx.moveTo(0, posY);
@@ -1329,59 +1658,95 @@ export class CanvasStarFieldManager {
 		this.ctx.restore();
 	}
 
-	// Add this method to enable/disable spatial partitioning
-	public setSpatialPartitioning(enable: boolean): void {
-		if (this.enableSpatialPartitioning === enable) return;
+	private updatePerformanceMetrics(timestamp: number) {
+		// Only update performance metrics once per second
+		if (timestamp - this.renderStats.lastUpdateTime > 1000) {
+			const fps = Math.round(
+				(this.renderStats.frameCount * 1000) / (timestamp - this.renderStats.lastUpdateTime)
+			);
 
-		this.enableSpatialPartitioning = enable;
+			this.renderStats = {
+				fps,
+				frameCount: 0,
+				renderTime: 0,
+				starsRendered: 0,
+				lastUpdateTime: timestamp
+			};
 
-		if (enable && !this.spatialGrid) {
-			this.initializeSpatialGrid();
-		} else if (!enable) {
-			// Clean up the spatial grid to free memory
-			this.spatialGrid = null;
-			this.visibleSectorsCache.clear();
+			// Report to frame rate controller if available
+			if (frameRateController) {
+				frameRateController.reportFPS(fps);
+			}
 
-			// Clear sector IDs from stars
-			for (let i = 0; i < this.stars.length; i++) {
-				delete this.stars[i].sectorId;
+			// Add spatial partitioning metrics
+			if (this.enableSpatialPartitioning && this.spatialGrid) {
+				const visibleSectors = Array.from(this.visibleSectorsCache).length;
+				const totalSectors = this.spatialGrid.sectors.size;
+				const totalStars = this.stars.length;
+				const visibleStars = this.renderStats.starsRendered;
+
+				// Calculate percentage of stars processed vs total
+				const processingRatio = totalStars > 0 ? visibleStars / totalStars : 0;
+
+				// Calculate CPU time savings
+				const estimatedCpuSavings = 1 - processingRatio;
+
+				// Add to performance metrics
+				this.renderStats.spatialPartitioning = {
+					visibleSectors,
+					totalSectors,
+					visibleStars,
+					totalStars,
+					processingRatio,
+					estimatedCpuSavings,
+					lastGridRebuildTime: this.lastGridRebuildTime,
+					gridRebuildInterval: this.gridRebuildInterval
+				};
+			}
+		} else {
+			this.renderStats.frameCount++;
+		}
+
+		// Check memory usage periodically to prevent memory leaks
+		if (timestamp - this.lastMemoryCheck > this.memoryCheckInterval) {
+			this.lastMemoryCheck = timestamp;
+			this.checkMemoryUsage();
+		}
+	}
+
+	private checkMemoryUsage() {
+		if (!browser || !('performance' in window) || !('memory' in (performance as any))) return;
+
+		const memory = (performance as any).memory;
+		const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
+
+		// If memory usage is high, take action to reduce it
+		if (memUsage > 0.8) {
+			// Reduce star count if very high memory usage
+			if (memUsage > 0.9 && this.starCount > 100) {
+				this.setStarCount(Math.floor(this.starCount * 0.8));
+			}
+
+			// Suggest garbage collection
+			this.suggestGarbageCollection();
+		}
+	}
+
+	private suggestGarbageCollection() {
+		if (!browser) return;
+
+		// Clear any large arrays and objects
+		// This doesn't directly trigger GC but helps suggest it
+		if ((window as any).gc) {
+			try {
+				(window as any).gc();
+			} catch (e) {
+				// GC not available
 			}
 		}
 	}
 
-	// Method to dynamically adjust sector size based on performance
-	private adaptSectorSize(): void {
-		if (!this.spatialGrid || !this.sectorSizeAdaptive) return;
-
-		// Calculate the average number of stars per visible sector
-		let totalStarsInVisibleSectors = 0;
-		let visibleSectorCount = 0;
-
-		this.spatialGrid.sectors.forEach((sector) => {
-			if (sector.isVisible) {
-				totalStarsInVisibleSectors += sector.stars.length;
-				visibleSectorCount++;
-			}
-		});
-
-		const avgStarsPerSector =
-			visibleSectorCount > 0 ? totalStarsInVisibleSectors / visibleSectorCount : 0;
-
-		// Adjust sector size based on average density
-		// If we have too many stars per sector, make sectors smaller
-		// If we have too few stars per sector, make sectors larger
-		if (avgStarsPerSector > this.sectorStarThreshold * 2) {
-			// Too many stars per sector - reduce sector size
-			this.sectorSize = Math.max(this.sectorSizeMin, this.sectorSize * 0.8);
-			this.initializeSpatialGrid(); // Rebuild grid with new size
-		} else if (avgStarsPerSector < this.sectorStarThreshold / 2) {
-			// Too few stars per sector - increase sector size
-			this.sectorSize = Math.min(this.sectorSizeMax, this.sectorSize * 1.2);
-			this.initializeSpatialGrid(); // Rebuild grid with new size
-		}
-	}
-
-	// Method to benchmark partitioning performance
+	// Add a method to benchmark partitioning performance
 	public benchmarkSpatialPartitioning(sampleCount = 100): Promise<any> {
 		return new Promise((resolve) => {
 			if (!browser) {
@@ -1562,40 +1927,6 @@ export class CanvasStarFieldManager {
 		});
 	}
 
-	// Method to calculate optimal sector size based on star density
-	private calculateOptimalSectorSize(): number {
-		// A good heuristic is to aim for 10-20 stars per sector for a balance
-		// between having too many sectors (overhead) and too few (no partitioning benefit)
-		const optimalStarsPerSector = 15;
-
-		// Calculate total area and density
-		const totalArea = this.containerWidth * this.containerHeight;
-		const starDensity = this.stars.length / totalArea;
-
-		// Calculate the area each sector should have to contain optimal number of stars
-		const optimalSectorArea = optimalStarsPerSector / starDensity;
-
-		// Convert to a square dimension
-		let optimalSize = Math.sqrt(optimalSectorArea);
-
-		// Constrain to reasonable limits
-		optimalSize = Math.max(this.sectorSizeMin, Math.min(this.sectorSizeMax, optimalSize));
-
-		// Round to nearest multiple of 50 for cleaner grid
-		return Math.round(optimalSize / 50) * 50;
-	}
-
-	// Add a toggle method for adaptive sector sizing
-	public setAdaptiveSectorSizing(enable: boolean): void {
-		this.sectorSizeAdaptive = enable;
-
-		if (enable && this.enableSpatialPartitioning) {
-			// Calculate and set optimal sector size immediately
-			this.sectorSize = this.calculateOptimalSectorSize();
-			this.initializeSpatialGrid();
-		}
-	}
-
 	// Add a method to export performance data for visualization
 	public exportPerformanceData(): any {
 		return {
@@ -1642,7 +1973,7 @@ export class CanvasStarFieldManager {
 		};
 	}
 
-	adaptToDeviceCapabilities(capabilities: DeviceCapabilities) {
+	adaptToDeviceCapabilities(capabilities: any) {
 		if (!browser) return;
 
 		// Update star count based on device capabilities
@@ -1687,6 +2018,24 @@ export class CanvasStarFieldManager {
 		// Add event listeners
 		window.addEventListener('resize', this.resizeHandler.deref());
 		document.addEventListener('visibilitychange', this.visibilityHandler.deref());
+	}
+
+	// These methods were referenced but not defined in the original code
+	private handleResize(): void {
+		if (!this.ctx || !this.canvas || !this.container) return;
+		this.resizeCanvas();
+	}
+
+	private handleVisibilityChange(): void {
+		if (document.hidden) {
+			if (this.isRunning && !this.isPaused) {
+				this.pause();
+			}
+		} else {
+			if (this.isRunning && this.isPaused) {
+				this.resume();
+			}
+		}
 	}
 
 	cleanup() {
@@ -1776,822 +2125,6 @@ export class CanvasStarFieldManager {
 		// Clear references
 		this.resizeHandler = null;
 		this.visibilityHandler = null;
-	}
-
-	// Spatial Partitioning Methods
-
-	// Add this method to initialize the spatial grid
-	private initializeSpatialGrid(): void {
-		if (!this.containerWidth || !this.containerHeight) return;
-
-		// Calculate grid dimensions based on container size
-		const gridWidth = Math.ceil(this.containerWidth / this.sectorSize) + 2; // Add buffer zones
-		const gridHeight = Math.ceil(this.containerHeight / this.sectorSize) + 2;
-
-		// Create the grid structure
-		this.spatialGrid = {
-			sectors: new Map<string, SpatialSector>(),
-			sectorSize: this.sectorSize,
-			gridWidth,
-			gridHeight
-		};
-
-		// Initialize all sectors (only create them as needed to save memory)
-		this.updateVisibleSectors();
-
-		// Assign all stars to their initial sectors
-		this.assignStarsToSectors(true); // force rebuild
-	}
-
-	// Add this method to assign stars to sectors
-	private assignStarsToSectors(forceRebuild = false): void {
-		if (!this.spatialGrid || !this.enableSpatialPartitioning) return;
-
-		const currentTime = performance.now();
-
-		// Only rebuild grid periodically or when forced to save CPU
-		if (!forceRebuild && currentTime - this.lastGridRebuildTime < this.gridRebuildInterval) {
-			// Just update existing assignments without full rebuild
-			this.updateStarSectorAssignments();
-			return;
-		}
-
-		this.lastGridRebuildTime = currentTime;
-
-		// Clear all existing sector assignments
-		this.spatialGrid.sectors.forEach((sector) => {
-			sector.stars = [];
-		});
-
-		// Assign each star to its appropriate sector
-		for (let i = 0; i < this.stars.length; i++) {
-			const star = this.stars[i];
-			const sectorId = this.getSectorIdForPosition(star.x, star.y);
-
-			// Get or create the sector
-			let sector = this.spatialGrid.sectors.get(sectorId);
-			if (!sector) {
-				const sectorX = Math.floor(star.x / this.sectorSize);
-				const sectorY = Math.floor(star.y / this.sectorSize);
-
-				sector = {
-					id: sectorId,
-					x: sectorX,
-					y: sectorY,
-					stars: [],
-					isVisible: this.visibleSectorsCache.has(sectorId)
-				};
-
-				this.spatialGrid.sectors.set(sectorId, sector);
-			}
-
-			// Add star to the sector
-			sector.stars.push(star);
-
-			// Update star's sector ID
-			star.sectorId = sectorId;
-		}
-	}
-
-	// Method to update star sector assignments (lighter than full rebuild)
-	private updateStarSectorAssignments(): void {
-		if (!this.spatialGrid || !this.enableSpatialPartitioning) return;
-
-		for (let i = 0; i < this.stars.length; i++) {
-			const star = this.stars[i];
-			const sectorId = this.getSectorIdForPosition(star.x, star.y);
-
-			// Check if star's sector has changed
-			const currentSectorId = star.sectorId;
-			if (currentSectorId !== sectorId) {
-				// Remove from old sector if it exists
-				if (currentSectorId) {
-					const oldSector = this.spatialGrid.sectors.get(currentSectorId);
-					if (oldSector) {
-						const index = oldSector.stars.indexOf(star);
-						if (index !== -1) {
-							oldSector.stars.splice(index, 1);
-						}
-					}
-				}
-
-				// Add to new sector
-				let newSector = this.spatialGrid.sectors.get(sectorId);
-				if (!newSector) {
-					const sectorX = Math.floor(star.x / this.sectorSize);
-					const sectorY = Math.floor(star.y / this.sectorSize);
-
-					newSector = {
-						id: sectorId,
-						x: sectorX,
-						y: sectorY,
-						stars: [],
-						isVisible: this.visibleSectorsCache.has(sectorId)
-					};
-
-					this.spatialGrid.sectors.set(sectorId, newSector);
-				}
-
-				newSector.stars.push(star);
-
-				// Update star's sector id
-				star.sectorId = sectorId;
-			}
-		}
-	}
-
-	// Add this method to determine which sectors are currently visible
-	private updateVisibleSectors(): void {
-		if (!this.spatialGrid || !this.containerWidth || !this.containerHeight) return;
-
-		// Clear the current cache of visible sectors
-		this.visibleSectorsCache.clear();
-
-		// Calculate the range of visible sectors with buffer
-		const startSectorX = Math.floor(-this.sectorSize / this.containerWidth) - 1;
-		const endSectorX = Math.ceil(this.containerWidth / this.sectorSize) + 1;
-		const startSectorY = Math.floor(-this.sectorSize / this.containerHeight) - 1;
-		const endSectorY = Math.ceil(this.containerHeight / this.sectorSize) + 1;
-
-		// Mark sectors as visible
-		for (let x = startSectorX; x <= endSectorX; x++) {
-			for (let y = startSectorY; y <= endSectorY; y++) {
-				const sectorId = `${x},${y}`;
-				this.visibleSectorsCache.add(sectorId);
-
-				// Update existing sector visibility if it exists
-				const sector = this.spatialGrid.sectors.get(sectorId);
-				if (sector) {
-					sector.isVisible = true;
-				}
-			}
-		}
-
-		// Update all other sectors as not visible
-		this.spatialGrid.sectors.forEach((sector) => {
-			if (!this.visibleSectorsCache.has(sector.id)) {
-				sector.isVisible = false;
-			}
-		});
-	}
-
-	// Helper method to get sector ID for a position
-	private getSectorIdForPosition(x: number, y: number): string {
-		if (!this.spatialGrid) return '0,0';
-		const sectorX = Math.floor(x / this.sectorSize);
-		const sectorY = Math.floor(y / this.sectorSize);
-		return `${sectorX},${sectorY}`;
-	}
-
-	// Drawing methods for spatial partitioning
-	private drawStarsWithPartitioning(): void {
-		if (!this.ctx || !this.spatialGrid) return;
-
-		const centerX = this.containerWidth / 2;
-		const centerY = this.containerHeight / 2;
-
-		// Pre-sort stars by color and size to batch similar operations
-		const starsByColor = new Map<string, RenderedStar[]>();
-		let totalStarsRendered = 0;
-
-		// Only process stars in visible sectors
-		this.spatialGrid.sectors.forEach((sector) => {
-			if (!sector.isVisible) return; // Skip non-visible sectors
-
-			// Group stars by color/rendering mode
-			for (let i = 0; i < sector.stars.length; i++) {
-				const star = sector.stars[i];
-
-				// Project coordinates
-				const scale = this.maxDepth / star.z;
-				const x2d = (star.x - centerX) * scale + centerX;
-				const y2d = (star.y - centerY) * scale + centerY;
-
-				// Skip offscreen stars - an additional check for boundary cases
-				if (
-					x2d < -10 ||
-					x2d >= this.containerWidth + 10 ||
-					y2d < -10 ||
-					y2d >= this.containerHeight + 10
-				) {
-					continue;
-				}
-
-				totalStarsRendered++;
-
-				// Calculate size and color only once
-				const size = (1 - star.z / this.maxDepth) * 3;
-				const colorIndex = Math.floor((1 - star.z / this.maxDepth) * (this.starColors.length - 1));
-				const color = this.starColors[colorIndex];
-
-				// Group by rendering mode and color
-				const key = this.speed > this.baseSpeed * 1.5 ? 'trail_' + color : 'circle_' + color;
-
-				if (!starsByColor.has(key)) {
-					starsByColor.set(key, []);
-				}
-
-				// Store calculated values to avoid recalculating
-				starsByColor.get(key)?.push({
-					x2d,
-					y2d,
-					size,
-					prevX: star.prevX,
-					prevY: star.prevY,
-					z: star.z
-				});
-			}
-		});
-
-		// Track stars drawn for performance monitoring
-		this.renderStats.starsRendered = totalStarsRendered;
-
-		// Draw stars grouped by color/mode to minimize context changes
-		starsByColor.forEach((stars, key) => {
-			const isTrail = key.startsWith('trail_');
-			const color = key.substring(key.indexOf('_') + 1);
-
-			// Set style only once per batch
-			if (isTrail) {
-				this.ctx!.strokeStyle = color;
-			} else {
-				this.ctx!.fillStyle = color;
-			}
-
-			// Begin a single path for all stars of same color
-			this.ctx!.beginPath();
-
-			for (const star of stars) {
-				if (isTrail) {
-					const prevScale = this.maxDepth / (star.z + this.speed);
-					const prevX = (star.prevX - centerX) * prevScale + centerX;
-					const prevY = (star.prevY - centerY) * prevScale + centerY;
-
-					this.ctx!.lineWidth = star.size;
-					this.ctx!.moveTo(prevX, prevY);
-					this.ctx!.lineTo(star.x2d, star.y2d);
-				} else {
-					// Add circle to the current path
-					this.ctx!.moveTo(star.x2d + star.size, star.y2d);
-					this.ctx!.arc(star.x2d, star.y2d, star.size, 0, Math.PI * 2);
-				}
-			}
-
-			// Draw all stars of this type at once
-			if (isTrail) {
-				this.ctx!.stroke();
-			} else {
-				this.ctx!.fill();
-			}
-		});
-	}
-
-	// Simple render version with spatial partitioning
-	private drawStarsSimpleWithPartitioning(): void {
-		if (!this.ctx || !this.spatialGrid) return;
-
-		// Mobile-optimized rendering with simpler effects
-		const centerX = this.containerWidth / 2;
-		const centerY = this.containerHeight / 2;
-
-		// Draw all stars with a single color to reduce context switches
-		this.ctx.fillStyle = '#ffffff';
-		this.ctx.beginPath();
-
-		let totalStarsRendered = 0;
-
-		// Only process stars in visible sectors
-		this.spatialGrid.sectors.forEach((sector) => {
-			if (!sector.isVisible) return; // Skip non-visible sectors
-
-			for (let i = 0; i < sector.stars.length; i++) {
-				const star = sector.stars[i];
-
-				// Project 3D position to 2D screen coordinates
-				const scale = this.maxDepth / star.z;
-				const x2d = (star.x - centerX) * scale + centerX;
-				const y2d = (star.y - centerY) * scale + centerY;
-
-				// Skip offscreen stars
-				if (x2d < 0 || x2d >= this.containerWidth || y2d < 0 || y2d >= this.containerHeight) {
-					continue;
-				}
-
-				totalStarsRendered++;
-
-				// Simpler sizing for mobile
-				const size = (1 - star.z / this.maxDepth) * 2;
-
-				// Use rectangle for better performance
-				this.ctx.rect(x2d - size / 2, y2d - size / 2, size, size);
-			}
-		});
-
-		// Track stars drawn for performance monitoring
-		this.renderStats.starsRendered = totalStarsRendered;
-
-		// Single fill call for all stars
-		this.ctx.fill();
-	}
-
-	// High DPI version with spatial partitioning
-	private drawStarsHighDPIWithPartitioning(): void {
-		if (!this.ctx || !this.spatialGrid) return;
-
-		// Enhanced rendering for high-DPI displays
-		const centerX = this.containerWidth / 2;
-		const centerY = this.containerHeight / 2;
-
-		// Use standard drawing method but with more detail
-		const starsByColor = new Map<string, RenderedStar[]>();
-		let totalStarsRendered = 0;
-
-		// Only process stars in visible sectors
-		this.spatialGrid.sectors.forEach((sector) => {
-			if (!sector.isVisible) return; // Skip non-visible sectors
-
-			// Group stars by color/rendering mode
-			for (let i = 0; i < sector.stars.length; i++) {
-				const star = sector.stars[i];
-
-				// Project coordinates
-				const scale = this.maxDepth / star.z;
-				const x2d = (star.x - centerX) * scale + centerX;
-				const y2d = (star.y - centerY) * scale + centerY;
-
-				// Skip offscreen stars
-				if (x2d < 0 || x2d >= this.containerWidth || y2d < 0 || y2d >= this.containerHeight) {
-					continue;
-				}
-
-				totalStarsRendered++;
-
-				// Calculate size and color with more detail for high DPI
-				const size = (1 - star.z / this.maxDepth) * 4; // Slightly larger stars for high DPI
-				const colorIndex = Math.floor((1 - star.z / this.maxDepth) * (this.starColors.length - 1));
-				const color = this.starColors[colorIndex];
-
-				// Group by rendering mode and color
-				const key = this.speed > this.baseSpeed * 1.5 ? 'trail_' + color : 'circle_' + color;
-
-				if (!starsByColor.has(key)) {
-					starsByColor.set(key, []);
-				}
-
-				// Store calculated values
-				starsByColor.get(key)?.push({
-					x2d,
-					y2d,
-					size,
-					prevX: star.prevX,
-					prevY: star.prevY,
-					z: star.z
-				});
-			}
-		});
-
-		// Track stars drawn for performance monitoring
-		this.renderStats.starsRendered = totalStarsRendered;
-
-		// Draw stars grouped by color/mode with enhanced quality
-		starsByColor.forEach((stars, key) => {
-			const isTrail = key.startsWith('trail_');
-			const color = key.substring(key.indexOf('_') + 1);
-
-			if (isTrail) {
-				// For trails, use individual paths with enhanced quality
-				this.ctx!.strokeStyle = color;
-
-				for (const star of stars) {
-					const prevScale = this.maxDepth / (star.z + this.speed);
-					const prevX = (star.prevX - centerX) * prevScale + centerX;
-					const prevY = (star.prevY - centerY) * prevScale + centerY;
-
-					// Add glow effect for high DPI displays
-					if (this.enableGlow) {
-						// Create glow effect
-						this.ctx!.shadowColor = color;
-						this.ctx!.shadowBlur = star.size * 2;
-					}
-
-					this.ctx!.beginPath();
-					this.ctx!.lineWidth = star.size;
-					this.ctx!.moveTo(prevX, prevY);
-					this.ctx!.lineTo(star.x2d, star.y2d);
-					this.ctx!.stroke();
-				}
-
-				// Reset shadow for next batch
-				if (this.enableGlow) {
-					this.ctx!.shadowColor = 'transparent';
-					this.ctx!.shadowBlur = 0;
-				}
-			} else {
-				// For circles, use batched path with glow for brightest stars
-				this.ctx!.fillStyle = color;
-
-				// Separate larger stars for glow effect
-				const largeStars = stars.filter((s) => s.size > 2);
-				const smallStars = stars.filter((s) => s.size <= 2);
-
-				// Draw small stars in one batch without glow
-				if (smallStars.length > 0) {
-					this.ctx!.beginPath();
-					for (const star of smallStars) {
-						this.ctx!.moveTo(star.x2d + star.size, star.y2d);
-						this.ctx!.arc(star.x2d, star.y2d, star.size, 0, Math.PI * 2);
-					}
-					this.ctx!.fill();
-				}
-
-				// Draw large stars individually with glow
-				if (largeStars.length > 0 && this.enableGlow) {
-					for (const star of largeStars) {
-						this.ctx!.shadowColor = color;
-						this.ctx!.shadowBlur = star.size * 1.5;
-
-						this.ctx!.beginPath();
-						this.ctx!.moveTo(star.x2d + star.size, star.y2d);
-						this.ctx!.arc(star.x2d, star.y2d, star.size, 0, Math.PI * 2);
-						this.ctx!.fill();
-					}
-
-					// Reset shadow
-					this.ctx!.shadowColor = 'transparent';
-					this.ctx!.shadowBlur = 0;
-				} else if (largeStars.length > 0) {
-					// Draw large stars without glow
-					this.ctx!.beginPath();
-					for (const star of largeStars) {
-						this.ctx!.moveTo(star.x2d + star.size, star.y2d);
-						this.ctx!.arc(star.x2d, star.y2d, star.size, 0, Math.PI * 2);
-					}
-					this.ctx!.fill();
-				}
-			}
-		});
-	}
-
-	// Add debug rendering method to visualize the grid (for development)
-	private renderDebugGrid(): void {
-		if (!this.ctx || !this.spatialGrid) return;
-
-		// Save context state
-		this.ctx.save();
-
-		// Style for grid lines
-		this.ctx.strokeStyle = 'rgba(100, 100, 255, 0.3)';
-		this.ctx.lineWidth = 1;
-
-		// Draw vertical grid lines
-		for (let x = 0; x <= this.spatialGrid.gridWidth; x++) {
-			const posX = x * this.spatialGrid.sectorSize;
-			this.ctx.beginPath();
-			this.ctx.moveTo(posX, 0);
-			this.ctx.lineTo(posX, this.containerHeight);
-			this.ctx.stroke();
-		}
-
-		// Draw horizontal grid lines
-		for (let y = 0; y <= this.spatialGrid.gridHeight; y++) {
-			const posY = y * this.spatialGrid.sectorSize;
-			this.ctx.beginPath();
-			this.ctx.moveTo(0, posY);
-			this.ctx.lineTo(this.containerWidth, posY);
-			this.ctx.stroke();
-		}
-
-		// Highlight visible sectors
-		this.ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
-		this.spatialGrid.sectors.forEach((sector) => {
-			if (sector.isVisible) {
-				const x = sector.x * this.spatialGrid.sectorSize;
-				const y = sector.y * this.spatialGrid.sectorSize;
-				this.ctx.fillRect(x, y, this.spatialGrid.sectorSize, this.spatialGrid.sectorSize);
-
-				// Add star count labels
-				this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-				this.ctx.font = '10px Arial';
-				this.ctx.fillText(`Stars: ${sector.stars.length}`, x + 5, y + 15);
-				this.ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
-			}
-		});
-
-		// Restore context state
-		this.ctx.restore();
-	}
-
-	// Add this method to enable/disable spatial partitioning
-	public setSpatialPartitioning(enable: boolean): void {
-		if (this.enableSpatialPartitioning === enable) return;
-
-		this.enableSpatialPartitioning = enable;
-
-		if (enable && !this.spatialGrid) {
-			this.initializeSpatialGrid();
-		} else if (!enable) {
-			// Clean up the spatial grid to free memory
-			this.spatialGrid = null;
-			this.visibleSectorsCache.clear();
-
-			// Clear sector IDs from stars
-			for (let i = 0; i < this.stars.length; i++) {
-				delete this.stars[i].sectorId;
-			}
-		}
-	}
-
-	// Method to dynamically adjust sector size based on performance
-	private adaptSectorSize(): void {
-		if (!this.spatialGrid || !this.sectorSizeAdaptive) return;
-
-		// Calculate the average number of stars per visible sector
-		let totalStarsInVisibleSectors = 0;
-		let visibleSectorCount = 0;
-
-		this.spatialGrid.sectors.forEach((sector) => {
-			if (sector.isVisible) {
-				totalStarsInVisibleSectors += sector.stars.length;
-				visibleSectorCount++;
-			}
-		});
-
-		const avgStarsPerSector =
-			visibleSectorCount > 0 ? totalStarsInVisibleSectors / visibleSectorCount : 0;
-
-		// Adjust sector size based on average density
-		// If we have too many stars per sector, make sectors smaller
-		// If we have too few stars per sector, make sectors larger
-		if (avgStarsPerSector > this.sectorStarThreshold * 2) {
-			// Too many stars per sector - reduce sector size
-			this.sectorSize = Math.max(this.sectorSizeMin, this.sectorSize * 0.8);
-			this.initializeSpatialGrid(); // Rebuild grid with new size
-		} else if (avgStarsPerSector < this.sectorStarThreshold / 2) {
-			// Too few stars per sector - increase sector size
-			this.sectorSize = Math.min(this.sectorSizeMax, this.sectorSize * 1.2);
-			this.initializeSpatialGrid(); // Rebuild grid with new size
-		}
-	}
-
-	// Method to benchmark partitioning performance
-	public benchmarkSpatialPartitioning(sampleCount = 100): Promise<any> {
-		return new Promise((resolve) => {
-			if (!browser) {
-				resolve({ error: 'Benchmarking only available in browser environment' });
-				return;
-			}
-
-			// Reset metrics
-			this.spatialPartitioningMetrics = {
-				frameTimeWithPartitioning: 0,
-				frameTimeWithoutPartitioning: 0,
-				sampleCount: 0,
-				performanceImprovement: 0
-			};
-
-			let samplesCollected = 0;
-			const maxSamples = sampleCount;
-
-			// Function to collect a benchmark sample
-			const collectSample = () => {
-				// Measure frame time with partitioning
-				this.setSpatialPartitioning(true);
-				let startTime = performance.now();
-				this.renderFrame(true); // Force render a frame
-				let endTime = performance.now();
-				this.spatialPartitioningMetrics.frameTimeWithPartitioning += endTime - startTime;
-
-				// Measure frame time without partitioning
-				this.setSpatialPartitioning(false);
-				startTime = performance.now();
-				this.renderFrame(true); // Force render a frame
-				endTime = performance.now();
-				this.spatialPartitioningMetrics.frameTimeWithoutPartitioning += endTime - startTime;
-
-				// Restore original setting
-				this.setSpatialPartitioning(true);
-
-				// Increment counter
-				samplesCollected++;
-				this.spatialPartitioningMetrics.sampleCount = samplesCollected;
-
-				// Calculate improvement ratio
-				const withPartitioning =
-					this.spatialPartitioningMetrics.frameTimeWithPartitioning / samplesCollected;
-				const withoutPartitioning =
-					this.spatialPartitioningMetrics.frameTimeWithoutPartitioning / samplesCollected;
-
-				if (withoutPartitioning > 0) {
-					this.spatialPartitioningMetrics.performanceImprovement =
-						(withoutPartitioning - withPartitioning) / withoutPartitioning;
-				}
-
-				// Continue sampling or resolve
-				if (samplesCollected < maxSamples) {
-					// Use requestAnimationFrame to spread measurements across frames
-					requestAnimationFrame(collectSample);
-				} else {
-					// Calculate final metrics
-					const finalMetrics = {
-						avgFrameTimeWithPartitioning:
-							this.spatialPartitioningMetrics.frameTimeWithPartitioning / maxSamples,
-						avgFrameTimeWithoutPartitioning:
-							this.spatialPartitioningMetrics.frameTimeWithoutPartitioning / maxSamples,
-						performanceImprovement: this.spatialPartitioningMetrics.performanceImprovement,
-						sampleCount: maxSamples,
-						starCount: this.stars.length,
-						sectorSize: this.sectorSize,
-						visibleSectors: this.visibleSectorsCache.size,
-						totalSectors: this.spatialGrid ? this.spatialGrid.sectors.size : 0,
-						processingRatio: this.renderStats.spatialPartitioning
-							? this.renderStats.spatialPartitioning.processingRatio
-							: 1
-					};
-
-					resolve(finalMetrics);
-				}
-			};
-
-			// Start sampling
-			collectSample();
-		});
-	}
-
-	// Helper method to force a frame render for benchmarking
-	private renderFrame(skipAnimationLoop = false): void {
-		if (!this.ctx || !this.canvas) return;
-
-		const timestamp = performance.now();
-		const deltaTime = timestamp - this.lastTime;
-		this.lastTime = timestamp;
-
-		// Clear canvas
-		this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-		this.ctx.fillRect(0, 0, this.containerWidth, this.containerHeight);
-
-		// Update stars
-		if (!this.useWorker) {
-			this.updateStars(deltaTime / 16.7);
-		}
-
-		// Update spatial grid
-		if (this.enableSpatialPartitioning && this.spatialGrid) {
-			this.updateVisibleSectors();
-			this.assignStarsToSectors();
-		}
-
-		// Draw stars
-		if (this.enableSpatialPartitioning && this.spatialGrid) {
-			if (this.useSimpleRender) {
-				this.drawStarsSimpleWithPartitioning();
-			} else if (this.highDpiMode && !this.isSafari) {
-				this.drawStarsHighDPIWithPartitioning();
-			} else {
-				this.drawStarsWithPartitioning();
-			}
-		} else {
-			if (this.useSimpleRender) {
-				this.drawStarsSimple();
-			} else if (this.highDpiMode && !this.isSafari) {
-				this.drawStarsHighDPI();
-			} else {
-				this.drawStars();
-			}
-		}
-	}
-
-	// Add utility method to find optimal sector size
-	public findOptimalSectorSize(): Promise<any> {
-		return new Promise(async (resolve) => {
-			if (!browser) {
-				resolve({ error: 'Optimization only available in browser environment' });
-				return;
-			}
-
-			const results = [];
-			const originalSectorSize = this.sectorSize;
-
-			// Test a range of sector sizes
-			const testSizes = [100, 150, 200, 250, 300, 350, 400];
-
-			for (const size of testSizes) {
-				// Set the sector size
-				this.sectorSize = size;
-				this.initializeSpatialGrid();
-
-				// Run a mini benchmark
-				const benchmarkResult = await this.benchmarkSpatialPartitioning(50);
-				results.push({
-					sectorSize: size,
-					...benchmarkResult
-				});
-
-				// Short pause to let the browser breathe
-				await new Promise((r) => setTimeout(r, 100));
-			}
-
-			// Find the size with the best performance
-			let bestSize = originalSectorSize;
-			let bestImprovement = 0;
-
-			for (const result of results) {
-				if (result.performanceImprovement > bestImprovement) {
-					bestImprovement = result.performanceImprovement;
-					bestSize = result.sectorSize;
-				}
-			}
-
-			// Restore the best size
-			this.sectorSize = bestSize;
-			this.initializeSpatialGrid();
-
-			// Return all results and the best size
-			resolve({
-				bestSectorSize: bestSize,
-				bestPerformanceImprovement: bestImprovement,
-				allResults: results
-			});
-		});
-	}
-
-	// Method to calculate optimal sector size based on star density
-	private calculateOptimalSectorSize(): number {
-		// A good heuristic is to aim for 10-20 stars per sector for a balance
-		// between having too many sectors (overhead) and too few (no partitioning benefit)
-		const optimalStarsPerSector = 15;
-
-		// Calculate total area and density
-		const totalArea = this.containerWidth * this.containerHeight;
-		const starDensity = this.stars.length / totalArea;
-
-		// Calculate the area each sector should have to contain optimal number of stars
-		const optimalSectorArea = optimalStarsPerSector / starDensity;
-
-		// Convert to a square dimension
-		let optimalSize = Math.sqrt(optimalSectorArea);
-
-		// Constrain to reasonable limits
-		optimalSize = Math.max(this.sectorSizeMin, Math.min(this.sectorSizeMax, optimalSize));
-
-		// Round to nearest multiple of 50 for cleaner grid
-		return Math.round(optimalSize / 50) * 50;
-	}
-
-	// Add a toggle method for adaptive sector sizing
-	public setAdaptiveSectorSizing(enable: boolean): void {
-		this.sectorSizeAdaptive = enable;
-
-		if (enable && this.enableSpatialPartitioning) {
-			// Calculate and set optimal sector size immediately
-			this.sectorSize = this.calculateOptimalSectorSize();
-			this.initializeSpatialGrid();
-		}
-	}
-
-	// Add a method to export performance data for visualization
-	public exportPerformanceData(): any {
-		return {
-			spatialPartitioning: {
-				enabled: this.enableSpatialPartitioning,
-				adaptiveSizing: this.sectorSizeAdaptive,
-				currentSectorSize: this.sectorSize,
-				visibleSectors: this.visibleSectorsCache.size,
-				totalSectors: this.spatialGrid ? this.spatialGrid.sectors.size : 0,
-				starCounts: this.getStarDistributionData(),
-				performanceMetrics: {
-					...this.spatialPartitioningMetrics,
-					fps: this.renderStats.fps,
-					starsRendered: this.renderStats.starsRendered,
-					estimatedCpuSavings: this.renderStats.spatialPartitioning
-						? this.renderStats.spatialPartitioning.estimatedCpuSavings
-						: 0
-				}
-			}
-		};
-	}
-
-	// Helper method to get star distribution data
-	private getStarDistributionData(): any {
-		if (!this.spatialGrid) return { max: 0, average: 0, distribution: [] };
-
-		const distribution: number[] = [];
-		let total = 0;
-		let max = 0;
-		let sectorCount = 0;
-
-		this.spatialGrid.sectors.forEach((sector) => {
-			const count = sector.stars.length;
-			distribution.push(count);
-			total += count;
-			max = Math.max(max, count);
-			sectorCount++;
-		});
-
-		return {
-			max,
-			average: total / Math.max(1, sectorCount),
-			distribution
-		};
 	}
 }
 
