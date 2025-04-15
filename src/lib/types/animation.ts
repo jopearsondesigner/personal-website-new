@@ -2,6 +2,7 @@
 
 export interface Star {
 	id: number;
+	inUse: boolean;
 	x: number;
 	y: number;
 	z: number;

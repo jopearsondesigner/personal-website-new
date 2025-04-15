@@ -1,7 +1,7 @@
 // File: src/lib/utils/animation-utils.ts
-import type { Star } from '$lib/types/animation';
+import type { Star as ImportedStar } from '$lib/types/animation';
 
-interface Star {
+export interface Star {
 	id: number;
 	inUse: boolean; // Add this for pooling
 	x: number;
