@@ -1257,6 +1257,17 @@
 		view-transition-name: screen;
 	}
 
+	/* Disable text selection in the Hero section */
+	#hero,
+	#text-wrapper,
+	#header,
+	#insert-concept {
+		user-select: none;
+		-webkit-user-select: none; /* Safari */
+		-moz-user-select: none; /* Firefox */
+		-ms-user-select: none; /* IE/Edge */
+	}
+
 	/* Only animate these properties, not both */
 	@media (max-width: 768px) {
 		#header {
