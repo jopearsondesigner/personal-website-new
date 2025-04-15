@@ -2,7 +2,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { fpsStore } from '$lib/utils/frame-rate-controller';
-	import { deviceCapabilities, memoryUsageStore } from '$lib/utils/device-performance';
+	import {
+		deviceCapabilities,
+		memoryUsageStore,
+		objectPoolStatsStore
+	} from '$lib/utils/device-performance';
 	import {
 		perfMonitorVisible,
 		setPerformanceMonitorVisibility
@@ -15,8 +19,8 @@
 	// Touch handling variables
 	let touchStartX = 0;
 	let touchStartY = 0;
-	let touchDragStartX = 0; // Added missing variable
-	let touchDragStartY = 0; // Added missing variable
+	let touchDragStartX = 0;
+	let touchDragStartY = 0;
 	let touchTimeout: number | null = null;
 	let initialTouchLeft = 0;
 	let initialTouchTop = 0;
@@ -29,6 +33,9 @@
 
 	// Toggle for detailed metrics display
 	let showDetailedMetrics = false;
+
+	// Toggle for pool statistics display
+	let showPoolMetrics = false;
 
 	// Handle double tap on mobile
 	function handleTouchStart(event: TouchEvent) {
@@ -262,9 +269,21 @@
 			<div>Memory: {($memoryUsageStore * 100).toFixed(0)}%</div>
 		</div>
 
-		<button class="metrics-toggle" on:click={() => (showDetailedMetrics = !showDetailedMetrics)}>
-			{showDetailedMetrics ? 'Hide Details' : 'Show Details'}
-		</button>
+		<div class="metrics-toggles">
+			<button
+				class="metrics-toggle {showDetailedMetrics ? 'active' : ''}"
+				on:click={() => (showDetailedMetrics = !showDetailedMetrics)}
+			>
+				{showDetailedMetrics ? 'Hide Details' : 'Show Details'}
+			</button>
+
+			<button
+				class="metrics-toggle {showPoolMetrics ? 'active' : ''}"
+				on:click={() => (showPoolMetrics = !showPoolMetrics)}
+			>
+				{showPoolMetrics ? 'Hide Object Pool' : 'Show Object Pool'}
+			</button>
+		</div>
 
 		{#if showDetailedMetrics}
 			<div class="detailed-metrics">
@@ -283,6 +302,33 @@
 				</div>
 				<div>Frame Skip: {$deviceCapabilities?.frameSkip || 0}</div>
 				<div>Update Interval: {$deviceCapabilities?.updateInterval || 0}ms</div>
+			</div>
+		{/if}
+
+		{#if showPoolMetrics}
+			<div class="pool-metrics">
+				<div class="pool-header">
+					<span>{$objectPoolStatsStore.poolName} Pool ({$objectPoolStatsStore.poolType})</span>
+				</div>
+				<div class="pool-utilization">
+					<div class="utilization-bar">
+						<div
+							class="utilization-fill"
+							style="width: {($objectPoolStatsStore.utilizationRate * 100).toFixed(0)}%"
+						></div>
+					</div>
+					<div class="utilization-text">
+						{$objectPoolStatsStore.activeObjects} / {$objectPoolStatsStore.totalCapacity} objects ({(
+							$objectPoolStatsStore.utilizationRate * 100
+						).toFixed(0)}%)
+					</div>
+				</div>
+				<div class="pool-stats">
+					<div>Created: {$objectPoolStatsStore.objectsCreated}</div>
+					<div>Reused: {$objectPoolStatsStore.objectsReused}</div>
+					<div>Reuse Ratio: {($objectPoolStatsStore.reuseRatio * 100).toFixed(0)}%</div>
+					<div>Memory Saved: {$objectPoolStatsStore.estimatedMemorySaved.toFixed(0)} KB</div>
+				</div>
 			</div>
 		{/if}
 
@@ -364,12 +410,17 @@
 		gap: 4px;
 	}
 
+	.metrics-toggles {
+		display: flex;
+		gap: 1px;
+	}
+
 	.metrics-toggle {
 		background: rgba(60, 60, 60, 0.6);
 		border: none;
 		color: var(--arcade-neon-green-100);
 		padding: 4px;
-		width: 100%;
+		flex: 1;
 		font-size: 10px;
 		cursor: pointer;
 		text-align: center;
@@ -377,8 +428,16 @@
 		border-bottom: 1px solid rgba(0, 179, 90, 0.1);
 	}
 
+	.metrics-toggle.active {
+		background: rgba(0, 100, 50, 0.6);
+	}
+
 	.metrics-toggle:hover {
 		background: rgba(80, 80, 80, 0.6);
+	}
+
+	.metrics-toggle.active:hover {
+		background: rgba(0, 120, 60, 0.6);
 	}
 
 	.detailed-metrics {
@@ -388,6 +447,50 @@
 		font-size: 11px;
 		background: rgba(30, 30, 30, 0.6);
 		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.pool-metrics {
+		padding: 8px 10px;
+		display: grid;
+		gap: 6px;
+		font-size: 11px;
+		background: rgba(25, 35, 35, 0.6);
+		border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+	}
+
+	.pool-header {
+		display: flex;
+		justify-content: space-between;
+		font-weight: bold;
+		color: var(--arcade-neon-blue-100, #00eeff);
+		margin-bottom: 2px;
+	}
+
+	.utilization-bar {
+		height: 8px;
+		background: rgba(40, 40, 40, 0.8);
+		border-radius: 4px;
+		overflow: hidden;
+		margin-bottom: 4px;
+	}
+
+	.utilization-fill {
+		height: 100%;
+		background: linear-gradient(to right, #00aaff, #00eeff);
+		border-radius: 4px;
+		transition: width 0.5s ease;
+	}
+
+	.utilization-text {
+		font-size: 10px;
+		text-align: center;
+		margin-bottom: 4px;
+	}
+
+	.pool-stats {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 4px;
 	}
 
 	.shortcut-hint {
@@ -405,7 +508,8 @@
 			min-width: 160px;
 		}
 
-		.detailed-metrics {
+		.detailed-metrics,
+		.pool-metrics {
 			font-size: 9px;
 		}
 	}
@@ -417,11 +521,12 @@
 
 	.title {
 		color: var(--arcade-neon-green-100);
-		text-shadow: 0 0 5px rgba(39, 255, 153, o.5);
+		text-shadow: 0 0 5px rgba(39, 255, 153, 0.5);
 	}
 
 	.basic-metrics div,
-	.detailed-metrics div {
+	.detailed-metrics div,
+	.pool-stats div {
 		position: relative;
 		padding-left: 2px;
 	}
@@ -429,6 +534,13 @@
 	.basic-metrics div::before {
 		content: '>';
 		color: var(--arcade-neon-green-100);
+		margin-right: 4px;
+		opacity: 0.7;
+	}
+
+	.pool-stats div::before {
+		content: '•';
+		color: var(--arcade-neon-blue-100, #00eeff);
 		margin-right: 4px;
 		opacity: 0.7;
 	}

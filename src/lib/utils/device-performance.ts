@@ -585,10 +585,31 @@ export function setupPerformanceMonitoring() {
 export function updateObjectPoolStats(stats: Partial<ObjectPoolStats>) {
 	if (!browser) return;
 
-	objectPoolStatsStore.update((currentStats) => ({
-		...currentStats,
-		...stats
-	}));
+	objectPoolStatsStore.update((currentStats) => {
+		const updatedStats = {
+			...currentStats,
+			...stats
+		};
+
+		// Calculate derived statistics if not provided
+		if (stats.activeObjects !== undefined && stats.totalCapacity !== undefined) {
+			updatedStats.utilizationRate =
+				stats.totalCapacity > 0 ? stats.activeObjects / stats.totalCapacity : 0;
+		}
+
+		if (stats.objectsCreated !== undefined && stats.objectsReused !== undefined) {
+			const total = stats.objectsCreated + stats.objectsReused;
+			updatedStats.reuseRatio = total > 0 ? stats.objectsReused / total : 0;
+		}
+
+		// Calculate memory savings if not provided
+		// Assume 200 bytes per object as a conservative estimate (adjust based on your objects)
+		if (stats.objectsReused !== undefined && !stats.estimatedMemorySaved) {
+			updatedStats.estimatedMemorySaved = (stats.objectsReused * 200) / 1024; // in KB
+		}
+
+		return updatedStats;
+	});
 }
 
 // Add the setupEventListeners function

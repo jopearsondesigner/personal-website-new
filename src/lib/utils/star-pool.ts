@@ -1,4 +1,6 @@
 // src/lib/utils/star-pool.ts
+import { browser } from '$app/environment';
+import { starPoolTracker } from './pool-stats-tracker';
 
 /**
  * Interface for objects that can be managed by the star pool
@@ -18,6 +20,8 @@ export class StarPool<T extends StarPoolObject> {
 	private reset: (obj: T) => void;
 	private capacity: number;
 	private size: number;
+	private objectsCreated: number = 0;
+	private objectsReused: number = 0;
 
 	/**
 	 * Create a new object pool
@@ -34,6 +38,9 @@ export class StarPool<T extends StarPoolObject> {
 
 		// Pre-allocate all objects during initialization
 		this.preAllocate();
+
+		// Report initial pool stats to tracker
+		this.reportPoolStats();
 	}
 
 	/**
@@ -45,8 +52,14 @@ export class StarPool<T extends StarPoolObject> {
 			const obj = this.factory();
 			obj.inUse = false;
 			this.pool[i] = obj;
+			this.objectsCreated++;
 		}
 		this.size = this.capacity;
+
+		// Update statistics for initial allocation
+		if (browser) {
+			starPoolTracker.recordObjectCreated();
+		}
 	}
 
 	/**
@@ -58,6 +71,14 @@ export class StarPool<T extends StarPoolObject> {
 		for (let i = 0; i < this.size; i++) {
 			if (!this.pool[i].inUse) {
 				this.pool[i].inUse = true;
+
+				// Track object reuse for statistics
+				if (browser) {
+					this.objectsReused++;
+					starPoolTracker.recordObjectReused();
+				}
+
+				this.reportPoolStats();
 				return this.pool[i];
 			}
 		}
@@ -68,6 +89,14 @@ export class StarPool<T extends StarPoolObject> {
 			obj.inUse = true;
 			this.pool[this.size] = obj;
 			this.size++;
+
+			// Track object creation for statistics
+			if (browser) {
+				this.objectsCreated++;
+				starPoolTracker.recordObjectCreated();
+			}
+
+			this.reportPoolStats();
 			return obj;
 		}
 
@@ -80,6 +109,13 @@ export class StarPool<T extends StarPoolObject> {
 		// Move the reused object to the end of the array (circular buffer)
 		this.pool.push(this.pool.shift()!);
 
+		// Track object reuse for statistics
+		if (browser) {
+			this.objectsReused++;
+			starPoolTracker.recordObjectReused();
+		}
+
+		this.reportPoolStats();
 		return obj;
 	}
 
@@ -89,6 +125,7 @@ export class StarPool<T extends StarPoolObject> {
 	 */
 	release(obj: T): void {
 		obj.inUse = false;
+		this.reportPoolStats();
 	}
 
 	/**
@@ -98,6 +135,7 @@ export class StarPool<T extends StarPoolObject> {
 		for (let i = 0; i < this.size; i++) {
 			this.pool[i].inUse = false;
 		}
+		this.reportPoolStats();
 	}
 
 	/**
@@ -126,21 +164,133 @@ export class StarPool<T extends StarPoolObject> {
 	 * Get memory usage statistics for the pool
 	 * Useful for debugging and performance monitoring
 	 */
-	getStats(): { active: number; total: number; usage: number } {
+	getStats(): {
+		active: number;
+		total: number;
+		usage: number;
+		created: number;
+		reused: number;
+		reuseRatio: number;
+	} {
 		const active = this.getActiveCount();
+		const total = this.getTotalCount();
+		const totalProcessed = this.objectsCreated + this.objectsReused;
+
 		return {
 			active,
-			total: this.size,
-			usage: active / this.size
+			total,
+			usage: total > 0 ? active / total : 0,
+			created: this.objectsCreated,
+			reused: this.objectsReused,
+			reuseRatio: totalProcessed > 0 ? this.objectsReused / totalProcessed : 0
 		};
 	}
 
+	/**
+	 * Report pool statistics to tracking system
+	 */
+	private reportPoolStats(): void {
+		if (!browser) return;
+
+		const active = this.getActiveCount();
+		const total = this.getTotalCount();
+
+		// Update pool state in tracker
+		starPoolTracker.updatePoolState(active, total);
+	}
+
+	/**
+	 * Log pool statistics to console
+	 * Useful for debugging
+	 */
 	logPoolStats(): void {
 		const stats = this.getStats();
 		console.log(`
     Star Pool Stats:
     ---------------
     Active objects: ${stats.active}/${stats.total} (${(stats.usage * 100).toFixed(2)}%)
+    Created: ${stats.created}, Reused: ${stats.reused}
+    Reuse ratio: ${(stats.reuseRatio * 100).toFixed(2)}%
     `);
+	}
+
+	/**
+	 * Resize the pool capacity
+	 * Useful for adapting to changing performance requirements
+	 * @param newCapacity New maximum pool size
+	 */
+	resize(newCapacity: number): void {
+		// Cannot reduce below the number of objects currently in use
+		const activeCount = this.getActiveCount();
+		if (newCapacity < activeCount) {
+			newCapacity = activeCount;
+		}
+
+		// If increasing capacity, create new objects
+		if (newCapacity > this.capacity) {
+			// Create new array with larger capacity
+			const newPool = new Array(newCapacity);
+
+			// Copy existing objects
+			for (let i = 0; i < this.size; i++) {
+				newPool[i] = this.pool[i];
+			}
+
+			// Create new objects to fill expanded capacity
+			for (let i = this.size; i < newCapacity; i++) {
+				const obj = this.factory();
+				obj.inUse = false;
+				newPool[i] = obj;
+				this.objectsCreated++;
+
+				// Track object creation for statistics
+				if (browser) {
+					starPoolTracker.recordObjectCreated();
+				}
+			}
+
+			// Update pool and size
+			this.pool = newPool;
+			this.size = newCapacity;
+		}
+		// If reducing capacity, keep the first 'newCapacity' objects
+		else if (newCapacity < this.capacity) {
+			// Keep only active objects and as many inactive as will fit
+			const activeObjects: T[] = [];
+			const inactiveObjects: T[] = [];
+
+			// Separate active and inactive objects
+			for (let i = 0; i < this.size; i++) {
+				if (this.pool[i].inUse) {
+					activeObjects.push(this.pool[i]);
+				} else if (inactiveObjects.length < newCapacity - activeObjects.length) {
+					inactiveObjects.push(this.pool[i]);
+				}
+			}
+
+			// Create new array with proper capacity
+			const newPool = new Array(newCapacity);
+
+			// Add all active objects
+			let index = 0;
+			for (let i = 0; i < activeObjects.length; i++) {
+				newPool[index++] = activeObjects[i];
+			}
+
+			// Add inactive objects to fill remaining space
+			for (let i = 0; i < inactiveObjects.length; i++) {
+				newPool[index++] = inactiveObjects[i];
+			}
+
+			// Update pool and size
+			this.pool = newPool;
+			this.size = newCapacity;
+		}
+
+		// Update capacity
+		this.capacity = newCapacity;
+
+		// Report updated stats
+		this.reportPoolStats();
 	}
 }
