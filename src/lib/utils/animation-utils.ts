@@ -2,13 +2,120 @@
 import type { Star } from '$lib/types/animation';
 
 interface Star {
-	id: number; // Add this line
+	id: number;
+	inUse: boolean; // Add this for pooling
 	x: number;
 	y: number;
 	z: number;
 	opacity: number;
 	style: string;
 }
+
+/**
+ * Star object pool for efficient memory management
+ * Prevents garbage collection pauses by reusing star objects
+ */
+class StarPool {
+	private pool: Star[];
+	private capacity: number;
+	private size: number;
+	private nextId: number = 0;
+
+	constructor(initialCapacity: number) {
+		this.capacity = initialCapacity;
+		this.size = 0;
+		this.pool = new Array(initialCapacity);
+
+		// Pre-allocate all stars during initialization
+		this.preAllocate();
+	}
+
+	private preAllocate(): void {
+		for (let i = 0; i < this.capacity; i++) {
+			this.pool[i] = {
+				id: this.nextId++,
+				inUse: false,
+				x: 0,
+				y: 0,
+				z: 0,
+				opacity: 0,
+				style: ''
+			};
+		}
+		this.size = this.capacity;
+	}
+
+	get(): Star {
+		// Find an unused star
+		for (let i = 0; i < this.size; i++) {
+			if (!this.pool[i].inUse) {
+				this.pool[i].inUse = true;
+				return this.pool[i];
+			}
+		}
+
+		// If we need more capacity, expand the pool
+		if (this.size < this.capacity) {
+			const star = {
+				id: this.nextId++,
+				inUse: true,
+				x: 0,
+				y: 0,
+				z: 0,
+				opacity: 0,
+				style: ''
+			};
+			this.pool[this.size] = star;
+			this.size++;
+			return star;
+		}
+
+		// All stars are in use, reuse the oldest one
+		const star = this.pool[0];
+		star.inUse = true;
+
+		// Move to end of array (circular buffer approach)
+		this.pool.push(this.pool.shift()!);
+
+		return star;
+	}
+
+	release(star: Star): void {
+		star.inUse = false;
+	}
+
+	releaseAll(): void {
+		for (let i = 0; i < this.size; i++) {
+			this.pool[i].inUse = false;
+		}
+	}
+
+	getStats(): { active: number; total: number; usage: number } {
+		const active = this.getActiveCount();
+		return {
+			active,
+			total: this.size,
+			usage: active / this.size
+		};
+	}
+
+	getActiveCount(): number {
+		let count = 0;
+		for (let i = 0; i < this.size; i++) {
+			if (this.pool[i].inUse) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	getTotalCount(): number {
+		return this.size;
+	}
+}
+
+// Create a global star pool
+let starPool: StarPool | null = null;
 
 // Define individual functions first
 function createGlitchEffect(element: HTMLElement | null) {
@@ -38,38 +145,74 @@ function createGlitchEffect(element: HTMLElement | null) {
 }
 
 function initStars(count = 300): Star[] {
-	return Array.from({ length: count }, (_, index) => ({
-		id: index, // Add unique id
-		x: Math.random() * 100,
-		y: Math.random() * 100,
-		z: Math.random() * 0.7 + 0.1,
-		opacity: Math.random() * 0.5 + 0.5,
-		style: ''
-	}));
+	// Initialize the pool if it doesn't exist
+	if (!starPool) {
+		starPool = new StarPool(Math.ceil(count * 1.2)); // 20% extra capacity
+	}
+
+	const stars: Star[] = [];
+
+	// Get stars from the pool and initialize them
+	for (let i = 0; i < count; i++) {
+		const star = starPool.get();
+		star.x = Math.random() * 100;
+		star.y = Math.random() * 100;
+		star.z = Math.random() * 0.7 + 0.1;
+		star.opacity = Math.random() * 0.5 + 0.5;
+		star.style = '';
+		stars.push(star);
+	}
+
+	return stars;
 }
 
 function updateStars(stars: Star[]): Star[] {
-	return stars.map((star) => {
+	// Create a new array for active stars
+	const updatedStars: Star[] = [];
+
+	for (let i = 0; i < stars.length; i++) {
+		const star = stars[i];
+
 		const newZ = star.z - 0.004;
-		const finalZ = newZ <= 0 ? 0.8 : newZ;
-		const newX = newZ <= 0 ? Math.random() * 100 : star.x;
-		const newY = newZ <= 0 ? Math.random() * 100 : star.y;
+		// If star passed beyond view, release it back to pool and get a new one
+		if (newZ <= 0) {
+			if (starPool) {
+				starPool.release(star);
+				const newStar = starPool.get();
+				newStar.x = Math.random() * 100;
+				newStar.y = Math.random() * 100;
+				newStar.z = 0.8; // Reset to far distance
+				newStar.opacity = Math.random() * 0.5 + 0.5;
 
-		const scale = 0.2 / finalZ;
-		const x = (newX - 50) * scale + 50;
-		const y = (newY - 50) * scale + 50;
-		const size = Math.max(scale * 1.5, 1);
-		const opacity = Math.min(1, star.opacity * (scale * 3));
+				const scale = 0.2 / newStar.z;
+				const x = (newStar.x - 50) * scale + 50;
+				const y = (newStar.y - 50) * scale + 50;
+				const size = Math.max(scale * 1.5, 1);
+				const opacity = Math.min(1, newStar.opacity * (scale * 3));
 
-		return {
-			id: star.id, // Preserve the id
-			x: newX,
-			y: newY,
-			z: finalZ,
-			opacity: star.opacity,
-			style: `left: ${x}%; top: ${y}%; width: ${size}px; height: ${size}px; opacity: ${opacity}; transform: translateZ(${finalZ * 100}px);`
-		};
-	});
+				newStar.style = `left: ${x}%; top: ${y}%; width: ${size}px; height: ${size}px; opacity: ${opacity}; transform: translateZ(${newStar.z * 100}px);`;
+
+				updatedStars.push(newStar);
+			}
+		} else {
+			// Update existing star
+			const finalZ = newZ;
+
+			const scale = 0.2 / finalZ;
+			const x = (star.x - 50) * scale + 50;
+			const y = (star.y - 50) * scale + 50;
+			const size = Math.max(scale * 1.5, 1);
+			const opacity = Math.min(1, star.opacity * (scale * 3));
+
+			// Update star properties without creating a new object
+			star.z = finalZ;
+			star.style = `left: ${x}%; top: ${y}%; width: ${size}px; height: ${size}px; opacity: ${opacity}; transform: translateZ(${finalZ * 100}px);`;
+
+			updatedStars.push(star);
+		}
+	}
+
+	return updatedStars;
 }
 
 // Create a class for managing glitch effects
@@ -201,6 +344,14 @@ class StarFieldManager {
 
 	cleanup() {
 		this.stop();
+
+		// Release all stars back to the pool
+		if (starPool) {
+			for (const star of this.stars) {
+				starPool.release(star);
+			}
+		}
+
 		this.stars = [];
 		this.isRunning = false;
 	}

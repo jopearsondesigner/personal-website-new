@@ -1,12 +1,87 @@
 // File: /src/lib/workers/star-field-worker.ts
 
-// Star interface
+// Star interface with inUse property for pooling
 interface Star {
+	inUse: boolean;
 	x: number;
 	y: number;
 	z: number;
 	prevX: number;
 	prevY: number;
+}
+
+// Pool implementation for the worker
+class StarPool {
+	private pool: Star[];
+	private capacity: number;
+	private size: number;
+
+	constructor(initialCapacity: number) {
+		this.capacity = initialCapacity;
+		this.size = 0;
+		this.pool = new Array(initialCapacity);
+
+		// Pre-allocate all stars
+		this.preAllocate();
+	}
+
+	private preAllocate(): void {
+		for (let i = 0; i < this.capacity; i++) {
+			this.pool[i] = {
+				inUse: false,
+				x: 0,
+				y: 0,
+				z: 0,
+				prevX: 0,
+				prevY: 0
+			};
+		}
+		this.size = this.capacity;
+	}
+
+	get(): Star {
+		// Find an unused star
+		for (let i = 0; i < this.size; i++) {
+			if (!this.pool[i].inUse) {
+				this.pool[i].inUse = true;
+				return this.pool[i];
+			}
+		}
+
+		// If we need more capacity, expand the pool
+		if (this.size < this.capacity) {
+			const star = {
+				inUse: true,
+				x: 0,
+				y: 0,
+				z: 0,
+				prevX: 0,
+				prevY: 0
+			};
+			this.pool[this.size] = star;
+			this.size++;
+			return star;
+		}
+
+		// All stars are in use, reuse the oldest one
+		const star = this.pool[0];
+		star.inUse = true;
+
+		// Move to end of array (circular buffer approach)
+		this.pool.push(this.pool.shift()!);
+
+		return star;
+	}
+
+	release(star: Star): void {
+		star.inUse = false;
+	}
+
+	releaseAll(): void {
+		for (let i = 0; i < this.size; i++) {
+			this.pool[i].inUse = false;
+		}
+	}
 }
 
 // Configuration interface
@@ -22,6 +97,7 @@ interface StarFieldConfig {
 
 // Global state
 let stars: Star[] = [];
+let starPool: StarPool | null = null;
 let config: StarFieldConfig = {
 	starCount: 300,
 	maxDepth: 32,
@@ -33,33 +109,43 @@ let config: StarFieldConfig = {
 };
 
 /**
- * Initialize the star field with given configuration
+ * Initialize the star field with given configuration using object pooling
  */
 function initializeStars(count: number, width: number, height: number, depth: number): Star[] {
 	const newStars: Star[] = [];
 
+	// Initialize the star pool if needed
+	if (!starPool) {
+		// Create a pool with 20% extra capacity
+		starPool = new StarPool(Math.ceil(count * 1.2));
+	} else {
+		// Release all stars back to the pool
+		starPool.releaseAll();
+	}
+
+	// Get stars from the pool
 	for (let i = 0; i < count; i++) {
-		newStars.push(createStar(width, height, depth));
+		const star = starPool.get();
+		initStar(star, width, height, depth);
+		newStars.push(star);
 	}
 
 	return newStars;
 }
 
 /**
- * Create a single star at random position
+ * Initialize a star with random position
  */
-function createStar(width: number, height: number, depth: number): Star {
-	return {
-		x: Math.random() * width * 2 - width,
-		y: Math.random() * height * 2 - height,
-		z: Math.random() * depth,
-		prevX: 0,
-		prevY: 0
-	};
+function initStar(star: Star, width: number, height: number, depth: number): void {
+	star.x = Math.random() * width * 2 - width;
+	star.y = Math.random() * height * 2 - height;
+	star.z = Math.random() * depth;
+	star.prevX = star.x;
+	star.prevY = star.y;
 }
 
 /**
- * Reset a star to a new position
+ * Reset a star to a new position without creating a new object
  */
 function resetStar(star: Star, width: number, height: number, depth: number): void {
 	star.x = Math.random() * width * 2 - width;

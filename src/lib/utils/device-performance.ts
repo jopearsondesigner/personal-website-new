@@ -61,6 +61,33 @@ export interface DeviceCapabilities {
 	optimizeForIOSSafari: boolean; // Special optimizations for iOS Safari
 	preventIOSOverscrollFreezing: boolean; // Prevent iOS overscroll freezing issue
 	useIOSCompatibleEffects: boolean; // Use iOS compatible effects only
+
+	// Object pooling settings and optimizations
+	useObjectPooling: boolean; // Whether to use object pooling
+	objectPoolSize: number; // Maximum size of the object pool
+	objectPoolMargin: number; // Extra capacity percentage (e.g., 0.2 = 20% extra)
+}
+
+// Object pool statistics interface for monitoring
+export interface ObjectPoolStats {
+	// Pool capacity
+	totalCapacity: number;
+
+	// Usage statistics
+	activeObjects: number;
+	utilizationRate: number; // 0-1 percentage of pool in use
+
+	// Performance metrics
+	objectsCreated: number;
+	objectsReused: number;
+	reuseRatio: number; // reused / (created + reused)
+
+	// Memory impact
+	estimatedMemorySaved: number; // in KB
+
+	// Pool identification
+	poolName: string;
+	poolType: string;
 }
 
 // Default high-end capability settings
@@ -101,7 +128,10 @@ const highCapabilities: DeviceCapabilities = {
 	hasGPUAcceleration: true,
 	optimizeForIOSSafari: false,
 	preventIOSOverscrollFreezing: false,
-	useIOSCompatibleEffects: false
+	useIOSCompatibleEffects: false,
+	useObjectPooling: true,
+	objectPoolSize: 400, // 300 stars with room for more
+	objectPoolMargin: 0.2 // 20% extra capacity
 };
 
 // Default medium capability settings
@@ -124,7 +154,10 @@ const mediumCapabilities: DeviceCapabilities = {
 	useDeferredLoading: true, // Use deferred loading on medium devices
 	useCanvas: true, // Still use canvas but with simpler rendering
 	enableScanlines: false, // Disable complex effects
-	animateInBackground: false // Don't animate in background to save resources
+	animateInBackground: false, // Don't animate in background to save resources
+	useObjectPooling: true,
+	objectPoolSize: 200, // Smaller pool for medium devices
+	objectPoolMargin: 0.3 // 30% extra capacity for more flexibility
 };
 
 // Default low capability settings
@@ -149,7 +182,10 @@ const lowCapabilities: DeviceCapabilities = {
 	prioritizeMainContent: true, // Definitely prioritize main content on low-end devices
 	prioritizeInteractivity: true, // Definitely prioritize interactive elements on low-end devices
 	useDeferredLoading: true, // Definitely use deferred loading on low-end devices
-	hasGPUAcceleration: false // Assume no GPU acceleration on low-end devices
+	hasGPUAcceleration: false, // Assume no GPU acceleration on low-end devices
+	useObjectPooling: true,
+	objectPoolSize: 100, // Even smaller pool for low-end devices
+	objectPoolMargin: 0.5 // 50% extra capacity to avoid creating new objects
 };
 
 // Special iOS optimized settings for iPhone 14 and similar devices
@@ -169,7 +205,10 @@ const iosOptimizedCapabilities: DeviceCapabilities = {
 	useIOSCompatibleEffects: true,
 	useShadersIfAvailable: false,
 	enableGlow: false,
-	enableParallax: false
+	enableParallax: false,
+	useObjectPooling: true,
+	objectPoolSize: 150, // iOS-specific pool size
+	objectPoolMargin: 0.3 // 30% extra capacity
 };
 
 /**
@@ -357,7 +396,10 @@ async function determineDeviceCapabilities(): Promise<DeviceCapabilities> {
 			enableScanlines: false,
 			enablePhosphorDecay: false,
 			enableInterlace: false,
-			enableChromaticAberration: false
+			enableChromaticAberration: false,
+			useObjectPooling: true,
+			objectPoolSize: 60, // Small pool for ultra-low end
+			objectPoolMargin: 0.2 // 20% margin
 		};
 	}
 
@@ -456,9 +498,22 @@ async function determineDeviceCapabilities(): Promise<DeviceCapabilities> {
 	return capabilities;
 }
 
-// Create the deviceCapabilities store that was missing from the original code
+// Create the deviceCapabilities store
 export const deviceCapabilities = writable<DeviceCapabilities>(highCapabilities);
 export const memoryUsageStore = writable<number>(0);
+
+// Create object pool statistics store
+export const objectPoolStatsStore = writable<ObjectPoolStats>({
+	totalCapacity: 0,
+	activeObjects: 0,
+	utilizationRate: 0,
+	objectsCreated: 0,
+	objectsReused: 0,
+	reuseRatio: 0,
+	estimatedMemorySaved: 0,
+	poolName: 'Stars',
+	poolType: 'Star'
+});
 
 // Initialize capabilities
 async function initializeCapabilities() {
@@ -468,7 +523,7 @@ async function initializeCapabilities() {
 	}
 }
 
-// Add the missing setupPerformanceMonitoring function
+// Add the setupPerformanceMonitoring function
 export function setupPerformanceMonitoring() {
 	if (!browser) return () => {};
 
@@ -494,9 +549,6 @@ export function setupPerformanceMonitoring() {
 				const fps = Math.round((frameCount * 1000) / (now - lastTime));
 				frameCount = 0;
 				lastTime = now;
-
-				// Update FPS in store - already handled by frame-rate-controller
-				// This would be redundant: fpsStore.set(fps);
 
 				// Monitor memory if available
 				if (browser && 'memory' in performance) {
@@ -529,7 +581,17 @@ export function setupPerformanceMonitoring() {
 	};
 }
 
-// Add the missing setupEventListeners function
+// Update object pool statistics
+export function updateObjectPoolStats(stats: Partial<ObjectPoolStats>) {
+	if (!browser) return;
+
+	objectPoolStatsStore.update((currentStats) => ({
+		...currentStats,
+		...stats
+	}));
+}
+
+// Add the setupEventListeners function
 export function setupEventListeners() {
 	if (!browser) return () => {};
 
