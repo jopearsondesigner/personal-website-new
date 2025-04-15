@@ -61,6 +61,15 @@
 		prevY: number;
 	}
 
+	// Batch star interface for optimized rendering
+	interface BatchStar {
+		x2d: number; // Projected x coordinate
+		y2d: number; // Projected y coordinate
+		size: number; // Rendered size
+		prevX2d?: number; // Previous projected x (for trails)
+		prevY2d?: number; // Previous projected y (for trails)
+	}
+
 	// Initialize stars
 	function initStars() {
 		stars = [];
@@ -154,7 +163,7 @@
 		resizeObserver.observe(containerElement);
 	}
 
-	// Animation function with time-based movement
+	// Animation function with time-based movement and optimized batched rendering
 	function animate(timestamp: number) {
 		if (!isRunning || !ctx || !canvasElement || !containerElement) return;
 
@@ -196,10 +205,8 @@
 		// Calculate time-based movement scale
 		const timeScale = deltaTime / 16.7; // Normalized to 60fps
 
-		// Batch stars by color/mode for efficient rendering
-		const starsBatches = new Map();
-
-		// Update star positions and group by rendering properties
+		// ============= PHASE 1: Update Star Positions =============
+		// Update all star positions first, keeping this separate from rendering
 		for (let i = 0; i < stars.length; i++) {
 			const star = stars[i];
 
@@ -217,49 +224,66 @@
 				star.z = maxDepth;
 				star.prevX = star.x;
 				star.prevY = star.y;
-				continue;
 			}
+		}
+
+		// ============= PHASE 2: Create Optimized Batches =============
+		// Group stars by rendering properties to minimize context changes
+		const starsBatches = new Map<string, BatchStar[]>();
+
+		// Project and sort stars into batches - only process visible stars
+		for (let i = 0; i < stars.length; i++) {
+			const star = stars[i];
 
 			// Project 3D position to 2D screen
 			const scale = maxDepth / star.z;
 			const x2d = (star.x - centerX) * scale + centerX;
 			const y2d = (star.y - centerY) * scale + centerY;
 
-			// Skip stars that are offscreen
+			// Skip stars that are offscreen (with small buffer for trails)
 			if (x2d < -10 || x2d > containerWidth + 10 || y2d < -10 || y2d > containerHeight + 10) {
 				continue;
 			}
 
-			// Star size based on depth
+			// Calculate star size based on depth
 			const size = Math.max(0.5, (1 - star.z / maxDepth) * 3);
 
-			// Star color based on depth (closer = brighter)
+			// Calculate star color based on depth
 			const colorIndex = Math.min(
 				starColors.length - 1,
 				Math.floor((1 - star.z / maxDepth) * starColors.length)
 			);
 			const color = starColors[colorIndex];
 
-			// Group by rendering mode and color
-			const key = speed > baseSpeed * 1.5 ? `trail_${color}` : `circle_${color}`;
+			// Determine rendering mode (point or trail)
+			const isTrail = speed > baseSpeed * 1.5;
+			const batchKey = isTrail ? `trail_${color}` : `circle_${color}`;
 
-			if (!starsBatches.has(key)) {
-				starsBatches.set(key, []);
+			// Create batch if it doesn't exist
+			if (!starsBatches.has(batchKey)) {
+				starsBatches.set(batchKey, []);
 			}
 
-			// Store calculated values to avoid recalculations
-			starsBatches.get(key).push({
-				x2d,
-				y2d,
-				size,
-				prevX: star.prevX,
-				prevY: star.prevY,
-				z: star.z
-			});
+			// Create batch star with pre-calculated projection data
+			const batchStar: BatchStar = { x2d, y2d, size };
+
+			// For trails, calculate previous projected position
+			if (isTrail) {
+				const prevScale = maxDepth / (star.z + speed * timeScale);
+				batchStar.prevX2d = (star.prevX - centerX) * prevScale + centerX;
+				batchStar.prevY2d = (star.prevY - centerY) * prevScale + centerY;
+			}
+
+			// Add star to the appropriate batch
+			starsBatches.get(batchKey)!.push(batchStar);
 		}
 
-		// Draw stars batched by type/color to minimize context changes
-		starsBatches.forEach((starsOfType, key) => {
+		// ============= PHASE 3: Render Batches Efficiently =============
+		// Render each batch with minimal context state changes
+		starsBatches.forEach((batchStars, key) => {
+			// Skip empty batches
+			if (batchStars.length === 0) return;
+
 			const isTrail = key.startsWith('trail_');
 			const color = key.substring(key.indexOf('_') + 1);
 
@@ -270,27 +294,24 @@
 				ctx.fillStyle = color;
 			}
 
-			// Begin a single path for all stars of same type
+			// Begin a single path for all stars in this batch
 			ctx.beginPath();
 
-			for (const star of starsOfType) {
+			// Add all stars to the path
+			for (const star of batchStars) {
 				if (isTrail) {
-					// Calculate previous projected position
-					const prevScale = maxDepth / (star.z + speed * timeScale);
-					const prevX = (star.prevX - centerX) * prevScale + centerX;
-					const prevY = (star.prevY - centerY) * prevScale + centerY;
-
+					// For trails, draw lines
 					ctx.lineWidth = star.size;
-					ctx.moveTo(prevX, prevY);
+					ctx.moveTo(star.prevX2d!, star.prevY2d!);
 					ctx.lineTo(star.x2d, star.y2d);
 				} else {
-					// For circle, add to the current path
+					// For circles, add to the current path
 					ctx.moveTo(star.x2d + star.size, star.y2d);
 					ctx.arc(star.x2d, star.y2d, star.size, 0, Math.PI * 2);
 				}
 			}
 
-			// Draw all stars of this type at once
+			// Draw all stars of this type with a single call
 			if (isTrail) {
 				ctx.stroke();
 			} else {
