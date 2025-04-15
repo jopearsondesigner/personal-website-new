@@ -1,8 +1,8 @@
 <!-- src/lib/components/layout/MobileNavMenu.svelte -->
 <script lang="ts">
-	import { fly, fade } from 'svelte/transition';
+	import { fly, fade, slide } from 'svelte/transition';
 	import { cubicInOut } from 'svelte/easing';
-	import { Sun, Moon } from 'svelte-bootstrap-icons';
+	import { Sun, Moon, Gear } from 'svelte-bootstrap-icons';
 	import { theme } from '$lib/stores/theme';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/stores';
@@ -10,6 +10,7 @@
 	import { navSections, navigationStore } from '$lib/stores/navigation';
 	import { tick } from 'svelte';
 	import { base } from '$app/paths'; // Import the base path
+	import { perfMonitorVisible, togglePerformanceMonitor } from '$lib/stores/performance-monitor';
 
 	export let isOpen = false;
 
@@ -20,6 +21,9 @@
 	// DOM elements
 	let mobileMenuContainer: HTMLElement;
 	let mobileMenuPanel: HTMLElement;
+
+	// Settings submenu state
+	let isSettingsOpen = false;
 
 	// iOS detection - helps with specific fixes
 	let isIOS = false;
@@ -76,6 +80,11 @@
 
 		isOpen = !isOpen;
 
+		// Reset settings submenu when closing main menu
+		if (!isOpen) {
+			isSettingsOpen = false;
+		}
+
 		// If opening, apply additional iOS fixes after state update
 		if (isOpen && isIOS && browser) {
 			tick().then(() => {
@@ -88,15 +97,37 @@
 		}
 	}
 
+	// Toggle settings submenu - isolated from performance monitor state
+	function toggleSettings(event?: Event) {
+		if (event) {
+			event.preventDefault();
+			event.stopPropagation(); // This is important to prevent event bubbling
+		}
+
+		// Only toggle settings state, don't affect performance monitor
+		isSettingsOpen = !isSettingsOpen;
+	}
+
 	// Close menu when escape key is pressed
 	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && isOpen) {
-			closeMenu();
+		if (event.key === 'Escape') {
+			if (isSettingsOpen) {
+				// First close settings submenu if open
+				isSettingsOpen = false;
+			} else if (isOpen) {
+				// Then close main menu
+				closeMenu();
+			}
 		}
 	}
 
 	// Toggle theme function
-	function toggleTheme() {
+	function toggleTheme(event?: Event) {
+		if (event) {
+			event.preventDefault();
+			event.stopPropagation();
+		}
+
 		theme.update((currentTheme) => {
 			const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
 			document.documentElement.classList.toggle('dark', newTheme === 'dark');
@@ -106,23 +137,25 @@
 		});
 	}
 
+	// Toggle performance monitor - with isolated event handling to prevent menu interference
+	function handleTogglePerfMonitor(event?: Event) {
+		if (event) {
+			event.preventDefault();
+			event.stopPropagation();
+		}
+
+		// Use the imported function rather than directly modifying the store
+		togglePerformanceMonitor();
+	}
+
 	// Improved smooth scroll function
 	async function smoothScroll(target: string, e: MouseEvent) {
 		e.preventDefault();
+
 		if (!browser) return;
 
-		// Close the menu first
-		closeMenu();
-
 		// Extract section ID from target
-		const isHashLink = target.includes('#');
-		const sectionId = isHashLink ? target.split('#')[1] : '';
-
-		// If not a section link, just navigate normally
-		if (!isHashLink) {
-			window.location.href = target;
-			return;
-		}
+		const sectionId = target.replace('#', '');
 
 		// Check if we're on the homepage
 		const isHomePage =
@@ -131,52 +164,29 @@
 			window.location.pathname === '/' ||
 			window.location.pathname === base + '/';
 
-		if (isHomePage) {
-			// We're on homepage - use the robust hybrid approach
-			await tick();
+		// Close the menu first
+		closeMenu();
 
-			// Find the section element
-			const section = document.getElementById(sectionId);
-			if (!section) {
-				console.warn(`Section with ID '${sectionId}' not found`);
-				return;
+		// Wait for a tick to ensure the menu closing state is properly updated
+		await tick();
+
+		// Then handle navigation differently based on current page
+		setTimeout(() => {
+			if (isHomePage) {
+				// We're on the homepage - use the navigationStore to scroll
+				navigationStore.scrollToSection(sectionId);
+			} else {
+				// We're on another page (e.g., blog) - navigate to homepage with hash
+				window.location.href = `${base}/#${sectionId}`;
 			}
-
-			// Get navbar height for offset
-			const navbarHeight = parseInt(
-				document.documentElement.style.getPropertyValue('--navbar-height') || '64',
-				10
-			);
-
-			// Calculate position with offset
-			const top = section.getBoundingClientRect().top + window.scrollY - navbarHeight;
-
-			// Update active section in store
-			navigationStore.setActiveSection(sectionId);
-
-			// Update URL hash without jumping (using history API)
-			if (history.pushState) {
-				// Avoid duplicate base paths in URL
-				const basePath = base || '';
-				history.pushState(null, '', `${basePath}/#${sectionId}`);
-			}
-
-			// Smooth scroll
-			window.scrollTo({
-				top,
-				behavior: 'smooth'
-			});
-		} else {
-			// We're on a different page - navigate to homepage with hash
-			const basePath = base || '';
-			window.location.href = `${basePath}/#${sectionId}`;
-		}
+		}, 150); // Add a small delay to ensure menu closing animation completes
 	}
 
 	// Improved close menu function
 	function closeMenu() {
 		if (isOpen) {
 			isOpen = false;
+			isSettingsOpen = false;
 
 			// Wait a tick to ensure DOM updates
 			tick().then(() => {
@@ -201,8 +211,11 @@
 
 					// Restore scroll position with a small delay for iOS
 					setTimeout(() => {
-						window.scrollTo(0, scrollY);
-					}, 50);
+						window.scrollTo({
+							top: scrollY,
+							behavior: 'auto' // Use 'auto' to prevent any smooth scrolling interference
+						});
+					}, 10);
 				}
 			});
 		}
@@ -213,7 +226,6 @@
 		currentPath = $page.url.pathname;
 	}
 
-	// Clean up on component destroy
 	onDestroy(() => {
 		if (browser) {
 			document.body.classList.remove('menu-open');
@@ -266,16 +278,19 @@
 	<div
 		bind:this={mobileMenuContainer}
 		class="mobile-menu-container"
-		on:click={closeMenu}
-		on:keydown={(e) => e.key === 'Enter' && closeMenu()}
-		role="presentation"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Mobile Navigation Menu"
 	>
-		<!-- Fixed overlay for when menu is open - directly in body -->
-		<div
-			class="fixed inset-0 z-[9999] bg-black/30 backdrop-blur-sm"
-			style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100vh; width: 100vw;"
+		<!-- Fixed overlay - using a proper button element -->
+		<button
+			class="fixed inset-0 z-[9999] bg-black/30 backdrop-blur-sm w-full h-full"
+			style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; height: 100vh; width: 100vw; border: none;"
+			on:click={closeMenu}
+			on:keydown={(e) => e.key === 'Enter' && closeMenu()}
+			aria-label="Close menu"
 			transition:fade={{ duration: 200 }}
-		></div>
+		></button>
 
 		<!-- Menu Panel -->
 		<div
@@ -287,76 +302,166 @@
 			transform will-change-transform"
 			style="position: fixed; top: 0; bottom: 0; right: 0; height: 100vh; max-height: 100vh; width: 100%; max-width: 20rem;"
 			transition:fly={{ x: 300, duration: 300, easing: cubicInOut }}
-			on:click|stopPropagation
-			on:keydown={(e) => e.key === 'Enter' && closeMenu()}
-			role="dialog"
-			tabindex="0"
 		>
-			<!-- Top spacing area - no button here -->
-			<div class="px-4 py-4 h-16"></div>
+			<!-- Top spacing area with settings gear -->
+			<div class="px-4 py-4 h-16 flex justify-end items-center">
+				<button
+					on:click={toggleSettings}
+					class="flex items-center justify-center w-7 h-7
+						text-arcadeBlack-500 dark:text-arcadeBlack-300
+						transition-all duration-300"
+					aria-label="Settings"
+					aria-expanded={isSettingsOpen}
+					aria-controls="settings-submenu"
+				>
+					<Gear class="w-4 h-4" />
+				</button>
+			</div>
 
-			<!-- Navigation Links - Updated to use navSections -->
-			<nav class="flex-1 px-6 py-2">
-				<div class="space-y-5">
-					{#each $navSections as section}
-						<a
-							href="{base}#{section.id}"
-							class="block text-base
-								text-arcadeBlack-500 dark:text-arcadeWhite-300
-								hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500
-								{section.isActive ? 'text-arcadeNeonGreen-500' : ''}"
-							on:click={(e) => smoothScroll(`#${section.id}`, e)}
+			<!-- Settings submenu -->
+			{#if isSettingsOpen}
+				<div
+					id="settings-submenu"
+					class="px-3 py-2 mb-2 mx-4
+						bg-arcadeBlack-100/50 dark:bg-arcadeBlack-700/50"
+					transition:slide={{ duration: 200 }}
+				>
+					<div
+						class="text-[10px] uppercase tracking-wide mb-2 font-normal text-arcadeBlack-300 dark:text-arcadeBlack-400"
+					>
+						settings
+					</div>
+					<div class="ml-3">
+						<!-- Theme toggle -->
+						<button
+							on:click={toggleTheme}
+							class="flex items-center justify-between w-full py-1 px-1
+							text-arcadeBlack-500 dark:text-arcadeWhite-300
+							hover:bg-arcadeBlack-200/30 dark:hover:bg-arcadeBlack-600/30
+							transition-colors duration-200 text-xs"
+							aria-label={$theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
 						>
-							{section.title}
-						</a>
+							<div class="flex items-center space-x-2">
+								{#if $theme === 'dark'}
+									<Sun class="w-3 h-3 text-arcadeBlack-300 dark:text-arcadeBlack-400" />
+									<span>Light Mode</span>
+								{:else}
+									<Moon class="w-3 h-3 text-arcadeBlack-300 dark:text-arcadeBlack-400" />
+									<span>Dark Mode</span>
+								{/if}
+							</div>
+							<div
+								class="w-8 h-4 rounded-full
+							{$theme === 'dark' ? 'bg-arcadeNeonOrange-500/20' : 'bg-arcadeNeonBlue-500/20'}
+							relative flex items-center px-1"
+							>
+								<div
+									class="w-2 h-2 rounded-full
+								{$theme === 'dark' ? 'bg-arcadeNeonOrange-500 ml-auto' : 'bg-arcadeNeonBlue-500'}
+								transition-transform duration-300"
+								></div>
+							</div>
+						</button>
+
+						<!-- Performance Monitor toggle -->
+						<button
+							on:click={handleTogglePerfMonitor}
+							class="flex items-center justify-between w-full py-1 px-1
+						text-arcadeBlack-500 dark:text-arcadeWhite-300
+						hover:bg-arcadeBlack-200/30 dark:hover:bg-arcadeBlack-600/30
+						transition-colors duration-200 mt-1 text-xs"
+							aria-label="Toggle Performance Monitor"
+							aria-pressed={$perfMonitorVisible}
+						>
+							<div class="flex items-center space-x-2">
+								<div
+									class="w-3 h-3 flex items-center justify-center text-arcadeBlack-300 dark:text-arcadeBlack-400"
+								>
+									<span class="text-xs font-mono scale-75">FPS</span>
+								</div>
+								<span>Performance Monitor</span>
+							</div>
+							<div
+								class="w-8 h-4 rounded-full
+						{$perfMonitorVisible
+									? 'bg-arcadeNeonGreen-500/20'
+									: 'bg-arcadeBlack-300/20 dark:bg-arcadeBlack-600/20'}
+						relative flex items-center px-1"
+							>
+								<div
+									class="w-2 h-2 rounded-full
+							{$perfMonitorVisible
+										? 'bg-arcadeNeonGreen-500 ml-auto'
+										: 'bg-arcadeBlack-300 dark:bg-arcadeBlack-500'}
+							transition-transform duration-300"
+								></div>
+							</div>
+						</button>
+					</div>
+				</div>
+			{/if}
+			<nav class="flex-1 px-6 py-2">
+				<ul class="space-y-5 list-none p-0 m-0">
+					{#each $navSections as section}
+						<li>
+							<a
+								href="{base}#{section.id}"
+								class="menu-link block text-base group relative overflow-hidden px-2 py-1
+									text-arcadeBlack-500 dark:text-arcadeWhite-300
+									{section.isActive ? 'active-link dark:text-arcadeNeonGreen-500' : ''}"
+								on:click={(e) => smoothScroll(`#${section.id}`, e)}
+							>
+								<!-- Glowing background effect that appears on hover -->
+								<span
+									class="absolute inset-0 bg-gradient-to-r
+									from-arcadeNeonGreen-500/0 via-arcadeNeonGreen-500/10 to-arcadeNeonGreen-500/0
+									dark:from-arcadeNeonGreen-500/0 dark:via-arcadeNeonGreen-500/20 dark:to-arcadeNeonGreen-500/0
+									opacity-0 group-hover:opacity-100 transform translate-x-[-100%] group-hover:translate-x-[100%]
+									transition-all duration-1000 ease-in-out"
+								></span>
+								<!-- Text with scan line effect -->
+								<span class="relative z-10 inline-block">
+									{section.title}
+
+									<!-- Active indicator - vertical line -->
+									<span class="arcade-active-indicator"></span>
+								</span>
+							</a>
+						</li>
 					{/each}
 
 					<!-- Add blog link separately if needed -->
-					<a
-						href="{base}/blog"
-						class="block text-base
-							text-arcadeBlack-500 dark:text-arcadeWhite-300
-							hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500
-							{currentPath === '/blog' || currentPath === base + '/blog' ? 'text-arcadeNeonGreen-500' : ''}"
-					>
-						Blog
-					</a>
-				</div>
+					<li>
+						<a
+							href="{base}/blog"
+							class="menu-link block text-base group relative overflow-hidden px-2 py-1
+								text-arcadeBlack-500 dark:text-arcadeWhite-300
+								{currentPath === '/blog' || currentPath === base + '/blog'
+								? 'active-link dark:text-arcadeNeonGreen-500'
+								: ''}"
+						>
+							<!-- Glowing background effect that appears on hover -->
+							<span
+								class="absolute inset-0 bg-gradient-to-r
+								from-arcadeNeonGreen-500/0 via-arcadeNeonGreen-500/10 to-arcadeNeonGreen-500/0
+								dark:from-arcadeNeonGreen-500/0 dark:via-arcadeNeonGreen-500/20 dark:to-arcadeNeonGreen-500/0
+								opacity-0 group-hover:opacity-100 transform translate-x-[-100%] group-hover:translate-x-[100%]
+								transition-all duration-1000 ease-in-out"
+							></span>
+
+							<!-- Text with scan line effect -->
+							<span class="relative z-10 inline-block">
+								Blog
+
+								<!-- Active indicator - vertical line -->
+								<span class="arcade-active-indicator"></span>
+							</span>
+						</a>
+					</li>
+				</ul>
 			</nav>
 
-			<!-- Footer -->
-			<div class="px-6 py-4 border-t border-arcadeBlack-200 dark:border-arcadeBlack-600">
-				<button
-					on:click={toggleTheme}
-					class="flex items-center justify-between w-full p-3 rounded-lg
-						text-arcadeBlack-500 dark:text-arcadeWhite-300
-						hover:bg-arcadeBlack-100 dark:hover:bg-arcadeBlack-600"
-					aria-label={$theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-				>
-					<div class="flex items-center space-x-3">
-						{#if $theme === 'dark'}
-							<Sun class="w-4 h-4" />
-							<span>Light Mode</span>
-						{:else}
-							<Moon class="w-4 h-4" />
-							<span>Dark Mode</span>
-						{/if}
-					</div>
-					<svg
-						class="w-3 h-3 text-arcadeBlack-400 dark:text-arcadeWhite-300"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M9 5l5 5-5 5"
-						/>
-					</svg>
-				</button>
-			</div>
+			<div class="h-4"></div>
 		</div>
 	</div>
 {/if}
@@ -444,5 +549,29 @@
 		:global(.mobile-menu-container) {
 			height: -webkit-fill-available;
 		}
+	}
+
+	/* Active indicator for nav links */
+	.arcade-active-indicator {
+		position: absolute;
+		left: -8px;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 2px;
+		height: 0;
+		background: theme('colors.arcadeNeonGreen.100');
+		opacity: 0;
+		transition:
+			height 0.3s ease,
+			opacity 0.3s ease;
+	}
+
+	/* Show the active indicator for active links */
+	.active-link .arcade-active-indicator {
+		height: 16px;
+		opacity: 1;
+		box-shadow:
+			0 0 8px theme('colors.arcadeNeonGreen.300'),
+			0 0 12px theme('colors.arcadeNeonGreen.200');
 	}
 </style>

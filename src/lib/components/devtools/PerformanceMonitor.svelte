@@ -1,193 +1,121 @@
+<!-- src/lib/components/devtools/PerformanceMonitor.svelte -->
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
+	import { fpsStore } from '$lib/utils/frame-rate-controller';
+	import { deviceCapabilities, memoryUsageStore } from '$lib/utils/device-performance';
 	import {
-		performanceMetrics,
-		frameRateController,
-		debugFrameRateController,
-		getQualityPreset
-	} from '$lib/utils/frame-rate-controller';
-	import {
-		deviceCapabilities,
-		runtimeCapabilities,
-		debugDeviceCapabilities,
-		overrideCapabilities,
-		getDeviceTierDescription
-	} from '$lib/utils/device-performance';
+		perfMonitorVisible,
+		setPerformanceMonitorVisibility
+	} from '$lib/stores/performance-monitor';
 	import { browser } from '$app/environment';
 
-	// Props
-	export let expanded = false;
-	export let showSettings = false;
-	export let visible = true;
-
-	// Local state
-	let showAdvanced = false;
-	let userTier: 'auto' | 'low' | 'medium' | 'high' | 'ultra' = 'auto';
-	let batteryOptimization = false;
-	let fpsHistory: number[] = [];
-	let fpsHistoryMax = 60; // Store one minute of history at 1 sample per second
-	let chartWidth = 200;
-	let chartHeight = 50;
-	let performanceWarnThreshold = 45; // FPS threshold for warning
-	let performanceCriticalThreshold = 30; // FPS threshold for critical warning
-	let sampleInterval = 1000; // Sample FPS every second
-	let fpsTimer: ReturnType<typeof setInterval>;
+	// Monitor element for touch event handling
 	let monitorElement: HTMLDivElement;
+
+	// Touch handling variables
+	let touchStartX = 0;
+	let touchStartY = 0;
+	let touchDragStartX = 0; // Added missing variable
+	let touchDragStartY = 0; // Added missing variable
+	let touchTimeout: number | null = null;
+	let initialTouchLeft = 0;
+	let initialTouchTop = 0;
+	let isTouchDragging = false;
+
+	// Dragging functionality
 	let isDragging = false;
-	let dragStartX = 0;
-	let dragStartY = 0;
-	let positionX = 10;
-	let positionY = 10;
+	let offsetX = 0;
+	let offsetY = 0;
 
-	// Toggle expanded state
-	function toggleExpanded() {
-		expanded = !expanded;
-		if (expanded) {
-			// Re-draw chart when expanding
-			setTimeout(drawFpsChart, 10);
-		}
-	}
+	// Toggle for detailed metrics display
+	let showDetailedMetrics = false;
 
-	// Toggle settings panel
-	function toggleSettings() {
-		showSettings = !showSettings;
-		expanded = showSettings || expanded;
-	}
+	// Handle double tap on mobile
+	function handleTouchStart(event: TouchEvent) {
+		const touch = event.touches[0];
+		touchStartX = touch.clientX;
+		touchStartY = touch.clientY;
 
-	// Toggle advanced view
-	function toggleAdvanced() {
-		showAdvanced = !showAdvanced;
-
-		if (showAdvanced) {
-			// Enable debug mode when showing advanced view
-			debugFrameRateController(true);
-			debugDeviceCapabilities();
+		// Double-tap detection remains the same
+		if (touchTimeout === null) {
+			touchTimeout = window.setTimeout(() => {
+				touchTimeout = null;
+			}, 300);
 		} else {
-			// Disable debug when hiding
-			debugFrameRateController(false);
+			// Double tap detected
+			window.clearTimeout(touchTimeout);
+			touchTimeout = null;
+
+			// Toggle visibility on double tap
+			perfMonitorVisible.update((value) => !value);
+			event.preventDefault();
+		}
+
+		// Initialize touch drag if touching the header
+		const header = monitorElement?.querySelector('.monitor-header');
+		if (header && event.target && header.contains(event.target as Node)) {
+			isTouchDragging = true;
+			touchDragStartX = touch.clientX;
+			touchDragStartY = touch.clientY;
+
+			const rect = monitorElement.getBoundingClientRect();
+			initialTouchLeft = rect.left;
+			initialTouchTop = rect.top;
+
+			event.preventDefault(); // Prevent scrolling while dragging the header
 		}
 	}
 
-	// Apply user-selected quality settings
-	function applyQualitySettings() {
-		// Update device capabilities with user selections
-		overrideCapabilities({
-			userQualityPreference: userTier,
-			batteryOptimization
-		});
+	// New function to handle touch move for dragging
+	function handleTouchMove(event: TouchEvent) {
+		if (!isTouchDragging) return;
 
-		// Log the change
-		console.info(
-			`Quality settings updated: ${userTier}, battery optimization: ${batteryOptimization}`
-		);
+		const touch = event.touches[0];
+		const deltaX = touch.clientX - touchDragStartX;
+		const deltaY = touch.clientY - touchDragStartY;
+
+		const newLeft = initialTouchLeft + deltaX;
+		const newTop = initialTouchTop + deltaY;
+
+		// Constrain to viewport
+		const maxX = window.innerWidth - monitorElement.offsetWidth;
+		const maxY = window.innerHeight - monitorElement.offsetHeight;
+
+		const constrainedX = Math.max(0, Math.min(newLeft, maxX));
+		const constrainedY = Math.max(0, Math.min(newTop, maxY));
+
+		monitorElement.style.right = 'auto';
+		monitorElement.style.bottom = 'auto';
+		monitorElement.style.left = `${constrainedX}px`;
+		monitorElement.style.top = `${constrainedY}px`;
+
+		event.preventDefault(); // Prevent page scrolling during drag
 	}
 
-	// Reset quality settings to automatic detection
-	function resetQualitySettings() {
-		// Reset to automatic detection
-		userTier = 'auto';
-		overrideCapabilities({
-			userQualityPreference: 'auto',
-			batteryOptimization: false
-		});
-		batteryOptimization = false;
-	}
+	// New function to handle touch end
+	function handleTouchEnd(event: TouchEvent) {
+		if (isTouchDragging) {
+			isTouchDragging = false;
 
-	// Format quality level for display
-	function formatQuality(quality: number): string {
-		return Math.round(quality * 100) + '%';
-	}
-
-	// Get color for FPS display based on current performance
-	function getFpsColor(fps: number): string {
-		if (fps < performanceCriticalThreshold) return 'text-red-500';
-		if (fps < performanceWarnThreshold) return 'text-yellow-500';
-		return 'text-green-500';
-	}
-
-	// Draw FPS chart with performance zones
-	function drawFpsChart() {
-		if (!browser) return;
-
-		const canvas = document.getElementById('fpsChart') as HTMLCanvasElement;
-		if (!canvas) return;
-
-		const ctx = canvas.getContext('2d');
-		if (!ctx) return;
-
-		// Clear canvas
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-		if (fpsHistory.length < 2) return;
-
-		// Find min/max for scaling
-		const targetFps =
-			$deviceCapabilities.tier === 'low' ? 30 : $deviceCapabilities.tier === 'medium' ? 45 : 60;
-		const maxFps = Math.max(...fpsHistory, targetFps * 1.2);
-		const minFps = Math.min(...fpsHistory, Math.max(0, targetFps * 0.5));
-		const range = maxFps - minFps;
-
-		// Draw background
-		ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-		// Draw performance zones
-		const criticalY =
-			canvas.height - ((performanceCriticalThreshold - minFps) / range) * canvas.height;
-		const warningY = canvas.height - ((performanceWarnThreshold - minFps) / range) * canvas.height;
-
-		// Critical zone (red)
-		ctx.fillStyle = 'rgba(239, 68, 68, 0.2)';
-		ctx.fillRect(0, criticalY, canvas.width, canvas.height - criticalY);
-
-		// Warning zone (yellow)
-		ctx.fillStyle = 'rgba(234, 179, 8, 0.2)';
-		ctx.fillRect(0, warningY, canvas.width, criticalY);
-
-		// Good zone (green)
-		ctx.fillStyle = 'rgba(34, 197, 94, 0.2)';
-		ctx.fillRect(0, 0, canvas.width, warningY);
-
-		// Draw target FPS line
-		const targetY = canvas.height - ((targetFps - minFps) / range) * canvas.height;
-		ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-		ctx.lineWidth = 1;
-		ctx.setLineDash([4, 2]);
-		ctx.beginPath();
-		ctx.moveTo(0, targetY);
-		ctx.lineTo(canvas.width, targetY);
-		ctx.stroke();
-		ctx.setLineDash([]);
-
-		// Draw FPS line
-		ctx.strokeStyle = 'rgb(255, 255, 255)';
-		ctx.lineWidth = 2;
-		ctx.beginPath();
-
-		// Draw each point
-		const stepX = canvas.width / (fpsHistory.length - 1);
-
-		for (let i = 0; i < fpsHistory.length; i++) {
-			const x = i * stepX;
-			const normalizedY = (fpsHistory[i] - minFps) / range;
-			const y = canvas.height - normalizedY * canvas.height;
-
-			if (i === 0) {
-				ctx.moveTo(x, y);
-			} else {
-				ctx.lineTo(x, y);
+			// Save position
+			if (browser && monitorElement) {
+				const rect = monitorElement.getBoundingClientRect();
+				localStorage.setItem('perfMonitorX', String(rect.left));
+				localStorage.setItem('perfMonitorY', String(rect.top));
 			}
-		}
 
-		ctx.stroke();
+			event.preventDefault();
+		}
 	}
 
-	// Setup dragging functionality
+	// Dragging handlers
 	function handleMouseDown(event: MouseEvent) {
-		if (event.target instanceof HTMLElement && event.target.closest('.monitor-header')) {
+		// Only start dragging on header element to avoid interference
+		const header = monitorElement?.querySelector('.monitor-header');
+		if (header && event.target && header.contains(event.target as Node)) {
 			isDragging = true;
-			dragStartX = event.clientX - positionX;
-			dragStartY = event.clientY - positionY;
+			offsetX = event.clientX - monitorElement.getBoundingClientRect().left;
+			offsetY = event.clientY - monitorElement.getBoundingClientRect().top;
 			event.preventDefault();
 		}
 	}
@@ -195,375 +123,313 @@
 	function handleMouseMove(event: MouseEvent) {
 		if (!isDragging) return;
 
-		positionX = event.clientX - dragStartX;
-		positionY = event.clientY - dragStartY;
+		const x = event.clientX - offsetX;
+		const y = event.clientY - offsetY;
 
-		// Keep monitor within viewport bounds
-		if (monitorElement) {
-			const rect = monitorElement.getBoundingClientRect();
+		// Constrain to viewport
+		const maxX = window.innerWidth - monitorElement.offsetWidth;
+		const maxY = window.innerHeight - monitorElement.offsetHeight;
 
-			if (positionX < 0) positionX = 0;
-			if (positionY < 0) positionY = 0;
-			if (positionX > window.innerWidth - rect.width) {
-				positionX = window.innerWidth - rect.width;
-			}
-			if (positionY > window.innerHeight - rect.height) {
-				positionY = window.innerHeight - rect.height;
-			}
-		}
+		const constrainedX = Math.max(0, Math.min(x, maxX));
+		const constrainedY = Math.max(0, Math.min(y, maxY));
 
-		event.preventDefault();
+		monitorElement.style.right = 'auto';
+		monitorElement.style.bottom = 'auto';
+		monitorElement.style.left = `${constrainedX}px`;
+		monitorElement.style.top = `${constrainedY}px`;
 	}
 
 	function handleMouseUp() {
-		isDragging = false;
+		if (isDragging) {
+			isDragging = false;
 
-		// Save position to localStorage
-		if (browser) {
-			try {
-				localStorage.setItem('perfMonitorPosition', JSON.stringify({ x: positionX, y: positionY }));
-			} catch (e) {
-				console.warn('Could not save performance monitor position');
+			// Save position
+			if (browser && monitorElement) {
+				const rect = monitorElement.getBoundingClientRect();
+				localStorage.setItem('perfMonitorX', String(rect.left));
+				localStorage.setItem('perfMonitorY', String(rect.top));
 			}
 		}
 	}
 
-	// Keyboard shortcut handler
-	function handleKeyDown(event: KeyboardEvent) {
-		// Only handle keyboard shortcuts when Alt key is pressed
-		if (event.altKey) {
-			if (event.key === 'p') {
-				// Alt+P: Toggle visibility
-				visible = !visible;
-				event.preventDefault();
-			} else if (visible && event.key === 'e') {
-				// Alt+E: Toggle expanded
-				toggleExpanded();
-				event.preventDefault();
-			} else if (visible && event.key === 's') {
-				// Alt+S: Toggle settings
-				toggleSettings();
-				event.preventDefault();
-			} else if (visible && event.key === 'a') {
-				// Alt+A: Toggle advanced
-				toggleAdvanced();
-				event.preventDefault();
+	// Click outside to dismiss - fixed to prevent mobile menu conflicts
+	function handleClickOutside(event: MouseEvent) {
+		// Skip processing if the click was part of the mobile menu interaction
+		const mobileMenuButton = document.querySelector('button[aria-controls="mobile-menu"]');
+		const mobileMenuOverlay = document.querySelector('.mobile-menu-container button.fixed');
+		const settingsButton = document.querySelector('button[aria-controls="settings-submenu"]');
+		const settingsSubmenu = document.querySelector('#settings-submenu');
+
+		// Check if the click was on the mobile menu toggle, settings button, or within the settings submenu
+		if (
+			(mobileMenuButton && mobileMenuButton.contains(event.target as Node)) ||
+			(mobileMenuOverlay && mobileMenuOverlay.contains(event.target as Node)) ||
+			(settingsButton && settingsButton.contains(event.target as Node)) ||
+			(settingsSubmenu && settingsSubmenu.contains(event.target as Node))
+		) {
+			return; // Skip processing for mobile menu and settings interactions
+		}
+
+		// Regular behavior for other clicks
+		if (monitorElement && !monitorElement.contains(event.target as Node) && $perfMonitorVisible) {
+			// Only dismiss if we didn't just finish dragging and not clicking UI elements
+			if (!isDragging) {
+				setPerformanceMonitorVisibility(false);
 			}
 		}
+	}
+
+	// Handle close button click - ensure we properly stop propagation
+	function handleCloseClick(event: MouseEvent) {
+		event.stopPropagation(); // Prevent event bubbling
+		setPerformanceMonitorVisibility(false);
 	}
 
 	onMount(() => {
-		if (!browser) return;
+		if (browser && monitorElement) {
+			// Add event listeners with proper passive setting
+			monitorElement.addEventListener('touchstart', handleTouchStart, { passive: false });
 
-		// Initialize user settings from device capabilities
-		userTier = $deviceCapabilities.userQualityPreference;
-		batteryOptimization = $deviceCapabilities.batteryOptimization;
+			// Add drag handlers
+			monitorElement.addEventListener('mousedown', handleMouseDown);
+			document.addEventListener('mousemove', handleMouseMove);
+			document.addEventListener('mouseup', handleMouseUp);
 
-		// Restore position from localStorage
-		try {
-			const savedPosition = localStorage.getItem('perfMonitorPosition');
-			if (savedPosition) {
-				const position = JSON.parse(savedPosition);
-				positionX = position.x;
-				positionY = position.y;
+			// Add click outside handler - with capture to ensure it runs first
+			document.addEventListener('mousedown', handleClickOutside, { capture: true });
+
+			// Touch events with correct passive settings
+			document.addEventListener('touchmove', handleTouchMove, { passive: false });
+			document.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+			// Load saved position
+			const savedX = localStorage.getItem('perfMonitorX');
+			const savedY = localStorage.getItem('perfMonitorY');
+
+			if (savedX && savedY) {
+				// Convert to numbers and validate
+				const x = parseFloat(savedX);
+				const y = parseFloat(savedY);
+
+				// Make sure position is within viewport
+				const maxX = window.innerWidth - monitorElement.offsetWidth;
+				const maxY = window.innerHeight - monitorElement.offsetHeight;
+
+				if (!isNaN(x) && !isNaN(y) && x >= 0 && y >= 0 && x <= maxX && y <= maxY) {
+					monitorElement.style.right = 'auto';
+					monitorElement.style.bottom = 'auto';
+					monitorElement.style.left = `${x}px`;
+					monitorElement.style.top = `${y}px`;
+				}
 			}
-		} catch (e) {
-			console.warn('Could not restore performance monitor position');
+
+			return () => {
+				if (monitorElement) {
+					monitorElement.removeEventListener('touchstart', handleTouchStart);
+					monitorElement.removeEventListener('mousedown', handleMouseDown);
+				}
+				document.removeEventListener('mousemove', handleMouseMove);
+				document.removeEventListener('mouseup', handleMouseUp);
+				document.removeEventListener('mousedown', handleClickOutside);
+				document.removeEventListener('touchmove', handleTouchMove);
+				document.removeEventListener('touchend', handleTouchEnd);
+
+				if (touchTimeout !== null) {
+					window.clearTimeout(touchTimeout);
+				}
+			};
 		}
-
-		// Start collecting FPS data for chart
-		fpsTimer = setInterval(() => {
-			// Add current FPS to history with minimal impact
-			fpsHistory = [...fpsHistory, $performanceMetrics.fps];
-
-			// Limit history size
-			if (fpsHistory.length > fpsHistoryMax) {
-				fpsHistory = fpsHistory.slice(-fpsHistoryMax);
-			}
-
-			// Only update chart if expanded
-			if (expanded) {
-				// Use requestAnimationFrame to optimize chart drawing
-				requestAnimationFrame(drawFpsChart);
-			}
-		}, sampleInterval);
-
-		// Add keyboard shortcut listener
-		window.addEventListener('keydown', handleKeyDown);
-
-		// Add drag event listeners
-		window.addEventListener('mousemove', handleMouseMove);
-		window.addEventListener('mouseup', handleMouseUp);
 	});
-
-	onDestroy(() => {
-		if (fpsTimer) {
-			clearInterval(fpsTimer);
-		}
-
-		// Remove event listeners
-		if (browser) {
-			window.removeEventListener('keydown', handleKeyDown);
-			window.removeEventListener('mousemove', handleMouseMove);
-			window.removeEventListener('mouseup', handleMouseUp);
-		}
-	});
-
-	// Auto-update chart when expanded
-	$: if (expanded && browser) {
-		// Use requestAnimationFrame to optimize layout updates
-		requestAnimationFrame(drawFpsChart);
-	}
-
-	// Current quality settings
-	$: qualitySettings = getQualityPreset($performanceMetrics.qualityLevel);
-
-	// Format device tier for display
-	$: deviceTierDisplay = getDeviceTierDescription();
-
-	// Check if current device is mobile
-	$: isMobile = $deviceCapabilities.isMobile;
 </script>
 
-{#if visible && browser}
+{#if true}
+	<!-- Always render but control visibility with CSS -->
 	<div
 		bind:this={monitorElement}
-		class="performance-monitor fixed z-[9999] {expanded ? 'expanded' : ''} {showSettings
-			? 'settings'
-			: ''}
-	       bg-black/90 text-white rounded-lg shadow-lg font-mono text-sm"
-		style="top: {positionY}px; right: {positionX}px;
-	       {isDragging ? 'user-select: none;' : ''}"
-		on:mousedown={handleMouseDown}
+		class="performance-monitor debug-panel {$perfMonitorVisible ? 'visible' : 'hidden'}"
+		data-perf-monitor="true"
+		role="status"
+		aria-live="polite"
 	>
-		<div
-			class="monitor-header p-2 flex items-center justify-between cursor-move border-b border-gray-700"
-		>
-			<button
-				class="px-2 text-white/80 hover:text-white flex items-center"
-				on:click={toggleExpanded}
-			>
-				<span class="mr-1">{expanded ? '▼' : '▲'}</span>
-				<span class={getFpsColor($performanceMetrics.fps)}>
-					{Math.round($performanceMetrics.fps)} FPS
-				</span>
-			</button>
-
-			<div class="flex gap-2 items-center">
-				<span
-					class="px-2 py-1 rounded text-xs {$performanceMetrics.qualityLevel === 'ultra'
-						? 'bg-purple-500'
-						: $performanceMetrics.qualityLevel === 'high'
-							? 'bg-green-500'
-							: $performanceMetrics.qualityLevel === 'medium'
-								? 'bg-yellow-500'
-								: 'bg-red-500'}"
-				>
-					{$performanceMetrics.qualityLevel.toUpperCase()} ({formatQuality(
-						$performanceMetrics.quality
-					)})
-				</span>
-
-				<button
-					class="px-2 text-white/80 hover:text-white"
-					title="Settings"
-					on:click={toggleSettings}
-				>
-					⚙️
-				</button>
-			</div>
+		<div class="monitor-header" on:mousedown={handleMouseDown}>
+			<span class="title">Performance Monitor</span>
+			<span class="close-btn" on:click={handleCloseClick}>×</span>
 		</div>
 
-		{#if expanded && !showSettings}
-			<div class="p-2 border-b border-gray-700">
-				<canvas
-					id="fpsChart"
-					width={chartWidth}
-					height={chartHeight}
-					class="w-full bg-black/30 rounded"
-				>
-				</canvas>
+		<div class="basic-metrics">
+			<div>FPS: {$fpsStore.toFixed(1)}</div>
+			<div>Quality: {$deviceCapabilities?.tier || 'high'}</div>
+			<div>Memory: {($memoryUsageStore * 100).toFixed(0)}%</div>
+		</div>
 
-				<div class="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-xs">
-					<div class="text-gray-400">Device:</div>
-					<div>{deviceTierDisplay} {isMobile ? '(Mobile)' : ''}</div>
+		<button class="metrics-toggle" on:click={() => (showDetailedMetrics = !showDetailedMetrics)}>
+			{showDetailedMetrics ? 'Hide Details' : 'Show Details'}
+		</button>
 
-					<div class="text-gray-400">CPU Load:</div>
-					<div class="flex items-center">
-						<div class="w-16 h-2 bg-gray-700 rounded-full mr-2">
-							<div
-								class="h-2 rounded-full {$performanceMetrics.cpuLoad > 0.8
-									? 'bg-red-500'
-									: $performanceMetrics.cpuLoad > 0.5
-										? 'bg-yellow-500'
-										: 'bg-green-500'}"
-								style="width: {$performanceMetrics.cpuLoad * 100}%"
-							></div>
-						</div>
-						{Math.round($performanceMetrics.cpuLoad * 100)}%
-					</div>
-
-					<div class="text-gray-400">Frame Skip:</div>
-					<div>{$performanceMetrics.frameSkip}</div>
-
-					<div class="text-gray-400">Update Rate:</div>
-					<div>{Math.round(1000 / $deviceCapabilities.updateInterval)} Hz</div>
+		{#if showDetailedMetrics}
+			<div class="detailed-metrics">
+				<div>Device Tier: {$deviceCapabilities?.tier || 'unknown'}</div>
+				<div>Max Stars: {$deviceCapabilities?.maxStars || 'unknown'}</div>
+				<div>Effects Level: {$deviceCapabilities?.effectsLevel || 'unknown'}</div>
+				<div>
+					Device Type: {$deviceCapabilities?.isMobile
+						? 'Mobile'
+						: $deviceCapabilities?.isTablet
+							? 'Tablet'
+							: 'Desktop'}
 				</div>
-
-				{#if showAdvanced}
-					<div class="mt-2 text-xs border-t border-gray-700 pt-2">
-						<div class="grid grid-cols-2 gap-x-4 gap-y-1">
-							<div class="text-gray-400">Effects:</div>
-							<div>
-								{qualitySettings.effectsEnabled.glow ? 'Glow ' : ''}
-								{qualitySettings.effectsEnabled.blur ? 'Blur ' : ''}
-								{qualitySettings.effectsEnabled.shadows ? 'Shadows ' : ''}
-							</div>
-
-							<div class="text-gray-400">Resolution:</div>
-							<div>{Math.round(qualitySettings.renderSettings.resolution * 100)}%</div>
-
-							<div class="text-gray-400">Anti-aliasing:</div>
-							<div>{qualitySettings.renderSettings.antialiasing ? 'On' : 'Off'}</div>
-
-							<div class="text-gray-400">Memory:</div>
-							<div>
-								{$performanceMetrics.memoryUsage > 0
-									? Math.round($performanceMetrics.memoryUsage * 100) + '%'
-									: 'N/A'}
-							</div>
-
-							<div class="text-gray-400">WebGL:</div>
-							<div>{$deviceCapabilities.useWebGL ? 'Enabled' : 'Disabled'}</div>
-
-							<div class="text-gray-400">Battery:</div>
-							<div>
-								{#if $runtimeCapabilities.batteryLevel !== null}
-									{Math.round($runtimeCapabilities.batteryLevel * 100)}%
-									{$runtimeCapabilities.batteryCharging ? '⚡' : ''}
-								{:else}
-									Unknown
-								{/if}
-							</div>
-
-							<div class="text-gray-400">Connection:</div>
-							<div>{$runtimeCapabilities.connectionType}</div>
-
-							{#if $performanceMetrics.debugMode}
-								<div class="text-gray-400">Last events:</div>
-								<div class="max-h-20 overflow-y-auto">
-									{#each $performanceMetrics.eventLog.slice(-3) as event}
-										<div class="truncate text-xs">{event.event}</div>
-									{/each}
-								</div>
-							{/if}
-						</div>
-					</div>
-				{/if}
-
-				<button
-					on:click={toggleAdvanced}
-					class="w-full mt-2 px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-				>
-					{showAdvanced ? 'Hide Advanced' : 'Show Advanced'}
-				</button>
+				<div>
+					Hardware Acceleration: {$deviceCapabilities?.hasGPUAcceleration ? 'Enabled' : 'Disabled'}
+				</div>
+				<div>Frame Skip: {$deviceCapabilities?.frameSkip || 0}</div>
+				<div>Update Interval: {$deviceCapabilities?.updateInterval || 0}ms</div>
 			</div>
 		{/if}
 
-		{#if showSettings}
-			<div class="p-2">
-				<h3 class="text-sm font-bold mb-2 border-b border-gray-700 pb-1">Performance Settings</h3>
-
-				<div class="mb-3">
-					<label class="block text-gray-400 text-xs mb-1">Quality Preference</label>
-					<select
-						bind:value={userTier}
-						class="w-full bg-gray-800 rounded px-2 py-1 border border-gray-700 text-sm"
-					>
-						<option value="auto">Auto-detect (Recommended)</option>
-						<option value="ultra">Ultra - Maximum Quality</option>
-						<option value="high">High Quality</option>
-						<option value="medium">Medium Quality</option>
-						<option value="low">Low Quality - Best Performance</option>
-					</select>
-				</div>
-
-				<div class="mb-3">
-					<label class="flex items-center text-xs">
-						<input type="checkbox" bind:checked={batteryOptimization} class="mr-2" />
-						Battery Optimization Mode
-					</label>
-					<p class="text-gray-400 text-xs mt-1">
-						Reduces animations when not charging or on low battery
-					</p>
-				</div>
-
-				<div class="grid grid-cols-2 gap-2">
-					<button
-						on:click={applyQualitySettings}
-						class="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs"
-					>
-						Apply
-					</button>
-
-					<button
-						on:click={resetQualitySettings}
-						class="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-					>
-						Reset
-					</button>
-				</div>
-
-				<div class="mt-4 text-xs text-gray-400 border-t border-gray-700 pt-2">
-					<div>Keyboard Shortcuts:</div>
-					<div class="grid grid-cols-2 gap-1 mt-1">
-						<div>Alt+P:</div>
-						<div>Toggle Visibility</div>
-						<div>Alt+E:</div>
-						<div>Toggle Expanded</div>
-						<div>Alt+S:</div>
-						<div>Toggle Settings</div>
-						<div>Alt+A:</div>
-						<div>Toggle Advanced</div>
-					</div>
-				</div>
-
-				<button
-					on:click={toggleSettings}
-					class="w-full mt-2 px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-				>
-					Close
-				</button>
-			</div>
-		{/if}
+		<div class="shortcut-hint">Ctrl+Shift+P to toggle | Drag to move</div>
 	</div>
 {/if}
 
 <style>
 	.performance-monitor {
-		width: 240px;
-		transition: all 0.2s ease;
-		box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-		opacity: 0.9;
+		position: fixed;
+		bottom: 10px;
+		right: 10px;
+		background: rgba(0, 0, 0, 0.85);
+		color: white;
+		padding: 0;
+		border-radius: 6px;
+		font-size: 12px;
+		z-index: 9000; /* Lower than mobile menu's z-index of 9999/10000 */
+		transition:
+			opacity 0.3s ease,
+			transform 0.3s ease;
+		min-width: 200px;
+		box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+		overflow: hidden;
+		font-family: monospace;
+		user-select: none;
 	}
 
-	.performance-monitor:hover {
+	.performance-monitor.hidden {
+		opacity: 0;
+		transform: translateY(20px);
+		pointer-events: none;
+		/* Use visibility instead of display:none to keep transitions working */
+		visibility: hidden;
+	}
+
+	.performance-monitor.visible {
 		opacity: 1;
+		transform: translateY(0);
+		pointer-events: auto;
+		visibility: visible;
 	}
 
-	.performance-monitor.expanded {
-		min-height: 200px;
+	.monitor-header {
+		background: rgba(40, 40, 40, 0.9);
+		padding: 5px 10px;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		cursor: move;
+		border-bottom: 1px solid rgba(0, 179, 90, 0.1);
 	}
 
-	.performance-monitor:not(.expanded):not(.settings) {
-		width: auto;
-		min-width: 140px;
+	.title {
+		font-weight: bold;
+		font-size: 11px;
+		text-transform: uppercase;
+		letter-spacing: 1px;
 	}
 
-	@media (max-width: 768px) {
+	.close-btn {
+		cursor: pointer;
+		font-size: 16px;
+		height: 20px;
+		width: 20px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+	}
+
+	.close-btn:hover {
+		background: rgba(255, 255, 255, 0.1);
+	}
+
+	.basic-metrics {
+		padding: 8px 10px;
+		display: grid;
+		gap: 4px;
+	}
+
+	.metrics-toggle {
+		background: rgba(60, 60, 60, 0.6);
+		border: none;
+		color: var(--arcade-neon-green-100);
+		padding: 4px;
+		width: 100%;
+		font-size: 10px;
+		cursor: pointer;
+		text-align: center;
+		border-top: 1px solid rgba(0, 179, 90, 0.1);
+		border-bottom: 1px solid rgba(0, 179, 90, 0.1);
+	}
+
+	.metrics-toggle:hover {
+		background: rgba(80, 80, 80, 0.6);
+	}
+
+	.detailed-metrics {
+		padding: 8px 10px;
+		display: grid;
+		gap: 4px;
+		font-size: 11px;
+		background: rgba(30, 30, 30, 0.6);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+	}
+
+	.shortcut-hint {
+		font-size: 10px;
+		opacity: 0.6;
+		padding: 5px;
+		text-align: center;
+		background: rgba(20, 20, 20, 0.8);
+	}
+
+	/* Hide shortcut hint on smaller screens */
+	@media (max-width: 767px) {
 		.performance-monitor {
-			width: 200px;
-			font-size: 0.75rem;
+			font-size: 10px;
+			min-width: 160px;
 		}
+
+		.detailed-metrics {
+			font-size: 9px;
+		}
+	}
+
+	/* Arcade/gaming theme styles */
+	.performance-monitor {
+		border: 1px solid rgba(0, 255, 255, 0.3);
+	}
+
+	.title {
+		color: var(--arcade-neon-green-100);
+		text-shadow: 0 0 5px rgba(39, 255, 153, o.5);
+	}
+
+	.basic-metrics div,
+	.detailed-metrics div {
+		position: relative;
+		padding-left: 2px;
+	}
+
+	.basic-metrics div::before {
+		content: '>';
+		color: var(--arcade-neon-green-100);
+		margin-right: 4px;
+		opacity: 0.7;
 	}
 </style>

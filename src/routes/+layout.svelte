@@ -1,4 +1,5 @@
 <!-- src/routes/+layout.svelte -->
+
 <script lang="ts">
 	import '../app.css';
 	import Navbar from '$lib/components/layout/Navbar.svelte';
@@ -17,26 +18,17 @@
 	import { layoutStore } from '$lib/stores/store';
 	import MobileNavMenu from '$lib/components/layout/MobileNavMenu.svelte';
 	import Navigation from '$lib/components/layout/Navigation.svelte';
-	import { dev } from '$app/environment';
-	import PerformanceMonitor from '$lib/components/devtools/PerformanceMonitor.svelte';
-	import { frameRateController, debugFrameRateController } from '$lib/utils/frame-rate-controller';
+	import { togglePerformanceMonitor } from '$lib/stores/performance-monitor';
 	import {
-		setupPerformanceMonitoring,
 		deviceCapabilities,
-		overrideCapabilities
+		setupPerformanceMonitoring,
+		setupEventListeners
 	} from '$lib/utils/device-performance';
-
-	// Get server-detected device info
-	export let data;
-	const serverDeviceInfo = data?.deviceInfo;
-
-	// Flag to track if client-side detection has completed
-	let clientDetectionComplete = false;
-
-	// Performance monitoring state
-	let showPerformanceMonitor = dev; // Only show in development by default
-	let perfMonitorExpanded = false;
-	let perfMonitorSettings = false;
+	import { frameRateController } from '$lib/utils/frame-rate-controller';
+	import PerformanceMonitor from '$lib/components/devtools/PerformanceMonitor.svelte';
+	// Import performance monitor visibility store
+	import { perfMonitorVisible } from '$lib/stores/performance-monitor';
+	import SEO from '$lib/components/seo/SEO.svelte';
 
 	// Set loading to true initially to ensure LoadingScreen shows first
 	loadingStore.set(true);
@@ -51,8 +43,15 @@
 	let viewportHeight = 0;
 	let isScrolled = false; // New state for tracking scroll position
 
+	let cleanupPerformanceMonitoring: (() => void) | undefined = undefined;
+	let cleanupEventListeners: (() => void) | undefined = undefined;
+
 	// Create stores with initial values
 	export const navbarHeight = writable(0);
+
+	export let data;
+
+	const { seo, currentPath } = data;
 
 	// Debounced navbar height update function
 	const updateNavHeight = (() => {
@@ -88,11 +87,11 @@
 				const logoWidth = logoWrapper.offsetWidth;
 
 				// Base position calculation for portrait mode
-				let offsetPosition = viewportWidth * 0.23 - logoWidth / 2;
+				let offsetPosition = viewportWidth * 0.36 - logoWidth / 2;
 
 				// Adjust position for landscape mode
 				if (isLandscape) {
-					offsetPosition = viewportWidth * 0.25 - logoWidth / 2;
+					offsetPosition = viewportWidth * 0.5 - logoWidth / 2;
 				}
 
 				// Apply styles efficiently in a single batch
@@ -146,229 +145,133 @@
 		});
 	}
 
-	// Initialize from server data
-	function initializeFromServerData(serverInfo) {
-		if (!serverInfo) return;
-
-		// Map server tier to initial device capabilities
-		let initialSettings = {
-			tier: serverInfo.tier,
-			isMobile: serverInfo.isMobile,
-			isTablet: serverInfo.isTablet,
-			isDesktop: serverInfo.isDesktop,
-			isIOS: serverInfo.isIOS,
-			isAndroid: serverInfo.isAndroid,
-			isSafari: serverInfo.isSafari,
-			browserEngine: serverInfo.browserEngine,
-			deviceYear: serverInfo.deviceYear,
-			// Add a flag to identify that these are server-detected values
-			deviceDetectionSource: 'server'
-		};
-
-		// For iOS devices, apply more aggressive optimizations
-		if (serverInfo.isIOS && serverInfo.isMobile) {
-			// iPhone-specific optimizations
-			initialSettings = {
-				...initialSettings,
-				// Disable expensive effects
-				enableGlow: false,
-				enableBlur: false,
-				enableShadows: false,
-				enableReflections: false,
-				// Reduce animation complexity
-				maxStars: serverInfo.tier === 'low' ? 10 : 20,
-				frameSkip: serverInfo.tier === 'low' ? 3 : 2,
-				renderScale: serverInfo.tier === 'low' ? 0.5 : 0.7,
-				useWebGL: false // WebGL is problematic on iOS
-			};
+	function handleKeyDown(event: KeyboardEvent) {
+		// Use Ctrl+Shift+P to toggle performance monitor
+		if (event.ctrlKey && event.shiftKey && event.key === 'P') {
+			togglePerformanceMonitor();
+			event.preventDefault();
 		}
-
-		// Apply the initial server-detected settings
-		overrideCapabilities(initialSettings);
 	}
 
-	// Initialize performance monitoring
-	function initPerformanceFramework() {
-		if (!browser) return;
-
-		// Only run once
-		if (window.__performanceInitialized) return;
-		window.__performanceInitialized = true;
-
-		console.log('Initializing performance framework...');
-
-		// Setup keyboard shortcut to toggle performance monitor
-		window.addEventListener('keydown', (e) => {
-			// Alt+P to toggle performance monitor
-			if (e.altKey && e.key === 'p') {
-				showPerformanceMonitor = !showPerformanceMonitor;
-				e.preventDefault();
-			}
-		});
-
-		// Initialize the performance monitoring system
-		const cleanup = setupPerformanceMonitoring();
-
-		// Set appropriate quality level based on device type
-		if (browser) {
-			const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-
-			// Detect if we're on an iPhone 14/15 with performance issues
-			if (isIOS && /iPhone 1[45]/.test(navigator.userAgent)) {
-				// Force low quality for problematic devices
-				deviceCapabilities.update((caps) => ({
-					...caps,
-					tier: 'low',
-					subTier: 5,
-					frameSkip: 2,
-					updateInterval: 32,
-					renderScale: 0.6,
-					animateInBackground: false,
-					enableGlow: false,
-					enableBlur: false,
-					enableShadows: false,
-					enableReflections: false
-				}));
-
-				console.info('Applied specific optimizations for iPhone 14/15');
-			}
-		}
-
-		// Subscribe to device capabilities changes to detect when client-side
-		// detection has completed and updated the store
-		const unsubscribe = deviceCapabilities.subscribe((capabilities) => {
-			if (!clientDetectionComplete && capabilities.deviceDetectionSource === 'client') {
-				clientDetectionComplete = true;
-
-				// Smoothly transition to client-detected settings
-				// instead of an abrupt change
-				frameRateController.transitionToQuality(capabilities.qualityFactor || 0.8);
-			}
-		});
-
-		// Enable specific optimizations for development
-		if (dev) {
-			debugFrameRateController(true);
-		}
-
-		return () => {
-			cleanup && cleanup();
-			unsubscribe();
-		};
-	}
-
-	// Initialization and cleanup logic
 	onMount(() => {
-		// Initialize with server-detected capabilities while client detection runs
-		if (serverDeviceInfo) {
-			initializeFromServerData(serverDeviceInfo);
-			console.log('Initialized with server-detected device tier:', serverDeviceInfo.tier);
-		}
-
-		// Set a timeout to ensure we revert to client detection if it doesn't complete quickly
-		const detectionTimeout = setTimeout(() => {
-			// Mark client detection as complete (even if it failed)
-			clientDetectionComplete = true;
-		}, 1000);
-
 		// Theme initialization
 		const savedTheme = localStorage.getItem('theme') || 'dark';
 		theme.set(savedTheme);
-		document.documentElement.classList.add(savedTheme);
 
-		// Initialize ResizeObserver for navbar height
-		if (navbarElement) {
-			resizeObserver = new ResizeObserver(updateNavHeight);
-			resizeObserver.observe(navbarElement);
-		}
-
-		// Setup logo positioning - only in browser
 		if (browser) {
+			document.documentElement.classList.add(savedTheme);
+
+			// Initialize ResizeObserver for navbar height
+			if (navbarElement) {
+				resizeObserver = new ResizeObserver(updateNavHeight);
+				resizeObserver.observe(navbarElement);
+			}
+
+			// Enable performance monitoring
+			if (typeof setupPerformanceMonitoring === 'function') {
+				cleanupPerformanceMonitoring = setupPerformanceMonitoring();
+			}
+
+			if (typeof setupEventListeners === 'function') {
+				cleanupEventListeners = setupEventListeners();
+			}
+
+			// Enable debug mode during development
+			if (import.meta.env.DEV) {
+				frameRateController.setDebugMode(true);
+			}
+
+			// Setup logo positioning
 			updateLogoPosition();
 
 			// Add multiple event listeners to catch all possible triggers
 			window.addEventListener('resize', updateLogoPosition);
 			window.addEventListener('orientationchange', updateLogoPosition);
 			window.addEventListener('scroll', handleScroll, { passive: true }); // Add scroll listener with passive flag
+			window.addEventListener('keydown', handleKeyDown);
 
 			// Force repaint on orientation change with a slight delay
 			window.addEventListener('orientationchange', () => {
 				setTimeout(updateLogoPosition, 100);
 			});
-
-			// Initialize performance framework after component is mounted
-			const perfCleanup = initPerformanceFramework();
-
-			// Store cleanup function
-			if (perfCleanup) {
-				onDestroy(perfCleanup);
-			}
 		}
 
 		// Loading screen handling
-		Promise.all([
-			document.fonts.ready,
-			new Promise((resolve) => {
-				if (document.readyState === 'complete') {
-					resolve(true);
-				} else {
-					window.addEventListener('load', () => resolve(true), { once: true });
-				}
-			})
-		]).then(() => {
-			setTimeout(() => loadingStore.set(false), 1500);
-		});
-
-		// Immediately try to remove any lingering initial-loader from app.html
 		if (browser) {
+			Promise.all([
+				document.fonts.ready,
+				new Promise((resolve) => {
+					if (document.readyState === 'complete') {
+						resolve(true);
+					} else {
+						window.addEventListener('load', () => resolve(true), { once: true });
+					}
+				})
+			]).then(() => {
+				setTimeout(() => loadingStore.set(false), 1500);
+			});
+
+			// Immediately try to remove any lingering initial-loader from app.html
 			const initialLoader = document.getElementById('initial-loader');
 			if (initialLoader) {
 				initialLoader.style.display = 'none';
 			}
 		}
-
-		return () => {
-			clearTimeout(detectionTimeout);
-		};
 	});
 
 	onDestroy(() => {
-		if (resizeObserver) {
-			resizeObserver.disconnect();
-		}
-		// Remove event listeners only if in browser
 		if (browser) {
+			if (resizeObserver) {
+				resizeObserver.disconnect();
+			}
+
+			// Remove event listeners
 			window.removeEventListener('resize', updateLogoPosition);
 			window.removeEventListener('orientationchange', updateLogoPosition);
-			window.removeEventListener('scroll', handleScroll); // Clean up scroll listener
+			window.removeEventListener('scroll', handleScroll);
+			window.removeEventListener('keydown', handleKeyDown);
+
+			// Clean up monitoring
+			if (cleanupPerformanceMonitoring) cleanupPerformanceMonitoring();
+			if (cleanupEventListeners) cleanupEventListeners();
+		}
+
+		// Safely clean up controller only in browser context
+		if (browser) {
+			frameRateController.cleanup();
 		}
 	});
 </script>
 
-<!-- Make TypeScript happy by adding this to the global window object -->
-<svelte:head>
-	{#if browser}
-		<script>
-			// Extend window interface for TypeScript
-			window.__performanceInitialized = false;
-		</script>
-	{/if}
-	{#if data && data.deviceTierMeta}
-		{@html data.deviceTierMeta}
-	{/if}
-</svelte:head>
-
 <!-- Template section -->
 <LoadingScreen />
 
-<!-- Performance Monitor Component -->
-{#if browser}
-	<PerformanceMonitor
-		visible={showPerformanceMonitor}
-		expanded={perfMonitorExpanded}
-		showSettings={perfMonitorSettings}
+<svelte:head>
+	<!-- Open Graph Meta Tags for Social Media Sharing -->
+	<meta property="og:title" content="Jo Pearson | Design Engineer" />
+	<meta property="og:description" content="Personal design and development web portfolio" />
+	<!-- Make sure to update +layout.ts when updating URL too!!! -->
+	<meta
+		property="og:image"
+		content="https://jopearsondesigner.github.io/personal-website-new/assets/images/seo/social-share.png"
 	/>
-{/if}
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta
+		property="og:url"
+		content="https://jopearsondesigner.github.io/personal-website-new/#hero"
+	/>
+	<meta property="og:type" content="website" />
+
+	<!-- Twitter Card Meta Tags -->
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content="Jo Pearson | Design Engineer" />
+	<meta name="twitter:description" content="Personal design and development web portfolio" />
+	<meta
+		name="twitter:image"
+		content="https://jopearsondesigner.github.io/personal-website-new/assets/images/seo/social-share.png"
+	/>
+</svelte:head>
 
 <nav
 	bind:this={navbarElement}
@@ -389,14 +292,14 @@
 		<!-- Logo wrapper with binding for positioning -->
 		<div bind:this={logoWrapper} class="logo-wrapper md:hidden absolute z-30">
 			<NavBrand href="/">
-				<img src={logo} alt="Jo Pearson Logo" class="h-9 w-9 mr-[8px] pt-1 header-logo-pulse" />
+				<img src={logo} alt="Jo Pearson Logo" class="h-10 w-10 mr-[8px] pb-1 header-logo-pulse" />
 			</NavBrand>
 		</div>
 
 		<!-- Desktop logo that remains left-aligned -->
 		<div class="hidden md:block">
 			<NavBrand href="/">
-				<img src={logo} alt="Jo Pearson Logo" class="h-9 w-9 mr-[8px] pt-1 header-logo-pulse" />
+				<img src={logo} alt="Jo Pearson Logo" class="h-10 w-10 mr-[8px] pb-1 header-logo-pulse" />
 				<span
 					class="hidden lg:inline-block text-[16px] header-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[24.96px] mt-[5px]"
 				>
@@ -431,6 +334,9 @@
 <main bind:this={contentWrapper} class="content-wrapper">
 	<slot />
 </main>
+
+<!-- Always include the Performance Monitor, visibility controlled by the store -->
+<PerformanceMonitor />
 
 <Footer />
 

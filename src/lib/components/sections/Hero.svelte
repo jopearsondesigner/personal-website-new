@@ -1,7 +1,8 @@
-<!-- src/lib/components/sections/Hero.svelte -->
+<!-- src/lib/components/section/Hero.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
+	import { gsap } from 'gsap';
 	import { get } from 'svelte/store';
 	import ArcadeCtaButton from '$lib/components/ui/ArcadeCtaButton.svelte';
 	import ArcadeNavigation from '$lib/components/ui/ArcadeNavigation.svelte';
@@ -12,12 +13,10 @@
 	import GameControls from '$lib/components/game/GameControls.svelte';
 	import { deviceCapabilities, setupPerformanceMonitoring } from '$lib/utils/device-performance';
 	import { CanvasStarFieldManager } from '$lib/utils/canvas-star-field';
-	import {
-		createOptimizedTimeline,
-		createOptimizedTween,
-		animationController
-	} from '$lib/utils/animation-controller';
+	import { MemoryMonitor } from '$lib/utils/memory-monitor';
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
+	import { createThrottledRAF } from '$lib/utils/animation-helpers';
+	import StarField from '$lib/components/effects/StarField.svelte';
 
 	// Device detection state
 	let isMobileDevice = false;
@@ -33,21 +32,28 @@
 	let currentScreen = 'main';
 	let stars: ReturnType<StarFieldManager['getStars']> = [];
 	let starFieldManager: InstanceType<typeof animations.StarFieldManager>;
+	let canvasStarFieldManager: CanvasStarFieldManager | null = null;
 	let glitchManager: InstanceType<typeof animations.GlitchManager>;
 	let resizeObserver: ResizeObserver | null = null;
 	let orientationTimeout: number | null = null;
 	let hasError = false;
+	let memoryMonitor: MemoryMonitor | null = null;
+	let eventHandlers: {
+		resize?: EventListener;
+		orientationChange?: EventListener;
+		visibility?: EventListener;
+		touchStart?: EventListener;
+	} = {};
+
+	// StarField component reference
+	let starFieldComponent: StarField;
 
 	// Reactive statements with performance optimizations
 	$: stars = $animationState.stars;
 
 	$: if (browser) {
-		requestAnimationFrame(() => {
-			document.documentElement.style.setProperty(
-				'--navbar-height',
-				`${$layoutStore.navbarHeight}px`
-			);
-		});
+		// Immediately update the CSS variable without RAF
+		document.documentElement.style.setProperty('--navbar-height', `${$layoutStore.navbarHeight}px`);
 	}
 
 	// Device detection function
@@ -82,17 +88,50 @@
 			};
 
 			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-				// Reset animation state before starting new animations
+				// We need to reset animation state AND check if we need to reinitialize the star field
 				animationState.resetAnimationState();
 
-				// Initialize starFieldManager if it doesn't exist
-				if (!starFieldManager) {
-					starFieldManager = new animations.StarFieldManager(animationState);
+				// If we're using the StarField component, start/restart it
+				if (starFieldComponent && starContainer) {
+					starFieldComponent.start();
+				}
+				// If the star field manager exists but was stopped, we should restart it
+				else if (canvasStarFieldManager) {
+					// First check if the canvas still exists - it might have been removed when switching screens
+					const canvasExists = starContainer && starContainer.querySelector('.star-field-canvas');
+
+					if (!canvasExists) {
+						// Canvas was removed, we need to re-create it
+						canvasStarFieldManager.setContainer(starContainer);
+					}
+
+					// Start the star field animation
+					canvasStarFieldManager.start();
+				}
+				// Initialize canvas star field manager if it doesn't exist
+				else if (starContainer) {
+					// Get device-appropriate star count
+					const capabilities = get(deviceCapabilities);
+					const starCount =
+						capabilities.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
+
+					// Create a new canvas star field manager
+					canvasStarFieldManager = new CanvasStarFieldManager(animationState, starCount);
+
+					// Set the container for the canvas
+					canvasStarFieldManager.setContainer(starContainer);
+
+					// Configure features based on device capabilities
+					canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice);
+					canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
 				}
 
 				// Use Promise.resolve().then to ensure DOM is ready
 				Promise.resolve().then(() => {
-					starFieldManager?.start();
+					// Make sure we start the stars if not using the StarField component
+					if (!starFieldComponent && canvasStarFieldManager) {
+						canvasStarFieldManager.start();
+					}
 					startAnimations(elements);
 				});
 			}
@@ -104,8 +143,52 @@
 	// Event handlers
 	function handleScreenChange(event: CustomEvent) {
 		const newScreen = event.detail;
+		const prevScreen = currentScreen;
+
+		// Don't do anything if screen hasn't changed
+		if (newScreen === prevScreen) return;
+
+		// Update the screen state
 		screenStore.set(newScreen);
 		currentScreen = newScreen;
+
+		// Create a transition function to handle the change
+		const performTransition = () => {
+			// Stop current animations only if needed
+			if (prevScreen === 'main' && newScreen !== 'main') {
+				// We're leaving the main screen, stop animations
+				stopAnimations();
+			} else if (newScreen === 'main' && prevScreen !== 'main') {
+				// We're returning to main screen, restart animations
+				if (starFieldComponent && starContainer) {
+					// First ensure the container is properly set
+					starFieldComponent.start();
+				} else if (canvasStarFieldManager && starContainer) {
+					// First ensure the container is properly set
+					canvasStarFieldManager.setContainer(starContainer);
+
+					// Then restart the animation
+					canvasStarFieldManager.start();
+
+					// Start other animations if elements exist
+					const elements = { header, insertConcept, arcadeScreen };
+					if (elements.header && elements.insertConcept && elements.arcadeScreen) {
+						// Only reset animation state flags, not the whole state
+						animationState.resetAnimationState();
+						startAnimations(elements);
+					}
+				}
+			}
+
+			// Dispatch a custom event for screen transition complete
+			const detail = { from: prevScreen, to: newScreen };
+			if (arcadeScreen) {
+				arcadeScreen.dispatchEvent(new CustomEvent('screentransitioncomplete', { detail }));
+			}
+		};
+
+		// Use requestAnimationFrame for smoother transitions
+		requestAnimationFrame(performTransition);
 	}
 
 	function handleControlInput(event: CustomEvent) {
@@ -148,14 +231,12 @@
 	}
 
 	// Timeline creation helper
-	function createHeroTimeline(elements: any) {
+	function createOptimizedTimeline(elements: any) {
 		if (!browser) return null;
 
 		try {
 			const isMobile = window.innerWidth < 768;
 			const isLowPerformance = isLowPerformanceDevice;
-			const capabilities = get(deviceCapabilities);
-			const quality = frameRateController.getCurrentQuality();
 
 			// Clear any existing timelines
 			if (currentTimeline) {
@@ -163,9 +244,9 @@
 			}
 
 			// When in lower performance mode, use simpler animations
-			if (isLowPerformance || quality < 0.4 || capabilities.tier === 'low') {
-				// Create simpler timeline using the animation controller
-				const timeline = createOptimizedTimeline({
+			if (isLowPerformance) {
+				// Create simpler timeline
+				const timeline = gsap.timeline({
 					paused: true,
 					repeat: -1,
 					defaults: {
@@ -185,8 +266,8 @@
 				return timeline;
 			}
 
-			// Standard timeline with device-appropriate settings using the animation controller
-			const timeline = createOptimizedTimeline({
+			// Standard timeline with device-appropriate settings
+			const timeline = gsap.timeline({
 				paused: true,
 				defaults: {
 					ease: 'power1.inOut',
@@ -200,52 +281,24 @@
 			const animDistance = isMobile ? 1 : 2; // Less movement on mobile
 			const opacityDuration = isMobile ? 1.5 : 1; // Slower fade on mobile
 
-			// Use conditional animation based on quality
-			animationController.conditionalAnimate(
-				0.7, // Only run more complex animation when quality is 70% or higher
-				() => {
-					// More complex animation for higher quality
-					timeline
-						.to([elements.header, elements.insertConcept], {
-							duration: animDuration,
-							y: `+=${animDistance}`,
-							repeat: -1,
-							yoyo: true
-						})
-						.to(
-							elements.insertConcept,
-							{
-								duration: opacityDuration,
-								opacity: 0,
-								repeat: -1,
-								yoyo: true,
-								ease: 'none'
-							},
-							0
-						);
-				},
-				() => {
-					// Simpler animation for medium quality
-					timeline
-						.to(elements.header, {
-							duration: animDuration * 1.2,
-							y: `+=${animDistance * 0.8}`,
-							repeat: -1,
-							yoyo: true
-						})
-						.to(
-							elements.insertConcept,
-							{
-								duration: opacityDuration * 1.2,
-								opacity: 0.3,
-								repeat: -1,
-								yoyo: true,
-								ease: 'power1.inOut'
-							},
-							0
-						);
-				}
-			);
+			timeline
+				.to([elements.header, elements.insertConcept], {
+					duration: animDuration,
+					y: `+=${animDistance}`,
+					repeat: -1,
+					yoyo: true
+				})
+				.to(
+					elements.insertConcept,
+					{
+						duration: opacityDuration,
+						opacity: 0,
+						repeat: -1,
+						yoyo: true,
+						ease: 'none'
+					},
+					0
+				);
 
 			return timeline;
 		} catch (error) {
@@ -266,26 +319,41 @@
 				stopAnimations(); // Stop existing animations first
 			}
 
-			// Get device capabilities and current quality
-			const capabilities = get(deviceCapabilities);
-			const quality = frameRateController.getCurrentQuality();
+			// Start StarField component if available
+			if (starFieldComponent) {
+				starFieldComponent.start();
+			}
+			// Start canvas star field if it exists and StarField component isn't used
+			else if (canvasStarFieldManager) {
+				// Get device-appropriate settings from capabilities
+				const capabilities = get(deviceCapabilities);
 
-			// Initialize star field manager with device-appropriate settings
-			if (!starFieldManager) {
+				// Apply device capability adaptations if available
+				if (capabilities) {
+					canvasStarFieldManager.adaptToDeviceCapabilities(capabilities);
+				}
+
+				canvasStarFieldManager.start();
+			}
+			// Initialize canvas star field manager if it doesn't exist
+			else if (starContainer && !starFieldComponent) {
 				// Get device-appropriate star count
-				const starCount = isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60;
-				starFieldManager = new animations.StarFieldManager(animationState, starCount);
+				const capabilities = get(deviceCapabilities);
+				const starCount =
+					capabilities.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
 
-				// Configure worker usage based on device
-				const useWorker = !isLowPerformanceDevice && capabilities.tier !== 'low'; // Workers can be expensive on low-end devices
-				starFieldManager.setUseWorker(useWorker);
+				// Create a new canvas star field manager
+				canvasStarFieldManager = new CanvasStarFieldManager(animationState, starCount);
 
-				// Start with minimal or full parallax based on device
-				starFieldManager.setUseContainerParallax(
-					!isLowPerformanceDevice && capabilities.tier !== 'low'
-				);
+				// Set the container for the canvas
+				canvasStarFieldManager.setContainer(starContainer);
 
-				starFieldManager.start();
+				// Configure features based on device capabilities
+				canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice);
+				canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
+
+				// Start the animation
+				canvasStarFieldManager.start();
 			}
 
 			// Initialize glitch manager with enhanced settings
@@ -293,8 +361,8 @@
 				glitchManager.cleanup();
 			}
 
-			// Only use glitch effects on capable devices with good quality
-			if (!isLowPerformanceDevice && capabilities.tier !== 'low' && quality > 0.6) {
+			// Only use glitch effects on capable devices
+			if (!isLowPerformanceDevice) {
 				glitchManager = new animations.GlitchManager();
 
 				// Use less intense glitch on mobile
@@ -306,23 +374,57 @@
 				glitchManager.start([elements.header]); // Apply only to header
 			}
 
+			// Initialize memory monitoring if not already
+			if (
+				!memoryMonitor &&
+				browser &&
+				'performance' in window &&
+				'memory' in (performance as any)
+			) {
+				memoryMonitor = new MemoryMonitor(
+					30000, // Check every 30 seconds
+					0.7, // Warning at 70%
+					0.85, // Critical at 85%
+					() => {
+						// On warning - reduce effects
+						if (canvasStarFieldManager) {
+							canvasStarFieldManager.enableGlow = false;
+						}
+						if (starFieldComponent) {
+							starFieldComponent.enableGlow = false;
+						}
+					},
+					() => {
+						// On critical - reduce star count and effects
+						if (canvasStarFieldManager) {
+							const currentCount = canvasStarFieldManager.getStarCount();
+							canvasStarFieldManager.setStarCount(Math.floor(currentCount * 0.6)); // Reduce by 40%
+							canvasStarFieldManager.enableGlow = false;
+							canvasStarFieldManager.setUseContainerParallax(false);
+						}
+						if (starFieldComponent) {
+							// Reduce the star count in the StarField component
+							const capabilities = get(deviceCapabilities);
+							const currentCount = capabilities.maxStars || 60;
+							const reducedCount = Math.floor(currentCount * 0.6);
+							starFieldComponent.starCount = reducedCount;
+							starFieldComponent.enableGlow = false;
+						}
+
+						// Suggest garbage collection
+						memoryMonitor?.suggestGarbageCollection();
+					}
+				);
+
+				memoryMonitor.start();
+			}
+
 			// Create and start optimized GSAP timeline
-			const timeline = createHeroTimeline(elements);
+			const timeline = createOptimizedTimeline(elements);
 
 			if (timeline) {
 				currentTimeline = timeline;
-
-				// Only play when frame rate controller allows
-				if (frameRateController.shouldRenderFrame()) {
-					timeline.play();
-				} else {
-					// Try again on next frame
-					requestAnimationFrame(() => {
-						if (timeline && frameRateController.shouldRenderFrame()) {
-							timeline.play();
-						}
-					});
-				}
+				timeline.play();
 			}
 
 			// Update animation state
@@ -338,6 +440,15 @@
 
 	function stopAnimations() {
 		if (!browser) return;
+
+		// Stop StarField component if available
+		if (starFieldComponent) {
+			starFieldComponent.stop();
+		}
+		// Stop canvas star field
+		else if (canvasStarFieldManager) {
+			canvasStarFieldManager.stop();
+		}
 
 		// Stop glitch manager
 		if (glitchManager) {
@@ -359,11 +470,183 @@
 			currentTimeline = null;
 		}
 
+		// Clear any animation frames
+		if (typeof window !== 'undefined' && gsap && gsap.ticker) {
+			// No need for animateFunction reference that doesn't exist
+			gsap.ticker.remove(null);
+		}
+
 		// Don't reset animation state entirely, just update isAnimating
 		animationState.update((state) => ({
 			...state,
 			isAnimating: false
 		}));
+	}
+
+	// Focused initialization functions
+	function initializeComponents() {
+		// Detect device capabilities
+		detectDeviceCapabilities();
+
+		// Initialize memory monitoring
+		initializeMemoryMonitoring();
+
+		// Add iOS-specific fixes
+		if (browser && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
+			// Apply iOS fixes to the arcade screen
+			if (arcadeScreen) {
+				// Use transform for hardware acceleration
+				arcadeScreen.style.transform = 'translateZ(0)';
+				arcadeScreen.style.backfaceVisibility = 'hidden';
+
+				// Fix flickering on scroll
+				arcadeScreen.style.WebkitBackfaceVisibility = 'hidden';
+
+				// Simplify effects for iOS performance
+				arcadeScreen.classList.add('ios-optimized');
+			}
+
+			// Apply fixes to the star container
+			if (starContainer) {
+				starContainer.style.transform = 'translateZ(0)';
+				starContainer.style.backfaceVisibility = 'hidden';
+				starContainer.style.WebkitBackfaceVisibility = 'hidden';
+			}
+		}
+	}
+
+	function initializeMemoryMonitoring() {
+		if (!memoryMonitor && browser && 'performance' in window && 'memory' in (performance as any)) {
+			memoryMonitor = new MemoryMonitor(
+				30000, // Check every 30 seconds
+				0.7, // Warning at 70%
+				0.85, // Critical at 85%
+				() => {
+					// On warning - reduce effects
+					if (canvasStarFieldManager) {
+						canvasStarFieldManager.enableGlow = false;
+					}
+					if (starFieldComponent) {
+						starFieldComponent.enableGlow = false;
+					}
+				},
+				() => {
+					// On critical - reduce star count and effects
+					if (canvasStarFieldManager) {
+						const currentCount = canvasStarFieldManager.getStarCount();
+						canvasStarFieldManager.setStarCount(Math.floor(currentCount * 0.6)); // Reduce by 40%
+						canvasStarFieldManager.enableGlow = false;
+						canvasStarFieldManager.setUseContainerParallax(false);
+					}
+					if (starFieldComponent) {
+						// Reduce the star count in the StarField component
+						const capabilities = get(deviceCapabilities);
+						const currentCount = capabilities.maxStars || 60;
+						const reducedCount = Math.floor(currentCount * 0.6);
+						starFieldComponent.starCount = reducedCount;
+						starFieldComponent.enableGlow = false;
+					}
+
+					// Suggest garbage collection
+					memoryMonitor?.suggestGarbageCollection();
+				}
+			);
+
+			memoryMonitor.start();
+		}
+	}
+
+	function initializeAnimations() {
+		if (currentScreen === 'main') {
+			const elements = { header, insertConcept, arcadeScreen };
+			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
+				// Reset animation state flags only
+				animationState.resetAnimationState();
+
+				// Start animations
+				startAnimations(elements);
+			}
+		}
+	}
+
+	function setupEventListeners() {
+		// Define optimized event handlers
+		const optimizedResizeCheck = createThrottledRAF(() => {
+			// Update device capabilities on resize
+			detectDeviceCapabilities();
+			debouncedOrientationCheck();
+
+			// Notify canvas manager of resize if it exists
+			if (canvasStarFieldManager) {
+				canvasStarFieldManager.resizeCanvas();
+			}
+		}, 100);
+
+		const visibilityHandler = () => {
+			if (document.hidden) {
+				// Pause animations when tab is not visible
+				if (canvasStarFieldManager) {
+					canvasStarFieldManager.pause();
+				}
+				if (starFieldComponent) {
+					starFieldComponent.pause();
+				}
+			} else {
+				// Resume animations when tab is visible again
+				if (canvasStarFieldManager) {
+					canvasStarFieldManager.resume();
+				}
+				if (starFieldComponent) {
+					starFieldComponent.resume();
+				}
+			}
+		};
+
+		const orientationChangeHandler = () => {
+			// Detect new device capabilities after orientation change
+			setTimeout(detectDeviceCapabilities, 300);
+		};
+
+		// Create touch event handler for mobile
+		const touchStartHandler = (e: TouchEvent) => {
+			if (currentScreen === 'game') {
+				e.preventDefault();
+			}
+		};
+
+		// Use passive option for all event listeners
+		const passiveOptions = { passive: true };
+		const nonPassiveOptions = { passive: false };
+
+		// Setup resize observer with optimized callback
+		resizeObserver = new ResizeObserver(optimizedResizeCheck);
+		if (arcadeScreen) {
+			resizeObserver.observe(arcadeScreen);
+
+			// Add touch handler to arcade screen
+			if (isMobileDevice) {
+				arcadeScreen.addEventListener('touchstart', touchStartHandler as any, nonPassiveOptions);
+			}
+		}
+
+		// Add event listeners
+		window.addEventListener('resize', optimizedResizeCheck, passiveOptions);
+		window.addEventListener('orientationchange', orientationChangeHandler, passiveOptions);
+		document.addEventListener('visibilitychange', visibilityHandler, passiveOptions);
+
+		// Add passive touch events for better scrolling performance on mobile
+		if (isMobileDevice) {
+			document.addEventListener('touchstart', () => {}, { passive: true });
+			document.addEventListener('touchmove', () => {}, { passive: true });
+		}
+
+		// Store handlers for cleanup
+		eventHandlers = {
+			resize: optimizedResizeCheck as EventListener,
+			orientationChange: orientationChangeHandler as EventListener,
+			visibility: visibilityHandler as EventListener,
+			touchStart: touchStartHandler as EventListener
+		};
 	}
 
 	// Lifecycle hooks
@@ -372,122 +655,41 @@
 
 		currentScreen = 'main';
 
-		// Detect device capabilities
-		detectDeviceCapabilities();
+		// Initialize core components
+		initializeComponents();
 
-		// Use passive option for all event listeners
-		const passiveOptions = { passive: true };
-
-		// Setup resize observer with optimized callback
-		const optimizedResizeCheck = () => {
-			// Update device capabilities on resize
-			detectDeviceCapabilities();
-			debouncedOrientationCheck();
-		};
-
-		resizeObserver = new ResizeObserver(optimizedResizeCheck);
-		if (arcadeScreen) {
-			resizeObserver.observe(arcadeScreen);
-		}
+		// Set up event listeners (with passive option)
+		setupEventListeners();
 
 		// Initial setup - use RAF for first render timing
 		const initialRaf = requestAnimationFrame(() => {
-			arcadeScreen?.classList.add('power-sequence');
+			// Apply power-up sequence effect
+			if (arcadeScreen) {
+				arcadeScreen.classList.add('power-sequence');
+			}
+
+			// Check orientation initially
 			handleOrientation();
 
-			// Check if it's a device that needs delay for initial render
-			const needsDelay = isMobileDevice || isLowPerformanceDevice;
-			const delayTime = isLowPerformanceDevice ? 500 : 300; // Longer delay for low-perf
-
-			// Start animations with a slight delay on mobile to allow initial render to complete
-			if (needsDelay) {
-				setTimeout(() => {
-					if (currentScreen === 'main') {
-						const elements = { header, insertConcept, arcadeScreen };
-						if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-							animationState.resetAnimationState();
-							if (!starFieldManager) {
-								// Use device-appropriate settings
-								const capabilities = get(deviceCapabilities);
-								const starCount = isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60;
-								starFieldManager = new animations.StarFieldManager(animationState, starCount);
-
-								// Disable worker for low-performance devices
-								starFieldManager.setUseWorker(capabilities.tier !== 'low');
-
-								// Disable parallax for low-performance devices
-								starFieldManager.setUseContainerParallax(capabilities.tier !== 'low');
-							}
-
-							// Only start if the frame rate controller allows
-							if (frameRateController.shouldRenderFrame()) {
-								starFieldManager?.start();
-								startAnimations(elements);
-							} else {
-								// Try again on next frame
-								requestAnimationFrame(() => {
-									if (frameRateController.shouldRenderFrame()) {
-										starFieldManager?.start();
-										startAnimations(elements);
-									}
-								});
-							}
-						}
-					}
-				}, delayTime);
+			// Delayed start of animations (helps with initial render)
+			if (isMobileDevice) {
+				setTimeout(initializeAnimations, 300);
 			} else {
-				// For high-performance devices, start immediately
-				if (currentScreen === 'main') {
-					const elements = { header, insertConcept, arcadeScreen };
-					if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-						animationState.resetAnimationState();
-						if (!starFieldManager) {
-							starFieldManager = new animations.StarFieldManager(animationState);
-						}
-
-						// Only start when frame rate controller allows
-						if (frameRateController.shouldRenderFrame()) {
-							starFieldManager?.start();
-							startAnimations(elements);
-						} else {
-							requestAnimationFrame(() => {
-								if (frameRateController.shouldRenderFrame()) {
-									starFieldManager?.start();
-									startAnimations(elements);
-								}
-							});
-						}
-					}
-				}
+				initializeAnimations();
 			}
 		});
 
-		// Add event listener with passive option for better touch performance
-		window.addEventListener('resize', optimizedResizeCheck, passiveOptions);
-
-		// Add orientation change listener with passive option
-		window.addEventListener(
-			'orientationchange',
-			() => {
-				// Detect new device capabilities after orientation change
-				setTimeout(detectDeviceCapabilities, 300);
-			},
-			passiveOptions
-		);
-
 		return () => {
-			window.removeEventListener('resize', optimizedResizeCheck);
-			window.removeEventListener('orientationchange', detectDeviceCapabilities);
-			orientationTimeout && clearTimeout(orientationTimeout);
+			// Cleanup function called if component is unmounted before destroy
 			if (initialRaf) cancelAnimationFrame(initialRaf);
-
-			// Ensure animations are stopped
-			stopAnimations();
 		};
 	});
 
 	onDestroy(() => {
 		if (!browser) return;
+
+		// Get handlers
+		const { resize, orientationChange, visibility, touchStart } = eventHandlers || {};
 
 		// Cleanup all animations and managers
 		stopAnimations();
@@ -495,15 +697,22 @@
 		// Reset animation state
 		animationState.reset();
 
-		// Proper cleanup of managers
-		if (starFieldManager) {
-			starFieldManager.cleanup();
-			starFieldManager = null;
+		// Properly cleanup canvas star field manager
+		if (canvasStarFieldManager) {
+			canvasStarFieldManager.cleanup();
+			canvasStarFieldManager = null;
 		}
 
+		// Cleanup other managers
 		if (glitchManager) {
 			glitchManager.cleanup();
 			glitchManager = null;
+		}
+
+		// Stop memory monitoring
+		if (memoryMonitor) {
+			memoryMonitor.stop();
+			memoryMonitor = null;
 		}
 
 		// Cleanup resize observer
@@ -518,13 +727,40 @@
 			orientationTimeout = null;
 		}
 
+		// Remove event listeners with the same handlers that were added
+		if (resize) window.removeEventListener('resize', resize);
+		if (orientationChange) window.removeEventListener('orientationchange', orientationChange);
+		if (visibility) document.removeEventListener('visibilitychange', visibility);
+
+		// Remove any other event listeners that might have been added
+		if (arcadeScreen && touchStart) {
+			arcadeScreen.removeEventListener('touchstart', touchStart);
+		}
+
+		// Manually nullify references to DOM elements
+		header = null;
+		insertConcept = null;
+		arcadeScreen = null;
+		starContainer = null;
+		spaceBackground = null;
+
 		// Force garbage collection hint when available
-		if (window.gc) {
+		if ((window as any).gc) {
 			try {
-				window.gc();
+				(window as any).gc();
 			} catch (e) {
 				// Ignore errors in garbage collection
 			}
+		}
+
+		// Clear any other references or pending operations
+		currentTimeline = null;
+		stars = [];
+
+		// Clean up any GSAP animations that might still be running
+		if (typeof window !== 'undefined' && gsap && gsap.ticker) {
+			gsap.ticker.remove(null);
+			gsap.globalTimeline.clear();
 		}
 	});
 </script>
@@ -557,7 +793,7 @@
 				<div class="screen-bezel rounded-[3vmin] overflow-hidden"></div>
 				<div
 					id="arcade-screen"
-					class="crt-screen hardware-accelerated relative w-[90vw] h-[70vh] md:w-[80vw] md:h-[600px] glow rounded-[3vmin] overflow-hidden"
+					class="crt-screen hardware-accelerated relative glow rounded-[3vmin] overflow-hidden"
 					bind:this={arcadeScreen}
 				>
 					<div class="phosphor-decay rounded-[3vmin]"></div>
@@ -582,9 +818,21 @@
 							bind:this={spaceBackground}
 						>
 							<div
-								class="star-container absolute inset-0 pointer-events-none rounded-[3vmin]"
+								class="canvas-star-container absolute inset-0 pointer-events-none rounded-[3vmin]"
 								bind:this={starContainer}
 							>
+								{#if starContainer}
+									<StarField
+										bind:this={starFieldComponent}
+										containerElement={starContainer}
+										autoStart={true}
+										starCount={300}
+										enableBoost={true}
+										enableGlow={true}
+									/>
+								{/if}
+
+								<!-- Fallback stars -->
 								{#each $animationState.stars as star (star.id)}
 									<div class="star absolute" style={star.style}></div>
 								{/each}
@@ -620,7 +868,7 @@
 	{/if}
 </section>
 
-<style>
+<style lang="css">
 	/* ==========================================================================
 	   Root Variables
 	   ========================================================================== */
@@ -664,9 +912,9 @@
 	}
 
 	/* ==========================================================================
-	   Media Queries
-	   ========================================================================== */
-	@media (min-width: 1020px) {
+   Media Queries
+   ========================================================================== */
+	@media (min-width: 768px) {
 		:root {
 			--arcade-screen-width: 80vw;
 			--arcade-screen-height: 600px;
@@ -676,8 +924,8 @@
 	}
 
 	/* ==========================================================================
-	   Layout Components
-	   ========================================================================== */
+   Layout Components
+   ========================================================================== */
 	section {
 		height: calc(100vh - var(--navbar-height, 64px));
 	}
@@ -1299,7 +1547,7 @@
 	   Screen Effects and Overlays
 	   ========================================================================== */
 	#scanline-overlay {
-		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.1) 51%);
+		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.0675) 51%);
 		background-size: 100% 4px;
 		animation: scanline 0.2s linear infinite;
 		border-radius: calc(var(--border-radius) - 0.5vmin);
@@ -1770,5 +2018,44 @@
 	html[data-device-type='low-performance'] .screen-glare {
 		animation: none;
 		transition: none;
+	}
+
+	/* iOS-specific optimizations */
+	.ios-optimized .shadow-mask,
+	.ios-optimized .phosphor-decay {
+		display: none;
+	}
+
+	.ios-optimized .interlace {
+		opacity: 0.3;
+		background-size: 100% 6px;
+	}
+
+	.ios-optimized #scanline-overlay {
+		opacity: 0.5;
+		background-size: 100% 6px;
+	}
+
+	/* ==========================================================================
+      Fix iOS overscroll issues
+      ========================================================================== */
+	@supports (-webkit-overflow-scrolling: touch) {
+		body,
+		html {
+			position: fixed;
+			width: 100%;
+			height: 100%;
+			overflow: hidden;
+		}
+
+		#hero {
+			position: absolute;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			-webkit-overflow-scrolling: touch;
+			overflow-y: scroll;
+		}
 	}
 </style>

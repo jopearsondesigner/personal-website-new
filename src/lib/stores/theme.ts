@@ -10,6 +10,20 @@ function createThemeStore() {
 	// Create the writable store with the default theme
 	const { subscribe, set, update } = writable<'dark' | 'light'>(defaultTheme);
 
+	// Function to update theme metadata
+	const updateThemeMeta = (newTheme: 'dark' | 'light') => {
+		if (browser) {
+			// Update theme-color meta tag
+			const themeColorMeta = document.getElementById('theme-color-meta');
+			if (themeColorMeta) {
+				themeColorMeta.setAttribute('content', newTheme === 'dark' ? '#1a1a1a' : '#d0d0d0');
+			}
+
+			// Remove the favicon switching code since it's not needed
+			// and was causing the URI malformed error
+		}
+	};
+
 	return {
 		subscribe,
 		set,
@@ -25,6 +39,7 @@ function createThemeStore() {
 					set(savedTheme);
 					document.documentElement.classList.add(savedTheme);
 					document.documentElement.classList.remove(savedTheme === 'dark' ? 'light' : 'dark');
+					updateThemeMeta(savedTheme);
 				} else {
 					// Check system preference if no localStorage value
 					const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -33,6 +48,7 @@ function createThemeStore() {
 					set(systemTheme);
 					document.documentElement.classList.add(systemTheme);
 					localStorage.setItem('theme', systemTheme);
+					updateThemeMeta(systemTheme);
 				}
 			}
 		},
@@ -47,6 +63,7 @@ function createThemeStore() {
 					document.documentElement.classList.add(newTheme);
 					document.documentElement.classList.remove(currentTheme);
 					localStorage.setItem('theme', newTheme);
+					updateThemeMeta(newTheme);
 				}
 
 				return newTheme;
@@ -65,6 +82,7 @@ function createThemeStore() {
 						set(newTheme);
 						document.documentElement.classList.add(newTheme);
 						document.documentElement.classList.remove(newTheme === 'dark' ? 'light' : 'dark');
+						updateThemeMeta(newTheme);
 					};
 
 					// Modern browsers

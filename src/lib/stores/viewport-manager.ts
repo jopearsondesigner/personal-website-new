@@ -1,4 +1,12 @@
-// Optimized viewport-manager.ts
+// src/lib/stores/viewport-manager.ts
+import {
+	batchDOMUpdate,
+	debounce,
+	throttle,
+	measureOnce,
+	batchSetStyles
+} from '$lib/utils/dom-utils';
+
 interface ViewportMetrics {
 	width: number;
 	height: number;
@@ -13,49 +21,51 @@ interface GameDimensions {
 	height: number;
 }
 
+interface CachedMetrics {
+	containerWidth: number;
+	containerHeight: number;
+	scale: number;
+	controlsHeight: number;
+	safeAreaBottom: number;
+}
+
 export class ViewportManager {
 	private container: HTMLElement;
 	private screen: HTMLElement;
 	private controls: HTMLElement | null;
 	private cleanup: () => void;
-
-	// Cache values to prevent unnecessary DOM updates
-	private lastContainerHeight: number = 0;
-	private lastControlsHeight: number = 0;
-	private lastSafeAreaBottom: number = 0;
-	private lastScale: number = 0;
-
-	// Use a threshold for updates to avoid minor pixel differences
-	private updateThreshold: number = 1;
-
-	// Add a RAF ID for debouncing updates
 	private rafId: number | null = null;
 
-	// Add a resize timeout for debouncing
-	private resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+	// Game dimensions
+	private readonly gameWidth = 800;
+	private readonly gameHeight = 600;
 
-	// Track if we're throttling updates during rapid resizes
-	private isThrottling: boolean = false;
+	// Cache values to prevent unnecessary DOM updates
+	private cache: CachedMetrics = {
+		containerWidth: 0,
+		containerHeight: 0,
+		scale: 0,
+		controlsHeight: 0,
+		safeAreaBottom: 0
+	};
 
-	// Gaming canvas base size
-	private baseGameWidth: number = 800;
-	private baseGameHeight: number = 600;
+	// Threshold values for significant changes
+	private readonly SCALE_THRESHOLD = 0.01;
+	private readonly SIZE_THRESHOLD = 1;
 
 	constructor(container: HTMLElement, screen: HTMLElement, controls?: HTMLElement) {
 		this.container = container;
 		this.screen = screen;
 		this.controls = controls || null;
 
-		// Initialize viewport
+		// Initialize viewport with batched DOM operations
 		this.updateViewport();
 		this.cleanup = this.setupEventListeners();
-
-		// Apply initial GPU acceleration
-		this.applyGPUAcceleration();
 	}
 
 	private getDeviceMetrics(): ViewportMetrics {
-		return {
+		// Read all metrics at once to prevent multiple reflows
+		const metrics = {
 			width: window.innerWidth,
 			height: window.innerHeight,
 			isLandscape: window.innerWidth > window.innerHeight,
@@ -69,46 +79,118 @@ export class ViewportManager {
 				) || 0,
 			devicePixelRatio: window.devicePixelRatio || 1
 		};
-	}
 
-	private applyGPUAcceleration(): void {
-		// Force GPU acceleration on key elements
-		this.screen.style.transform = 'translateZ(0)';
-		this.screen.style.backfaceVisibility = 'hidden';
-		this.screen.style.willChange = 'transform';
-
-		if (this.controls) {
-			this.controls.style.transform = 'translateZ(0)';
-			this.controls.style.backfaceVisibility = 'hidden';
-			this.controls.style.willChange = 'transform';
-		}
+		return metrics;
 	}
 
 	private calculateControlsHeight(isLandscape: boolean): number {
 		if (!this.controls) return 0;
-
-		// Cache the control height calculation to avoid DOM reads
-		return isLandscape ? 120 : 180;
+		return isLandscape ? 120 : 180; // Base control heights
 	}
 
-	private calculateOptimalScale(containerRect: DOMRect, gameSize: GameDimensions): number {
+	private calculateOptimalScale(
+		containerRect: { width: number; height: number },
+		gameSize: GameDimensions
+	): number {
 		const { width: targetWidth, height: targetHeight } = gameSize;
 		const scaleX = containerRect.width / targetWidth;
 		const scaleY = containerRect.height / targetHeight;
 		return Math.min(scaleX, scaleY);
 	}
 
-	private optimizeRendering(scale: number): void {
-		// Only update if scale has changed significantly
-		if (Math.abs(this.lastScale - scale) > 0.01) {
-			// Use transform instead of top/left for positioning to avoid layout recalculation
-			this.screen.style.transform = `translate3d(0,0,0) scale(${scale})`;
-			this.screen.style.transformOrigin = 'center center';
-			this.lastScale = scale;
+	// Separate read and write operations to prevent layout thrashing
+	private readViewportState(): {
+		metrics: ViewportMetrics;
+		controlsHeight: number;
+		availableHeight: number;
+		containerDimensions: { width: number; height: number };
+		scale: number;
+	} {
+		// Read phase - gather all measurements at once
+		const metrics = this.getDeviceMetrics();
+		const controlsHeight = this.calculateControlsHeight(metrics.isLandscape);
+		const availableHeight = metrics.height - controlsHeight - metrics.safeAreaBottom;
+
+		// Only measure container if height changes significantly
+		let containerDimensions: { width: number; height: number };
+		if (Math.abs(this.cache.containerHeight - availableHeight) > this.SIZE_THRESHOLD) {
+			// Force container height update before measuring
+			this.container.style.height = `${availableHeight}px`;
+			// Measure after style changes are applied
+			containerDimensions = measureOnce(this.container);
+		} else {
+			// Use cached values if no significant change
+			containerDimensions = {
+				width: this.cache.containerWidth,
+				height: this.cache.containerHeight
+			};
 		}
+
+		// Calculate optimal scale
+		const scale = this.calculateOptimalScale(containerDimensions, {
+			width: this.gameWidth,
+			height: this.gameHeight
+		});
+
+		return {
+			metrics,
+			controlsHeight,
+			availableHeight,
+			containerDimensions,
+			scale
+		};
 	}
 
-	// Optimized implementation
+	private writeViewportUpdates(state: {
+		metrics: ViewportMetrics;
+		controlsHeight: number;
+		availableHeight: number;
+		containerDimensions: { width: number; height: number };
+		scale: number;
+	}): void {
+		const { metrics, controlsHeight, availableHeight, containerDimensions, scale } = state;
+
+		// Write phase - batch all DOM updates together
+		batchDOMUpdate(() => {
+			// Update container height if changed significantly
+			if (Math.abs(this.cache.containerHeight - availableHeight) > this.SIZE_THRESHOLD) {
+				this.container.style.height = `${availableHeight}px`;
+				this.cache.containerHeight = availableHeight;
+				this.cache.containerWidth = containerDimensions.width;
+			}
+
+			// Update transform if scale changed significantly
+			if (Math.abs(this.cache.scale - scale) > this.SCALE_THRESHOLD) {
+				// Force GPU acceleration and optimize rendering
+				batchSetStyles(this.screen, {
+					willChange: 'transform',
+					transform: `translate3d(0,0,0) scale(${scale})`,
+					transformOrigin: 'center center'
+				});
+				this.cache.scale = scale;
+			}
+
+			// Update controls if they exist
+			if (this.controls) {
+				const controlsStyleUpdates: Record<string, string | number> = {};
+
+				if (Math.abs(this.cache.controlsHeight - controlsHeight) > this.SIZE_THRESHOLD) {
+					controlsStyleUpdates.height = `${controlsHeight}px`;
+					this.cache.controlsHeight = controlsHeight;
+				}
+
+				if (Math.abs(this.cache.safeAreaBottom - metrics.safeAreaBottom) > this.SIZE_THRESHOLD) {
+					controlsStyleUpdates.bottom = `${metrics.safeAreaBottom}px`;
+					this.cache.safeAreaBottom = metrics.safeAreaBottom;
+				}
+
+				if (Object.keys(controlsStyleUpdates).length > 0) {
+					batchSetStyles(this.controls, controlsStyleUpdates);
+				}
+			}
+		});
+	}
+
 	public updateViewport(): void {
 		// Cancel any pending RAF to avoid multiple updates in same frame
 		if (this.rafId !== null) {
@@ -118,165 +200,61 @@ export class ViewportManager {
 		// Use RAF to ensure updates happen during next frame
 		this.rafId = requestAnimationFrame(() => {
 			this.rafId = null;
-			this.performViewportUpdate();
+
+			// Separate read and write phases to prevent layout thrashing
+			const state = this.readViewportState();
+			this.writeViewportUpdates(state);
 		});
-	}
-
-	private performViewportUpdate(): void {
-		const metrics = this.getDeviceMetrics();
-		const controlsHeight = this.calculateControlsHeight(metrics.isLandscape);
-
-		// Calculate available height
-		const availableHeight = metrics.height - controlsHeight - metrics.safeAreaBottom;
-
-		// Only update DOM if values changed significantly to avoid layout thrashing
-		if (Math.abs(this.lastContainerHeight - availableHeight) > this.updateThreshold) {
-			this.container.style.height = `${availableHeight}px`;
-			this.lastContainerHeight = availableHeight;
-		}
-
-		// Use a unified object for container dimensions
-		const containerDimensions = {
-			width: this.container.offsetWidth,
-			height: this.container.offsetHeight
-		};
-
-		// Calculate optimal game screen scale
-		const scale = this.calculateOptimalScale(
-			// Create a DOMRect-like object without forcing layout recalculation
-			{
-				width: containerDimensions.width,
-				height: containerDimensions.height,
-				x: 0,
-				y: 0,
-				top: 0,
-				left: 0,
-				right: containerDimensions.width,
-				bottom: containerDimensions.height,
-				toJSON: () => {}
-			} as DOMRect,
-			{
-				width: this.baseGameWidth,
-				height: this.baseGameHeight
-			}
-		);
-
-		// Only update transform if scale changed significantly
-		this.optimizeRendering(scale);
-
-		// Position controls if they exist - batch DOM updates
-		if (this.controls) {
-			const needsHeightUpdate =
-				Math.abs(this.lastControlsHeight - controlsHeight) > this.updateThreshold;
-			const needsBottomUpdate =
-				Math.abs(this.lastSafeAreaBottom - metrics.safeAreaBottom) > this.updateThreshold;
-
-			if (needsHeightUpdate || needsBottomUpdate) {
-				// Batch DOM writes
-				requestAnimationFrame(() => {
-					if (needsHeightUpdate) {
-						this.controls!.style.height = `${controlsHeight}px`;
-						this.lastControlsHeight = controlsHeight;
-					}
-
-					if (needsBottomUpdate) {
-						this.controls!.style.bottom = `${metrics.safeAreaBottom}px`;
-						this.lastSafeAreaBottom = metrics.safeAreaBottom;
-					}
-				});
-			}
-		}
 	}
 
 	private setupEventListeners(): () => void {
-		// Debounce resize handler with proper timing
-		const debouncedResize = () => {
-			if (this.resizeTimeout) {
-				clearTimeout(this.resizeTimeout);
-			}
+		// Create throttled and debounced versions of updateViewport
+		const throttledUpdate = throttle(() => this.updateViewport(), 16); // ~60fps
+		const debouncedUpdate = debounce(() => this.updateViewport(), 100);
 
-			// If we're already throttling, wait until throttling period ends
-			if (this.isThrottling) return;
+		// Handle rapid resize events with throttling for smoother performance
+		window.addEventListener('resize', throttledUpdate, { passive: true });
 
-			// Set throttling flag to avoid excessive updates
-			this.isThrottling = true;
+		// Handle orientation changes with a small delay to ensure values are settled
+		window.addEventListener(
+			'orientationchange',
+			() => {
+				setTimeout(() => this.updateViewport(), 100);
+			},
+			{ passive: true }
+		);
 
-			// Update immediately for responsive feel
-			this.updateViewport();
-
-			// Then use timeout for full update after resizing stops
-			this.resizeTimeout = setTimeout(() => {
-				this.isThrottling = false;
-				this.updateViewport();
-			}, 150);
-		};
-
-		// Add passive option for better performance
-		window.addEventListener('resize', debouncedResize, { passive: true });
-
-		// Handle orientation changes with slight delay to ensure dimensions settled
-		const orientationHandler = () => {
-			// Clear any existing timeout
-			if (this.resizeTimeout) {
-				clearTimeout(this.resizeTimeout);
-			}
-
-			// Initial immediate update
-			this.updateViewport();
-
-			// Then after a delay to catch any animation transitions
-			this.resizeTimeout = setTimeout(() => {
-				this.updateViewport();
-			}, 250);
-		};
-
-		window.addEventListener('orientationchange', orientationHandler, { passive: true });
-
-		// Create ResizeObserver for more accurate size tracking
-		// Use it only for the container element
+		// Use ResizeObserver with size change threshold to reduce update frequency
 		const resizeObserver = new ResizeObserver((entries) => {
-			// Process resize events more efficiently
-			if (!this.isThrottling) {
-				this.updateViewport();
-
-				// Set throttling to true and reset after a delay
-				this.isThrottling = true;
-
-				if (this.resizeTimeout) {
-					clearTimeout(this.resizeTimeout);
+			for (const entry of entries) {
+				if (entry.target === this.container) {
+					// Check if size changed significantly before updating
+					const { width, height } = entry.contentRect;
+					if (
+						Math.abs(this.cache.containerWidth - width) > this.SIZE_THRESHOLD ||
+						Math.abs(this.cache.containerHeight - height) > this.SIZE_THRESHOLD
+					) {
+						debouncedUpdate();
+					}
 				}
-
-				this.resizeTimeout = setTimeout(() => {
-					this.isThrottling = false;
-				}, 150);
 			}
 		});
 
+		// Only observe the container element to reduce overhead
 		resizeObserver.observe(this.container);
 
-		// Return cleanup function
+		// Return comprehensive cleanup function
 		return () => {
-			window.removeEventListener('resize', debouncedResize);
-			window.removeEventListener('orientationchange', orientationHandler);
+			window.removeEventListener('resize', throttledUpdate);
+			window.removeEventListener('orientationchange', () => this.updateViewport());
 			resizeObserver.disconnect();
 
-			if (this.resizeTimeout) {
-				clearTimeout(this.resizeTimeout);
-			}
-
-			if (this.rafId) {
+			// Clean up any pending operations
+			if (this.rafId !== null) {
 				cancelAnimationFrame(this.rafId);
+				this.rafId = null;
 			}
 		};
-	}
-
-	// Add a method to update base game dimensions if needed
-	public updateGameDimensions(width: number, height: number): void {
-		if (width !== this.baseGameWidth || height !== this.baseGameHeight) {
-			this.baseGameWidth = width;
-			this.baseGameHeight = height;
-			this.updateViewport();
-		}
 	}
 
 	public destroy(): void {
