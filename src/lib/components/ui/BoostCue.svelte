@@ -30,10 +30,10 @@
 		bottom: 2vh;
 		right: 2vw;
 		font-family: 'Press Start 2P', monospace;
-		font-size: 0.75rem;
+		font-size: 0.625rem;
 		color: rgba(255, 255, 255, 0.75);
 		opacity: 0.9;
-		animation: blink 1.2s step-end infinite;
+		animation: blink 1.6s step-end infinite;
 		pointer-events: none;
 		user-select: none;
 	}

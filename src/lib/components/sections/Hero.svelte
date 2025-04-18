@@ -850,7 +850,7 @@
 							<div id="insert-concept" class="text-center mt-3" bind:this={insertConcept}>
 								Insert Concept
 							</div>
-							<BoostCue />
+							<!-- <BoostCue /> -->
 						</div>
 					{:else if currentScreen === 'game'}
 						<GameScreen />

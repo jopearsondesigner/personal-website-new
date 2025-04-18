@@ -301,9 +301,9 @@
 			for (const star of batchStars) {
 				if (isTrail) {
 					// For trails, draw lines
-					ctx.lineWidth = star.size;
-					ctx.moveTo(star.prevX2d!, star.prevY2d!);
-					ctx.lineTo(star.x2d, star.y2d);
+					ctx!.lineWidth = star.size;
+					ctx!.moveTo(star.prevX2d!, star.prevY2d!);
+					ctx!.lineTo(star.x2d, star.y2d);
 				} else {
 					// For circles, add to the current path
 					ctx.moveTo(star.x2d + star.size, star.y2d);
