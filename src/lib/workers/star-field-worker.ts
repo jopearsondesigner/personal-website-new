@@ -1,88 +1,8 @@
 // File: /src/lib/workers/star-field-worker.ts
 
-// Star interface with inUse property for pooling
-interface Star {
-	inUse: boolean;
-	x: number;
-	y: number;
-	z: number;
-	prevX: number;
-	prevY: number;
-}
-
-// Pool implementation for the worker
-class StarPool {
-	private pool: Star[];
-	private capacity: number;
-	private size: number;
-
-	constructor(initialCapacity: number) {
-		this.capacity = initialCapacity;
-		this.size = 0;
-		this.pool = new Array(initialCapacity);
-
-		// Pre-allocate all stars
-		this.preAllocate();
-	}
-
-	private preAllocate(): void {
-		for (let i = 0; i < this.capacity; i++) {
-			this.pool[i] = {
-				inUse: false,
-				x: 0,
-				y: 0,
-				z: 0,
-				prevX: 0,
-				prevY: 0
-			};
-		}
-		this.size = this.capacity;
-	}
-
-	get(): Star {
-		// Find an unused star
-		for (let i = 0; i < this.size; i++) {
-			if (!this.pool[i].inUse) {
-				this.pool[i].inUse = true;
-				return this.pool[i];
-			}
-		}
-
-		// If we need more capacity, expand the pool
-		if (this.size < this.capacity) {
-			const star = {
-				inUse: true,
-				x: 0,
-				y: 0,
-				z: 0,
-				prevX: 0,
-				prevY: 0
-			};
-			this.pool[this.size] = star;
-			this.size++;
-			return star;
-		}
-
-		// All stars are in use, reuse the oldest one
-		const star = this.pool[0];
-		star.inUse = true;
-
-		// Move to end of array (circular buffer approach)
-		this.pool.push(this.pool.shift()!);
-
-		return star;
-	}
-
-	release(star: Star): void {
-		star.inUse = false;
-	}
-
-	releaseAll(): void {
-		for (let i = 0; i < this.size; i++) {
-			this.pool[i].inUse = false;
-		}
-	}
-}
+// Constants for TypedArray structure
+const STAR_DATA_ELEMENTS = 6; // x, y, z, prevX, prevY, inUse
+const FLOAT32_BYTES = 4;
 
 // Configuration interface
 interface StarFieldConfig {
@@ -96,8 +16,6 @@ interface StarFieldConfig {
 }
 
 // Global state
-let stars: Star[] = [];
-let starPool: StarPool | null = null;
 let config: StarFieldConfig = {
 	starCount: 300,
 	maxDepth: 32,
@@ -108,51 +26,58 @@ let config: StarFieldConfig = {
 	containerHeight: 600
 };
 
+// TypedArray for efficiently storing and transferring star data
+// Format: [x1, y1, z1, prevX1, prevY1, inUse1, x2, y2, z2, prevX2, prevY2, inUse2, ...]
+let starData: Float32Array;
+
 /**
- * Initialize the star field with given configuration using object pooling
+ * Initialize the star field with given configuration using TypedArrays
  */
-function initializeStars(count: number, width: number, height: number, depth: number): Star[] {
-	const newStars: Star[] = [];
+function initializeStars(
+	count: number,
+	width: number,
+	height: number,
+	depth: number
+): Float32Array {
+	// Create a new Float32Array to hold all star data
+	// Each star has 6 values: x, y, z, prevX, prevY, inUse
+	const dataSize = count * STAR_DATA_ELEMENTS;
+	const newStarData = new Float32Array(dataSize);
 
-	// Initialize the star pool if needed
-	if (!starPool) {
-		// Create a pool with 20% extra capacity
-		starPool = new StarPool(Math.ceil(count * 1.2));
-	} else {
-		// Release all stars back to the pool
-		starPool.releaseAll();
-	}
-
-	// Get stars from the pool
+	// Initialize stars with random positions
 	for (let i = 0; i < count; i++) {
-		const star = starPool.get();
-		initStar(star, width, height, depth);
-		newStars.push(star);
+		const baseIndex = i * STAR_DATA_ELEMENTS;
+
+		// Set random position
+		newStarData[baseIndex] = Math.random() * width * 2 - width; // x
+		newStarData[baseIndex + 1] = Math.random() * height * 2 - height; // y
+		newStarData[baseIndex + 2] = Math.random() * depth; // z
+
+		// Set previous position (same as current initially)
+		newStarData[baseIndex + 3] = newStarData[baseIndex]; // prevX
+		newStarData[baseIndex + 4] = newStarData[baseIndex + 1]; // prevY
+
+		// Set inUse flag (1.0 = true, 0.0 = false)
+		newStarData[baseIndex + 5] = 1.0; // inUse
 	}
 
-	return newStars;
+	return newStarData;
 }
 
 /**
- * Initialize a star with random position
+ * Reset a star to a new position
  */
-function initStar(star: Star, width: number, height: number, depth: number): void {
-	star.x = Math.random() * width * 2 - width;
-	star.y = Math.random() * height * 2 - height;
-	star.z = Math.random() * depth;
-	star.prevX = star.x;
-	star.prevY = star.y;
-}
+function resetStar(index: number, width: number, height: number, depth: number): void {
+	const baseIndex = index * STAR_DATA_ELEMENTS;
 
-/**
- * Reset a star to a new position without creating a new object
- */
-function resetStar(star: Star, width: number, height: number, depth: number): void {
-	star.x = Math.random() * width * 2 - width;
-	star.y = Math.random() * height * 2 - height;
-	star.z = depth;
-	star.prevX = star.x;
-	star.prevY = star.y;
+	// Set new random position
+	starData[baseIndex] = Math.random() * width * 2 - width; // x
+	starData[baseIndex + 1] = Math.random() * height * 2 - height; // y
+	starData[baseIndex + 2] = depth; // z
+
+	// Set previous position
+	starData[baseIndex + 3] = starData[baseIndex]; // prevX
+	starData[baseIndex + 4] = starData[baseIndex + 1]; // prevY
 }
 
 /**
@@ -165,19 +90,22 @@ function updateStars(deltaTime: number): void {
 	const timeScale = deltaTime / 16.7; // Normalized to 60fps
 
 	// Update each star position
-	for (let i = 0; i < stars.length; i++) {
-		const star = stars[i];
+	for (let i = 0; i < config.starCount; i++) {
+		const baseIndex = i * STAR_DATA_ELEMENTS;
+
+		// Skip stars that are not in use
+		if (starData[baseIndex + 5] < 0.5) continue;
 
 		// Store previous position for trails
-		star.prevX = star.x;
-		star.prevY = star.y;
+		starData[baseIndex + 3] = starData[baseIndex]; // prevX = x
+		starData[baseIndex + 4] = starData[baseIndex + 1]; // prevY = y
 
 		// Move star closer to viewer with time-based movement
-		star.z -= speed * timeScale;
+		starData[baseIndex + 2] -= speed * timeScale; // z -= speed
 
 		// If star passed the viewer, reset it to far distance
-		if (star.z <= 0) {
-			resetStar(star, containerWidth, containerHeight, maxDepth);
+		if (starData[baseIndex + 2] <= 0) {
+			resetStar(i, containerWidth, containerHeight, maxDepth);
 		}
 	}
 }
@@ -196,24 +124,40 @@ self.onmessage = function (e: MessageEvent) {
 	const { type, data } = e.data;
 
 	switch (type) {
-		case 'init':
+		case 'init': {
 			// Initialize with new configuration
 			config = { ...config, ...data.config };
-			stars = initializeStars(
+
+			// Initialize star data
+			starData = initializeStars(
 				config.starCount,
 				config.containerWidth,
 				config.containerHeight,
 				config.maxDepth
 			);
 
-			// Send back the initialized stars
-			self.postMessage({
-				type: 'initialized',
-				data: { stars, config }
-			});
+			// Send back the initialized stars using transferable objects
+			// This transfers ownership of the buffer to the main thread
+			// instead of copying it
+			self.postMessage(
+				{
+					type: 'initialized',
+					data: {
+						starData,
+						config
+					}
+				},
+				[starData.buffer] // Transfer the buffer
+			);
 			break;
+		}
 
-		case 'requestFrame':
+		case 'requestFrame': {
+			// Receive the star data back from the main thread
+			if (data.starData) {
+				starData = data.starData;
+			}
+
 			// Update star positions
 			updateStars(data.deltaTime);
 
@@ -228,42 +172,65 @@ self.onmessage = function (e: MessageEvent) {
 				config.speed = Math.max(config.baseSpeed, config.speed * 0.98);
 			}
 
-			// Send back updated stars
-			self.postMessage({
-				type: 'frameUpdate',
-				data: { stars, config }
-			});
+			// Send back updated stars using transferable objects
+			self.postMessage(
+				{
+					type: 'frameUpdate',
+					data: {
+						starData,
+						config
+					}
+				},
+				[starData.buffer] // Transfer the buffer
+			);
 			break;
+		}
 
-		case 'setBoost':
+		case 'setBoost': {
 			// Update boost state
 			setBoost(data.boosting);
 			break;
+		}
 
-		case 'setDimensions':
+		case 'setDimensions': {
 			// Update container dimensions
 			config.containerWidth = data.width;
 			config.containerHeight = data.height;
 			break;
+		}
 
-		case 'updateConfig':
+		case 'updateConfig': {
 			// Update any configuration properties
+			const oldStarCount = config.starCount;
 			config = { ...config, ...data.config };
 
 			// If star count changed, reinitialize stars
-			if (data.config.starCount && data.config.starCount !== stars.length) {
-				stars = initializeStars(
+			if (data.config.starCount && data.config.starCount !== oldStarCount) {
+				starData = initializeStars(
 					config.starCount,
 					config.containerWidth,
 					config.containerHeight,
 					config.maxDepth
 				);
+
+				// Send back the updated star data
+				self.postMessage(
+					{
+						type: 'starCountChanged',
+						data: {
+							starData,
+							config
+						}
+					},
+					[starData.buffer]
+				);
 			}
 			break;
+		}
 
-		case 'reset':
+		case 'reset': {
 			// Reinitialize the stars
-			stars = initializeStars(
+			starData = initializeStars(
 				config.starCount,
 				config.containerWidth,
 				config.containerHeight,
@@ -271,10 +238,31 @@ self.onmessage = function (e: MessageEvent) {
 			);
 
 			// Send back the reset stars
+			self.postMessage(
+				{
+					type: 'reset',
+					data: {
+						starData,
+						config
+					}
+				},
+				[starData.buffer]
+			);
+			break;
+		}
+
+		case 'adaptToDevice': {
+			// Handle device-specific adaptations
+			// This lets the main thread inform the worker about
+			// device capabilities for further optimizations
+			// No need to update the star data, just acknowledge
 			self.postMessage({
-				type: 'reset',
-				data: { stars, config }
+				type: 'deviceAdapted',
+				data: {
+					success: true
+				}
 			});
 			break;
+		}
 	}
 };

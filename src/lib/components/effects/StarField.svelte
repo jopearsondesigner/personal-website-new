@@ -1,10 +1,11 @@
+<!-- src/lib/components/effects/StarField.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { browser } from '$app/environment';
 	import { get } from 'svelte/store';
 	import { deviceCapabilities } from '$lib/utils/device-performance';
 	import { animationState } from '$lib/stores/animation-store';
-	import { createThrottledRAF } from '$lib/utils/animation-helpers';
+	import { createThrottledRAF, createFixedTimestepLoop } from '$lib/utils/animation-helpers';
 
 	// Props
 	export let containerElement: HTMLElement | null = null;
@@ -28,6 +29,7 @@
 	let resizeObserver: ResizeObserver | null = null;
 	let lastTime = 0;
 	let frameCount = 0;
+	let fixedStepLoop: { start: () => void; stop: () => void } | null = null;
 
 	// Performance monitoring
 	let fpsMonitor = {
@@ -163,7 +165,194 @@
 		resizeObserver.observe(containerElement);
 	}
 
-	// Animation function with time-based movement and optimized batched rendering
+	// New animation setup with fixed timestep loop
+	function setupAnimation() {
+		if (fixedStepLoop) {
+			fixedStepLoop.stop();
+		}
+
+		// Create a fixed timestep loop for physics updates
+		fixedStepLoop = createFixedTimestepLoop((deltaTime) => {
+			if (!isRunning || !ctx || !canvasElement || !containerElement) return;
+
+			// Get device capabilities for adaptive rendering
+			const capabilities = get(deviceCapabilities);
+
+			// Update phase - consistent updates regardless of rendering frame rate
+			updateStars(deltaTime);
+
+			// Render phase - can potentially skip frames based on device capabilities
+			if (shouldRenderCurrentFrame(capabilities)) {
+				renderStars();
+			}
+		}, 60); // Target 60 physics updates per second
+
+		// Start the loop
+		fixedStepLoop.start();
+	}
+
+	// Separate update logic from rendering
+	function updateStars(deltaTime: number) {
+		const containerWidth = containerElement!.clientWidth;
+		const containerHeight = containerElement!.clientHeight;
+		const centerX = containerWidth / 2;
+		const centerY = containerHeight / 2;
+
+		// Calculate time-based movement scale
+		const timeScale = deltaTime / 16.7; // Normalized to 60fps
+
+		for (let i = 0; i < stars.length; i++) {
+			const star = stars[i];
+
+			// Store previous position for trails
+			star.prevX = star.x;
+			star.prevY = star.y;
+
+			// Move star closer to viewer with time-based movement
+			star.z -= speed * timeScale;
+
+			// If star passed the viewer, reset it to far distance
+			if (star.z <= 0) {
+				star.x = Math.random() * containerWidth * 2 - containerWidth;
+				star.y = Math.random() * containerHeight * 2 - containerHeight;
+				star.z = maxDepth;
+				star.prevX = star.x;
+				star.prevY = star.y;
+			}
+		}
+
+		// Gradually return to base speed when not boosting
+		if (!isBoosting && speed > baseSpeed) {
+			speed = Math.max(baseSpeed, speed * 0.98);
+		}
+
+		// Update FPS monitor
+		fpsMonitor.frames++;
+		const now = performance.now();
+		if (now - fpsMonitor.lastCheck >= 1000) {
+			fpsMonitor.fps = fpsMonitor.frames;
+			fpsMonitor.frames = 0;
+			fpsMonitor.lastCheck = now;
+		}
+	}
+
+	// Determine if we should render this frame (adaptive frame skipping)
+	function shouldRenderCurrentFrame(capabilities: any): boolean {
+		if (!capabilities) return true;
+
+		if (capabilities.frameSkip > 0) {
+			frameCount = (frameCount + 1) % (capabilities.frameSkip + 1);
+			return frameCount === 0;
+		}
+
+		return true;
+	}
+
+	// Optimized rendering separate from updates
+	function renderStars() {
+		if (!ctx || !containerElement) return;
+
+		const containerWidth = containerElement.clientWidth;
+		const containerHeight = containerElement.clientHeight;
+		const centerX = containerWidth / 2;
+		const centerY = containerHeight / 2;
+
+		// Clear canvas with slight alpha for motion blur effect
+		ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+		ctx.fillRect(0, 0, containerWidth, containerHeight);
+
+		// Group stars by rendering properties
+		const starsBatches = new Map<string, BatchStar[]>();
+
+		// Project and filter visible stars
+		for (let i = 0; i < stars.length; i++) {
+			const star = stars[i];
+
+			// Project 3D position to 2D screen
+			const scale = maxDepth / star.z;
+			const x2d = (star.x - centerX) * scale + centerX;
+			const y2d = (star.y - centerY) * scale + centerY;
+
+			// Skip stars that are offscreen (with small buffer for trails)
+			if (x2d < -10 || x2d > containerWidth + 10 || y2d < -10 || y2d > containerHeight + 10) {
+				continue;
+			}
+
+			// Calculate star size based on depth
+			const size = Math.max(0.5, (1 - star.z / maxDepth) * 3);
+
+			// Calculate star color based on depth
+			const colorIndex = Math.min(
+				starColors.length - 1,
+				Math.floor((1 - star.z / maxDepth) * starColors.length)
+			);
+			const color = starColors[colorIndex];
+
+			// Determine rendering mode (point or trail)
+			const isTrail = speed > baseSpeed * 1.5;
+			const batchKey = isTrail ? `trail_${color}` : `circle_${color}`;
+
+			// Create batch if it doesn't exist
+			if (!starsBatches.has(batchKey)) {
+				starsBatches.set(batchKey, []);
+			}
+
+			// Create batch star with pre-calculated projection data
+			const batchStar: BatchStar = { x2d, y2d, size };
+
+			// For trails, calculate previous projected position
+			if (isTrail) {
+				const prevScale = maxDepth / (star.z + speed);
+				batchStar.prevX2d = (star.prevX - centerX) * prevScale + centerX;
+				batchStar.prevY2d = (star.prevY - centerY) * prevScale + centerY;
+			}
+
+			// Add star to the appropriate batch
+			starsBatches.get(batchKey)!.push(batchStar);
+		}
+
+		// Render each batch with minimal context state changes
+		starsBatches.forEach((batchStars, key) => {
+			// Skip empty batches
+			if (batchStars.length === 0) return;
+
+			const isTrail = key.startsWith('trail_');
+			const color = key.substring(key.indexOf('_') + 1);
+
+			// Set style only once per batch
+			if (isTrail) {
+				ctx.strokeStyle = color;
+			} else {
+				ctx.fillStyle = color;
+			}
+
+			// Begin a single path for all stars in this batch
+			ctx.beginPath();
+
+			// Add all stars to the path
+			for (const star of batchStars) {
+				if (isTrail) {
+					// For trails, draw lines
+					ctx!.lineWidth = star.size;
+					ctx!.moveTo(star.prevX2d!, star.prevY2d!);
+					ctx!.lineTo(star.x2d, star.y2d);
+				} else {
+					// For circles, add to the current path
+					ctx.moveTo(star.x2d + star.size, star.y2d);
+					ctx.arc(star.x2d, star.y2d, star.size, 0, Math.PI * 2);
+				}
+			}
+
+			// Draw all stars of this type with a single call
+			if (isTrail) {
+				ctx.stroke();
+			} else {
+				ctx.fill();
+			}
+		});
+	}
+
+	// Original animate function kept for reference (will not be used with fixed timestep)
 	function animate(timestamp: number) {
 		if (!isRunning || !ctx || !canvasElement || !containerElement) return;
 
@@ -343,7 +532,9 @@
 
 		isRunning = true;
 		lastTime = performance.now();
-		animationFrameId = requestAnimationFrame(animate);
+
+		// Use the fixed timestep loop instead of requestAnimationFrame
+		setupAnimation();
 
 		dispatch('start');
 	}
@@ -353,6 +544,11 @@
 		if (!isRunning) return;
 
 		isRunning = false;
+
+		// Stop the fixed timestep loop
+		if (fixedStepLoop) {
+			fixedStepLoop.stop();
+		}
 
 		if (animationFrameId) {
 			cancelAnimationFrame(animationFrameId);
@@ -368,6 +564,11 @@
 
 		isPaused = true;
 
+		// Stop the fixed timestep loop
+		if (fixedStepLoop) {
+			fixedStepLoop.stop();
+		}
+
 		if (animationFrameId) {
 			cancelAnimationFrame(animationFrameId);
 			animationFrameId = null;
@@ -382,7 +583,9 @@
 
 		isPaused = false;
 		lastTime = performance.now();
-		animationFrameId = requestAnimationFrame(animate);
+
+		// Restart the fixed timestep loop
+		setupAnimation();
 
 		dispatch('resume');
 	}
@@ -471,6 +674,12 @@
 
 		// Stop animation loop
 		stop();
+
+		// Clean up fixed timestep loop
+		if (fixedStepLoop) {
+			fixedStepLoop.stop();
+			fixedStepLoop = null;
+		}
 
 		// Remove event listeners
 		if (enableBoost) {

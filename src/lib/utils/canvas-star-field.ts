@@ -1,4 +1,4 @@
-// File: /src/lib/utils/optimized-canvas-star-field.ts
+// /src/lib/utils/canvas-star-field.ts
 
 import { browser } from '$app/environment';
 import type { Writable } from 'svelte/store';
@@ -73,9 +73,7 @@ export class CanvasStarFieldManager {
 		if (!browser || !window.Worker) return;
 
 		try {
-			this.worker = new Worker(
-				new URL('../workers/optimized-star-field-worker.ts', import.meta.url)
-			);
+			this.worker = new Worker(new URL('../workers/star-field-worker.ts', import.meta.url));
 
 			// Handle messages from worker
 			this.worker.onmessage = (event) => {
@@ -387,6 +385,27 @@ export class CanvasStarFieldManager {
 		});
 	}
 
+	public adaptToDeviceCapabilities(capabilities: any) {
+		if (!capabilities) return;
+
+		// Adapt star count based on device tier
+		if (capabilities.maxStars && capabilities.maxStars !== this.starCount) {
+			this.setStarCount(capabilities.maxStars);
+		}
+
+		// Update worker with adaptive settings if available
+		if (this.worker) {
+			this.worker.postMessage({
+				type: 'adaptToDevice',
+				data: {
+					useGlow: capabilities.enableGlow !== false,
+					useParallax: capabilities.enableParallax !== false,
+					useShadersIfAvailable: capabilities.useShadersIfAvailable !== false
+				}
+			});
+		}
+	}
+
 	setStarCount(count: number) {
 		if (count === this.starCount || !this.worker) return;
 
@@ -426,6 +445,7 @@ export class CanvasStarFieldManager {
 		});
 	}
 
+	// Proper cleanup to prevent memory leaks
 	cleanup() {
 		// Stop animation
 		this.stop();
