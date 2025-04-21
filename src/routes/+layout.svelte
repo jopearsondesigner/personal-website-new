@@ -87,7 +87,7 @@
 				const logoWidth = logoWrapper.offsetWidth;
 
 				// Base position calculation for portrait mode
-				let offsetPosition = viewportWidth * 0.36 - logoWidth / 2;
+				let offsetPosition = viewportWidth * 0.37 - logoWidth / 2;
 
 				// Adjust position for landscape mode
 				if (isLandscape) {
