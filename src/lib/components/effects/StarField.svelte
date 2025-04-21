@@ -6,6 +6,7 @@
 	import { deviceCapabilities } from '$lib/utils/device-performance';
 	import { animationState } from '$lib/stores/animation-store';
 	import { createThrottledRAF, createFixedTimestepLoop } from '$lib/utils/animation-helpers';
+	import { objectPoolStatsStore } from '$lib/utils/device-performance';
 
 	// Props
 	export let containerElement: HTMLElement | null = null;
@@ -667,6 +668,37 @@
 
 		// Add visibility change handler
 		document.addEventListener('visibilitychange', handleVisibilityChange);
+
+		try {
+			const stats = get(objectPoolStatsStore);
+			if (stats && stats.totalCapacity === 0) {
+				console.log('Initializing pool stats from StarField...');
+
+				// Force update of object pool stats to initialize the store
+				import('$lib/utils/pool-stats-tracker')
+					.then((module) => {
+						if (module.starPoolTracker) {
+							module.starPoolTracker.reportNow();
+						}
+					})
+					.catch((err) => {
+						console.error('Error loading pool-stats-tracker:', err);
+					});
+
+				// Also force sync from the bridge
+				import('$lib/utils/star-pool-bridge')
+					.then((module) => {
+						if (module.starPoolBridge) {
+							module.starPoolBridge.forceSyncStats();
+						}
+					})
+					.catch((err) => {
+						console.error('Error loading star-pool-bridge:', err);
+					});
+			}
+		} catch (error) {
+			console.error('Error initializing pool stats in StarField:', error);
+		}
 	});
 
 	onDestroy(() => {

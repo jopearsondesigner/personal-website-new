@@ -1,4 +1,4 @@
-// File: /src/lib/workers/star-field-worker.ts
+// src/lib/workers/star-field-worker.ts
 
 // Constants for TypedArray structure
 const STAR_DATA_ELEMENTS = 6; // x, y, z, prevX, prevY, inUse
@@ -26,6 +26,12 @@ let config: StarFieldConfig = {
 	containerHeight: 600
 };
 
+// Statistics tracking
+let statsObjectsCreated = 0;
+let statsObjectsReused = 0;
+let lastStatsReport = 0;
+const statsReportInterval = 250; // More frequent reporting (250ms)
+
 // TypedArray for efficiently storing and transferring star data
 // Format: [x1, y1, z1, prevX1, prevY1, inUse1, x2, y2, z2, prevX2, prevY2, inUse2, ...]
 let starData: Float32Array;
@@ -44,6 +50,9 @@ function initializeStars(
 	const dataSize = count * STAR_DATA_ELEMENTS;
 	const newStarData = new Float32Array(dataSize);
 
+	// Track object creation - increment by actual count
+	statsObjectsCreated += count;
+
 	// Initialize stars with random positions
 	for (let i = 0; i < count; i++) {
 		const baseIndex = i * STAR_DATA_ELEMENTS;
@@ -61,6 +70,9 @@ function initializeStars(
 		newStarData[baseIndex + 5] = 1.0; // inUse
 	}
 
+	// Force stats report after initialization
+	reportStats(true);
+
 	return newStarData;
 }
 
@@ -69,6 +81,9 @@ function initializeStars(
  */
 function resetStar(index: number, width: number, height: number, depth: number): void {
 	const baseIndex = index * STAR_DATA_ELEMENTS;
+
+	// Track object reuse - increment by one for each reset
+	statsObjectsReused++;
 
 	// Set new random position
 	starData[baseIndex] = Math.random() * width * 2 - width; // x
@@ -81,6 +96,35 @@ function resetStar(index: number, width: number, height: number, depth: number):
 }
 
 /**
+ * Report statistics to main thread
+ */
+function reportStats(force: boolean = false): void {
+	const now = performance.now();
+
+	// Only report at intervals, unless forced
+	if (!force && now - lastStatsReport < statsReportInterval) return;
+
+	// Only send non-zero stats or if forced
+	if (statsObjectsCreated > 0 || statsObjectsReused > 0 || force) {
+		// Clone the stats before sending to prevent race conditions
+		const statsToReport = {
+			created: statsObjectsCreated,
+			reused: statsObjectsReused
+		};
+
+		self.postMessage({
+			type: 'statsUpdate',
+			data: statsToReport
+		});
+
+		// Reset counters after reporting
+		statsObjectsCreated = 0;
+		statsObjectsReused = 0;
+		lastStatsReport = now;
+	}
+}
+
+/**
  * Update star positions based on time delta
  */
 function updateStars(deltaTime: number): void {
@@ -88,6 +132,9 @@ function updateStars(deltaTime: number): void {
 
 	// Calculate time-based movement scale
 	const timeScale = deltaTime / 16.7; // Normalized to 60fps
+
+	// Count of reset stars in this update (for reporting)
+	let resetCount = 0;
 
 	// Update each star position
 	for (let i = 0; i < config.starCount; i++) {
@@ -106,7 +153,17 @@ function updateStars(deltaTime: number): void {
 		// If star passed the viewer, reset it to far distance
 		if (starData[baseIndex + 2] <= 0) {
 			resetStar(i, containerWidth, containerHeight, maxDepth);
+			resetCount++;
 		}
+	}
+
+	// Report stats if we had resets or regularly based on time
+	if (resetCount > 0) {
+		// Force report if we had any resets to ensure they're captured
+		reportStats(resetCount > 0);
+	} else if (performance.now() - lastStatsReport >= statsReportInterval) {
+		// Regular reporting based on time interval
+		reportStats();
 	}
 }
 
@@ -137,8 +194,6 @@ self.onmessage = function (e: MessageEvent) {
 			);
 
 			// Send back the initialized stars using transferable objects
-			// This transfers ownership of the buffer to the main thread
-			// instead of copying it
 			self.postMessage(
 				{
 					type: 'initialized',
@@ -147,8 +202,25 @@ self.onmessage = function (e: MessageEvent) {
 						config
 					}
 				},
-				[starData.buffer] // Transfer the buffer
+				[starData.buffer]
 			);
+			break;
+		}
+
+		case 'requestStats': {
+			// Force immediate stats report
+			reportStats(true);
+			break;
+		}
+
+		case 'updatePoolStats': {
+			// Acknowledge receipt of pool stats
+			self.postMessage({
+				type: 'poolStatsUpdated',
+				data: {
+					success: true
+				}
+			});
 			break;
 		}
 
@@ -181,8 +253,9 @@ self.onmessage = function (e: MessageEvent) {
 						config
 					}
 				},
-				[starData.buffer] // Transfer the buffer
+				[starData.buffer]
 			);
+
 			break;
 		}
 
@@ -248,14 +321,12 @@ self.onmessage = function (e: MessageEvent) {
 				},
 				[starData.buffer]
 			);
+
 			break;
 		}
 
 		case 'adaptToDevice': {
 			// Handle device-specific adaptations
-			// This lets the main thread inform the worker about
-			// device capabilities for further optimizations
-			// No need to update the star data, just acknowledge
 			self.postMessage({
 				type: 'deviceAdapted',
 				data: {

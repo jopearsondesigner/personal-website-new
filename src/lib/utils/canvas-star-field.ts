@@ -3,6 +3,7 @@
 import { browser } from '$app/environment';
 import type { Writable } from 'svelte/store';
 import { get } from 'svelte/store';
+import { starPoolBridge } from './star-pool-bridge';
 
 // Constants for TypedArray structure
 const STAR_DATA_ELEMENTS = 6; // x, y, z, prevX, prevY, inUse
@@ -40,6 +41,7 @@ export class CanvasStarFieldManager {
 	private dimensionsChanged = false;
 	private lastWorkerUpdateTime = 0;
 	private workerUpdateInterval = 50; // ms
+	private useWorker = true;
 
 	// Star field parameters
 	private starCount = 300;
@@ -57,6 +59,8 @@ export class CanvasStarFieldManager {
 		'#ffffff' // Bright white
 	];
 
+	private useContainerParallax = false;
+
 	constructor(store: any, count = 300) {
 		this.store = store;
 		this.starCount = count;
@@ -73,7 +77,13 @@ export class CanvasStarFieldManager {
 		if (!browser || !window.Worker) return;
 
 		try {
-			this.worker = new Worker(new URL('../workers/star-field-worker.ts', import.meta.url));
+			// Create worker with { type: 'module' } to support ES modules
+			this.worker = new Worker(new URL('../workers/star-field-worker.ts', import.meta.url), {
+				type: 'module'
+			});
+
+			// Connect the worker to the bridge for statistics tracking
+			starPoolBridge.connectWorker(this.worker);
 
 			// Handle messages from worker
 			this.worker.onmessage = (event) => {
@@ -95,10 +105,29 @@ export class CanvasStarFieldManager {
 							}));
 						}
 
+						// Update pool statistics
+						if (data.config) {
+							// Update active object count (all stars are active in initialized state)
+							starPoolBridge.updateActiveCount(data.config.starCount, data.config.starCount);
+						}
+
 						// Immediately request next frame for frame updates
 						if (type === 'frameUpdate' && this.isRunning && !this.isPaused) {
 							this.requestNextFrame();
 						}
+						break;
+					}
+					case 'statsUpdate': {
+						// Forward stats to the bridge
+						if (data && (data.created > 0 || data.reused > 0)) {
+							if (data.created) starPoolBridge.recordCreated(data.created);
+							if (data.reused) starPoolBridge.recordReused(data.reused);
+						}
+						break;
+					}
+					case 'poolStatsUpdated': {
+						// Force sync of stats to ensure UI updates
+						starPoolBridge.forceSyncStats();
 						break;
 					}
 				}
@@ -246,6 +275,14 @@ export class CanvasStarFieldManager {
 
 		// Start render loop
 		this.animationFrameId = requestAnimationFrame(this.animate);
+
+		// Ensure pool statistics are initialized and synced
+		starPoolBridge.forceSyncStats();
+
+		// Update active star count (all stars are active when starting)
+		if (this.worker) {
+			starPoolBridge.updateActiveCount(this.starCount, this.starCount);
+		}
 	}
 
 	stop() {
@@ -265,6 +302,9 @@ export class CanvasStarFieldManager {
 				isAnimating: false
 			}));
 		}
+
+		// Final stats update before stopping
+		starPoolBridge.forceSyncStats();
 	}
 
 	private requestNextFrame() {
@@ -406,6 +446,38 @@ export class CanvasStarFieldManager {
 		}
 	}
 
+	/**
+	 * Enable or disable worker usage
+	 */
+	public setUseWorker(useWorker: boolean): void {
+		if (!browser) return;
+
+		// Store the setting
+		this.useWorker = useWorker;
+
+		// If we're changing the setting while running, restart
+		const wasRunning = this.isRunning;
+		if (wasRunning) {
+			this.stop();
+		}
+
+		// Cleanup existing worker if disabling
+		if (!useWorker && this.worker) {
+			this.worker.terminate();
+			this.worker = null;
+		}
+
+		// Initialize a new worker if enabling
+		if (useWorker && !this.worker) {
+			this.initWorker();
+		}
+
+		// Restart if needed
+		if (wasRunning) {
+			this.start();
+		}
+	}
+
 	setStarCount(count: number) {
 		if (count === this.starCount || !this.worker) return;
 
@@ -422,6 +494,63 @@ export class CanvasStarFieldManager {
 		});
 	}
 
+	/**
+	 * Enable or disable container parallax effect
+	 */
+	public setUseContainerParallax(useParallax: boolean): void {
+		if (!browser) return;
+
+		// Store the setting
+		this.useContainerParallax = useParallax;
+
+		// Apply parallax effect if container exists
+		if (this.container) {
+			if (useParallax) {
+				// Add event listeners for mouse movement
+				this.container.addEventListener('mousemove', this.handleMouseMove);
+
+				// Add data attribute for CSS targeting
+				this.container.setAttribute('data-parallax', 'true');
+			} else {
+				// Remove event listeners
+				this.container.removeEventListener('mousemove', this.handleMouseMove);
+
+				// Reset any applied transforms
+				this.container.style.transform = '';
+
+				// Remove data attribute
+				this.container.removeAttribute('data-parallax');
+			}
+		}
+	}
+
+	/**
+	 * Handle mouse movement for parallax effect
+	 */
+	private handleMouseMove = (event: MouseEvent): void => {
+		if (!this.container || !this.useContainerParallax) return;
+
+		// Calculate mouse position relative to container center
+		const rect = this.container.getBoundingClientRect();
+		const centerX = rect.left + rect.width / 2;
+		const centerY = rect.top + rect.height / 2;
+
+		// Calculate offset from center (normalized to -1 to 1)
+		const offsetX = (event.clientX - centerX) / (rect.width / 2);
+		const offsetY = (event.clientY - centerY) / (rect.height / 2);
+
+		// Apply subtle parallax effect
+		const moveX = offsetX * 5; // 5px maximum movement
+		const moveY = offsetY * 5;
+
+		// Use requestAnimationFrame for smooth animation
+		requestAnimationFrame(() => {
+			if (this.container) {
+				this.container.style.transform = `translate(${moveX}px, ${moveY}px)`;
+			}
+		});
+	};
+
 	setBoostMode(boost: boolean) {
 		if (!this.worker) return;
 
@@ -436,6 +565,9 @@ export class CanvasStarFieldManager {
 		});
 	}
 
+	/**
+	 * Reset and recreate all stars
+	 */
 	resetStars() {
 		if (!this.worker) return;
 
@@ -443,12 +575,20 @@ export class CanvasStarFieldManager {
 		this.worker.postMessage({
 			type: 'reset'
 		});
+
+		// Force stats sync after reset
+		setTimeout(() => {
+			starPoolBridge.forceSyncStats();
+		}, 100);
 	}
 
 	// Proper cleanup to prevent memory leaks
 	cleanup() {
 		// Stop animation
 		this.stop();
+
+		// Final sync of stats before cleanup
+		starPoolBridge.forceSyncStats();
 
 		// Terminate worker
 		if (this.worker) {

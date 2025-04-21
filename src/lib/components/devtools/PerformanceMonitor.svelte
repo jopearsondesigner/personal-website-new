@@ -1,17 +1,19 @@
 <!-- src/lib/components/devtools/PerformanceMonitor.svelte -->
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { fpsStore } from '$lib/utils/frame-rate-controller';
 	import {
 		deviceCapabilities,
 		memoryUsageStore,
-		objectPoolStatsStore
+		objectPoolStatsStore,
+		updateObjectPoolStats
 	} from '$lib/utils/device-performance';
 	import {
 		perfMonitorVisible,
 		setPerformanceMonitorVisibility
 	} from '$lib/stores/performance-monitor';
 	import { browser } from '$app/environment';
+	import { get } from 'svelte/store';
 
 	// Monitor element for touch event handling
 	let monitorElement: HTMLDivElement;
@@ -35,7 +37,10 @@
 	let showDetailedMetrics = false;
 
 	// Toggle for pool statistics display
-	let showPoolMetrics = false;
+	let showPoolMetrics = true; // Set to true by default for better visibility
+
+	// Stats refresh interval handle
+	let statsRefreshInterval: number | null = null;
 
 	// Handle double tap on mobile
 	function handleTouchStart(event: TouchEvent) {
@@ -192,6 +197,89 @@
 		setPerformanceMonitorVisibility(false);
 	}
 
+	// Force refresh of stats
+	function forceStatsRefresh() {
+		if (!browser) return;
+
+		try {
+			// Import both modules and force refresh
+			Promise.all([import('$lib/utils/pool-stats-tracker'), import('$lib/utils/star-pool-bridge')])
+				.then(([trackerModule, bridgeModule]) => {
+					// Force immediate refresh
+					if (trackerModule.starPoolTracker) {
+						trackerModule.starPoolTracker.reportNow();
+					}
+
+					if (bridgeModule.starPoolBridge) {
+						bridgeModule.starPoolBridge.forceSyncStats();
+					}
+				})
+				.catch((error) => {
+					console.error('Failed to refresh pool stats:', error);
+				});
+		} catch (error) {
+			console.error('Error refreshing pool stats:', error);
+		}
+	}
+
+	// Manual reset of pool stats
+	function resetPoolStats() {
+		if (!browser) return;
+
+		try {
+			// Import tracker module and reset stats
+			import('$lib/utils/pool-stats-tracker')
+				.then((module) => {
+					if (module.starPoolTracker) {
+						module.starPoolTracker.reset();
+					}
+				})
+				.catch((error) => {
+					console.error('Error resetting pool stats:', error);
+				});
+		} catch (error) {
+			console.error('Error resetting pool stats:', error);
+		}
+	}
+
+	// Setup periodic refresh
+	function setupStatsRefresh() {
+		if (!browser || statsRefreshInterval !== null) return;
+
+		// Refresh stats every 250ms when visible
+		statsRefreshInterval = window.setInterval(() => {
+			if ($perfMonitorVisible) {
+				forceStatsRefresh();
+			}
+		}, 250);
+	}
+
+	// Cleanup interval on destroy
+	function cleanupStatsRefresh() {
+		if (statsRefreshInterval !== null) {
+			window.clearInterval(statsRefreshInterval);
+			statsRefreshInterval = null;
+		}
+	}
+
+	// Initialize stats if needed
+	function initializeStats() {
+		if (!browser) return;
+
+		// Initialize with placeholder values to ensure store is populated
+		updateObjectPoolStats({
+			poolName: 'Stars',
+			poolType: 'Star',
+			objectsCreated: 0,
+			objectsReused: 0,
+			reuseRatio: 0,
+			estimatedMemorySaved: 0,
+			activeObjects: 0,
+			totalCapacity: 300, // Default capacity
+			utilizationRate: 0
+		});
+	}
+
 	onMount(() => {
 		if (browser && monitorElement) {
 			// Add event listeners with proper passive setting
@@ -208,6 +296,15 @@
 			// Touch events with correct passive settings
 			document.addEventListener('touchmove', handleTouchMove, { passive: false });
 			document.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+			// Initialize stats
+			initializeStats();
+
+			// Force immediate stats refresh
+			forceStatsRefresh();
+
+			// Setup periodic refresh
+			setupStatsRefresh();
 
 			// Load saved position
 			const savedX = localStorage.getItem('perfMonitorX');
@@ -229,23 +326,27 @@
 					monitorElement.style.top = `${y}px`;
 				}
 			}
-
-			return () => {
-				if (monitorElement) {
-					monitorElement.removeEventListener('touchstart', handleTouchStart);
-					monitorElement.removeEventListener('mousedown', handleMouseDown);
-				}
-				document.removeEventListener('mousemove', handleMouseMove);
-				document.removeEventListener('mouseup', handleMouseUp);
-				document.removeEventListener('mousedown', handleClickOutside);
-				document.removeEventListener('touchmove', handleTouchMove);
-				document.removeEventListener('touchend', handleTouchEnd);
-
-				if (touchTimeout !== null) {
-					window.clearTimeout(touchTimeout);
-				}
-			};
 		}
+	});
+
+	onDestroy(() => {
+		if (browser && monitorElement) {
+			// Remove event listeners
+			monitorElement.removeEventListener('touchstart', handleTouchStart);
+			monitorElement.removeEventListener('mousedown', handleMouseDown);
+			document.removeEventListener('mousemove', handleMouseMove);
+			document.removeEventListener('mouseup', handleMouseUp);
+			document.removeEventListener('mousedown', handleClickOutside);
+			document.removeEventListener('touchmove', handleTouchMove);
+			document.removeEventListener('touchend', handleTouchEnd);
+
+			if (touchTimeout !== null) {
+				window.clearTimeout(touchTimeout);
+			}
+		}
+
+		// Cleanup intervals
+		cleanupStatsRefresh();
 	});
 </script>
 
@@ -309,6 +410,8 @@
 			<div class="pool-metrics">
 				<div class="pool-header">
 					<span>{$objectPoolStatsStore.poolName} Pool ({$objectPoolStatsStore.poolType})</span>
+					<button class="refresh-btn" on:click={forceStatsRefresh} title="Refresh Stats">⟳</button>
+					<button class="reset-btn" on:click={resetPoolStats} title="Reset Stats">↺</button>
 				</div>
 				<div class="pool-utilization">
 					<div class="utilization-bar">
@@ -329,6 +432,33 @@
 					<div>Reuse Ratio: {($objectPoolStatsStore.reuseRatio * 100).toFixed(0)}%</div>
 					<div>Memory Saved: {$objectPoolStatsStore.estimatedMemorySaved.toFixed(0)} KB</div>
 				</div>
+			</div>
+		{/if}
+		{#if showPoolMetrics}
+			<div class="debug-controls">
+				<button
+					class="debug-btn"
+					on:click={() => {
+					import('$lib/utils/debug-pool-stats').then(module => {
+						module.PoolStatsDebugger.injectTestData(20, 50);
+					});
+					}}
+				>
+					Test Data
+				</button>
+				<button
+					class="debug-btn"
+					on:click={() => {
+					import('$lib/utils/star-pool-bridge').then(module => {
+						// Toggle debug mode
+						const isDebugMode = localStorage.getItem('starPoolDebugMode') === 'true';
+						module.starPoolBridge.setDebugMode(!isDebugMode);
+						alert(`Debug mode ${!isDebugMode ? 'enabled' : 'disabled'}`);
+					});
+					}}
+				>
+					Toggle Debug
+				</button>
 			</div>
 		{/if}
 
@@ -466,6 +596,30 @@
 		margin-bottom: 2px;
 	}
 
+	.refresh-btn,
+	.reset-btn {
+		background: none;
+		border: none;
+		color: var(--arcade-neon-blue-100, #00eeff);
+		cursor: pointer;
+		font-size: 12px;
+		padding: 0;
+		width: 18px;
+		height: 18px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		opacity: 0.7;
+		transition: opacity 0.2s;
+	}
+
+	.refresh-btn:hover,
+	.reset-btn:hover {
+		opacity: 1;
+		background: rgba(0, 100, 150, 0.3);
+		border-radius: 3px;
+	}
+
 	.utilization-bar {
 		height: 8px;
 		background: rgba(40, 40, 40, 0.8);
@@ -499,6 +653,30 @@
 		padding: 5px;
 		text-align: center;
 		background: rgba(20, 20, 20, 0.8);
+	}
+
+	.debug-controls {
+		display: flex;
+		gap: 4px;
+		padding: 5px;
+		background: rgba(20, 30, 40, 0.8);
+		border-top: 1px solid rgba(0, 255, 255, 0.2);
+	}
+
+	.debug-btn {
+		flex: 1;
+		background: rgba(40, 50, 60, 0.6);
+		border: none;
+		color: var(--arcade-neon-blue-100, #00eeff);
+		padding: 3px 0;
+		font-size: 9px;
+		cursor: pointer;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.debug-btn:hover {
+		background: rgba(60, 80, 100, 0.6);
 	}
 
 	/* Hide shortcut hint on smaller screens */

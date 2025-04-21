@@ -582,33 +582,50 @@ export function setupPerformanceMonitoring() {
 }
 
 // Update object pool statistics
+// Update object pool statistics
 export function updateObjectPoolStats(stats: Partial<ObjectPoolStats>) {
 	if (!browser) return;
 
+	// Create a copy to avoid mutation issues
+	const updatedStats = { ...stats };
+
 	objectPoolStatsStore.update((currentStats) => {
-		const updatedStats = {
-			...currentStats,
-			...stats
-		};
+		// Start with current stats as base
+		const newStats = { ...currentStats };
 
-		// Calculate derived statistics if not provided
-		if (stats.activeObjects !== undefined && stats.totalCapacity !== undefined) {
-			updatedStats.utilizationRate =
-				stats.totalCapacity > 0 ? stats.activeObjects / stats.totalCapacity : 0;
+		// Update with new values
+		Object.keys(updatedStats).forEach((key) => {
+			if (updatedStats[key] !== undefined) {
+				newStats[key] = updatedStats[key];
+			}
+		});
+
+		// Calculate derived statistics if relevant fields were updated
+		if (
+			(updatedStats.activeObjects !== undefined || updatedStats.totalCapacity !== undefined) &&
+			newStats.totalCapacity > 0
+		) {
+			newStats.utilizationRate = newStats.activeObjects / newStats.totalCapacity;
 		}
 
-		if (stats.objectsCreated !== undefined && stats.objectsReused !== undefined) {
-			const total = stats.objectsCreated + stats.objectsReused;
-			updatedStats.reuseRatio = total > 0 ? stats.objectsReused / total : 0;
+		// Update reuse ratio when object counts change
+		if (updatedStats.objectsCreated !== undefined || updatedStats.objectsReused !== undefined) {
+			const total = newStats.objectsCreated + newStats.objectsReused;
+			newStats.reuseRatio = total > 0 ? newStats.objectsReused / total : 0;
 		}
 
-		// Calculate memory savings if not provided
-		// Assume 200 bytes per object as a conservative estimate (adjust based on your objects)
-		if (stats.objectsReused !== undefined && !stats.estimatedMemorySaved) {
-			updatedStats.estimatedMemorySaved = (stats.objectsReused * 200) / 1024; // in KB
+		// Calculate memory savings if object reuse was updated or we're initializing
+		// Even if memory savings is provided, recalculate to ensure consistency
+		if (
+			updatedStats.objectsReused !== undefined ||
+			updatedStats.estimatedMemorySaved === undefined
+		) {
+			// Use star object size estimate (240 bytes) if not provided
+			const objectSize = 240;
+			newStats.estimatedMemorySaved = (newStats.objectsReused * objectSize) / 1024; // in KB
 		}
 
-		return updatedStats;
+		return newStats;
 	});
 }
 
