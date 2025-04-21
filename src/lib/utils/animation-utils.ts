@@ -117,6 +117,67 @@ class StarPool {
 // Create a global star pool
 let starPool: StarPool | null = null;
 
+/**
+ * Create a fixed timestep loop for consistent animations
+ * regardless of actual frame rate
+ */
+export function createFixedTimestepLoop(
+	update: (deltaTime: number) => void,
+	targetFPS: number = 60
+) {
+	const targetFrameTime = 1000 / targetFPS;
+	let running = false;
+	let rafId: number | null = null;
+	let lastTime = 0;
+	let accumulator = 0;
+
+	// Fixed update with time accumulation
+	function fixedUpdate(timestamp: number) {
+		if (!running) return;
+
+		if (lastTime === 0) {
+			lastTime = timestamp;
+		}
+
+		let deltaTime = timestamp - lastTime;
+		lastTime = timestamp;
+
+		// Cap delta time to prevent spiral of death
+		if (deltaTime > 200) {
+			deltaTime = targetFrameTime;
+		}
+
+		// Accumulate time
+		accumulator += deltaTime;
+
+		// Process fixed updates
+		while (accumulator >= targetFrameTime) {
+			update(targetFrameTime);
+			accumulator -= targetFrameTime;
+		}
+
+		// Schedule next frame
+		rafId = requestAnimationFrame(fixedUpdate);
+	}
+
+	return {
+		start: () => {
+			if (running) return;
+			running = true;
+			lastTime = 0;
+			accumulator = 0;
+			rafId = requestAnimationFrame(fixedUpdate);
+		},
+		stop: () => {
+			running = false;
+			if (rafId !== null) {
+				cancelAnimationFrame(rafId);
+				rafId = null;
+			}
+		}
+	};
+}
+
 // Define individual functions first
 function createGlitchEffect(element: HTMLElement | null) {
 	if (!element) return;
@@ -363,5 +424,6 @@ export const animations = {
 	initStars,
 	updateStars,
 	GlitchManager,
-	StarFieldManager
+	StarFieldManager,
+	createFixedTimestepLoop
 };

@@ -97,41 +97,14 @@ class FrameRateController {
 			this.lastFrameTimestamps[timestampIndex] = now;
 			timestampIndex = (timestampIndex + 1) % this.fpsHistorySize;
 
-			// Calculate FPS using a sliding window
-			const oldestTimestampIndex = (timestampIndex + 1) % this.fpsHistorySize;
-			const timeSpan = now - this.lastFrameTimestamps[oldestTimestampIndex];
+			// Calculate FPS using improved method
+			this.calculateFPS();
 
-			if (timeSpan > 0 && this.lastFrameTimestamps[oldestTimestampIndex] !== 0) {
-				// Calculate frames in the time span
-				const frameCount = this.fpsHistorySize - 1;
-
-				// Calculate average frame time
-				let sumFrameTime = 0;
-				let validFrames = 0;
-
-				for (let i = 0; i < this.fpsHistorySize; i++) {
-					if (this.frameTimeDiffs[i] > 0) {
-						sumFrameTime += this.frameTimeDiffs[i];
-						validFrames++;
-					}
-				}
-
-				if (validFrames > 0) {
-					const avgFrameTime = sumFrameTime / validFrames;
-					this.currentFPS = avgFrameTime > 0 ? 1000 / avgFrameTime : this.targetFPS;
-				} else {
-					this.currentFPS = (frameCount * 1000) / timeSpan;
-				}
-
-				// Notify FPS subscribers
-				this.notifyFPSSubscribers(this.currentFPS);
-
-				// Adjust quality if needed (every second)
-				if (now - this.lastMeasurementTime > this.measurementInterval) {
-					this.lastMeasurementTime = now;
-					this.adjustQuality();
-					this.analyzePerformanceTrend();
-				}
+			// Adjust quality if needed (every second)
+			if (now - this.lastMeasurementTime > this.measurementInterval) {
+				this.lastMeasurementTime = now;
+				this.adjustQuality();
+				this.analyzePerformanceTrend();
 			}
 
 			// Use requestIdleCallback when available for less critical task
@@ -148,6 +121,43 @@ class FrameRateController {
 		};
 
 		this.monitoringRAFId = requestAnimationFrame(monitorLoop);
+	}
+
+	/**
+	 * Fix: Improve FPS calculation accuracy
+	 */
+	private calculateFPS(): void {
+		// Skip calculation when document is hidden
+		if (document.hidden) return;
+
+		const now = performance.now();
+
+		// Use valid timestamps from our buffer
+		const validTimestamps = this.lastFrameTimestamps.filter((ts) => ts > 0);
+
+		if (validTimestamps.length < 2) return;
+
+		// Sort timestamps to ensure correct order
+		validTimestamps.sort((a, b) => a - b);
+
+		// Calculate time span between oldest and newest timestamp
+		const timeSpan = validTimestamps[validTimestamps.length - 1] - validTimestamps[0];
+
+		if (timeSpan <= 0) return;
+
+		// Calculate frames per second
+		const frameCount = validTimestamps.length - 1;
+		const rawFPS = (frameCount * 1000) / timeSpan;
+
+		// Apply bounds to prevent unrealistic values
+		const boundedFPS = Math.max(1, Math.min(120, rawFPS));
+
+		// Apply smoothing for UI stability
+		this.currentFPS = this.currentFPS * 0.7 + boundedFPS * 0.3;
+
+		// Update store and notify subscribers
+		fpsStore.set(this.currentFPS);
+		this.notifyFPSSubscribers(this.currentFPS);
 	}
 
 	/**
@@ -229,38 +239,29 @@ class FrameRateController {
 	 * Setup memory monitoring
 	 */
 	private setupMemoryMonitoring() {
-		// Check if performance.memory is available
-		if (browser && 'memory' in performance) {
-			this.memoryCheckInterval = setInterval(() => {
-				const memory = (performance as any).memory;
-				if (memory) {
-					const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
+		if (!browser || !('performance' in window)) return;
 
-					// Store memory usage in shared store
-					if (memoryUsageStore) {
-						memoryUsageStore.set(memUsage);
+		// Check if memory API is available
+		const hasMemoryAPI = 'memory' in (performance as any);
+
+		this.memoryCheckInterval = setInterval(() => {
+			if (hasMemoryAPI) {
+				try {
+					const memory = (performance as any).memory;
+					if (memory && memory.jsHeapSizeLimit > 0) {
+						const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
+
+						// Apply smoothing to avoid jumps
+						this.lastMemoryUsage = this.lastMemoryUsage * 0.7 + memUsage * 0.3;
+
+						// Store memory usage in shared store with validation
+						memoryUsageStore.set(Math.max(0, Math.min(1, this.lastMemoryUsage)));
 					}
-
-					// Detect large increases in memory usage
-					if (this.lastMemoryUsage > 0) {
-						const memoryIncrease = memUsage - this.lastMemoryUsage;
-						if (memoryIncrease > 0.1) {
-							// Significant memory increase
-							if (this.debugMode) {
-								console.warn(
-									`Significant memory usage increase detected: ${(memoryIncrease * 100).toFixed(1)}%`
-								);
-							}
-
-							// Force garbage collection hint
-							this.forceGarbageCollectionHint();
-						}
-					}
-
-					this.lastMemoryUsage = memUsage;
+				} catch (e) {
+					console.error('Error accessing memory metrics:', e);
 				}
-			}, 10000); // Check every 10 seconds
-		}
+			}
+		}, 2000); // Lower frequency to reduce overhead
 	}
 
 	/**

@@ -1,4 +1,6 @@
-// Use the correct type from the DOM
+// src/lib/utils/star-renderer.ts
+//
+// // Use the correct type from the DOM
 type CanvasRenderingContext2D = globalThis.CanvasRenderingContext2D;
 
 // Constants for rendering modes
@@ -41,6 +43,15 @@ export class StarRenderer {
 	private enableGlow: boolean;
 	private renderMode: RenderMode;
 	private devicePixelRatio: number;
+	private quality: number = 1.0; // Default maximum quality
+	private maxGlowStars: number = 50;
+	private useSimplifiedRendering: boolean = false;
+	private skipDetailedEffects: boolean = false;
+	private reduceBatchSize: boolean = false;
+
+	// Optimization: Pre-calculate frequently used values
+	private colorCache: Map<number, string> = new Map();
+	private sizeCache: Map<number, number> = new Map();
 
 	constructor(
 		ctx: CanvasRenderingContext2D,
@@ -60,6 +71,47 @@ export class StarRenderer {
 		this.enableGlow = enableGlow;
 		this.renderMode = renderMode;
 		this.devicePixelRatio = devicePixelRatio;
+
+		// Initialize color cache
+		this.updateColorCache();
+	}
+
+	/**
+	 * Optimization: Implement render quality levels
+	 * Benefit: Automatically scales rendering detail based on performance
+	 */
+	public setRenderQuality(quality: number): void {
+		// Quality is a value between 0 and 1
+		this.quality = Math.max(0, Math.min(1, quality));
+
+		// Adjust rendering based on quality
+		this.maxGlowStars = Math.floor(50 * this.quality);
+		this.useSimplifiedRendering = this.quality < 0.7;
+		this.skipDetailedEffects = this.quality < 0.5;
+		this.reduceBatchSize = this.quality < 0.3;
+
+		// Update internal caches
+		this.updateColorCache();
+	}
+
+	/**
+	 * Optimization: Pre-calculate frequently used values
+	 * Benefit: Reduces calculations in render loop
+	 */
+	private updateColorCache(): void {
+		this.colorCache.clear();
+		this.sizeCache.clear();
+
+		// Pre-calculate color values for common depth levels
+		for (let depth = 0; depth <= this.maxDepth; depth++) {
+			const normalizedDepth = depth / this.maxDepth;
+			const colorIndex = Math.floor((1 - normalizedDepth) * (this.starColors.length - 1));
+			this.colorCache.set(depth, this.starColors[colorIndex]);
+
+			// Pre-calculate sizes
+			const baseSize = (1 - normalizedDepth) * 3;
+			this.sizeCache.set(depth, this.calculateStarSize(baseSize));
+		}
 	}
 
 	public projectStar(star: StarProperties): RenderedStar | null {
@@ -84,8 +136,11 @@ export class StarRenderer {
 		const prevX2d = (star.prevX - centerX) * prevScale + centerX;
 		const prevY2d = (star.prevY - centerY) * prevScale + centerY;
 
-		const size = this.calculateStarSize(star.z);
-		const color = this.calculateStarColor(star.z);
+		// Use cached values if available
+		const size =
+			this.sizeCache.get(Math.round(star.z)) ||
+			this.calculateStarSize((1 - star.z / this.maxDepth) * 3);
+		const color = this.colorCache.get(Math.round(star.z)) || this.calculateStarColor(star.z);
 
 		return {
 			x2d,
@@ -98,9 +153,7 @@ export class StarRenderer {
 		};
 	}
 
-	private calculateStarSize(z: number): number {
-		const baseSize = (1 - z / this.maxDepth) * 3;
-
+	private calculateStarSize(baseSize: number): number {
 		switch (this.renderMode) {
 			case RENDER_MODE.HIGH_DPI:
 				return baseSize * this.devicePixelRatio;
@@ -117,9 +170,54 @@ export class StarRenderer {
 		return this.starColors[colorIndex];
 	}
 
+	/**
+	 * Optimization: Simplified drawing path for low-end devices
+	 * Benefit: Faster rendering on devices that need it most
+	 */
 	public drawStars(stars: RenderedStar[], speed: number): void {
 		if (stars.length === 0) return;
 
+		// Choose rendering strategy based on quality setting
+		if (this.useSimplifiedRendering) {
+			this.drawStarsSimplified(stars);
+		} else {
+			this.drawStarsDetailed(stars, speed);
+		}
+	}
+
+	private drawStarsSimplified(stars: RenderedStar[]): void {
+		// Group stars by color only
+		const starsByColor = new Map<string, RenderedStar[]>();
+
+		// Simplified star processing - less granular batching
+		for (const star of stars) {
+			if (!starsByColor.has(star.color)) {
+				starsByColor.set(star.color, []);
+			}
+			starsByColor.get(star.color)?.push(star);
+		}
+
+		// Disable glow for simplified rendering
+		if (this.ctx.shadowBlur > 0) {
+			this.ctx.shadowBlur = 0;
+			this.ctx.shadowColor = 'transparent';
+		}
+
+		// Draw all stars of each color
+		starsByColor.forEach((groupStars, color) => {
+			this.ctx.fillStyle = color;
+			this.ctx.beginPath();
+
+			for (const star of groupStars) {
+				// Simplified circle drawing - fixed size approach
+				this.ctx.rect(star.x2d - star.size / 2, star.y2d - star.size / 2, star.size, star.size);
+			}
+
+			this.ctx.fill();
+		});
+	}
+
+	private drawStarsDetailed(stars: RenderedStar[], speed: number): void {
 		// Group stars by rendering mode and color
 		const starsByMode = new Map<string, RenderedStar[]>();
 
@@ -152,8 +250,11 @@ export class StarRenderer {
 		this.ctx.strokeStyle = color;
 		this.ctx.beginPath();
 
+		const enableGlowForThisGroup =
+			this.enableGlow && !this.skipDetailedEffects && stars.length <= this.maxGlowStars;
+
 		for (const star of stars) {
-			if (this.enableGlow) {
+			if (enableGlowForThisGroup) {
 				this.ctx.shadowColor = color;
 				this.ctx.shadowBlur = star.size * 2;
 			}
@@ -165,7 +266,7 @@ export class StarRenderer {
 
 		this.ctx.stroke();
 
-		if (this.enableGlow) {
+		if (enableGlowForThisGroup) {
 			this.ctx.shadowColor = 'transparent';
 			this.ctx.shadowBlur = 0;
 		}
@@ -175,8 +276,11 @@ export class StarRenderer {
 		this.ctx.fillStyle = color;
 		this.ctx.beginPath();
 
+		const enableGlowForThisGroup =
+			this.enableGlow && !this.skipDetailedEffects && stars.length <= this.maxGlowStars;
+
 		for (const star of stars) {
-			if (this.enableGlow) {
+			if (enableGlowForThisGroup) {
 				this.ctx.shadowColor = color;
 				this.ctx.shadowBlur = star.size * 2;
 			}
@@ -187,7 +291,7 @@ export class StarRenderer {
 
 		this.ctx.fill();
 
-		if (this.enableGlow) {
+		if (enableGlowForThisGroup) {
 			this.ctx.shadowColor = 'transparent';
 			this.ctx.shadowBlur = 0;
 		}

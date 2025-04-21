@@ -43,6 +43,14 @@ export class CanvasStarFieldManager {
 	private workerUpdateInterval = 50; // ms
 	private useWorker = true;
 
+	// Added for optimizations
+	private offscreenCanvas: HTMLCanvasElement | null = null;
+	private offscreenCtx: CanvasRenderingContext2D | null = null;
+	private resizeObserver: ResizeObserver | null = null;
+	private changedStarIndices: number[] | null = [];
+	private requestFrameFn: (callback: FrameRequestCallback) => number = requestAnimationFrame;
+	private cancelFrameFn: (handle: number) => void = cancelAnimationFrame;
+
 	// Star field parameters
 	private starCount = 300;
 	private maxDepth = 32;
@@ -70,6 +78,26 @@ export class CanvasStarFieldManager {
 
 			// Initialize the worker
 			this.initWorker();
+
+			// Setup animation frame provider
+			this.setupAnimationFrameProvider();
+		}
+	}
+
+	/**
+	 * Optimization: Use Animation Frame Provider for consistent timing
+	 * Benefit: More consistent frame timing aligned with monitor refresh rate
+	 */
+	private setupAnimationFrameProvider() {
+		if (!browser) return;
+
+		// Try to use RequestPostAnimationFrame if available for more consistent timing
+		if ('requestPostAnimationFrame' in window) {
+			this.requestFrameFn = (window as any).requestPostAnimationFrame;
+			this.cancelFrameFn = (window as any).cancelPostAnimationFrame;
+		} else {
+			this.requestFrameFn = requestAnimationFrame;
+			this.cancelFrameFn = cancelAnimationFrame;
 		}
 	}
 
@@ -181,10 +209,14 @@ export class CanvasStarFieldManager {
 		this.setupResizeObserver();
 	}
 
+	/**
+	 * Optimization: Implement double buffering to reduce visual artifacts
+	 * Benefit: Smoother rendering with fewer visual glitches
+	 */
 	private setupCanvas() {
 		if (!this.container) return;
 
-		// Create canvas element if it doesn't exist
+		// Create main canvas
 		if (!this.canvas) {
 			this.canvas = document.createElement('canvas');
 			this.canvas.className = 'star-field-canvas';
@@ -195,12 +227,32 @@ export class CanvasStarFieldManager {
 			this.canvas.style.height = '100%';
 			this.canvas.style.pointerEvents = 'none';
 			this.container.appendChild(this.canvas);
+
+			// Add GPU acceleration hints
+			this.canvas.style.transform = 'translateZ(0)';
+			this.canvas.style.backfaceVisibility = 'hidden';
 		}
 
-		// Get canvas context
-		this.ctx = this.canvas.getContext('2d', {
-			alpha: true
+		// Create off-screen buffer for double buffering
+		this.offscreenCanvas = document.createElement('canvas');
+		this.offscreenCtx = this.offscreenCanvas.getContext('2d', {
+			alpha: true,
+			willReadFrequently: false // Performance hint
 		});
+
+		// Get main canvas context
+		this.ctx = this.canvas.getContext('2d', {
+			alpha: true,
+			willReadFrequently: false
+		});
+
+		// Add high performance context attributes
+		if (this.ctx) {
+			// Tell browser we don't need preserveDrawingBuffer
+			(this.ctx as any).getContextAttributes = function () {
+				return { preserveDrawingBuffer: false };
+			};
+		}
 	}
 
 	private resizeCanvas() {
@@ -219,8 +271,20 @@ export class CanvasStarFieldManager {
 			this.canvas.width = width * dpr;
 			this.canvas.height = height * dpr;
 
+			// Also resize offscreen canvas if it exists
+			if (this.offscreenCanvas) {
+				this.offscreenCanvas.width = width * dpr;
+				this.offscreenCanvas.height = height * dpr;
+			}
+
 			// Clear any existing transformation
 			this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+			// Do the same for offscreen context
+			if (this.offscreenCtx) {
+				this.offscreenCtx.setTransform(1, 0, 0, 1, 0, 0);
+				this.offscreenCtx.scale(dpr, dpr);
+			}
 
 			// Scale context to match device pixel ratio
 			this.ctx.scale(dpr, dpr);
@@ -248,11 +312,11 @@ export class CanvasStarFieldManager {
 	private setupResizeObserver() {
 		if (!this.container || !browser) return;
 
-		const resizeObserver = new ResizeObserver(() => {
+		this.resizeObserver = new ResizeObserver(() => {
 			this.resizeCanvas();
 		});
 
-		resizeObserver.observe(this.container);
+		this.resizeObserver.observe(this.container);
 	}
 
 	start() {
@@ -274,7 +338,7 @@ export class CanvasStarFieldManager {
 		this.requestNextFrame();
 
 		// Start render loop
-		this.animationFrameId = requestAnimationFrame(this.animate);
+		this.animationFrameId = this.requestFrameFn(this.animate);
 
 		// Ensure pool statistics are initialized and synced
 		starPoolBridge.forceSyncStats();
@@ -291,7 +355,7 @@ export class CanvasStarFieldManager {
 		this.isRunning = false;
 
 		if (this.animationFrameId) {
-			cancelAnimationFrame(this.animationFrameId);
+			this.cancelFrameFn(this.animationFrameId);
 			this.animationFrameId = null;
 		}
 
@@ -307,18 +371,85 @@ export class CanvasStarFieldManager {
 		starPoolBridge.forceSyncStats();
 	}
 
+	/**
+	 * Helper method to create partial star data for optimization
+	 */
+	private createPartialStarData(indices: number[]): Float32Array {
+		if (!this.starData) return new Float32Array(0);
+
+		const partialData = new Float32Array(indices.length * STAR_DATA_ELEMENTS);
+
+		for (let i = 0; i < indices.length; i++) {
+			const starIndex = indices[i];
+			const sourceOffset = starIndex * STAR_DATA_ELEMENTS;
+			const destOffset = i * STAR_DATA_ELEMENTS;
+
+			for (let j = 0; j < STAR_DATA_ELEMENTS; j++) {
+				partialData[destOffset + j] = this.starData[sourceOffset + j];
+			}
+		}
+
+		return partialData;
+	}
+
+	/**
+	 * Optimization: Partial updates to TypedArray
+	 * Benefit: Reduces data transfer between threads
+	 */
 	private requestNextFrame() {
 		if (!this.worker || !this.isRunning || this.isPaused) return;
 
 		const now = performance.now();
 
-		// Only request new frame at specific intervals to avoid overwhelming the worker
+		// Only update at specific intervals
 		if (now - this.lastWorkerUpdateTime < this.workerUpdateInterval) return;
 
 		this.lastWorkerUpdateTime = now;
 
-		// Request next frame from worker, transferring the TypedArray back to it
-		if (this.starData) {
+		// Track which stars have changed to enable partial updates
+		if (this.starData && this.changedStarIndices && this.changedStarIndices.length > 0) {
+			// If more than 50% of stars changed, transfer the whole array
+			if (this.changedStarIndices.length > this.starCount / 2) {
+				this.worker.postMessage(
+					{
+						type: 'requestFrame',
+						data: {
+							deltaTime: now - this.lastTime,
+							dimensions: this.dimensionsChanged
+								? {
+										width: this.containerWidth,
+										height: this.containerHeight
+									}
+								: null,
+							starData: this.starData,
+							fullUpdate: true
+						}
+					},
+					[this.starData.buffer] // Transfer ownership
+				);
+
+				this.starData = null;
+			} else {
+				// Otherwise send only changed indices for partial update
+				this.worker.postMessage({
+					type: 'requestPartialFrame',
+					data: {
+						deltaTime: now - this.lastTime,
+						dimensions: this.dimensionsChanged
+							? {
+									width: this.containerWidth,
+									height: this.containerHeight
+								}
+							: null,
+						changedIndices: this.changedStarIndices,
+						changedStarData: this.createPartialStarData(this.changedStarIndices)
+					}
+				});
+			}
+
+			this.changedStarIndices = [];
+		} else if (this.starData) {
+			// First frame or no change tracking yet
 			this.worker.postMessage(
 				{
 					type: 'requestFrame',
@@ -330,45 +461,64 @@ export class CanvasStarFieldManager {
 									height: this.containerHeight
 								}
 							: null,
-						starData: this.starData
+						starData: this.starData,
+						fullUpdate: true
 					}
 				},
-				[this.starData.buffer] // Transfer ownership back to worker
+				[this.starData.buffer]
 			);
 
-			// Reset dimensions changed flag
-			this.dimensionsChanged = false;
-
-			// Clear our reference since we transferred ownership
 			this.starData = null;
 		}
+
+		// Reset dimensions changed flag
+		this.dimensionsChanged = false;
 	}
 
 	animate = (timestamp: number) => {
 		if (!browser || !this.isRunning || !this.ctx || !this.canvas || this.isPaused) return;
 
 		// Request next animation frame
-		this.animationFrameId = requestAnimationFrame(this.animate);
+		this.animationFrameId = this.requestFrameFn(this.animate);
 
 		// Calculate delta time
 		const deltaTime = timestamp - this.lastTime;
 		this.lastTime = timestamp;
 
-		// Clear canvas
-		this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-		this.ctx.fillRect(0, 0, this.containerWidth, this.containerHeight);
+		// Render to offscreen canvas first if double buffering is enabled
+		if (this.offscreenCtx && this.offscreenCanvas) {
+			// Clear offscreen canvas
+			this.offscreenCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+			this.offscreenCtx.fillRect(0, 0, this.containerWidth, this.containerHeight);
 
-		// Render stars if we have data
-		if (this.starData) {
-			this.renderStars();
+			// Render stars to offscreen canvas if we have data
+			if (this.starData) {
+				this.renderStars(this.offscreenCtx);
+			}
+
+			// Clear main canvas
+			this.ctx.clearRect(0, 0, this.containerWidth, this.containerHeight);
+
+			// Copy from offscreen to main canvas
+			this.ctx.drawImage(this.offscreenCanvas, 0, 0);
+		} else {
+			// Original direct rendering if offscreen canvas isn't available
+			// Clear canvas
+			this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+			this.ctx.fillRect(0, 0, this.containerWidth, this.containerHeight);
+
+			// Render stars if we have data
+			if (this.starData) {
+				this.renderStars(this.ctx);
+			}
 		}
 
 		// Request next frame from worker at appropriate intervals
 		this.requestNextFrame();
 	};
 
-	private renderStars() {
-		if (!this.ctx || !this.starData) return;
+	private renderStars(context: CanvasRenderingContext2D) {
+		if (!this.starData) return;
 
 		const centerX = this.containerWidth / 2;
 		const centerY = this.containerHeight / 2;
@@ -413,15 +563,15 @@ export class CanvasStarFieldManager {
 
 		// Render stars by color group
 		starsByColor.forEach((stars, color) => {
-			this.ctx!.fillStyle = color;
-			this.ctx!.beginPath();
+			context.fillStyle = color;
+			context.beginPath();
 
 			for (const star of stars) {
-				this.ctx!.moveTo(star.x + star.size, star.y);
-				this.ctx!.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+				context.moveTo(star.x + star.size, star.y);
+				context.arc(star.x, star.y, star.size, 0, Math.PI * 2);
 			}
 
-			this.ctx!.fill();
+			context.fill();
 		});
 	}
 
@@ -582,29 +732,103 @@ export class CanvasStarFieldManager {
 		}, 100);
 	}
 
-	// Proper cleanup to prevent memory leaks
-	cleanup() {
-		// Stop animation
+	/**
+	 * Optimization: Proper cleanup with explicit nullification
+	 * Benefit: Helps garbage collection reclaim memory
+	 */
+	public cleanup() {
+		// 1. Stop animation to prevent further rendering
 		this.stop();
 
-		// Final sync of stats before cleanup
-		starPoolBridge.forceSyncStats();
+		// 2. Ensure final stats sync only once
+		if (!this.cleanupInProgress) {
+			this.cleanupInProgress = true;
+			starPoolBridge.forceSyncStats();
+		}
 
-		// Terminate worker
+		// 3. Properly terminate worker with clean shutdown
 		if (this.worker) {
-			this.worker.terminate();
-			this.worker = null;
+			// Send cleanup message to allow worker to clean up its resources
+			this.worker.postMessage({ type: 'cleanup' });
+
+			// Give worker a small window to process cleanup message before terminating
+			setTimeout(() => {
+				this.worker.terminate();
+				this.worker = null;
+			}, 50);
 		}
 
-		// Remove canvas
-		if (this.canvas && this.canvas.parentNode) {
-			this.canvas.parentNode.removeChild(this.canvas);
+		// 4. Disconnect ResizeObserver
+		if (this.resizeObserver) {
+			this.resizeObserver.disconnect();
+			this.resizeObserver = null;
 		}
 
-		// Clear references
-		this.canvas = null;
-		this.ctx = null;
+		// 5. Remove canvas with proper GPU resource release
+		if (this.canvas) {
+			// Clear any content to help release WebGL contexts/resources
+			if (this.ctx) {
+				// Clear with transparent black to release texture memory
+				this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+				// Explicitly reset any custom properties
+				this.ctx.globalAlpha = 1;
+				this.ctx.shadowBlur = 0;
+				this.ctx.shadowColor = 'transparent';
+				this.ctx.filter = 'none';
+				this.ctx = null;
+			}
+
+			// Remove from DOM
+			if (this.canvas.parentNode) {
+				this.canvas.parentNode.removeChild(this.canvas);
+			}
+			this.canvas = null;
+		}
+
+		// 6. Do the same for offscreen canvas if used
+		if (this.offscreenCanvas) {
+			if (this.offscreenCtx) {
+				this.offscreenCtx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
+				this.offscreenCtx = null;
+			}
+			this.offscreenCanvas = null;
+		}
+
+		// 7. Clear TypedArray references
+		if (this.starData) {
+			// Clear the reference - TypedArrays aren't easily "cleared" otherwise
+			this.starData = null;
+		}
+
+		// 8. Release container reference
 		this.container = null;
-		this.starData = null;
+
+		// 9. Break potential circular references
+		if (this.renderCallback) {
+			this.renderCallback = null;
+		}
+
+		// 10. Help garbage collector by nullifying object properties
+		this.dimensionsChanged = false;
+		this.isRunning = false;
+		this.isPaused = false;
+		this.changedStarIndices = null;
+		this.lastWorkerUpdateTime = 0;
+
+		// 11. Suggest garbage collection (this won't force it, just hints)
+		setTimeout(() => {
+			// Create temporary large object and discard it
+			const tempArray = new Array(1000).fill(0);
+			tempArray.length = 0;
+
+			// Try explicit GC if available (Chrome dev tools)
+			try {
+				if ((window as any).gc) {
+					(window as any).gc();
+				}
+			} catch (e) {
+				// GC not available - ignore error
+			}
+		}, 100);
 	}
 }

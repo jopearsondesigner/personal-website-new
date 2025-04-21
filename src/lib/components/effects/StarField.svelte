@@ -166,30 +166,44 @@
 		resizeObserver.observe(containerElement);
 	}
 
-	// New animation setup with fixed timestep loop
+	/**
+	 * Optimization: Properly decouple rendering from animation logic
+	 * Benefit: More consistent frame timing and smoother animations
+	 */
 	function setupAnimation() {
 		if (fixedStepLoop) {
 			fixedStepLoop.stop();
 		}
 
-		// Create a fixed timestep loop for physics updates
-		fixedStepLoop = createFixedTimestepLoop((deltaTime) => {
-			if (!isRunning || !ctx || !canvasElement || !containerElement) return;
-
-			// Get device capabilities for adaptive rendering
-			const capabilities = get(deviceCapabilities);
+		// Use separate loops for physics and rendering
+		const physicsLoop = createFixedTimestepLoop((deltaTime) => {
+			if (!isRunning || isPaused) return;
 
 			// Update phase - consistent updates regardless of rendering frame rate
 			updateStars(deltaTime);
+		}, 60); // Target 60 physics updates per second
+
+		const renderLoop = () => {
+			if (!isRunning || !ctx || !canvasElement || !containerElement || isPaused) return;
+
+			// Get device capabilities for adaptive rendering
+			const capabilities = get(deviceCapabilities);
 
 			// Render phase - can potentially skip frames based on device capabilities
 			if (shouldRenderCurrentFrame(capabilities)) {
 				renderStars();
 			}
-		}, 60); // Target 60 physics updates per second
 
-		// Start the loop
-		fixedStepLoop.start();
+			// Schedule next render
+			animationFrameId = requestAnimationFrame(renderLoop);
+		};
+
+		// Start both loops
+		physicsLoop.start();
+		animationFrameId = requestAnimationFrame(renderLoop);
+
+		// Store the physics loop for cleanup
+		fixedStepLoop = physicsLoop;
 	}
 
 	// Separate update logic from rendering
@@ -249,8 +263,58 @@
 		return true;
 	}
 
-	// Optimized rendering separate from updates
+	/**
+	 * Optimization: Adaptive batch size based on star count
+	 * Benefit: Optimizes rendering for different star densities
+	 */
 	function renderStars() {
+		if (!ctx || !containerElement) return;
+
+		const containerWidth = containerElement.clientWidth;
+		const containerHeight = containerElement.clientHeight;
+
+		// Clear canvas with slight alpha for motion blur effect
+		ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+		ctx.fillRect(0, 0, containerWidth, containerHeight);
+
+		// Determine optimal batch size based on star count
+		const totalStars = stars.length;
+		const batchSize =
+			totalStars <= 100 ? totalStars : totalStars <= 300 ? 50 : totalStars <= 600 ? 100 : 200;
+
+		// Use smaller batches for processing to avoid long tasks
+		for (let batchStart = 0; batchStart < stars.length; batchStart += batchSize) {
+			const batchEnd = Math.min(batchStart + batchSize, stars.length);
+			const starBatch = stars.slice(batchStart, batchEnd);
+
+			// Process and render this batch
+			renderStarBatch(starBatch);
+
+			// If we have more batches, yield to browser if needed
+			if (batchStart + batchSize < stars.length && batchStart > 0) {
+				// Check if we should yield to browser
+				if (typeof requestIdleCallback !== 'undefined' && performance.now() % 3 === 0) {
+					// Yield to browser for responsiveness on every 3rd frame
+					// This helps keep UI responsive during heavy rendering
+					requestIdleCallback(
+						() => {
+							// Continue rendering in next idle callback
+							if (isRunning && !isPaused) {
+								requestAnimationFrame(() => renderStars());
+							}
+						},
+						{ timeout: 8 }
+					); // Ensure it runs within 8ms
+
+					// Exit early since we'll continue in the idle callback
+					return;
+				}
+			}
+		}
+	}
+
+	// Helper function to render a batch of stars
+	function renderStarBatch(starBatch: Star[]) {
 		if (!ctx || !containerElement) return;
 
 		const containerWidth = containerElement.clientWidth;
@@ -258,16 +322,12 @@
 		const centerX = containerWidth / 2;
 		const centerY = containerHeight / 2;
 
-		// Clear canvas with slight alpha for motion blur effect
-		ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-		ctx.fillRect(0, 0, containerWidth, containerHeight);
-
 		// Group stars by rendering properties
 		const starsBatches = new Map<string, BatchStar[]>();
 
 		// Project and filter visible stars
-		for (let i = 0; i < stars.length; i++) {
-			const star = stars[i];
+		for (let i = 0; i < starBatch.length; i++) {
+			const star = starBatch[i];
 
 			// Project 3D position to 2D screen
 			const scale = maxDepth / star.z;
@@ -353,168 +413,6 @@
 		});
 	}
 
-	// Original animate function kept for reference (will not be used with fixed timestep)
-	function animate(timestamp: number) {
-		if (!isRunning || !ctx || !canvasElement || !containerElement) return;
-
-		// Request next frame first for smoother animation
-		animationFrameId = requestAnimationFrame(animate);
-
-		// Calculate delta time with a maximum to prevent large jumps after tab switching
-		const deltaTime = Math.min(timestamp - lastTime, 50);
-		lastTime = timestamp;
-
-		// FPS monitoring
-		fpsMonitor.frames++;
-		if (timestamp - fpsMonitor.lastCheck >= 1000) {
-			fpsMonitor.fps = fpsMonitor.frames;
-			fpsMonitor.frames = 0;
-			fpsMonitor.lastCheck = timestamp;
-		}
-
-		// Skip frames if necessary based on device capability
-		const capabilities = get(deviceCapabilities);
-		if (capabilities.frameSkip > 0) {
-			frameCount = (frameCount + 1) % (capabilities.frameSkip + 1);
-			if (frameCount !== 0) {
-				return; // Skip this frame
-			}
-		}
-
-		const containerWidth = containerElement.clientWidth;
-		const containerHeight = containerElement.clientHeight;
-
-		// Clear canvas with slight alpha for motion blur effect
-		ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-		ctx.fillRect(0, 0, containerWidth, containerHeight);
-
-		// Center of the screen (our viewing point)
-		const centerX = containerWidth / 2;
-		const centerY = containerHeight / 2;
-
-		// Calculate time-based movement scale
-		const timeScale = deltaTime / 16.7; // Normalized to 60fps
-
-		// ============= PHASE 1: Update Star Positions =============
-		// Update all star positions first, keeping this separate from rendering
-		for (let i = 0; i < stars.length; i++) {
-			const star = stars[i];
-
-			// Store previous position for trails
-			star.prevX = star.x;
-			star.prevY = star.y;
-
-			// Move star closer to viewer with time-based movement
-			star.z -= speed * timeScale;
-
-			// If star passed the viewer, reset it to far distance
-			if (star.z <= 0) {
-				star.x = Math.random() * containerWidth * 2 - containerWidth;
-				star.y = Math.random() * containerHeight * 2 - containerHeight;
-				star.z = maxDepth;
-				star.prevX = star.x;
-				star.prevY = star.y;
-			}
-		}
-
-		// ============= PHASE 2: Create Optimized Batches =============
-		// Group stars by rendering properties to minimize context changes
-		const starsBatches = new Map<string, BatchStar[]>();
-
-		// Project and sort stars into batches - only process visible stars
-		for (let i = 0; i < stars.length; i++) {
-			const star = stars[i];
-
-			// Project 3D position to 2D screen
-			const scale = maxDepth / star.z;
-			const x2d = (star.x - centerX) * scale + centerX;
-			const y2d = (star.y - centerY) * scale + centerY;
-
-			// Skip stars that are offscreen (with small buffer for trails)
-			if (x2d < -10 || x2d > containerWidth + 10 || y2d < -10 || y2d > containerHeight + 10) {
-				continue;
-			}
-
-			// Calculate star size based on depth
-			const size = Math.max(0.5, (1 - star.z / maxDepth) * 3);
-
-			// Calculate star color based on depth
-			const colorIndex = Math.min(
-				starColors.length - 1,
-				Math.floor((1 - star.z / maxDepth) * starColors.length)
-			);
-			const color = starColors[colorIndex];
-
-			// Determine rendering mode (point or trail)
-			const isTrail = speed > baseSpeed * 1.5;
-			const batchKey = isTrail ? `trail_${color}` : `circle_${color}`;
-
-			// Create batch if it doesn't exist
-			if (!starsBatches.has(batchKey)) {
-				starsBatches.set(batchKey, []);
-			}
-
-			// Create batch star with pre-calculated projection data
-			const batchStar: BatchStar = { x2d, y2d, size };
-
-			// For trails, calculate previous projected position
-			if (isTrail) {
-				const prevScale = maxDepth / (star.z + speed * timeScale);
-				batchStar.prevX2d = (star.prevX - centerX) * prevScale + centerX;
-				batchStar.prevY2d = (star.prevY - centerY) * prevScale + centerY;
-			}
-
-			// Add star to the appropriate batch
-			starsBatches.get(batchKey)!.push(batchStar);
-		}
-
-		// ============= PHASE 3: Render Batches Efficiently =============
-		// Render each batch with minimal context state changes
-		starsBatches.forEach((batchStars, key) => {
-			// Skip empty batches
-			if (batchStars.length === 0) return;
-
-			const isTrail = key.startsWith('trail_');
-			const color = key.substring(key.indexOf('_') + 1);
-
-			// Set style only once per batch
-			if (isTrail) {
-				ctx.strokeStyle = color;
-			} else {
-				ctx.fillStyle = color;
-			}
-
-			// Begin a single path for all stars in this batch
-			ctx.beginPath();
-
-			// Add all stars to the path
-			for (const star of batchStars) {
-				if (isTrail) {
-					// For trails, draw lines
-					ctx!.lineWidth = star.size;
-					ctx!.moveTo(star.prevX2d!, star.prevY2d!);
-					ctx!.lineTo(star.x2d, star.y2d);
-				} else {
-					// For circles, add to the current path
-					ctx.moveTo(star.x2d + star.size, star.y2d);
-					ctx.arc(star.x2d, star.y2d, star.size, 0, Math.PI * 2);
-				}
-			}
-
-			// Draw all stars of this type with a single call
-			if (isTrail) {
-				ctx.stroke();
-			} else {
-				ctx.fill();
-			}
-		});
-
-		// Gradually return to base speed when not boosting
-		if (!isBoosting && speed > baseSpeed) {
-			speed = Math.max(baseSpeed, speed * 0.98);
-		}
-	}
-
 	// Start animation
 	export function start() {
 		if (isRunning) return;
@@ -534,7 +432,7 @@
 		isRunning = true;
 		lastTime = performance.now();
 
-		// Use the fixed timestep loop instead of requestAnimationFrame
+		// Use the optimized animation system
 		setupAnimation();
 
 		dispatch('start');
@@ -701,54 +599,115 @@
 		}
 	});
 
+	/**
+	 * Optimization: Complete cleanup with explicit resource release
+	 * Benefit: Prevents memory leaks
+	 */
 	onDestroy(() => {
 		if (!browser) return;
 
-		// Stop animation loop
-		stop();
+		// 1. Stop animation with proper sequencing
+		const wasRunning = isRunning;
+		isRunning = false; // Set flag first to prevent animation loop continuation
 
-		// Clean up fixed timestep loop
+		// Stop animation loop explicitly
+		if (animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+			animationFrameId = null;
+		} else {
+			// Fallback to original stop method if animationFrameId isn't available
+			stop();
+		}
+
+		// 2. Properly clean up fixed timestep loop
 		if (fixedStepLoop) {
 			fixedStepLoop.stop();
 			fixedStepLoop = null;
 		}
 
-		// Remove event listeners
+		// 3. Remove all event listeners with same options they were added with
 		if (enableBoost) {
-			window.removeEventListener('keydown', handleKeyDown);
-			window.removeEventListener('keyup', handleKeyUp);
-			window.removeEventListener('touchstart', handleTouchStart);
-			window.removeEventListener('touchend', handleTouchEnd);
+			window.removeEventListener('keydown', handleKeyDown, { passive: true });
+			window.removeEventListener('keyup', handleKeyUp, { passive: true });
+			window.removeEventListener('touchstart', handleTouchStart, { passive: true });
+			window.removeEventListener('touchend', handleTouchEnd, { passive: true });
 		}
 
-		// Remove visibility change handler
+		// 4. Remove visibility change handler
 		document.removeEventListener('visibilitychange', handleVisibilityChange);
 
-		// Clean up resize observer
+		// 5. Clean up resize observer
 		if (resizeObserver) {
 			resizeObserver.disconnect();
 			resizeObserver = null;
 		}
 
-		// Clean up canvas
-		if (ctx) {
-			ctx = null;
+		// 6. Clean up canvas
+		if (canvasElement) {
+			// Clear canvas to help release graphics resources
+			if (ctx) {
+				// Set dimensions to minimum to release graphics memory
+				ctx.canvas.width = 1;
+				ctx.canvas.height = 1;
+				ctx.clearRect(0, 0, 1, 1);
+				ctx = null;
+			}
+
+			// Remove from DOM if still attached
+			if (canvasElement.parentNode) {
+				canvasElement.parentNode.removeChild(canvasElement);
+			}
+
+			// Clear references
+			canvasElement = null;
 		}
 
-		if (canvasElement && canvasElement.parentNode) {
-			canvasElement.parentNode.removeChild(canvasElement);
-		}
-
-		canvasElement = null;
+		// 7. Clear container reference
 		containerElement = null;
 
-		// Clear arrays
-		stars = [];
+		// 8. Clear stars array with proper technique
+		if (stars.length > 0) {
+			// First set length to zero, then reassign
+			stars.length = 0;
+			stars = [];
+		}
 
-		// Clear state
-		isRunning = false;
+		// 9. Clear state flags
 		isPaused = false;
 		isBoosting = false;
+
+		// 10. Explicitly null function references that might cause closure retention
+		handleKeyDown = null;
+		handleKeyUp = null;
+		handleTouchStart = null;
+		handleTouchEnd = null;
+		handleVisibilityChange = null;
+
+		// 11. Notify store about animation state change
+		if (wasRunning) {
+			// Use try-catch to prevent errors during destruction phase
+			try {
+				import('$lib/stores/animation-store').then((module) => {
+					if (module.animationState) {
+						module.animationState.resetAnimationState();
+					}
+				});
+			} catch (e) {
+				// Ignore errors during cleanup
+			}
+		}
+
+		// 12. Force garbage collection hint (from Code B)
+		setTimeout(() => {
+			// Try to explicitly suggest garbage collection
+			try {
+				if ((window as any).gc) {
+					(window as any).gc();
+				}
+			} catch (e) {
+				// GC not available
+			}
+		}, 100);
 	});
 
 	// Watch for container element changes and initialize if needed

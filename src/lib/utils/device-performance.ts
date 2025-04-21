@@ -293,7 +293,8 @@ function isIPhone14(): boolean {
 }
 
 /**
- * Perform device capability benchmark
+ * Optimization: Avoid DOM manipulation in benchmarks
+ * Benefit: Eliminates layout thrashing during benchmark
  */
 async function performBenchmark(): Promise<number> {
 	if (!browser) return 1.0;
@@ -301,23 +302,23 @@ async function performBenchmark(): Promise<number> {
 	let score = 1.0;
 	const startTime = performance.now();
 
-	// Simple calculation benchmark
+	// Calculation benchmark without DOM manipulation
 	let result = 0;
 	for (let i = 0; i < 10000; i++) {
 		result += Math.sin(i) * Math.cos(i);
 	}
 
-	// DOM manipulation benchmark
-	const div = document.createElement('div');
-	document.body.appendChild(div);
-	for (let i = 0; i < 100; i++) {
-		div.style.width = `${i}px`;
-		div.style.height = `${i}px`;
-		div.style.opacity = `${i / 100}`;
-		// Force layout reflow
-		div.offsetHeight;
+	// Memory allocation benchmark
+	const arrays = [];
+	for (let i = 0; i < 5; i++) {
+		arrays.push(new Float32Array(1000));
+		for (let j = 0; j < 1000; j++) {
+			arrays[i][j] = Math.random();
+		}
 	}
-	document.body.removeChild(div);
+
+	// Clean up to avoid memory leak
+	arrays.length = 0;
 
 	const endTime = performance.now();
 	const benchmarkTime = endTime - startTime;
@@ -335,9 +336,39 @@ async function performBenchmark(): Promise<number> {
 }
 
 /**
- * More advanced device capability detection
+ * Get a quick estimate of device capabilities without heavy benchmarking
  */
-async function determineDeviceCapabilities(): Promise<DeviceCapabilities> {
+function getQuickCapabilitiesEstimate(): DeviceCapabilities {
+	if (!browser) {
+		return highCapabilities; // Default to high for SSR
+	}
+
+	// Detect device characteristics without relying solely on UA
+	const pixelRatio = window.devicePixelRatio || 1;
+	const ua = navigator.userAgent;
+	const screenWidth = window.innerWidth;
+	const isIOS = /iPad|iPhone|iPod/.test(ua);
+	const isAndroid = /Android/.test(ua);
+	const isMobile = isIOS || isAndroid || screenWidth < 768;
+
+	// Quick device tier determination based on simple heuristics
+	if (isIOS) {
+		return { ...iosOptimizedCapabilities };
+	} else if (isMobile) {
+		return { ...lowCapabilities };
+	} else if (navigator.hardwareConcurrency < 4) {
+		return { ...lowCapabilities };
+	} else if (navigator.hardwareConcurrency >= 8 && pixelRatio >= 2) {
+		return { ...highCapabilities };
+	} else {
+		return { ...mediumCapabilities };
+	}
+}
+
+/**
+ * Perform detailed device capability detection
+ */
+async function performDetailedDetection(): Promise<DeviceCapabilities> {
 	if (!browser) {
 		return highCapabilities; // Default to high for SSR
 	}
@@ -498,6 +529,31 @@ async function determineDeviceCapabilities(): Promise<DeviceCapabilities> {
 	return capabilities;
 }
 
+/**
+ * Optimization: Deferred heavy operations and benchmarking
+ * Benefit: Faster initialization and reduced startup impact
+ */
+async function determineDeviceCapabilities(): Promise<DeviceCapabilities> {
+	// Quick initial detection based on simple heuristics
+	const quickCapabilities = getQuickCapabilitiesEstimate();
+
+	// Return quick results immediately
+	setTimeout(() => {
+		// Then schedule detailed detection for later when the app is idle
+		requestIdleCallback(
+			() => {
+				performDetailedDetection().then((detailedCapabilities) => {
+					// Update device capabilities with more detailed results
+					deviceCapabilities.set(detailedCapabilities);
+				});
+			},
+			{ timeout: 2000 }
+		); // Ensure it runs within 2 seconds
+	}, 50);
+
+	return quickCapabilities;
+}
+
 // Create the deviceCapabilities store
 export const deviceCapabilities = writable<DeviceCapabilities>(highCapabilities);
 export const memoryUsageStore = writable<number>(0);
@@ -581,7 +637,6 @@ export function setupPerformanceMonitoring() {
 	};
 }
 
-// Update object pool statistics
 // Update object pool statistics
 export function updateObjectPoolStats(stats: Partial<ObjectPoolStats>) {
 	if (!browser) return;

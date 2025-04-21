@@ -17,6 +17,7 @@ interface WorkerStats {
  */
 class StarPoolBridge {
 	private lastReportTime = 0;
+	private lastSyncTime = 0; // Added for the new syncStats method
 	private reportInterval = 500; // Reduced to 500ms for more frequent updates
 	private worker: Worker | null = null;
 	private workerStatsBuffer: WorkerStats = {
@@ -193,25 +194,44 @@ class StarPoolBridge {
 	}
 
 	/**
-	 * Synchronize statistics between StarPool and the worker
+	 * Fix: Ensure stats consistency between worker and main thread
 	 */
-	private syncStats(): void {
+	syncStats(force = false): void {
+		const now = performance.now();
+
+		// Throttle updates unless forced
+		if (!force && now - this.lastSyncTime < 100) return;
+		this.lastSyncTime = now;
+
 		if (!this.worker) return;
 
-		// Get current stats
-		const stats = get(objectPoolStatsStore);
+		// Get current stats with proper defensive access
+		const stats = get(objectPoolStatsStore) || {
+			activeObjects: 0,
+			totalCapacity: 0,
+			objectsCreated: 0,
+			objectsReused: 0
+		};
 
-		if (!stats) return;
+		// Ensure we're not sending NaN or undefined
+		const safeStats = {
+			activeObjects: Math.max(0, stats.activeObjects || 0),
+			totalCapacity: Math.max(1, stats.totalCapacity || 1),
+			objectsCreated: Math.max(0, stats.objectsCreated || 0),
+			objectsReused: Math.max(0, stats.objectsReused || 0)
+		};
 
-		// Send updates to worker
+		// Verify utilization is valid (0-1)
+		const utilization = safeStats.activeObjects / safeStats.totalCapacity;
+		if (isNaN(utilization) || utilization < 0 || utilization > 1) {
+			// Fix invalid utilization
+			safeStats.activeObjects = Math.min(safeStats.activeObjects, safeStats.totalCapacity);
+		}
+
+		// Send corrected stats to worker
 		this.worker.postMessage({
 			type: 'updatePoolStats',
-			data: {
-				activeObjects: stats.activeObjects || 0,
-				totalCapacity: stats.totalCapacity || 0,
-				objectsCreated: stats.objectsCreated || 0,
-				objectsReused: stats.objectsReused || 0
-			}
+			data: safeStats
 		});
 
 		// Request fresh stats from worker
@@ -261,7 +281,7 @@ class StarPoolBridge {
 		this.flushStatsBuffer();
 
 		// Sync with worker
-		this.syncStats();
+		this.syncStats(true); // Force the sync
 
 		// Force UI update
 		starPoolTracker.reportNow();

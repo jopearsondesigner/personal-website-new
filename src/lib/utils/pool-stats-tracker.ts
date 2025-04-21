@@ -20,6 +20,9 @@ export class PoolStatsTracker {
 	private activeObjects: number = 0;
 	private totalCapacity: number = 0;
 	private initialized: boolean = false;
+	private debounceTimer: number | null = null;
+	private batchedCreated: number = 0;
+	private batchedReused: number = 0;
 
 	constructor(poolName: string, poolType: string, objectSize: number = 200) {
 		this.poolName = poolName;
@@ -61,6 +64,7 @@ export class PoolStatsTracker {
 		if (count <= 0) return;
 
 		this.objectsCreated += count;
+		this.batchedCreated += count;
 
 		// Log for debugging
 		if (browser) {
@@ -69,7 +73,7 @@ export class PoolStatsTracker {
 			);
 		}
 
-		this.checkReportStats();
+		this.scheduleStatsUpdate();
 	}
 
 	/**
@@ -80,6 +84,7 @@ export class PoolStatsTracker {
 		if (count <= 0) return;
 
 		this.objectsReused += count;
+		this.batchedReused += count;
 
 		// Log for debugging
 		if (browser) {
@@ -88,7 +93,30 @@ export class PoolStatsTracker {
 			);
 		}
 
-		this.checkReportStats();
+		this.scheduleStatsUpdate();
+	}
+
+	/**
+	 * Optimization: Use RAF to align updates with frame rendering
+	 * Benefit: Better integration with browser's render pipeline
+	 */
+	private scheduleStatsUpdate(): void {
+		if (!browser || this.debounceTimer !== null) return;
+
+		// Use requestAnimationFrame for better sync with rendering
+		this.debounceTimer = requestAnimationFrame(() => {
+			this.updateStats({
+				objectsCreated: this.batchedCreated > 0 ? this.objectsCreated : undefined,
+				objectsReused: this.batchedReused > 0 ? this.objectsReused : undefined,
+				reuseRatio: this.calculateReuseRatio(),
+				estimatedMemorySaved: this.calculateMemorySaved()
+			});
+
+			this.batchedCreated = 0;
+			this.batchedReused = 0;
+			this.debounceTimer = null;
+			this.lastReportTime = performance.now();
+		});
 	}
 
 	/**
@@ -99,6 +127,7 @@ export class PoolStatsTracker {
 
 		if (created > 0) {
 			this.objectsCreated += created;
+			this.batchedCreated += created;
 			hasUpdates = true;
 
 			// Log for debugging
@@ -111,6 +140,7 @@ export class PoolStatsTracker {
 
 		if (reused > 0) {
 			this.objectsReused += reused;
+			this.batchedReused += reused;
 			hasUpdates = true;
 
 			// Log for debugging
@@ -122,7 +152,7 @@ export class PoolStatsTracker {
 		}
 
 		if (hasUpdates) {
-			this.checkReportStats();
+			this.scheduleStatsUpdate();
 		}
 	}
 
@@ -143,7 +173,7 @@ export class PoolStatsTracker {
 			utilizationRate: totalCapacity > 0 ? activeObjects / totalCapacity : 0
 		});
 
-		this.checkReportStats();
+		this.scheduleStatsUpdate();
 	}
 
 	/**
@@ -169,8 +199,15 @@ export class PoolStatsTracker {
 	reset(): void {
 		this.objectsCreated = 0;
 		this.objectsReused = 0;
+		this.batchedCreated = 0;
+		this.batchedReused = 0;
 		this.startTime = browser ? performance.now() : 0;
 		this.lastReportTime = this.startTime;
+
+		if (this.debounceTimer !== null && browser) {
+			cancelAnimationFrame(this.debounceTimer);
+			this.debounceTimer = null;
+		}
 
 		// Reset the store values but maintain pool identity
 		this.updateStats({

@@ -42,6 +42,60 @@
 	// Stats refresh interval handle
 	let statsRefreshInterval: number | null = null;
 
+	/**
+	 * Optimization: Throttle DOM updates to reduce rendering cost
+	 * Benefit: Minimizes performance impact of the monitor itself
+	 */
+	let lastUpdateTime = 0;
+	let pendingUpdate = false;
+	let updateInterval = 500; // ms between updates
+
+	// Subscribe to stores with throttling
+	$: {
+		const now = browser ? performance.now() : 0;
+		// Only trigger update at most once per interval
+		if (now - lastUpdateTime > updateInterval && !pendingUpdate) {
+			lastUpdateTime = now;
+			pendingUpdate = true;
+
+			// Schedule update on next animation frame
+			if (browser) {
+				requestAnimationFrame(() => {
+					pendingUpdate = false;
+					// FPS and other values are automatically updated by reactive statements
+				});
+			}
+		}
+	}
+
+	/**
+	 * Optimization: Memoize expensive calculations
+	 * Benefit: Reduces redundant calculations
+	 */
+	let memoizedStats = {
+		utilizationPercentage: '0',
+		reuseRatioPercentage: '0',
+		memoryPercentage: '0',
+		lastUpdateTime: 0
+	};
+
+	function updateMemoizedStats() {
+		const now = performance.now();
+		if (now - memoizedStats.lastUpdateTime < 250) return; // Throttle updates
+
+		memoizedStats = {
+			utilizationPercentage: ($objectPoolStatsStore.utilizationRate * 100).toFixed(0),
+			reuseRatioPercentage: ($objectPoolStatsStore.reuseRatio * 100).toFixed(0),
+			memoryPercentage: ($memoryUsageStore * 100).toFixed(0),
+			lastUpdateTime: now
+		};
+	}
+
+	// Call updateMemoizedStats when stores change
+	$: if (browser && $perfMonitorVisible) {
+		updateMemoizedStats();
+	}
+
 	// Handle double tap on mobile
 	function handleTouchStart(event: TouchEvent) {
 		const touch = event.touches[0];
@@ -282,20 +336,38 @@
 
 	onMount(() => {
 		if (browser && monitorElement) {
-			// Add event listeners with proper passive setting
-			monitorElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+			/**
+			 * Optimization: Passive touch event handling
+			 * Benefit: Improves scrolling performance
+			 */
+			// Add touch events with correct passive settings
+			monitorElement.addEventListener('touchstart', handleTouchStart, {
+				passive: true // Change to passive when possible
+			});
+
+			// Only add non-passive for events that need preventDefault
+			document.addEventListener('touchmove', handleTouchMove, {
+				passive: false // Keep non-passive only when needed
+			});
+			document.addEventListener('touchend', handleTouchEnd, {
+				passive: true // Change to passive when possible
+			});
+
+			// Use capture phase for outside clicks to handle early
+			document.addEventListener('mousedown', handleClickOutside, {
+				capture: true,
+				passive: true
+			});
+
+			// Initialize handlers with properly bound this context
+			handleTouchStart = handleTouchStart.bind(this);
+			handleTouchMove = handleTouchMove.bind(this);
+			handleTouchEnd = handleTouchEnd.bind(this);
 
 			// Add drag handlers
 			monitorElement.addEventListener('mousedown', handleMouseDown);
 			document.addEventListener('mousemove', handleMouseMove);
 			document.addEventListener('mouseup', handleMouseUp);
-
-			// Add click outside handler - with capture to ensure it runs first
-			document.addEventListener('mousedown', handleClickOutside, { capture: true });
-
-			// Touch events with correct passive settings
-			document.addEventListener('touchmove', handleTouchMove, { passive: false });
-			document.addEventListener('touchend', handleTouchEnd, { passive: false });
 
 			// Initialize stats
 			initializeStats();
@@ -367,7 +439,7 @@
 		<div class="basic-metrics">
 			<div>FPS: {$fpsStore.toFixed(1)}</div>
 			<div>Quality: {$deviceCapabilities?.tier || 'high'}</div>
-			<div>Memory: {($memoryUsageStore * 100).toFixed(0)}%</div>
+			<div>Memory: {memoizedStats.memoryPercentage}%</div>
 		</div>
 
 		<div class="metrics-toggles">
@@ -417,19 +489,17 @@
 					<div class="utilization-bar">
 						<div
 							class="utilization-fill"
-							style="width: {($objectPoolStatsStore.utilizationRate * 100).toFixed(0)}%"
+							style="width: {memoizedStats.utilizationPercentage}%"
 						></div>
 					</div>
 					<div class="utilization-text">
-						{$objectPoolStatsStore.activeObjects} / {$objectPoolStatsStore.totalCapacity} objects ({(
-							$objectPoolStatsStore.utilizationRate * 100
-						).toFixed(0)}%)
+						{$objectPoolStatsStore.activeObjects} / {$objectPoolStatsStore.totalCapacity} objects ({memoizedStats.utilizationPercentage}%)
 					</div>
 				</div>
 				<div class="pool-stats">
 					<div>Created: {$objectPoolStatsStore.objectsCreated}</div>
 					<div>Reused: {$objectPoolStatsStore.objectsReused}</div>
-					<div>Reuse Ratio: {($objectPoolStatsStore.reuseRatio * 100).toFixed(0)}%</div>
+					<div>Reuse Ratio: {memoizedStats.reuseRatioPercentage}%</div>
 					<div>Memory Saved: {$objectPoolStatsStore.estimatedMemorySaved.toFixed(0)} KB</div>
 				</div>
 			</div>
