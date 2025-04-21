@@ -3,8 +3,41 @@ import { browser } from '$app/environment';
 import { writable, get } from 'svelte/store';
 import { fpsStore } from './frame-rate-controller';
 
+declare global {
+	interface Navigator {
+		deviceMemory?: number;
+	}
+}
+
+interface WebGLDebugInfo {
+	UNMASKED_RENDERER_WEBGL: number;
+}
+
+interface WebGLRenderingContextWithExtensions extends WebGLRenderingContext {
+	getExtension(name: string): any;
+	getParameter(pname: number): any;
+	getSupportedExtensions(): string[] | null;
+}
+
+interface CanvasRenderingContext2DWithExtensions extends CanvasRenderingContext2D {
+	getExtension(name: string): any;
+	getParameter(pname: number): any;
+	getSupportedExtensions(): string[] | null;
+}
+
+type RenderingContextWithExtensions =
+	| WebGLRenderingContextWithExtensions
+	| CanvasRenderingContext2DWithExtensions;
+
+interface NavigatorWithDeviceMemory extends Navigator {
+	deviceMemory?: number;
+}
+
 export interface DeviceCapabilities {
-	tier: 'low' | 'medium' | 'high';
+	tier: 'high' | 'medium' | 'low';
+	rendering: RenderingCapabilities;
+	memory: MemoryCapabilities;
+	performance: PerformanceCapabilities;
 
 	// General settings
 	maxStars: number;
@@ -18,11 +51,9 @@ export interface DeviceCapabilities {
 
 	// Rendering settings
 	useCanvas: boolean; // Use canvas instead of DOM for stars
-	useWebGL: boolean; // Use WebGL for advanced effects
 	useShadersIfAvailable: boolean;
 
 	// Visual effects
-	enableGlow: boolean;
 	enableBlur: boolean;
 	enableShadows: boolean;
 	enableReflections: boolean;
@@ -68,6 +99,34 @@ export interface DeviceCapabilities {
 	objectPoolMargin: number; // Extra capacity percentage (e.g., 0.2 = 20% extra)
 }
 
+interface RenderingCapabilities {
+	quality: number;
+	useWebGL: boolean;
+	useOffscreenCanvas: boolean;
+	useWorker: boolean;
+	enableGlow: boolean;
+	enableTrails: boolean;
+	enableHighDPI: boolean;
+	enableDoubleBuffering: boolean;
+}
+
+interface MemoryCapabilities {
+	maxStars: number;
+	maxTrailLength: number;
+	maxSectors: number;
+	useTypedArrays: boolean;
+	enableGarbageCollection: boolean;
+	enableMemoryMonitoring: boolean;
+}
+
+interface PerformanceCapabilities {
+	targetFPS: number;
+	enableAdaptiveQuality: boolean;
+	enableFrameSkipping: boolean;
+	enablePerformanceMonitoring: boolean;
+	enableBrowserOptimizations: boolean;
+}
+
 // Object pool statistics interface for monitoring
 export interface ObjectPoolStats {
 	// Pool capacity
@@ -93,6 +152,31 @@ export interface ObjectPoolStats {
 // Default high-end capability settings
 const highCapabilities: DeviceCapabilities = {
 	tier: 'high',
+	rendering: {
+		quality: 1.0,
+		useWebGL: true,
+		useOffscreenCanvas: true,
+		useWorker: true,
+		enableGlow: true,
+		enableTrails: true,
+		enableHighDPI: true,
+		enableDoubleBuffering: true
+	},
+	memory: {
+		maxStars: 20000,
+		maxTrailLength: 20,
+		maxSectors: 100,
+		useTypedArrays: true,
+		enableGarbageCollection: true,
+		enableMemoryMonitoring: true
+	},
+	performance: {
+		targetFPS: 60,
+		enableAdaptiveQuality: true,
+		enableFrameSkipping: true,
+		enablePerformanceMonitoring: true,
+		enableBrowserOptimizations: true
+	},
 	maxStars: 60,
 	effectsLevel: 'normal',
 	useHardwareAcceleration: true,
@@ -100,9 +184,7 @@ const highCapabilities: DeviceCapabilities = {
 	updateInterval: 16, // ~60fps
 	animateInBackground: true,
 	useCanvas: true,
-	useWebGL: true,
 	useShadersIfAvailable: true,
-	enableGlow: true,
 	enableBlur: true,
 	enableShadows: true,
 	enableReflections: true,
@@ -716,3 +798,105 @@ export function setupEventListeners() {
 if (browser) {
 	initializeCapabilities();
 }
+
+const checkHighEndGPU = (): boolean => {
+	try {
+		const canvas = document.createElement('canvas');
+		const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+		if (!gl || !(gl instanceof WebGLRenderingContext)) return false;
+
+		const debugInfo = gl.getExtension('WEBGL_debug_renderer_info') as WebGLDebugInfo | null;
+		if (!debugInfo) return false;
+
+		const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+		return /nvidia|geforce|radeon|amd|intel iris/i.test(String(renderer).toLowerCase());
+	} catch (e) {
+		return false;
+	}
+};
+
+const checkMediumEndGPU = (): boolean => {
+	try {
+		const canvas = document.createElement('canvas');
+		const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+		return !!(gl && gl instanceof WebGLRenderingContext);
+	} catch (e) {
+		return false;
+	}
+};
+
+const getDeviceCapabilities = (): DeviceCapabilities => {
+	const isHighEndGPU = checkHighEndGPU();
+	const isMediumEndGPU = checkMediumEndGPU();
+	const deviceMemory = navigator.deviceMemory ?? 4;
+	const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+		navigator.userAgent
+	);
+	const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+	const isFirefox = /firefox/i.test(navigator.userAgent);
+	const isChrome = /chrome/i.test(navigator.userAgent);
+	const isEdge = /edge/i.test(navigator.userAgent);
+	const isOpera = /opera/i.test(navigator.userAgent);
+	const isIE = /msie|trident/i.test(navigator.userAgent);
+	const isHighEndDevice = deviceMemory >= 8 && !isMobile;
+	const isMediumEndDevice = deviceMemory >= 4 && !isMobile;
+	const isLowEndDevice = deviceMemory < 4 || isMobile;
+	const isHighEndBrowser = isChrome || isEdge || isOpera;
+	const isMediumEndBrowser = isFirefox || isSafari;
+	const isLowEndBrowser = isIE;
+	const isHighEnd = isHighEndGPU && isHighEndDevice && isHighEndBrowser;
+	const isMediumEnd = isMediumEndGPU && isMediumEndDevice && isMediumEndBrowser;
+	const isLowEnd = isLowEndDevice || isLowEndBrowser;
+
+	const tier = isHighEnd ? 'high' : isMediumEnd ? 'medium' : 'low';
+	const quality = isHighEnd ? 1 : isMediumEnd ? 0.75 : 0.5;
+	const useWebGL = isHighEnd || isMediumEnd;
+	const useOffscreenCanvas = isHighEnd || isMediumEnd;
+	const useWorker = isHighEnd || isMediumEnd;
+	const enableGlow = isHighEnd;
+	const enableTrails = isHighEnd || isMediumEnd;
+	const enableHighDPI = isHighEnd || isMediumEnd;
+	const enableDoubleBuffering = isHighEnd || isMediumEnd;
+	const maxStars = isHighEnd ? 10000 : isMediumEnd ? 5000 : 1000;
+	const maxTrailLength = isHighEnd ? 20 : isMediumEnd ? 10 : 5;
+	const maxSectors = isHighEnd ? 16 : isMediumEnd ? 8 : 4;
+	const useTypedArrays = isHighEnd || isMediumEnd;
+	const enableGarbageCollection = isHighEnd || isMediumEnd;
+	const enableMemoryMonitoring = isHighEnd || isMediumEnd;
+	const targetFPS = isHighEnd ? 60 : isMediumEnd ? 30 : 15;
+	const enableAdaptiveQuality = isHighEnd || isMediumEnd;
+	const enableFrameSkipping = isHighEnd || isMediumEnd;
+	const enablePerformanceMonitoring = isHighEnd || isMediumEnd;
+	const enableBrowserOptimizations = isHighEnd || isMediumEnd;
+
+	const capabilities: DeviceCapabilities = {
+		tier,
+		rendering: {
+			quality,
+			useWebGL,
+			useOffscreenCanvas,
+			useWorker,
+			enableGlow,
+			enableTrails,
+			enableHighDPI,
+			enableDoubleBuffering
+		},
+		memory: {
+			maxStars,
+			maxTrailLength,
+			maxSectors,
+			useTypedArrays,
+			enableGarbageCollection,
+			enableMemoryMonitoring
+		},
+		performance: {
+			targetFPS,
+			enableAdaptiveQuality,
+			enableFrameSkipping,
+			enablePerformanceMonitoring,
+			enableBrowserOptimizations
+		}
+	};
+
+	return capabilities;
+};

@@ -26,6 +26,10 @@ class FrameRateController {
 	private hysteresisThreshold = 0.1; // Prevent oscillation between quality levels
 	private qualityIncreaseDelay = 5000; // Wait time before increasing quality (ms)
 	private lastQualityIncreaseTime = 0;
+	private minQuality = 0.4; // Minimum quality level to maintain
+	private maxQuality = 1.0; // Maximum quality level
+	private qualityStep = 0.1; // Step size for quality adjustments
+	private fpsStabilityThreshold = 0.9; // FPS must be stable for this percentage of target
 
 	// State
 	private qualitySubscribers: QualityCallback[] = [];
@@ -300,47 +304,49 @@ class FrameRateController {
 	private adjustQuality() {
 		if (!this.adaptiveEnabled) return;
 
-		// Calculate new quality level based on FPS with hysteresis
-		let newQuality = this.currentQuality;
 		const now = performance.now();
+		const targetFPS = this.targetFPS;
+		const currentFPS = this.currentFPS;
+		const fpsRatio = currentFPS / targetFPS;
 
-		if (this.currentFPS < this.targetFPS * 0.5) {
-			// Severe performance issues - reduce quality significantly
-			newQuality = Math.max(0.3, this.currentQuality - 0.15);
-			this.consecutiveLowFPSFrames++;
-			this.consecutiveHighFPSFrames = 0;
-		} else if (this.currentFPS < this.targetFPS * 0.75) {
-			// Moderate performance issues - reduce quality slightly
-			newQuality = Math.max(0.5, this.currentQuality - 0.1);
-			this.consecutiveLowFPSFrames++;
-			this.consecutiveHighFPSFrames = 0;
-		} else if (this.currentFPS > this.targetFPS * 0.9 && this.currentQuality < 1.0) {
-			// Only increase quality if we've been stable for a while (hysteresis)
-			if (now - this.lastQualityIncreaseTime > this.qualityIncreaseDelay) {
-				// Good performance - gradually restore quality
-				newQuality = Math.min(1.0, this.currentQuality + 0.05);
+		// Only adjust quality if we have enough data points
+		if (this.frameTimeDiffs.filter((diff) => diff > 0).length < 10) return;
+
+		// Calculate FPS stability
+		const stableFrames = this.frameTimeDiffs.filter(
+			(diff) => diff > 0 && diff < (1000 / targetFPS) * 1.5
+		).length;
+		const stabilityRatio = stableFrames / this.frameTimeDiffs.length;
+
+		// Determine if we need to adjust quality
+		if (fpsRatio < this.fpsStabilityThreshold && stabilityRatio < 0.8) {
+			// FPS is too low and unstable
+			const newQuality = Math.max(this.minQuality, this.currentQuality - this.qualityStep);
+
+			if (Math.abs(newQuality - this.currentQuality) >= this.qualityAdjustmentThreshold) {
+				this.currentQuality = newQuality;
+				this.qualityTrend.push(-this.qualityStep);
+				this.notifyQualitySubscribers(this.currentQuality);
+			}
+		} else if (
+			fpsRatio > this.fpsStabilityThreshold &&
+			stabilityRatio > 0.9 &&
+			now - this.lastQualityIncreaseTime > this.qualityIncreaseDelay
+		) {
+			// FPS is stable and high enough to increase quality
+			const newQuality = Math.min(this.maxQuality, this.currentQuality + this.qualityStep);
+
+			if (Math.abs(newQuality - this.currentQuality) >= this.qualityAdjustmentThreshold) {
+				this.currentQuality = newQuality;
+				this.qualityTrend.push(this.qualityStep);
 				this.lastQualityIncreaseTime = now;
+				this.notifyQualitySubscribers(this.currentQuality);
 			}
-			this.consecutiveHighFPSFrames++;
-			this.consecutiveLowFPSFrames = 0;
 		}
 
-		// Track quality change for trend analysis
-		const qualityDiff = newQuality - this.currentQuality;
-		if (qualityDiff !== 0) {
-			this.qualityTrend.push(qualityDiff);
-		}
-
-		// Only notify if quality changed significantly
-		if (Math.abs(newQuality - this.currentQuality) > this.qualityAdjustmentThreshold) {
-			this.currentQuality = newQuality;
-			this.notifyQualitySubscribers(newQuality);
-
-			if (this.debugMode) {
-				console.log(
-					`Quality adjusted to: ${(newQuality * 100).toFixed(0)}% (FPS: ${this.currentFPS.toFixed(1)})`
-				);
-			}
+		// Trim quality trend history
+		if (this.qualityTrend.length > 10) {
+			this.qualityTrend = this.qualityTrend.slice(-10);
 		}
 	}
 
