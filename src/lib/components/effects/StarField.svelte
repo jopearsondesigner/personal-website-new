@@ -17,11 +17,21 @@
 	export let gameTitle: string | undefined = undefined;
 	export let startText: string | undefined = undefined;
 	export let withStartScreen = false;
+	export let maxDepth = 32;
+	export let baseSpeed = 0.25;
+	export let boostSpeed = 2;
 
 	// Component state
 	let canvasElement: HTMLCanvasElement;
 	let ctx: CanvasRenderingContext2D | null = null;
-	let stars: Star[] = [];
+	let stars: Array<{
+		x: number;
+		y: number;
+		z: number;
+		prevX: number;
+		prevY: number;
+		brightness: number;
+	}> = [];
 	let isRunning = false;
 	let isBoosting = false;
 	let isPaused = false;
@@ -31,6 +41,7 @@
 	let lastTime = 0;
 	let frameCount = 0;
 	let fixedStepLoop: { start: () => void; stop: () => void } | null = null;
+	let speed = baseSpeed;
 
 	// Performance monitoring
 	let fpsMonitor = {
@@ -39,13 +50,7 @@
 		fps: 0
 	};
 
-	// Star properties
-	let maxDepth = 32;
-	let speed = 0.25;
-	let baseSpeed = 0.25;
-	let boostSpeed = 2;
-
-	// Colors (blue to white gradient for stars)
+	// Simplified star colors for better visibility
 	const starColors = [
 		'#0033ff', // Dim blue
 		'#4477ff',
@@ -80,21 +85,19 @@
 		const containerHeight = containerElement?.clientHeight || window.innerHeight;
 
 		for (let i = 0; i < starCount; i++) {
-			createStar(containerWidth, containerHeight);
+			stars.push(createStar(containerWidth, containerHeight));
 		}
 	}
 
 	function createStar(containerWidth: number, containerHeight: number) {
-		// Random position in 3D space
-		const star = {
+		return {
 			x: Math.random() * containerWidth * 2 - containerWidth,
 			y: Math.random() * containerHeight * 2 - containerHeight,
 			z: Math.random() * maxDepth,
 			prevX: 0,
-			prevY: 0
+			prevY: 0,
+			brightness: Math.random() * 0.5 + 0.5 // Random brightness factor
 		};
-
-		stars.push(star);
 	}
 
 	// Set up canvas
@@ -314,7 +317,16 @@
 	}
 
 	// Helper function to render a batch of stars
-	function renderStarBatch(starBatch: Star[]) {
+	function renderStarBatch(
+		starBatch: Array<{
+			x: number;
+			y: number;
+			z: number;
+			prevX: number;
+			prevY: number;
+			brightness: number;
+		}>
+	) {
 		if (!ctx || !containerElement) return;
 
 		const containerWidth = containerElement.clientWidth;

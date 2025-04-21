@@ -760,6 +760,17 @@
 			gsap.globalTimeline.clear();
 		}
 	});
+
+	// Handle boost state
+	function handleBoost(active: boolean) {
+		if (starFieldComponent) {
+			if (active) {
+				starFieldComponent.boost();
+			} else {
+				starFieldComponent.unboost();
+			}
+		}
+	}
 </script>
 
 <section
@@ -822,10 +833,10 @@
 									<StarField
 										bind:this={starFieldComponent}
 										containerElement={starContainer}
-										autoStart={true}
 										starCount={300}
 										enableBoost={true}
-										enableGlow={true}
+										baseSpeed={0.25}
+										boostSpeed={2}
 									/>
 								{/if}
 
