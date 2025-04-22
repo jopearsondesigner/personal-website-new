@@ -58,6 +58,8 @@ export class CanvasStarFieldManager {
 	private baseSpeed = 0.25;
 	private boostSpeed = 2;
 	private boosting = false;
+
+	// VISUAL FIX 1: Restored exact star colors from reference
 	private starColors: string[] = [
 		'#0033ff', // Dim blue
 		'#4477ff',
@@ -98,6 +100,42 @@ export class CanvasStarFieldManager {
 		} else {
 			this.requestFrameFn = requestAnimationFrame;
 			this.cancelFrameFn = cancelAnimationFrame;
+		}
+	}
+
+	public setBaseSpeed(speed: number): void {
+		if (speed > 0) {
+			this.baseSpeed = speed;
+
+			// Update the worker if it exists
+			if (this.worker) {
+				this.worker.postMessage({
+					type: 'updateConfig',
+					data: {
+						config: {
+							baseSpeed: speed
+						}
+					}
+				});
+			}
+		}
+	}
+
+	public setBoostSpeed(speed: number): void {
+		if (speed > 0) {
+			this.boostSpeed = speed;
+
+			// Update the worker if it exists
+			if (this.worker) {
+				this.worker.postMessage({
+					type: 'updateConfig',
+					data: {
+						config: {
+							boostSpeed: speed
+						}
+					}
+				});
+			}
 		}
 	}
 
@@ -487,7 +525,7 @@ export class CanvasStarFieldManager {
 
 		// Render to offscreen canvas first if double buffering is enabled
 		if (this.offscreenCtx && this.offscreenCanvas) {
-			// Clear offscreen canvas
+			// VISUAL FIX: Restore exact motion blur from reference
 			this.offscreenCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
 			this.offscreenCtx.fillRect(0, 0, this.containerWidth, this.containerHeight);
 
@@ -503,7 +541,7 @@ export class CanvasStarFieldManager {
 			this.ctx.drawImage(this.offscreenCanvas, 0, 0);
 		} else {
 			// Original direct rendering if offscreen canvas isn't available
-			// Clear canvas
+			// VISUAL FIX: Restore exact motion blur from reference
 			this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
 			this.ctx.fillRect(0, 0, this.containerWidth, this.containerHeight);
 
@@ -517,14 +555,12 @@ export class CanvasStarFieldManager {
 		this.requestNextFrame();
 	};
 
+	// VISUAL FIX 2: Restored exact rendering logic from reference
 	private renderStars(context: CanvasRenderingContext2D) {
 		if (!this.starData) return;
 
 		const centerX = this.containerWidth / 2;
 		const centerY = this.containerHeight / 2;
-
-		// Group stars by color for efficient rendering
-		const starsByColor = new Map<string, { x: number; y: number; size: number }[]>();
 
 		// Process all stars from TypedArray
 		for (let i = 0; i < this.starCount; i++) {
@@ -537,8 +573,10 @@ export class CanvasStarFieldManager {
 			const x = this.starData[baseIndex];
 			const y = this.starData[baseIndex + 1];
 			const z = this.starData[baseIndex + 2];
+			const prevX = this.starData[baseIndex + 3];
+			const prevY = this.starData[baseIndex + 4];
 
-			// Project 3D position to 2D screen coordinates
+			// Project 3D position to 2D screen coordinates - exact formula from reference
 			const scale = this.maxDepth / z;
 			const x2d = (x - centerX) * scale + centerX;
 			const y2d = (y - centerY) * scale + centerY;
@@ -548,31 +586,33 @@ export class CanvasStarFieldManager {
 				continue;
 			}
 
-			// Calculate size and color
+			// VISUAL FIX: Restored exact star size calculation from reference
 			const size = (1 - z / this.maxDepth) * 3;
+
+			// VISUAL FIX: Restored exact color index calculation from reference
 			const colorIndex = Math.floor((1 - z / this.maxDepth) * (this.starColors.length - 1));
 			const color = this.starColors[colorIndex];
 
-			// Group by color
-			if (!starsByColor.has(color)) {
-				starsByColor.set(color, []);
-			}
+			// VISUAL FIX: Draw star trail when moving fast - exact condition from reference
+			if (this.speed > this.baseSpeed * 1.5) {
+				const prevScale = this.maxDepth / (z + this.speed);
+				const prevX2d = (prevX - centerX) * prevScale + centerX;
+				const prevY2d = (prevY - centerY) * prevScale + centerY;
 
-			starsByColor.get(color)?.push({ x: x2d, y: y2d, size });
+				context.beginPath();
+				context.moveTo(prevX2d, prevY2d);
+				context.lineTo(x2d, y2d);
+				context.strokeStyle = color;
+				context.lineWidth = size;
+				context.stroke();
+			} else {
+				// Draw star as circle
+				context.beginPath();
+				context.arc(x2d, y2d, size, 0, Math.PI * 2);
+				context.fillStyle = color;
+				context.fill();
+			}
 		}
-
-		// Render stars by color group
-		starsByColor.forEach((stars, color) => {
-			context.fillStyle = color;
-			context.beginPath();
-
-			for (const star of stars) {
-				context.moveTo(star.x + star.size, star.y);
-				context.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-			}
-
-			context.fill();
-		});
 	}
 
 	public adaptToDeviceCapabilities(capabilities: any) {
@@ -705,6 +745,7 @@ export class CanvasStarFieldManager {
 		if (!this.worker) return;
 
 		this.boosting = boost;
+		this.speed = boost ? this.boostSpeed : this.baseSpeed;
 
 		// Update worker
 		this.worker.postMessage({

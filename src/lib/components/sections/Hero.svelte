@@ -345,7 +345,10 @@
 					capabilities.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
 
 				// Create a new canvas star field manager
-				canvasStarFieldManager = new CanvasStarFieldManager(animationState, starCount);
+				canvasStarFieldManager = new CanvasStarFieldManager(animationState, 300);
+
+				canvasStarFieldManager.setBaseSpeed(0.25);
+				canvasStarFieldManager.setBoostSpeed(2);
 
 				// Set the container for the canvas
 				canvasStarFieldManager.setContainer(starContainer);
@@ -837,6 +840,7 @@
 										enableBoost={true}
 										baseSpeed={0.25}
 										boostSpeed={2}
+										maxDepth={32}
 									/>
 								{/if}
 
