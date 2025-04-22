@@ -45,6 +45,7 @@
 		orientationChange?: EventListener;
 		visibility?: EventListener;
 		touchStart?: EventListener;
+		glassEffects?: EventListener; // Added for glass effects
 	} = {};
 
 	// StarField component reference
@@ -487,6 +488,56 @@
 		}));
 	}
 
+	// NEW FUNCTION: Glass effects for enhanced realism
+	function updateGlassEffects() {
+		if (!browser) return;
+
+		// Create subtle movement with mouse for glass reflections
+		const glassContainer = document.querySelector('.screen-glass-container');
+		if (!glassContainer) return;
+
+		// Define a handler for mouse movement
+		const handleMouseMove = (e) => {
+			if (!glassContainer) return;
+
+			// Calculate relative position
+			const rect = glassContainer.getBoundingClientRect();
+			const centerX = rect.left + rect.width / 2;
+			const centerY = rect.top + rect.height / 2;
+
+			// Calculate normalized offsets (-1 to 1)
+			const offsetX = (e.clientX - centerX) / (rect.width / 2);
+			const offsetY = (e.clientY - centerY) / (rect.height / 2);
+
+			// Calculate movement limits
+			const maxMove = 8; // maximum movement in pixels
+			const moveX = offsetX * maxMove;
+			const moveY = offsetY * maxMove;
+
+			// Apply transformation to glass reflection elements
+			const specular = glassContainer.querySelector('.screen-glass-specular');
+			const reflection = glassContainer.querySelector('.screen-glass-reflection');
+
+			if (specular) {
+				specular.style.transform = `translate(${-moveX * 0.8}px, ${-moveY * 0.8}px)`;
+				specular.style.opacity = 0.2 + Math.abs(offsetX * offsetY) * 0.1;
+			}
+
+			if (reflection) {
+				reflection.style.transform = `translate(${moveX * 0.3}px, ${moveY * 0.3}px)`;
+			}
+		};
+
+		// Throttle the handler
+		const throttledHandler = createThrottledRAF(handleMouseMove, 16);
+
+		// Add event listener
+		document.addEventListener('mousemove', throttledHandler, { passive: true });
+
+		// Return the handler for cleanup
+		return throttledHandler;
+	}
+
 	// Focused initialization functions
 	function initializeComponents() {
 		// Detect device capabilities
@@ -512,6 +563,14 @@
 				starContainer.style.backfaceVisibility = 'hidden';
 				starContainer.style.webkitBackfaceVisibility = 'hidden';
 			}
+		}
+
+		// Add glass dynamics
+		const glassEffectsHandler = updateGlassEffects();
+
+		// Store handler for cleanup
+		if (glassEffectsHandler) {
+			eventHandlers.glassEffects = glassEffectsHandler;
 		}
 	}
 
@@ -689,7 +748,7 @@
 		if (!browser) return;
 
 		// Get handlers
-		const { resize, orientationChange, visibility, touchStart } = eventHandlers || {};
+		const { resize, orientationChange, visibility, touchStart, glassEffects } = eventHandlers || {};
 
 		// Cleanup all animations and managers
 		stopAnimations();
@@ -731,6 +790,7 @@
 		if (resize) window.removeEventListener('resize', resize);
 		if (orientationChange) window.removeEventListener('orientationchange', orientationChange);
 		if (visibility) document.removeEventListener('visibilitychange', visibility);
+		if (glassEffects) document.removeEventListener('mousemove', glassEffects);
 
 		// Remove any other event listeners that might have been added
 		if (arcadeScreen && touchStart) {
@@ -814,13 +874,8 @@
 					<!-- Update all screen effects to include border radius -->
 					<div class="screen-reflection rounded-[3vmin]"></div>
 					<div class="screen-glare rounded-[3vmin]"></div>
-					<div class="screen-glass rounded-[3vmin]"></div>
-					<div class="glow-effect rounded-[3vmin]"></div>
 
-					<div
-						id="scanline-overlay"
-						class="absolute inset-0 pointer-events-none z-10 rounded-[3vmin]"
-					></div>
+					<div class="glow-effect rounded-[3vmin]"></div>
 
 					{#if currentScreen === 'main'}
 						<div
@@ -870,6 +925,21 @@
 					{:else if currentScreen === 'game'}
 						<GameScreen />
 					{/if}
+					<div class="screen-glass-container rounded-[3vmin]">
+						<div class="screen-glass-outer rounded-[3vmin]"></div>
+						<div class="screen-glass-inner rounded-[3vmin]"></div>
+						<div class="screen-glass-reflection rounded-[3vmin]"></div>
+						<div class="screen-glass-edge rounded-[3vmin]"></div>
+						<div class="screen-glass-smudges rounded-[3vmin]"></div>
+						<div class="screen-glass-dust rounded-[3vmin]"></div>
+						<div class="screen-glass-specular rounded-[3vmin]"></div>
+						<div class="screen-internal-reflection rounded-[3vmin]"></div>
+					</div>
+
+					<div
+						id="scanline-overlay"
+						class="absolute inset-0 pointer-events-none z-10 rounded-[3vmin]"
+					></div>
 				</div>
 			</div>
 		</div>
@@ -905,6 +975,17 @@
 		--cabinet-specular: rgba(255, 255, 255, 0.7);
 		--glass-reflection: rgba(255, 255, 255, 0.15);
 		--screen-glow-opacity: 0.6;
+
+		/* Enhanced Glass Physics */
+		--glass-thickness: 0.4vmin;
+		--glass-refraction: 1.2;
+		--glass-reflectivity: 0.15;
+		--glass-specular-intensity: 0.7;
+		--glass-curvature: 3%;
+		--glass-edge-highlight: rgba(255, 255, 255, 0.8);
+		--glass-dust-opacity: 0.03;
+		--glass-smudge-opacity: 0.04;
+		--internal-reflection-opacity: 0.045;
 
 		/* Shadows & Effects */
 		--cabinet-shadow: 0 20px 40px rgba(0, 0, 0, 0.25), 0 5px 15px rgba(0, 0, 0, 0.15),
@@ -1206,6 +1287,29 @@
 			filter: brightness(1) blur(0);
 			transform: scale(1);
 		}
+	}
+
+	@keyframes glassWarmUp {
+		0% {
+			opacity: 0;
+			filter: brightness(0.5) blur(2px);
+		}
+		30% {
+			opacity: 0.3;
+			filter: brightness(0.7) blur(1px);
+		}
+		60% {
+			opacity: 0.5;
+			filter: brightness(0.85) blur(0.5px);
+		}
+		100% {
+			opacity: 1;
+			filter: brightness(1) blur(0);
+		}
+	}
+
+	.power-sequence .screen-glass-container > div {
+		animation: glassWarmUp 3s ease-out forwards;
 	}
 
 	@keyframes phosphorPersistence {
@@ -1545,6 +1649,9 @@
 		overflow: hidden;
 		z-index: 0;
 		perspective: 1000px;
+		/* Add the screen curvature effect */
+		mask-image: radial-gradient(ellipse at center, black 90%, transparent 100%);
+		-webkit-mask-image: radial-gradient(ellipse at center, black 90%, transparent 100%);
 	}
 
 	.star-container {
@@ -1641,6 +1748,161 @@
 			rgba(20, 20, 20, 0.4) 100%
 		);
 		border-radius: 0;
+	}
+
+	/* Enhanced Glass Effects System */
+	.screen-glass-container {
+		position: absolute;
+		inset: 0;
+		overflow: hidden;
+		pointer-events: none;
+		z-index: 10;
+	}
+
+	.screen-glass-outer {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			135deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.01) 15%,
+			rgba(255, 255, 255, var(--glass-reflectivity)) 45%,
+			rgba(255, 255, 255, 0.01) 75%,
+			transparent 100%
+		);
+		border-radius: var(--border-radius);
+		backdrop-filter: brightness(1.03) contrast(1.05);
+		mix-blend-mode: overlay;
+		transform: perspective(1000px) translateZ(var(--glass-thickness));
+		opacity: 0.7;
+	}
+
+	.screen-glass-inner {
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(
+			ellipse at center,
+			transparent 30%,
+			rgba(0, 0, 0, 0.07) 75%,
+			rgba(0, 0, 0, 0.15) 100%
+		);
+		opacity: 0.5;
+		border-radius: var(--border-radius);
+		transform: perspective(1000px) translateZ(calc(var(--glass-thickness) * 0.5));
+	}
+
+	.screen-glass-reflection {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			135deg,
+			transparent 20%,
+			rgba(255, 255, 255, 0.03) 40%,
+			rgba(255, 255, 255, 0.07) 50%,
+			rgba(255, 255, 255, 0.03) 60%,
+			transparent 80%
+		);
+		opacity: 0.6;
+		border-radius: var(--border-radius);
+		mix-blend-mode: screen;
+		animation: slowGlassShift 8s ease-in-out infinite alternate;
+	}
+
+	.screen-glass-edge {
+		position: absolute;
+		inset: 0;
+		border: 2px solid var(--glass-edge-highlight);
+		border-radius: var(--border-radius);
+		opacity: 0.12;
+		box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.1);
+		background: transparent;
+		background-clip: padding-box;
+		backdrop-filter: blur(0.5px);
+	}
+
+	.screen-glass-smudges {
+		position: absolute;
+		inset: 0;
+		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+		opacity: var(--glass-smudge-opacity);
+		filter: contrast(120%) brightness(150%);
+		border-radius: var(--border-radius);
+		mix-blend-mode: overlay;
+		transform: scale(1.01);
+	}
+
+	.screen-glass-dust {
+		position: absolute;
+		inset: 0;
+		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='dust'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23dust)'/%3E%3C/svg%3E");
+		opacity: var(--glass-dust-opacity);
+		border-radius: var(--border-radius);
+		mix-blend-mode: overlay;
+		transform: scale(1.02);
+	}
+
+	.screen-glass-specular {
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(
+			ellipse at 35% 25%,
+			rgba(255, 255, 255, var(--glass-specular-intensity)) 0%,
+			transparent 25%
+		);
+		opacity: 0.2;
+		border-radius: var(--border-radius);
+		mix-blend-mode: screen;
+		filter: blur(3px);
+		animation: subtleSpecularShift 10s ease-in-out infinite alternate;
+	}
+
+	.screen-internal-reflection {
+		position: absolute;
+		inset: 0;
+		background-image: repeating-linear-gradient(
+			135deg,
+			transparent 0px,
+			rgba(255, 255, 255, 0.015) 1px,
+			transparent 2px,
+			rgba(255, 255, 255, 0.02) 3px
+		);
+		opacity: var(--internal-reflection-opacity);
+		border-radius: var(--border-radius);
+		mix-blend-mode: screen;
+		animation: subtleReflectionShift 15s ease-in-out infinite alternate;
+	}
+
+	@keyframes slowGlassShift {
+		0% {
+			opacity: 0.5;
+			transform: translateY(-1px) scale(1.01);
+		}
+		100% {
+			opacity: 0.65;
+			transform: translateY(1px) scale(1.02);
+		}
+	}
+
+	@keyframes subtleSpecularShift {
+		0% {
+			opacity: 0.15;
+			transform: translate(-2px, -1px) scale(1);
+		}
+		100% {
+			opacity: 0.22;
+			transform: translate(2px, 1px) scale(1.03);
+		}
+	}
+
+	@keyframes subtleReflectionShift {
+		0% {
+			opacity: var(--internal-reflection-opacity);
+			transform: translateX(-1px) translateY(1px);
+		}
+		100% {
+			opacity: calc(var(--internal-reflection-opacity) * 1.2);
+			transform: translateX(1px) translateY(-1px);
+		}
 	}
 
 	/* ==========================================================================
