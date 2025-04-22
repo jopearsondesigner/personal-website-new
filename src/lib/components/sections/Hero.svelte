@@ -143,6 +143,29 @@
 		}
 	}
 
+	function initializeGlassEffects() {
+		if (!browser) return;
+
+		// Get the glass container
+		const glassContainer = document.querySelector('.screen-glass-container');
+		if (!glassContainer) return;
+
+		// Apply initial glass physics based on screen type
+		if (currentScreen === 'game') {
+			// For game screen, slightly adjust glass properties for gameplay visibility
+			document.documentElement.style.setProperty('--glass-reflectivity', '0.12');
+			document.documentElement.style.setProperty('--glass-dust-opacity', '0.02');
+			document.documentElement.style.setProperty('--glass-smudge-opacity', '0.03');
+			document.documentElement.style.setProperty('--internal-reflection-opacity', '0.035');
+		} else {
+			// For main screen, use default glass settings
+			document.documentElement.style.setProperty('--glass-reflectivity', '0.15');
+			document.documentElement.style.setProperty('--glass-dust-opacity', '0.03');
+			document.documentElement.style.setProperty('--glass-smudge-opacity', '0.04');
+			document.documentElement.style.setProperty('--internal-reflection-opacity', '0.045');
+		}
+	}
+
 	// Event handlers
 	function handleScreenChange(event: CustomEvent) {
 		const newScreen = event.detail;
@@ -161,33 +184,37 @@
 			if (prevScreen === 'main' && newScreen !== 'main') {
 				// We're leaving the main screen, stop animations
 				stopAnimations();
+
+				// Keep glass effects active even when switching screens
+				const glassContainer = document.querySelector('.screen-glass-container');
+				if (glassContainer) {
+					// Ensure glass container remains visible during transition
+					glassContainer.style.opacity = '1';
+					glassContainer.style.pointerEvents = 'none';
+
+					// Add a brief transition effect to simulate screen change under glass
+					gsap.fromTo(
+						glassContainer,
+						{ filter: 'brightness(1.2) blur(0.5px)' },
+						{ filter: 'brightness(1) blur(0px)', duration: 0.3 }
+					);
+				}
 			} else if (newScreen === 'main' && prevScreen !== 'main') {
 				// We're returning to main screen, restart animations
-				if (starFieldComponent && starContainer) {
-					// First ensure the container is properly set
-					starFieldComponent.start();
-				} else if (canvasStarFieldManager && starContainer) {
-					// First ensure the container is properly set
-					canvasStarFieldManager.setContainer(starContainer);
+				// ... existing code ...
 
-					// Then restart the animation
-					canvasStarFieldManager.start();
-
-					// Start other animations if elements exist
-					const elements = { header, insertConcept, arcadeScreen };
-					if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-						// Only reset animation state flags, not the whole state
-						animationState.resetAnimationState();
-						startAnimations(elements);
-					}
+				// Add glass transition effect when returning to main screen
+				const glassContainer = document.querySelector('.screen-glass-container');
+				if (glassContainer) {
+					gsap.fromTo(
+						glassContainer,
+						{ filter: 'brightness(1.1) blur(0.3px)' },
+						{ filter: 'brightness(1) blur(0px)', duration: 0.3 }
+					);
 				}
 			}
-
-			// Dispatch a custom event for screen transition complete
-			const detail = { from: prevScreen, to: newScreen };
-			if (arcadeScreen) {
-				arcadeScreen.dispatchEvent(new CustomEvent('screentransitioncomplete', { detail }));
-			}
+			initializeGlassEffects();
+			// Rest of the existing code...
 		};
 
 		// Use requestAnimationFrame for smoother transitions
@@ -1546,6 +1573,13 @@
 		z-index: 2;
 	}
 
+	:global(.game-screen-content) {
+		/* These styles help game content appear properly through the glass */
+		filter: contrast(1.05) brightness(1.1);
+		will-change: transform;
+		transform: translateZ(0);
+	}
+
 	/* ==========================================================================
        Lighting Effects
        ========================================================================== */
@@ -1682,7 +1716,7 @@
 		background-size: 100% 4px;
 		animation: scanline 0.2s linear infinite;
 		border-radius: calc(var(--border-radius) - 0.5vmin);
-		z-index: 1;
+		z-index: 25;
 	}
 
 	#arcade-screen.glow::after {
@@ -1756,7 +1790,9 @@
 		inset: 0;
 		overflow: hidden;
 		pointer-events: none;
-		z-index: 10;
+		z-index: 20; /* Increased z-index to be above all content */
+		will-change: transform, filter;
+		transform-style: preserve-3d;
 	}
 
 	.screen-glass-outer {
