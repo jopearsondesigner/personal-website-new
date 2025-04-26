@@ -45,8 +45,12 @@
 		orientationChange?: EventListener;
 		visibility?: EventListener;
 		touchStart?: EventListener;
-		glassEffects?: EventListener; // Added for glass effects
+		glassEffects?: EventListener;
 	} = {};
+
+	// Performance monitoring setup
+	let perfMonitor: ReturnType<typeof setupPerformanceMonitoring> | null = null;
+	let frameRateUnsubscribe: Function | null = null;
 
 	// StarField component reference
 	let starFieldComponent: StarField;
@@ -54,12 +58,24 @@
 	// Reactive statements with performance optimizations
 	$: stars = $animationState.stars;
 
-	$: if (browser) {
-		// Immediately update the CSS variable without RAF
-		document.documentElement.style.setProperty('--navbar-height', `${$layoutStore.navbarHeight}px`);
+	// Use the frameRateController for efficient CSS updates
+	$: if (browser && $layoutStore?.navbarHeight !== undefined) {
+		// Only update if we should render this frame or the value has changed significantly
+		if (
+			frameRateController.shouldRenderFrame() ||
+			Math.abs(
+				$layoutStore.navbarHeight -
+					parseFloat(document.documentElement.style.getPropertyValue('--navbar-height') || '0')
+			) > 2
+		) {
+			document.documentElement.style.setProperty(
+				'--navbar-height',
+				`${$layoutStore.navbarHeight}px`
+			);
+		}
 	}
 
-	// Device detection function
+	// Device detection function optimized with memoization
 	function detectDeviceCapabilities() {
 		if (!browser) return;
 
@@ -129,8 +145,8 @@
 					canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
 				}
 
-				// Use Promise.resolve().then to ensure DOM is ready
-				Promise.resolve().then(() => {
+				// Use requestAnimationFrame instead of Promise.resolve().then for better performance
+				requestAnimationFrame(() => {
 					// Make sure we start the stars if not using the StarField component
 					if (!starFieldComponent && canvasStarFieldManager) {
 						canvasStarFieldManager.start();
@@ -201,7 +217,6 @@
 				}
 			} else if (newScreen === 'main' && prevScreen !== 'main') {
 				// We're returning to main screen, restart animations
-				// ... existing code ...
 
 				// Add glass transition effect when returning to main screen
 				const glassContainer = document.querySelector('.screen-glass-container');
@@ -214,7 +229,6 @@
 				}
 			}
 			initializeGlassEffects();
-			// Rest of the existing code...
 		};
 
 		// Use requestAnimationFrame for smoother transitions
@@ -226,31 +240,40 @@
 
 		const { detail } = event;
 		if (detail.type === 'joystick') {
-			requestAnimationFrame(() => {
-				if (detail.value.x < -0.5) {
-					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
-				} else if (detail.value.x > 0.5) {
-					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-				} else {
-					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', bubbles: true }));
-					window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
-				}
+			// Use throttled frame to optimize input handling
+			if (frameRateController.shouldRenderFrame()) {
+				requestAnimationFrame(() => {
+					if (detail.value.x < -0.5) {
+						window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+					} else if (detail.value.x > 0.5) {
+						window.dispatchEvent(
+							new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
+						);
+					} else {
+						window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', bubbles: true }));
+						window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
+					}
 
-				if (detail.value.y < -0.5) {
-					window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
-				}
-			});
+					if (detail.value.y < -0.5) {
+						window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+					}
+				});
+			}
 		}
 	}
 
-	// Orientation handling
+	// Orientation handling with throttling
 	function handleOrientation() {
 		if (!browser) return;
 
 		const isLandscape = window.innerWidth > window.innerHeight;
-		requestAnimationFrame(() => {
-			document.body.classList.toggle('landscape', isLandscape);
-		});
+
+		// Only update when needed based on frame rate controller
+		if (frameRateController.shouldRenderFrame()) {
+			requestAnimationFrame(() => {
+				document.body.classList.toggle('landscape', isLandscape);
+			});
+		}
 	}
 
 	function debouncedOrientationCheck() {
@@ -260,7 +283,7 @@
 		orientationTimeout = window.setTimeout(handleOrientation, 150);
 	}
 
-	// Timeline creation helper
+	// Timeline creation helper optimized for performance
 	function createOptimizedTimeline(elements: any) {
 		if (!browser) return null;
 
@@ -268,13 +291,16 @@
 			const isMobile = window.innerWidth < 768;
 			const isLowPerformance = isLowPerformanceDevice;
 
+			// Get current quality level from frameRateController
+			const qualityLevel = frameRateController.getCurrentQuality();
+
 			// Clear any existing timelines
 			if (currentTimeline) {
 				currentTimeline.kill();
 			}
 
 			// When in lower performance mode, use simpler animations
-			if (isLowPerformance) {
+			if (isLowPerformance || qualityLevel < 0.6) {
 				// Create simpler timeline
 				const timeline = gsap.timeline({
 					paused: true,
@@ -282,7 +308,7 @@
 					defaults: {
 						ease: 'power1.inOut',
 						duration: 1.5,
-						overwrite: 'auto'
+						overwrite: true // Changed from 'auto' to 'true' for better performance
 					}
 				});
 
@@ -302,7 +328,7 @@
 				defaults: {
 					ease: 'power1.inOut',
 					immediateRender: false,
-					overwrite: 'auto'
+					overwrite: true // Changed from 'auto' to 'true' for better performance
 				}
 			});
 
@@ -311,6 +337,7 @@
 			const animDistance = isMobile ? 1 : 2; // Less movement on mobile
 			const opacityDuration = isMobile ? 1.5 : 1; // Slower fade on mobile
 
+			// Use a single timeline.to call with multiple targets
 			timeline
 				.to([elements.header, elements.insertConcept], {
 					duration: animDuration,
@@ -349,8 +376,16 @@
 				stopAnimations(); // Stop existing animations first
 			}
 
-			// Start StarField component if available
+			// Get the current quality setting from frameRateController
+			const currentQuality = frameRateController.getCurrentQuality();
+
+			// Start StarField component if available with quality adaptation
 			if (starFieldComponent) {
+				// Apply quality adaptive settings
+				if (currentQuality < 0.7) {
+					starFieldComponent.enableGlow = false;
+				}
+
 				starFieldComponent.start();
 			}
 			// Start canvas star field if it exists and StarField component isn't used
@@ -363,17 +398,29 @@
 					canvasStarFieldManager.adaptToDeviceCapabilities(capabilities);
 				}
 
+				// Apply quality-based adaptations
+				if (currentQuality < 0.7) {
+					// Reduce effects for better performance
+					const reducedStarCount = Math.floor((capabilities.maxStars || 60) * currentQuality);
+					canvasStarFieldManager.setStarCount(Math.max(20, reducedStarCount));
+					canvasStarFieldManager.enableGlow = false;
+				}
+
 				canvasStarFieldManager.start();
 			}
 			// Initialize canvas star field manager if it doesn't exist
 			else if (starContainer && !starFieldComponent) {
-				// Get device-appropriate star count
+				// Get device-appropriate star count adjusted for quality
 				const capabilities = get(deviceCapabilities);
-				const starCount =
+				const baseStarCount =
 					capabilities.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
+				const qualityAdjustedStarCount = Math.max(20, Math.floor(baseStarCount * currentQuality));
 
 				// Create a new canvas star field manager
-				canvasStarFieldManager = new CanvasStarFieldManager(animationState, 300);
+				canvasStarFieldManager = new CanvasStarFieldManager(
+					animationState,
+					qualityAdjustedStarCount
+				);
 
 				canvasStarFieldManager.setBaseSpeed(0.25);
 				canvasStarFieldManager.setBoostSpeed(2);
@@ -381,29 +428,29 @@
 				// Set the container for the canvas
 				canvasStarFieldManager.setContainer(starContainer);
 
-				// Configure features based on device capabilities
-				canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice);
-				canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
+				// Configure features based on device capabilities and quality
+				canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice && currentQuality > 0.5);
+				canvasStarFieldManager.setUseContainerParallax(
+					!isLowPerformanceDevice && currentQuality > 0.8
+				);
+
+				// Apply quality-based adaptations
+				if (currentQuality < 0.7) {
+					canvasStarFieldManager.enableGlow = false;
+				}
 
 				// Start the animation
 				canvasStarFieldManager.start();
 			}
 
-			// Initialize glitch manager with enhanced settings
+			// Initialize glitch manager with enhanced settings - only if quality allows
 			if (glitchManager) {
 				glitchManager.cleanup();
 			}
 
-			// Only use glitch effects on capable devices
-			if (!isLowPerformanceDevice) {
+			// Only use glitch effects on capable devices and at higher quality levels
+			if (!isLowPerformanceDevice && currentQuality > 0.6) {
 				glitchManager = new animations.GlitchManager();
-
-				// Use less intense glitch on mobile
-				if (isMobileDevice) {
-					// Remove setIntensity and setFrequency calls since they don't exist
-					// We'll need to implement these features differently
-				}
-
 				glitchManager.start([elements.header]); // Apply only to header
 			}
 
@@ -426,6 +473,9 @@
 						if (starFieldComponent) {
 							starFieldComponent.enableGlow = false;
 						}
+
+						// Also notify frameRateController to reduce quality
+						frameRateController.setQualityOverride(0.7);
 					},
 					() => {
 						// On critical - reduce star count and effects
@@ -443,6 +493,9 @@
 							starFieldComponent.starCount = reducedCount;
 							starFieldComponent.enableGlow = false;
 						}
+
+						// Further reduce quality through frameRateController
+						frameRateController.setQualityOverride(0.5);
 
 						// Suggest garbage collection
 						memoryMonitor?.suggestGarbageCollection();
@@ -515,7 +568,7 @@
 		}));
 	}
 
-	// NEW FUNCTION: Glass effects for enhanced realism
+	// Glass effects for enhanced realism - with frame rate controller integration
 	function updateGlassEffects() {
 		if (!browser) return;
 
@@ -523,9 +576,12 @@
 		const glassContainer = document.querySelector('.screen-glass-container');
 		if (!glassContainer) return;
 
-		// Define a handler for mouse movement
+		// Define a handler for mouse movement that uses frameRateController
 		const handleMouseMove = (e) => {
 			if (!glassContainer) return;
+
+			// Skip updates on low-performance frames
+			if (!frameRateController.shouldRenderFrame()) return;
 
 			// Calculate relative position
 			const rect = glassContainer.getBoundingClientRect();
@@ -555,8 +611,8 @@
 			}
 		};
 
-		// Throttle the handler
-		const throttledHandler = createThrottledRAF(handleMouseMove, 16);
+		// Throttle the handler more aggressively for better performance
+		const throttledHandler = createThrottledRAF(handleMouseMove, 32); // 30fps throttling
 
 		// Add event listener
 		document.addEventListener('mousemove', throttledHandler, { passive: true });
@@ -615,6 +671,9 @@
 					if (starFieldComponent) {
 						starFieldComponent.enableGlow = false;
 					}
+
+					// Reduce quality through frameRateController
+					frameRateController.setQualityOverride(0.7);
 				},
 				() => {
 					// On critical - reduce star count and effects
@@ -632,6 +691,9 @@
 						starFieldComponent.starCount = reducedCount;
 						starFieldComponent.enableGlow = false;
 					}
+
+					// Significantly reduce quality through frameRateController
+					frameRateController.setQualityOverride(0.5);
 
 					// Suggest garbage collection
 					memoryMonitor?.suggestGarbageCollection();
@@ -658,6 +720,9 @@
 	function setupEventListeners() {
 		// Define optimized event handlers
 		const optimizedResizeCheck = createThrottledRAF(() => {
+			// Only perform resize operations if frameRateController allows
+			if (!frameRateController.shouldRenderFrame()) return;
+
 			// Update device capabilities on resize
 			detectDeviceCapabilities();
 			debouncedOrientationCheck();
@@ -677,6 +742,9 @@
 				if (starFieldComponent) {
 					starFieldComponent.pause();
 				}
+
+				// Pause frame rate controller
+				frameRateController.setAdaptiveEnabled(false);
 			} else {
 				// Resume animations when tab is visible again
 				if (canvasStarFieldManager) {
@@ -685,6 +753,9 @@
 				if (starFieldComponent) {
 					starFieldComponent.resume();
 				}
+
+				// Resume frame rate controller
+				frameRateController.setAdaptiveEnabled(true);
 			}
 		};
 
@@ -735,11 +806,68 @@
 		};
 	}
 
+	// Initialize frame rate controller settings
+	function setupFrameRateController() {
+		// Set target FPS based on device capabilities
+		const capabilities = get(deviceCapabilities);
+
+		// Setup target FPS (60 for high/medium, 30 for low)
+		const targetFPS = isLowPerformanceDevice ? 30 : 60;
+		frameRateController.setTargetFPS(targetFPS);
+
+		// Set max frame skipping based on device capabilities
+		const maxSkip = capabilities.frameSkip || (isLowPerformanceDevice ? 2 : 0);
+		frameRateController.setMaxSkippedFrames(maxSkip);
+
+		// Enable adaptive quality control
+		frameRateController.setAdaptiveEnabled(true);
+
+		// Subscribe to quality changes to adapt animations
+		frameRateUnsubscribe = frameRateController.subscribeQuality((quality) => {
+			// Update animations based on quality level
+			if (canvasStarFieldManager) {
+				// Adapt star field based on quality
+				const capabilities = get(deviceCapabilities);
+				const baseCount = capabilities.maxStars || 60;
+				const adjustedCount = Math.max(20, Math.round(baseCount * quality));
+
+				// Only update if significantly different
+				const currentCount = canvasStarFieldManager.getStarCount();
+				if (Math.abs(currentCount - adjustedCount) > 5) {
+					canvasStarFieldManager.setStarCount(adjustedCount);
+				}
+
+				// Enable/disable effects based on quality
+				canvasStarFieldManager.enableGlow = quality > 0.7;
+				canvasStarFieldManager.setUseContainerParallax(quality > 0.8 && !isLowPerformanceDevice);
+			}
+
+			if (starFieldComponent) {
+				// Adapt StarField component based on quality
+				starFieldComponent.enableGlow = quality > 0.7;
+				const capabilities = get(deviceCapabilities);
+				const baseCount = capabilities.maxStars || 60;
+				const adjustedCount = Math.max(20, Math.round(baseCount * quality));
+
+				// Only update if significantly different
+				if (Math.abs(starFieldComponent.starCount - adjustedCount) > 5) {
+					starFieldComponent.starCount = adjustedCount;
+				}
+			}
+		});
+	}
+
 	// Lifecycle hooks
 	onMount(() => {
 		if (!browser) return;
 
 		currentScreen = 'main';
+
+		// Initialize performance monitoring first
+		perfMonitor = setupPerformanceMonitoring();
+
+		// Setup frame rate controller
+		setupFrameRateController();
 
 		// Initialize core components
 		initializeComponents();
@@ -801,6 +929,18 @@
 			memoryMonitor = null;
 		}
 
+		// Clean up perfMonitor if it exists
+		if (perfMonitor) {
+			perfMonitor();
+			perfMonitor = null;
+		}
+
+		// Unsubscribe from frameRateController
+		if (frameRateUnsubscribe) {
+			frameRateUnsubscribe();
+			frameRateUnsubscribe = null;
+		}
+
 		// Cleanup resize observer
 		if (resizeObserver) {
 			resizeObserver.disconnect();
@@ -853,19 +993,30 @@
 
 	// Handle boost state
 	function handleBoost(active: boolean) {
+		// Update frameRateController's quality if boosting
+		if (active) {
+			// Ensure high quality during boost
+			frameRateController.setQualityOverride(0.9);
+		} else {
+			// Reset to adaptive quality
+			frameRateController.setAdaptiveEnabled(true);
+		}
+
 		if (starFieldComponent) {
 			if (active) {
 				starFieldComponent.boost();
 			} else {
 				starFieldComponent.unboost();
 			}
+		} else if (canvasStarFieldManager) {
+			canvasStarFieldManager.setBoostMode(active);
 		}
 	}
 </script>
 
 <section
 	id="hero"
-	class="w-full relative overflow-hidden flex items-center justify-center"
+	class="w-full relative overflow-hidden flex items-center justify-center hardware-accelerated"
 	style="
     margin-top: calc(-.5 * {$layoutStore.navbarHeight}px);
     height: calc(100vh + {$layoutStore.navbarHeight}px);
@@ -873,14 +1024,14 @@
 >
 	<div
 		id="arcade-cabinet"
-		class="cabinet-metal w-full h-full relative flex items-center justify-center overflow-hidden"
+		class="cabinet-metal w-full h-full relative flex items-center justify-center overflow-hidden hardware-accelerated"
 	>
-		<div class="cabinet-plastic overflow-hidden">
+		<div class="cabinet-plastic overflow-hidden hardware-accelerated">
 			<div class="cabinet-background absolute inset-0"></div>
 			<div class="cabinet-wear absolute inset-0"></div>
 
 			<div
-				class="arcade-screen-wrapper relative overflow-hidden"
+				class="arcade-screen-wrapper relative overflow-hidden hardware-accelerated"
 				style="margin-top: calc(-1 * var(--navbar-height, 64px));"
 			>
 				<div class="navigation-wrapper relative z-50">
@@ -891,7 +1042,7 @@
 				<div class="screen-bezel rounded-[3vmin] overflow-hidden"></div>
 				<div
 					id="arcade-screen"
-					class="crt-screen hardware-accelerated relative glow rounded-[3vmin] overflow-hidden"
+					class="crt-screen hardware-accelerated relative glow rounded-[3vmin] overflow-hidden will-change-transform"
 					bind:this={arcadeScreen}
 				>
 					<div class="phosphor-decay rounded-[3vmin]"></div>
@@ -907,11 +1058,11 @@
 					{#if currentScreen === 'main'}
 						<div
 							id="space-background"
-							class="absolute inset-0 overflow-hidden pointer-events-none rounded-[3vmin]"
+							class="absolute inset-0 overflow-hidden pointer-events-none rounded-[3vmin] hardware-accelerated"
 							bind:this={spaceBackground}
 						>
 							<div
-								class="canvas-star-container absolute inset-0 pointer-events-none rounded-[3vmin]"
+								class="canvas-star-container absolute inset-0 pointer-events-none rounded-[3vmin] hardware-accelerated"
 								bind:this={starContainer}
 							>
 								{#if starContainer}
@@ -926,10 +1077,12 @@
 									/>
 								{/if}
 
-								<!-- Fallback stars -->
-								{#each $animationState.stars as star (star.id)}
-									<div class="star absolute" style={star.style}></div>
-								{/each}
+								<!-- Fallback stars - only render if we need them -->
+								{#if $animationState.stars && $animationState.stars.length > 0 && !starFieldComponent && !canvasStarFieldManager}
+									{#each $animationState.stars as star (star.id)}
+										<div class="star absolute" style={star.style}></div>
+									{/each}
+								{/if}
 							</div>
 						</div>
 						<!-- Content wrapper -->
@@ -937,22 +1090,26 @@
 							id="text-wrapper"
 							class="absolute inset-0 flex flex-col items-center justify-center z-0 p-2 mt-12 box-border"
 						>
-							<div id="header" class="text-center mb-2" bind:this={header}>
+							<div id="header" class="text-center mb-2 animate-transform" bind:this={header}>
 								Power-up Your Brand!
 							</div>
 
 							<div class="mt-6">
 								<ArcadeCtaButton />
 							</div>
-							<div id="insert-concept" class="text-center mt-3" bind:this={insertConcept}>
+							<div
+								id="insert-concept"
+								class="text-center mt-3 animate-opacity"
+								bind:this={insertConcept}
+							>
 								Insert Concept
 							</div>
-							<!-- <BoostCue /> -->
+							<BoostCue on:boost={(e) => handleBoost(e.detail)} />
 						</div>
 					{:else if currentScreen === 'game'}
 						<GameScreen />
 					{/if}
-					<div class="screen-glass-container rounded-[3vmin]">
+					<div class="screen-glass-container rounded-[3vmin] hardware-accelerated">
 						<div class="screen-glass-outer rounded-[3vmin]"></div>
 						<div class="screen-glass-inner rounded-[3vmin]"></div>
 						<div class="screen-glass-reflection rounded-[3vmin]"></div>
