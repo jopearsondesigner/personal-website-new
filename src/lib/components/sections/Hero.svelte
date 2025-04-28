@@ -1210,6 +1210,12 @@
 
 	.fixed-game-controls {
 		display: none;
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		z-index: 50;
+		pointer-events: auto;
 	}
 
 	@media (max-width: 1023px) {
