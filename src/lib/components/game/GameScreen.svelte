@@ -1,5 +1,6 @@
 <!-- src/lib/components/GameScreen.svelte -->
 <script lang="ts">
+	import type { GameStateEvent } from '$lib/types/game';
 	import { fade, fly } from 'svelte/transition';
 	import { browser } from '$app/environment';
 	import { writable } from 'svelte/store';
@@ -13,6 +14,9 @@
 	import { ICON_SIZE } from '$lib/constants/ui-constants';
 	// Import game store
 	import { gameStore } from '$lib/stores/game-store';
+	import { createEventDispatcher } from 'svelte';
+
+	const dispatch = createEventDispatcher();
 
 	// Define the device state store
 	const deviceState = writable({
@@ -65,6 +69,11 @@
 		{ text: 'SCORE', value: score.toString().padStart(6, '0'), side: 'right' }, // Changed from "1UP" to "SCORE"
 		{ text: 'LIVES', value: lives.toString(), side: 'right' }
 	];
+
+	function handleGameStateChange(event) {
+		// Update it to include:
+		dispatch('stateChange', event.detail);
+	}
 
 	// Add help toggle function
 	function toggleInstructions() {
@@ -195,7 +204,7 @@
 
 		<!-- Game container -->
 		<div class="game-view-container w-full lg:w-[calc(100%-260px)] overflow-hidden">
-			<Game />
+			<Game on:stateChange={handleGameStateChange} />
 		</div>
 
 		<!-- Right side panel - only show on desktop -->

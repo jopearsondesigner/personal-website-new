@@ -10,4 +10,11 @@ declare global {
 	}
 }
 
+declare global {
+	interface Window {
+		gameStoreUpdater: (gameData: any) => void;
+		isPaused?: boolean;
+	}
+}
+
 export {};

@@ -9,6 +9,18 @@
 	import { writable } from 'svelte/store';
 	// Import the game store
 	import { gameStore } from '$lib/stores/game-store';
+	import { createEventDispatcher } from 'svelte';
+	import type { GameState, GameData } from '$lib/types/game';
+
+	const dispatch = createEventDispatcher();
+
+	// Declare the global window property for TypeScript
+	declare global {
+		interface Window {
+			gameStoreUpdater: (gameData: any) => void;
+			isPaused?: boolean;
+		}
+	}
 
 	const deviceState = writable({
 		isTouchDevice: false,
@@ -150,6 +162,31 @@
 		}
 	}
 
+	function dispatchGameState() {
+		if (!browser) return;
+
+		// Get the current game state from the gameStore
+		const gameData = get(gameStore);
+		let currentState = 'idle';
+
+		// Determine the current state based on game conditions
+		if (gameData.isGameOver) {
+			currentState = 'gameover';
+		} else if (gameData.isPaused) {
+			currentState = 'paused';
+		} else if (gameData.isPlaying) {
+			currentState = 'playing';
+		}
+
+		// Dispatch the state change event
+		dispatch('stateChange', { state: currentState });
+	}
+
+	// Add this reactive statement to watch for game state changes
+	$: if (browser && $gameStore) {
+		dispatchGameState();
+	}
+
 	// New function to handle game errors
 	function handleGameError(
 		error: Error | string,
@@ -210,7 +247,11 @@
 			// This sets up the initial values from localStorage (if available)
 			window.gameStoreUpdater = (gameData) => {
 				if (gameData) {
+					console.log('UI receiving game state update:', gameData);
 					gameStore.updateState(gameData);
+
+					// After updating the store, dispatch the state change
+					setTimeout(dispatchGameState, 0);
 				}
 			};
 

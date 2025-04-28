@@ -18,6 +18,9 @@
 
 	const dispatch = createEventDispatcher();
 
+	export let gameState = 'idle'; // Possible values: 'idle', 'playing', 'paused', 'gameover'
+	export let allowReset = false; // Whether the reset button should be enabled
+
 	let touchControlState = {
 		movement: {
 			active: false,
@@ -128,6 +131,22 @@
 			navigator.vibrate(duration);
 		}
 	}
+
+	// Computed button states based on game state
+	$: buttonStates = {
+		// Reset button is active only when explicitly allowed or during gameplay/paused state
+		reset: allowReset || ['playing', 'paused', 'gameover'].includes(gameState),
+
+		// Pause button is active only during gameplay
+		pause: gameState === 'playing',
+
+		// Enter/Play button is active when game is idle or paused or game over
+		enter: ['idle', 'paused', 'gameover'].includes(gameState),
+
+		// Gameplay buttons are active only during active gameplay
+		shoot: gameState === 'playing',
+		missile: gameState === 'playing'
+	};
 
 	/**
 	 * Calculates normalized joystick position with zone awareness
@@ -527,11 +546,13 @@
 			<button
 				class="utility-button"
 				class:active={buttons.reset}
-				on:mousedown|preventDefault={(e) => handleButtonPress('reset', e)}
-				on:mouseup={() => handleButtonRelease('reset')}
-				on:touchstart|preventDefault={(e) => handleButtonPress('reset', e)}
-				on:touchend={() => handleButtonRelease('reset')}
+				class:disabled={!buttonStates.reset}
+				on:mousedown|preventDefault={(e) => buttonStates.reset && handleButtonPress('reset', e)}
+				on:mouseup={() => buttonStates.reset && handleButtonRelease('reset')}
+				on:touchstart|preventDefault={(e) => buttonStates.reset && handleButtonPress('reset', e)}
+				on:touchend={() => buttonStates.reset && handleButtonRelease('reset')}
 				aria-label="Reset"
+				aria-disabled={!buttonStates.reset}
 			>
 				<!-- Inline SVG for refresh icon -->
 				<svg
@@ -570,11 +591,13 @@
 			<button
 				class="utility-button"
 				class:active={buttons.pause}
-				on:mousedown|preventDefault={(e) => handleButtonPress('pause', e)}
-				on:mouseup={() => handleButtonRelease('pause')}
-				on:touchstart|preventDefault={(e) => handleButtonPress('pause', e)}
-				on:touchend={() => handleButtonRelease('pause')}
+				class:disabled={!buttonStates.pause}
+				on:mousedown|preventDefault={(e) => buttonStates.pause && handleButtonPress('pause', e)}
+				on:mouseup={() => buttonStates.pause && handleButtonRelease('pause')}
+				on:touchstart|preventDefault={(e) => buttonStates.pause && handleButtonPress('pause', e)}
+				on:touchend={() => buttonStates.pause && handleButtonRelease('pause')}
 				aria-label="Pause"
+				aria-disabled={!buttonStates.pause}
 			>
 				<!-- Inline SVG for pause icon -->
 				<svg
@@ -592,11 +615,13 @@
 			<button
 				class="utility-button"
 				class:active={buttons.enter}
-				on:mousedown|preventDefault={(e) => handleButtonPress('enter', e)}
-				on:mouseup={() => handleButtonRelease('enter')}
-				on:touchstart|preventDefault={(e) => handleButtonPress('enter', e)}
-				on:touchend={() => handleButtonRelease('enter')}
+				class:disabled={!buttonStates.enter}
+				on:mousedown|preventDefault={(e) => buttonStates.enter && handleButtonPress('enter', e)}
+				on:mouseup={() => buttonStates.enter && handleButtonRelease('enter')}
+				on:touchstart|preventDefault={(e) => buttonStates.enter && handleButtonPress('enter', e)}
+				on:touchend={() => buttonStates.enter && handleButtonRelease('enter')}
 				aria-label="Start"
+				aria-disabled={!buttonStates.enter}
 			>
 				<!-- Inline SVG for play icon -->
 				<svg
@@ -702,11 +727,15 @@
 				<button
 					class="arcade-button secondary-action"
 					class:active={buttons.missile}
-					on:mousedown|preventDefault={(e) => handleButtonPress('missile', e)}
-					on:mouseup={() => handleButtonRelease('missile')}
-					on:touchstart|preventDefault={(e) => handleButtonPress('missile', e)}
-					on:touchend={() => handleButtonRelease('missile')}
+					class:disabled={!buttonStates.missile}
+					on:mousedown|preventDefault={(e) =>
+						buttonStates.missile && handleButtonPress('missile', e)}
+					on:mouseup={() => buttonStates.missile && handleButtonRelease('missile')}
+					on:touchstart|preventDefault={(e) =>
+						buttonStates.missile && handleButtonPress('missile', e)}
+					on:touchend={() => buttonStates.missile && handleButtonRelease('missile')}
 					aria-label="Heat Seeker"
+					aria-disabled={!buttonStates.missile}
 				>
 					<span class="button-face" />
 					<HeatsekerIcon color="rgba(245, 245, 220, 0.9)" size={24} />
@@ -718,11 +747,13 @@
 				<button
 					class="arcade-button primary-action"
 					class:active={buttons.shoot}
-					on:mousedown|preventDefault={(e) => handleButtonPress('shoot', e)}
-					on:mouseup={() => handleButtonRelease('shoot')}
-					on:touchstart|preventDefault={(e) => handleButtonPress('shoot', e)}
-					on:touchend={() => handleButtonRelease('shoot')}
+					class:disabled={!buttonStates.shoot}
+					on:mousedown|preventDefault={(e) => buttonStates.shoot && handleButtonPress('shoot', e)}
+					on:mouseup={() => buttonStates.shoot && handleButtonRelease('shoot')}
+					on:touchstart|preventDefault={(e) => buttonStates.shoot && handleButtonPress('shoot', e)}
+					on:touchend={() => buttonStates.shoot && handleButtonRelease('shoot')}
 					aria-label="Shoot"
+					aria-disabled={!buttonStates.shoot}
 				>
 					<span class="button-face" />
 					<ShootIcon color="rgba(245, 245, 220, 0.9)" size={24} />
@@ -759,7 +790,7 @@
 
 	/* Base container styles */
 	.controls-container {
-		position: absolute;
+		position: fixed;
 		bottom: 0;
 		left: 0;
 		width: 100%;
@@ -1034,6 +1065,36 @@
 		transform-style: preserve-3d;
 	}
 
+	/* Disabled button state */
+	.utility-button.disabled,
+	.arcade-button.disabled {
+		opacity: 0.4;
+		filter: grayscale(70%);
+		cursor: not-allowed;
+		pointer-events: none;
+	}
+
+	.utility-button.disabled svg,
+	.arcade-button.disabled svg {
+		opacity: 0.5;
+	}
+
+	/* Ensure disabled buttons don't light up on hover */
+	.utility-button.disabled:hover,
+	.arcade-button.disabled:hover {
+		border-color: var(--neon-color-dim);
+		background: var(--controls-background);
+		box-shadow: none;
+	}
+
+	.utility-button.disabled:hover svg,
+	.arcade-button.disabled:hover svg,
+	.utility-button.disabled svg *,
+	.arcade-button.disabled svg * {
+		color: rgba(245, 245, 220, 0.5);
+		filter: none;
+	}
+
 	.button-group {
 		display: flex;
 		flex-direction: column;
@@ -1162,9 +1223,7 @@
 	/* Responsive styles */
 	@media (max-width: 1023px) {
 		.controls-container {
-			display: flex !important;
-			flex-direction: column;
-			padding-bottom: env(safe-area-inset-bottom);
+			display: block !important;
 		}
 
 		.joystick-container {

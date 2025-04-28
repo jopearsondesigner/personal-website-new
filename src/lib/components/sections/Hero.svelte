@@ -19,6 +19,7 @@
 	import { createThrottledRAF } from '$lib/utils/animation-helpers';
 	import StarField from '$lib/components/effects/StarField.svelte';
 	import BoostCue from '$lib/components/ui/BoostCue.svelte';
+	import type { GameState } from '$lib/types/game';
 
 	// Device detection state
 	let isMobileDevice = false;
@@ -54,6 +55,8 @@
 
 	// StarField component reference
 	let starFieldComponent: StarField;
+
+	let currentGameState: GameState = 'idle';
 
 	// Reactive statements with performance optimizations
 	$: stars = $animationState.stars;
@@ -205,8 +208,8 @@
 				const glassContainer = document.querySelector('.screen-glass-container');
 				if (glassContainer) {
 					// Ensure glass container remains visible during transition
-					glassContainer.style.opacity = '1';
-					glassContainer.style.pointerEvents = 'none';
+					(glassContainer as HTMLElement).style.opacity = '1';
+					(glassContainer as HTMLElement).style.pointerEvents = 'none';
 
 					// Add a brief transition effect to simulate screen change under glass
 					gsap.fromTo(
@@ -260,6 +263,11 @@
 				});
 			}
 		}
+	}
+
+	function handleGameStateChange(event: { detail: { state: GameState } }) {
+		currentGameState = event.detail.state;
+		console.log('Game state changed to:', currentGameState);
 	}
 
 	// Orientation handling with throttling
@@ -1107,8 +1115,9 @@
 							<BoostCue on:boost={(e) => handleBoost(e.detail)} />
 						</div>
 					{:else if currentScreen === 'game'}
-						<GameScreen />
+						<GameScreen on:stateChange={handleGameStateChange} />
 					{/if}
+
 					<div class="screen-glass-container rounded-[3vmin] hardware-accelerated">
 						<div class="screen-glass-outer rounded-[3vmin]"></div>
 						<div class="screen-glass-inner rounded-[3vmin]"></div>
@@ -1129,8 +1138,12 @@
 		</div>
 	</div>
 	{#if currentScreen === 'game'}
-		<div class="fixed-game-controls lg:hidden">
-			<GameControls on:control={handleControlInput} />
+		<div class="fixed-game-controls">
+			<GameControls
+				on:control={handleControlInput}
+				gameState={currentGameState}
+				allowReset={currentGameState !== 'idle'}
+			/>
 		</div>
 	{/if}
 </section>
@@ -1209,13 +1222,13 @@
 	}
 
 	.fixed-game-controls {
-		display: none;
-		position: absolute;
+		position: fixed;
 		bottom: 0;
 		left: 0;
 		right: 0;
 		z-index: 50;
 		pointer-events: auto;
+		display: block;
 	}
 
 	@media (max-width: 1023px) {
