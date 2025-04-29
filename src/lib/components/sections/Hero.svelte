@@ -1137,13 +1137,13 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- This approach moves the game controls outside the transform context that's causing the issue, while maintaining the proper structure and event handling. -->
 	{#if currentScreen === 'game'}
-		<div class="fixed-game-controls">
-			<GameControls
-				on:control={handleControlInput}
-				gameState={currentGameState}
-				allowReset={currentGameState !== 'idle'}
-			/>
+		<div class="controls-portal">
+			<div class="fixed-game-controls lg:hidden">
+				<GameControls on:control={handleControlInput} />
+			</div>
 		</div>
 	{/if}
 </section>
@@ -1223,16 +1223,30 @@
 
 	/* Fix for Hero.svelte - keep this minimal so it doesn't interfere with GameControls */
 	.fixed-game-controls {
-		/* DO NOT add position: fixed here - let the child component handle it */
-		/* DO NOT add bottom, left, or other positioning styles */
 		display: none; /* Default hidden on larger screens */
 		z-index: 1000; /* Make sure it's above other elements */
+		/* NO position:fixed here */
 	}
 
-	/* Only show controls on mobile/tablet */
+	.controls-portal {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		width: 100%;
+		height: 0; /* Takes no space */
+		overflow: visible; /* Allow content to be visible outside */
+		z-index: 1000;
+		pointer-events: none; /* Let events pass through */
+	}
+
+	.controls-portal > :global(*) {
+		pointer-events: auto; /* But enable events on children */
+	}
+
 	@media (max-width: 1023px) {
 		.fixed-game-controls {
-			display: block; /* Simply make it visible on mobile */
+			display: block;
 		}
 	}
 
