@@ -11,6 +11,7 @@
 	import type { Star } from '$lib/utils/animation-utils';
 	import { animationState, screenStore } from '$lib/stores/animation-store';
 	import { layoutStore } from '$lib/stores/store';
+	import ControlsPortal from '$lib/components/ui/ControlsPortal.svelte';
 	import GameControls from '$lib/components/game/GameControls.svelte';
 	import { deviceCapabilities, setupPerformanceMonitoring } from '$lib/utils/device-performance';
 	import { CanvasStarFieldManager } from '$lib/utils/canvas-star-field';
@@ -1138,13 +1139,12 @@
 		</div>
 	</div>
 
-	<!-- This approach moves the game controls outside the transform context that's causing the issue, while maintaining the proper structure and event handling. -->
 	{#if currentScreen === 'game'}
-		<div class="controls-portal">
-			<div class="fixed-game-controls lg:hidden">
+		<ControlsPortal>
+			<div class="controls-container">
 				<GameControls on:control={handleControlInput} />
 			</div>
-		</div>
+		</ControlsPortal>
 	{/if}
 </section>
 
@@ -1224,27 +1224,12 @@
 	/* Fix for Hero.svelte - keep this minimal so it doesn't interfere with GameControls */
 	.fixed-game-controls {
 		display: none; /* Default hidden on larger screens */
-		z-index: 1000; /* Make sure it's above other elements */
-		/* NO position:fixed here */
+		/* Remove z-index since the portal will handle stacking context */
 	}
 
-	.controls-portal {
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		width: 100%;
-		height: 0; /* Takes no space */
-		overflow: visible; /* Allow content to be visible outside */
-		z-index: 1000;
-		pointer-events: none; /* Let events pass through */
-	}
-
-	.controls-portal > :global(*) {
-		pointer-events: auto; /* But enable events on children */
-	}
-
+	/* Add this to your media query for smaller screens if needed */
 	@media (max-width: 1023px) {
+		/* lg breakpoint in Tailwind */
 		.fixed-game-controls {
 			display: block;
 		}

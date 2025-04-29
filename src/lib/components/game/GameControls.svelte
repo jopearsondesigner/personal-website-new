@@ -790,9 +790,9 @@
 
 	/* Base container styles - THIS IS THE CRITICAL PART */
 	.controls-container {
-		position: fixed;
+		/* position: fixed;
 		bottom: 0;
-		left: 0;
+		left: 0; */
 		width: 100%;
 		background: var(--controls-background);
 		border-top: 1px solid var(--neon-color-dim);
@@ -801,10 +801,11 @@
 		padding-bottom: env(safe-area-inset-bottom, 0);
 		backdrop-filter: blur(2.5px);
 		-webkit-backdrop-filter: blur(2.5px);
-		z-index: 1000;
+		/* z-index: 1000; */
 		touch-action: none;
 		user-select: none;
 		-webkit-user-select: none;
+		/* transform: none !important; */
 	}
 
 	/* Header styles */

@@ -179,6 +179,35 @@ html.light {
 	background-size: 4px 4px;
 }
 
+/* Add this to your global CSS */
+#controls-portal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	z-index: 9999; /* Higher than any other z-index in your app */
+}
+
+#controls-portal .controls-container {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	pointer-events: auto; /* Make the controls interactive */
+	background: var(--controls-background);
+	border-top: 1px solid var(--neon-color-dim);
+}
+
+/* Hide portal contents on larger screens if needed */
+@media (min-width: 1024px) {
+	/* lg breakpoint in Tailwind */
+	#controls-portal .controls-container {
+		display: none;
+	}
+}
+
 /* Cabinet Styles */
 .light-theme-cabinet {
 	--cabinet-depth: 1.5vmin;
