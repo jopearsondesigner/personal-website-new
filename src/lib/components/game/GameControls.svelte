@@ -788,7 +788,7 @@
 		--rapid-color-dim: rgba(255, 100, 100, 0.4);
 	}
 
-	/* Base container styles */
+	/* Base container styles - THIS IS THE CRITICAL PART */
 	.controls-container {
 		position: fixed;
 		bottom: 0;
@@ -1316,7 +1316,7 @@
 		}
 	}
 
-	/* Safe area insets */
+	/* Safe area insets for iOS - Make sure these are included */
 	@supports (padding: env(safe-area-inset-bottom)) {
 		.controls-container {
 			padding-bottom: env(safe-area-inset-bottom);

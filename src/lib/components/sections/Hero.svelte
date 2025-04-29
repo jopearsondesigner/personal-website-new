@@ -1221,13 +1221,18 @@
 		height: calc(100vh - var(--navbar-height, 64px));
 	}
 
+	/* Fix for Hero.svelte - keep this minimal so it doesn't interfere with GameControls */
 	.fixed-game-controls {
-		display: none;
+		/* DO NOT add position: fixed here - let the child component handle it */
+		/* DO NOT add bottom, left, or other positioning styles */
+		display: none; /* Default hidden on larger screens */
+		z-index: 1000; /* Make sure it's above other elements */
 	}
 
+	/* Only show controls on mobile/tablet */
 	@media (max-width: 1023px) {
 		.fixed-game-controls {
-			display: block;
+			display: block; /* Simply make it visible on mobile */
 		}
 	}
 
