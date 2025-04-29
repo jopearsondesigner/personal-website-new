@@ -1223,7 +1223,9 @@
 	/* Responsive styles */
 	@media (max-width: 1023px) {
 		.controls-container {
-			display: block !important;
+			display: flex !important;
+			flex-direction: column;
+			padding-bottom: env(safe-area-inset-bottom);
 		}
 
 		.joystick-container {
