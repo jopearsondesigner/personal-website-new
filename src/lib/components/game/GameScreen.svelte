@@ -43,6 +43,8 @@
 		heatseekerCount = state.heatseekerCount;
 	});
 
+	let originalViewportContent = '';
+
 	// Explicitly trigger reactivity when these values change
 	$: ({ score, highScore, lives, heatseekerCount });
 
@@ -106,12 +108,26 @@
 			initializeDeviceState();
 			window.addEventListener('resize', initializeDeviceState);
 		}
+
+		const viewportMeta = document.querySelector('meta[name="viewport"]');
+		if (viewportMeta) {
+			originalViewportContent = viewportMeta.getAttribute('content') || '';
+
+			viewportMeta.setAttribute(
+				'content',
+				'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
+			);
+		}
 	});
 
 	onDestroy(() => {
 		if (browser) {
 			window.removeEventListener('resize', initializeDeviceState);
 			unsubscribe(); // Clean up subscription
+		}
+		const viewportMeta = document.querySelector('meta[name="viewport"]');
+		if (viewportMeta && originalViewportContent) {
+			viewportMeta.setAttribute('content', originalViewportContent);
 		}
 	});
 </script>
