@@ -1142,7 +1142,12 @@
 	{#if currentScreen === 'game'}
 		<ControlsPortal>
 			<div class="controls-container">
-				<GameControls on:control={handleControlInput} />
+				<!-- MODIFY THIS LINE: Pass the current game state to GameControls -->
+				<GameControls
+					on:control={handleControlInput}
+					gameState={currentGameState}
+					allowReset={currentGameState === 'gameover'}
+				/>
 			</div>
 		</ControlsPortal>
 	{/if}

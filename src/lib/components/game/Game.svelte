@@ -174,7 +174,8 @@
 			currentState = 'gameover';
 		} else if (gameData.isPaused) {
 			currentState = 'paused';
-		} else if (gameData.isPlaying) {
+		} else if (gameData.gameActive) {
+			// Using gameActive instead of isPlaying
 			currentState = 'playing';
 		}
 
