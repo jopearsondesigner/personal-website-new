@@ -4,6 +4,8 @@ import { browser } from '$app/environment';
 import type { Writable } from 'svelte/store';
 import { get } from 'svelte/store';
 import { starPoolBridge } from './star-pool-bridge';
+import { StarRenderer, RENDER_MODE } from './star-renderer';
+import type { RenderedStar } from './star-renderer';
 
 // Constants for TypedArray structure
 const STAR_DATA_ELEMENTS = 6; // x, y, z, prevX, prevY, inUse
@@ -21,7 +23,7 @@ interface StarFieldConfig {
 
 interface AnimationState {
 	isAnimating: boolean;
-	starData?: Float32Array;
+	starData?: Float32Array | null;
 }
 
 export class CanvasStarFieldManager {
@@ -70,6 +72,9 @@ export class CanvasStarFieldManager {
 	];
 
 	private useContainerParallax = false;
+	private starRenderer: StarRenderer | null = null;
+	private cleanupInProgress = false;
+	private renderCallback: (() => void) | null = null;
 
 	constructor(store: any, count = 300) {
 		this.store = store;
@@ -291,6 +296,27 @@ export class CanvasStarFieldManager {
 				return { preserveDrawingBuffer: false };
 			};
 		}
+
+		// Initialize the optimized star renderer
+		// Determine render mode based on device characteristics
+		const isMobileDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+		const renderMode =
+			this.devicePixelRatio > 1
+				? RENDER_MODE.HIGH_DPI
+				: isMobileDevice
+					? RENDER_MODE.MOBILE
+					: RENDER_MODE.STANDARD;
+
+		this.starRenderer = new StarRenderer(
+			this.offscreenCtx || this.ctx!,
+			this.containerWidth,
+			this.containerHeight,
+			this.maxDepth,
+			this.starColors,
+			true, // enableGlow
+			renderMode,
+			this.devicePixelRatio
+		);
 	}
 
 	private resizeCanvas() {
@@ -300,6 +326,11 @@ export class CanvasStarFieldManager {
 		const rect = this.container.getBoundingClientRect();
 		const width = rect.width;
 		const height = rect.height;
+
+		// Update star renderer dimensions
+		if (this.starRenderer) {
+			this.starRenderer.updateDimensions(this.containerWidth, this.containerHeight);
+		}
 
 		// Only resize if dimensions actually changed
 		if (width !== this.containerWidth || height !== this.containerHeight) {
@@ -555,12 +586,12 @@ export class CanvasStarFieldManager {
 		this.requestNextFrame();
 	};
 
-	// VISUAL FIX 2: Restored exact rendering logic from reference
+	// Updated renderStars method that uses the optimized renderer:
 	private renderStars(context: CanvasRenderingContext2D) {
-		if (!this.starData) return;
+		if (!this.starData || !this.starRenderer) return;
 
-		const centerX = this.containerWidth / 2;
-		const centerY = this.containerHeight / 2;
+		// Project and collect visible stars
+		const projectedStars: RenderedStar[] = [];
 
 		// Process all stars from TypedArray
 		for (let i = 0; i < this.starCount; i++) {
@@ -569,50 +600,25 @@ export class CanvasStarFieldManager {
 			// Skip stars that are not in use
 			if (this.starData[baseIndex + 5] < 0.5) continue;
 
-			// Extract position data
-			const x = this.starData[baseIndex];
-			const y = this.starData[baseIndex + 1];
-			const z = this.starData[baseIndex + 2];
-			const prevX = this.starData[baseIndex + 3];
-			const prevY = this.starData[baseIndex + 4];
+			// Extract star properties
+			const starProps = {
+				x: this.starData[baseIndex],
+				y: this.starData[baseIndex + 1],
+				z: this.starData[baseIndex + 2],
+				prevX: this.starData[baseIndex + 3],
+				prevY: this.starData[baseIndex + 4],
+				inUse: this.starData[baseIndex + 5]
+			};
 
-			// Project 3D position to 2D screen coordinates - exact formula from reference
-			const scale = this.maxDepth / z;
-			const x2d = (x - centerX) * scale + centerX;
-			const y2d = (y - centerY) * scale + centerY;
-
-			// Skip offscreen stars
-			if (x2d < 0 || x2d >= this.containerWidth || y2d < 0 || y2d >= this.containerHeight) {
-				continue;
-			}
-
-			// VISUAL FIX: Restored exact star size calculation from reference
-			const size = (1 - z / this.maxDepth) * 3;
-
-			// VISUAL FIX: Restored exact color index calculation from reference
-			const colorIndex = Math.floor((1 - z / this.maxDepth) * (this.starColors.length - 1));
-			const color = this.starColors[colorIndex];
-
-			// VISUAL FIX: Draw star trail when moving fast - exact condition from reference
-			if (this.speed > this.baseSpeed * 1.5) {
-				const prevScale = this.maxDepth / (z + this.speed);
-				const prevX2d = (prevX - centerX) * prevScale + centerX;
-				const prevY2d = (prevY - centerY) * prevScale + centerY;
-
-				context.beginPath();
-				context.moveTo(prevX2d, prevY2d);
-				context.lineTo(x2d, y2d);
-				context.strokeStyle = color;
-				context.lineWidth = size;
-				context.stroke();
-			} else {
-				// Draw star as circle
-				context.beginPath();
-				context.arc(x2d, y2d, size, 0, Math.PI * 2);
-				context.fillStyle = color;
-				context.fill();
+			// Project and cull star
+			const star = this.starRenderer.projectStar(starProps);
+			if (star) {
+				projectedStars.push(star);
 			}
 		}
+
+		// Render all visible stars with optimized batching
+		this.starRenderer.drawStars(projectedStars, this.speed);
 	}
 
 	public adaptToDeviceCapabilities(capabilities: any) {
@@ -621,6 +627,11 @@ export class CanvasStarFieldManager {
 		// Adapt star count based on device tier
 		if (capabilities.maxStars && capabilities.maxStars !== this.starCount) {
 			this.setStarCount(capabilities.maxStars);
+		}
+
+		// Set render quality based on device capabilities
+		if (this.starRenderer && capabilities.renderQuality !== undefined) {
+			this.starRenderer.setRenderQuality(capabilities.renderQuality);
 		}
 
 		// Update worker with adaptive settings if available
@@ -844,19 +855,22 @@ export class CanvasStarFieldManager {
 		// 8. Release container reference
 		this.container = null;
 
-		// 9. Break potential circular references
+		// 9. Clean up star renderer
+		this.starRenderer = null;
+
+		// 10. Break potential circular references
 		if (this.renderCallback) {
 			this.renderCallback = null;
 		}
 
-		// 10. Help garbage collector by nullifying object properties
+		// 11. Help garbage collector by nullifying object properties
 		this.dimensionsChanged = false;
 		this.isRunning = false;
 		this.isPaused = false;
 		this.changedStarIndices = null;
 		this.lastWorkerUpdateTime = 0;
 
-		// 11. Suggest garbage collection (this won't force it, just hints)
+		// 12. Suggest garbage collection (this won't force it, just hints)
 		setTimeout(() => {
 			// Create temporary large object and discard it
 			const tempArray = new Array(1000).fill(0);
