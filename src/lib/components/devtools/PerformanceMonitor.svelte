@@ -102,7 +102,7 @@
 		touchStartX = touch.clientX;
 		touchStartY = touch.clientY;
 
-		// Double-tap detection remains the same
+		// Double-tap detection
 		if (touchTimeout === null) {
 			touchTimeout = window.setTimeout(() => {
 				touchTimeout = null;
@@ -155,7 +155,10 @@
 		monitorElement.style.left = `${constrainedX}px`;
 		monitorElement.style.top = `${constrainedY}px`;
 
-		event.preventDefault(); // Prevent page scrolling during drag
+		// Only call preventDefault when we're actually dragging
+		if (isTouchDragging) {
+			event.preventDefault(); // Prevent page scrolling during drag
+		}
 	}
 
 	// New function to handle touch end
@@ -342,7 +345,7 @@
 			 */
 			// Add touch events with correct passive settings
 			monitorElement.addEventListener('touchstart', handleTouchStart, {
-				passive: true // Change to passive when possible
+				passive: false // Changed to false since we call preventDefault()
 			});
 
 			// Only add non-passive for events that need preventDefault
@@ -350,7 +353,7 @@
 				passive: false // Keep non-passive only when needed
 			});
 			document.addEventListener('touchend', handleTouchEnd, {
-				passive: true // Change to passive when possible
+				passive: false // Changed to false since we call preventDefault()
 			});
 
 			// Use capture phase for outside clicks to handle early
