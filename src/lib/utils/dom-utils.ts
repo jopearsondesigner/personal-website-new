@@ -1,3 +1,4 @@
+// src/lib/utils/dom-utils.ts
 import { browser } from '$app/environment';
 
 /**

@@ -95,11 +95,11 @@ export class CanvasStarFieldManager {
 
 		// Try to use RequestPostAnimationFrame if available for more consistent timing
 		if ('requestPostAnimationFrame' in window) {
-			this.requestFrameFn = (window as any).requestPostAnimationFrame;
-			this.cancelFrameFn = (window as any).cancelPostAnimationFrame;
+			this.requestFrameFn = (window as any).requestPostAnimationFrame.bind(window);
+			this.cancelFrameFn = (window as any).cancelPostAnimationFrame.bind(window);
 		} else {
-			this.requestFrameFn = requestAnimationFrame;
-			this.cancelFrameFn = cancelAnimationFrame;
+			this.requestFrameFn = window.requestAnimationFrame.bind(window);
+			this.cancelFrameFn = window.cancelAnimationFrame.bind(window);
 		}
 	}
 

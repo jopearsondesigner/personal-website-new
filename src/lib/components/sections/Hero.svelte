@@ -537,17 +537,37 @@
 		if (!browser) return;
 
 		// Stop StarField component if available
-		if (starFieldComponent) {
+		if (starFieldComponent && typeof starFieldComponent.stop === 'function') {
 			starFieldComponent.stop();
 		}
+		// Stop canvas star field
+		else if (canvasStarFieldManager && typeof canvasStarFieldManager.stop === 'function') {
+			canvasStarFieldManager.stop();
+		}
+
+		// Stop glitch manager
+		if (glitchManager) {
+			if (typeof glitchManager.stop === 'function') {
+				glitchManager.stop();
+			} else if (typeof glitchManager.cleanup === 'function') {
+				// Fallback to cleanup if stop isn't available
+				glitchManager.cleanup();
+			}
+		}
+
 		// Stop canvas star field
 		else if (canvasStarFieldManager) {
 			canvasStarFieldManager.stop();
 		}
 
 		// Stop glitch manager
-		if (glitchManager) {
+		if (glitchManager && typeof glitchManager.stop === 'function') {
 			glitchManager.stop();
+		} else if (glitchManager) {
+			// Fallback to cleanup if stop isn't available
+			if (typeof glitchManager.cleanup === 'function') {
+				glitchManager.cleanup();
+			}
 		}
 
 		// Kill GSAP timeline with proper cleanup
@@ -565,9 +585,19 @@
 			currentTimeline = null;
 		}
 
-		// Clear any animation frames
+		// Safer approach to clean up GSAP animations
 		if (typeof window !== 'undefined' && gsap && gsap.ticker) {
-			gsap.ticker.remove(() => {}); // Pass an empty function instead of null
+			// Don't try to access internal _listeners property
+			// Instead, kill all GSAP animations
+			gsap.killTweensOf([]);
+
+			// If you have specific elements that are animated:
+			if (header) gsap.killTweensOf(header);
+			if (insertConcept) gsap.killTweensOf(insertConcept);
+			if (arcadeScreen) gsap.killTweensOf(arcadeScreen);
+
+			// If you need to completely clear GSAP's ticker:
+			gsap.ticker.remove(); // With no params, removes all listeners in some GSAP versions
 		}
 
 		// Don't reset animation state entirely, just update isAnimating
@@ -834,34 +864,48 @@
 		// Subscribe to quality changes to adapt animations
 		frameRateUnsubscribe = frameRateController.subscribeQuality((quality) => {
 			// Update animations based on quality level
-			if (canvasStarFieldManager) {
-				// Adapt star field based on quality
-				const capabilities = get(deviceCapabilities);
-				const baseCount = capabilities.maxStars || 60;
-				const adjustedCount = Math.max(20, Math.round(baseCount * quality));
+			try {
+				if (canvasStarFieldManager) {
+					// Adapt star field based on quality
+					const capabilities = get(deviceCapabilities);
+					const baseCount = capabilities.maxStars || 60;
+					const adjustedCount = Math.max(20, Math.round(baseCount * quality));
 
-				// Only update if significantly different
-				const currentCount = canvasStarFieldManager.getStarCount();
-				if (Math.abs(currentCount - adjustedCount) > 5) {
-					canvasStarFieldManager.setStarCount(adjustedCount);
+					// Use optional chaining to safely access methods
+					const currentCount = canvasStarFieldManager?.getStarCount?.() ?? 0;
+					if (
+						typeof canvasStarFieldManager.setStarCount === 'function' &&
+						Math.abs(currentCount - adjustedCount) > 5
+					) {
+						canvasStarFieldManager.setStarCount(adjustedCount);
+					}
+
+					// Safely set properties
+					if ('enableGlow' in canvasStarFieldManager) {
+						canvasStarFieldManager.enableGlow = quality > 0.7;
+					}
+
+					if (typeof canvasStarFieldManager.setUseContainerParallax === 'function') {
+						canvasStarFieldManager.setUseContainerParallax(
+							quality > 0.8 && !isLowPerformanceDevice
+						);
+					}
 				}
 
-				// Enable/disable effects based on quality
-				canvasStarFieldManager.enableGlow = quality > 0.7;
-				canvasStarFieldManager.setUseContainerParallax(quality > 0.8 && !isLowPerformanceDevice);
-			}
+				if (starFieldComponent) {
+					// Adapt StarField component based on quality
+					starFieldComponent.enableGlow = quality > 0.7;
+					const capabilities = get(deviceCapabilities);
+					const baseCount = capabilities.maxStars || 60;
+					const adjustedCount = Math.max(20, Math.round(baseCount * quality));
 
-			if (starFieldComponent) {
-				// Adapt StarField component based on quality
-				starFieldComponent.enableGlow = quality > 0.7;
-				const capabilities = get(deviceCapabilities);
-				const baseCount = capabilities.maxStars || 60;
-				const adjustedCount = Math.max(20, Math.round(baseCount * quality));
-
-				// Only update if significantly different
-				if (Math.abs(starFieldComponent.starCount - adjustedCount) > 5) {
-					starFieldComponent.starCount = adjustedCount;
+					// Only update if significantly different
+					if (Math.abs(starFieldComponent.starCount - adjustedCount) > 5) {
+						starFieldComponent.starCount = adjustedCount;
+					}
 				}
+			} catch (error) {
+				console.warn('Error in quality adjustment callback:', error);
 			}
 		});
 	}

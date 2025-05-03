@@ -1,3 +1,4 @@
+// src/lib/utils/event-manager.ts
 import { browser } from '$app/environment';
 import { onMount, onDestroy } from 'svelte';
 
