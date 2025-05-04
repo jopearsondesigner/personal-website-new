@@ -38,10 +38,11 @@ let statsInterval: number | null = null; // Added for cleanup handler
 let starData: Float32Array;
 
 /**
- * Optimization: Implement change detection to track modified stars
- * Benefit: Enables partial updates
+ * Optimization: Enhanced change detection that tracks modified star indices and their properties
+ * Benefit: Enables more granular partial updates
  */
 let changedStarIndices: number[] = [];
+let changedStarFlags: Uint8Array; // Bitmask of which properties changed
 
 /**
  * Optimization: Batch statistics reporting
@@ -52,6 +53,220 @@ let batchedStats = {
 	reused: 0,
 	lastReportTime: 0
 };
+
+/**
+ * Optimization flags to control worker behavior
+ */
+const WORKER_FLAGS = {
+	ENABLE_BATCHING: true,
+	ENABLE_PARTIAL_UPDATES: true,
+	ENABLE_DELTA_COMPRESSION: true,
+	USE_TRANSFERABLE_OBJECTS: true
+};
+
+/**
+ * Message batching system to reduce communication overhead
+ * Benefit: Fewer postMessage calls with more data per message
+ */
+let pendingMessages: any[] = [];
+let batchingEnabled = true;
+let batchTimer: number | null = null;
+const BATCH_INTERVAL = 16; // ms (roughly one frame at 60fps)
+
+/**
+ * Message priority levels
+ */
+const MESSAGE_PRIORITY = {
+	HIGH: 0, // Immediate (cleanup, reset, critical commands)
+	NORMAL: 1, // Standard (frame updates, config changes)
+	LOW: 2 // Background (stats, non-critical updates)
+};
+
+// Priority queue implementation
+let priorityQueue: { priority: number; msg: any }[] = [];
+
+/**
+ * Initialize change tracking arrays
+ */
+function initializeChangeTracking(count: number): void {
+	changedStarIndices = [];
+	changedStarFlags = new Uint8Array(count);
+}
+
+/**
+ * Mark a star as changed with optional property flags
+ */
+function markStarChanged(index: number, flags: number = 0xff): void {
+	// If this star wasn't already marked as changed, add it to the index list
+	if (changedStarFlags[index] === 0) {
+		changedStarIndices.push(index);
+	}
+	// Update flags with bitwise OR to track specific properties that changed
+	changedStarFlags[index] |= flags;
+}
+
+/**
+ * Reset change tracking for a new frame
+ */
+function resetChangeTracking(): void {
+	changedStarIndices = [];
+	changedStarFlags.fill(0);
+}
+
+/**
+ * Queue a message with priority for batched sending
+ */
+function queueMessageWithPriority(
+	priority: number,
+	type: string,
+	data: any,
+	transfer?: Transferable[]
+): void {
+	if (!batchingEnabled) {
+		// If batching is disabled, send immediately
+		self.postMessage({ type, data }, transfer);
+		return;
+	}
+
+	// Add to priority queue
+	priorityQueue.push({
+		priority,
+		msg: { type, data, transfer }
+	});
+
+	// Sort queue by priority (lower number = higher priority)
+	priorityQueue.sort((a, b) => a.priority - b.priority);
+
+	// Schedule processing if not already scheduled
+	if (batchTimer === null) {
+		batchTimer = setTimeout(processPriorityQueue, BATCH_INTERVAL) as unknown as number;
+	}
+}
+
+/**
+ * Process the priority queue, handling high priority messages first
+ */
+function processPriorityQueue(): void {
+	batchTimer = null;
+
+	if (priorityQueue.length === 0) return;
+
+	// Group messages by priority
+	const highPriorityMsgs = priorityQueue.filter((item) => item.priority === MESSAGE_PRIORITY.HIGH);
+	const normalPriorityMsgs = priorityQueue.filter(
+		(item) => item.priority === MESSAGE_PRIORITY.NORMAL
+	);
+	const lowPriorityMsgs = priorityQueue.filter((item) => item.priority === MESSAGE_PRIORITY.LOW);
+
+	// Process high priority messages immediately and individually
+	highPriorityMsgs.forEach((item) => {
+		const msg = item.msg;
+		self.postMessage({ type: msg.type, data: msg.data }, msg.transfer);
+	});
+
+	// Batch normal priority messages if multiple exist
+	if (normalPriorityMsgs.length > 0) {
+		const msgs = normalPriorityMsgs.map((item) => item.msg);
+		processBatchedMessages(msgs);
+	}
+
+	// Only process low priority if we have capacity
+	if (lowPriorityMsgs.length > 0 && highPriorityMsgs.length === 0) {
+		const msgs = lowPriorityMsgs.map((item) => item.msg);
+		processBatchedMessages(msgs);
+	}
+
+	// Clear the queue
+	priorityQueue = [];
+}
+
+/**
+ * Process a batch of messages, combining them if possible
+ */
+function processBatchedMessages(messages: any[]): void {
+	if (messages.length === 0) return;
+
+	// If only one message, send it directly
+	if (messages.length === 1) {
+		const msg = messages[0];
+		self.postMessage({ type: msg.type, data: msg.data }, msg.transfer);
+	} else {
+		// Batch multiple messages
+		const batchedData = messages.map((msg) => ({ type: msg.type, data: msg.data }));
+
+		// Collect all transferables
+		const allTransferables: Transferable[] = [];
+		messages.forEach((msg) => {
+			if (msg.transfer) {
+				allTransferables.push(...msg.transfer);
+			}
+		});
+
+		self.postMessage(
+			{
+				type: 'batchedMessages',
+				data: batchedData
+			},
+			allTransferables
+		);
+	}
+}
+
+/**
+ * Queue a message for batched sending
+ */
+function queueMessage(type: string, data: any, transfer?: Transferable[]): void {
+	if (!batchingEnabled) {
+		// If batching is disabled, send immediately
+		self.postMessage({ type, data }, transfer);
+		return;
+	}
+
+	// Add to pending queue
+	pendingMessages.push({ type, data, transfer });
+
+	// Schedule batch processing if not already scheduled
+	if (batchTimer === null) {
+		batchTimer = setTimeout(processBatch, BATCH_INTERVAL) as unknown as number;
+	}
+}
+
+/**
+ * Process the batch of pending messages
+ */
+function processBatch(): void {
+	batchTimer = null;
+
+	if (pendingMessages.length === 0) return;
+
+	// If only one message, send it directly
+	if (pendingMessages.length === 1) {
+		const msg = pendingMessages[0];
+		self.postMessage({ type: msg.type, data: msg.data }, msg.transfer);
+	} else {
+		// Batch multiple messages into a single message
+		const batchedData = pendingMessages.map((msg) => ({ type: msg.type, data: msg.data }));
+
+		// Collect all transferables
+		const allTransferables: Transferable[] = [];
+		pendingMessages.forEach((msg) => {
+			if (msg.transfer) {
+				allTransferables.push(...msg.transfer);
+			}
+		});
+
+		self.postMessage(
+			{
+				type: 'batchedMessages',
+				data: batchedData
+			},
+			allTransferables
+		);
+	}
+
+	// Clear the queue
+	pendingMessages = [];
+}
 
 /**
  * Initialize the star field with given configuration using TypedArrays
@@ -87,6 +302,9 @@ function initializeStars(
 		// Set inUse flag (1.0 = true, 0.0 = false)
 		newStarData[baseIndex + 5] = 1.0; // inUse
 	}
+
+	// Initialize change tracking
+	initializeChangeTracking(count);
 
 	// Force stats report after initialization
 	reportStats(true);
@@ -134,10 +352,8 @@ function reportStats(force: boolean = false): void {
 			reused: batchedStats.reused
 		};
 
-		self.postMessage({
-			type: 'statsUpdate',
-			data: statsToReport
-		});
+		// Queue with LOW priority since stats are non-critical
+		queueMessageWithPriority(MESSAGE_PRIORITY.LOW, 'statsUpdate', statsToReport);
 
 		// Reset accumulated stats
 		batchedStats.created = 0;
@@ -147,13 +363,13 @@ function reportStats(force: boolean = false): void {
 }
 
 /**
- * Update star positions based on time delta
+ * Enhanced update function with better change detection
  */
 function updateStars(deltaTime: number): void {
 	const { containerWidth, containerHeight, maxDepth, speed } = config;
 
-	// Clear previous change tracking
-	changedStarIndices = [];
+	// Reset previous change tracking for this frame
+	resetChangeTracking();
 
 	// Calculate time-based movement scale
 	const timeScale = deltaTime / 16.7; // Normalized to 60fps
@@ -176,14 +392,14 @@ function updateStars(deltaTime: number): void {
 		// Move star closer to viewer with time-based movement
 		starData[baseIndex + 2] -= speed * timeScale; // z -= speed
 
-		// If star passed the viewer, reset it to far distance
+		// Check if this star needs to be reset
 		if (starData[baseIndex + 2] <= 0) {
 			resetStar(i, containerWidth, containerHeight, maxDepth);
-			// Track this change
-			changedStarIndices.push(i);
-		} else if (Math.abs(starData[baseIndex + 2] - prevZ) > 0.1) {
-			// Also track stars that moved significantly
-			changedStarIndices.push(i);
+			markStarChanged(i);
+		}
+		// Check if this star moved significantly
+		else if (Math.abs(starData[baseIndex + 2] - prevZ) > 0.1) {
+			markStarChanged(i);
 		}
 	}
 
@@ -245,7 +461,7 @@ function setBoost(boosting: boolean): void {
 }
 
 /**
- * Process incoming messages
+ * Process incoming messages with enhanced message handling
  */
 self.onmessage = function (e: MessageEvent) {
 	const { type, data } = e.data;
@@ -264,16 +480,18 @@ self.onmessage = function (e: MessageEvent) {
 			);
 
 			// Send back the initialized stars using transferable objects
-			self.postMessage(
+			queueMessageWithPriority(
+				MESSAGE_PRIORITY.HIGH,
+				'initialized',
 				{
-					type: 'initialized',
-					data: {
-						starData,
-						config
-					}
+					starData,
+					config
 				},
 				[starData.buffer]
 			);
+
+			// Create a new buffer since we transferred the old one
+			starData = new Float32Array(config.starCount * STAR_DATA_ELEMENTS);
 			break;
 		}
 
@@ -285,11 +503,8 @@ self.onmessage = function (e: MessageEvent) {
 
 		case 'updatePoolStats': {
 			// Acknowledge receipt of pool stats
-			self.postMessage({
-				type: 'poolStatsUpdated',
-				data: {
-					success: true
-				}
+			queueMessageWithPriority(MESSAGE_PRIORITY.LOW, 'poolStatsUpdated', {
+				success: true
 			});
 			break;
 		}
@@ -314,18 +529,41 @@ self.onmessage = function (e: MessageEvent) {
 				config.speed = Math.max(config.baseSpeed, config.speed * 0.98);
 			}
 
-			// Send back updated stars using transferable objects
-			self.postMessage(
-				{
-					type: 'frameUpdate',
-					data: {
+			// Decide whether to send partial or full update
+			if (
+				WORKER_FLAGS.ENABLE_PARTIAL_UPDATES &&
+				changedStarIndices.length < config.starCount * 0.3
+			) {
+				// If fewer than 30% of stars changed, send partial update
+				const partialData = extractPartialStarData(changedStarIndices);
+
+				queueMessageWithPriority(
+					MESSAGE_PRIORITY.NORMAL,
+					'partialFrameUpdate',
+					{
+						changedIndices: changedStarIndices,
+						changedStarData: partialData,
+						config
+					},
+					[partialData.buffer]
+				);
+			} else {
+				// Otherwise send full update with transferable object
+				queueMessageWithPriority(
+					MESSAGE_PRIORITY.NORMAL,
+					'frameUpdate',
+					{
 						starData,
 						config
-					}
-				},
-				[starData.buffer]
-			);
+					},
+					WORKER_FLAGS.USE_TRANSFERABLE_OBJECTS ? [starData.buffer] : undefined
+				);
 
+				// Create a new buffer since we transferred the old one
+				if (WORKER_FLAGS.USE_TRANSFERABLE_OBJECTS) {
+					starData = new Float32Array(config.starCount * STAR_DATA_ELEMENTS);
+				}
+			}
 			break;
 		}
 
@@ -351,24 +589,22 @@ self.onmessage = function (e: MessageEvent) {
 			}
 
 			// Send back only changed stars this time
-			const changedIndices = getChangedStarIndices();
-			if (changedIndices.length > 0) {
-				self.postMessage({
-					type: 'partialFrameUpdate',
-					data: {
-						changedIndices: changedIndices,
-						changedStarData: extractPartialStarData(changedIndices),
+			if (changedStarIndices.length > 0) {
+				const partialData = extractPartialStarData(changedStarIndices);
+				queueMessageWithPriority(
+					MESSAGE_PRIORITY.NORMAL,
+					'partialFrameUpdate',
+					{
+						changedIndices: changedStarIndices,
+						changedStarData: partialData,
 						config
-					}
-				});
+					},
+					[partialData.buffer]
+				);
 			} else {
 				// If no changes, just send a no-change signal
-				self.postMessage({
-					type: 'noChanges',
-					data: { config }
-				});
+				queueMessageWithPriority(MESSAGE_PRIORITY.LOW, 'noChanges', { config });
 			}
-
 			break;
 		}
 
@@ -382,6 +618,26 @@ self.onmessage = function (e: MessageEvent) {
 			// Update container dimensions
 			config.containerWidth = data.width;
 			config.containerHeight = data.height;
+			break;
+		}
+
+		case 'toggleOptimizations': {
+			// Allow enabling/disabling optimizations at runtime
+			if (data.batching !== undefined) WORKER_FLAGS.ENABLE_BATCHING = data.batching;
+			if (data.partialUpdates !== undefined)
+				WORKER_FLAGS.ENABLE_PARTIAL_UPDATES = data.partialUpdates;
+			if (data.deltaCompression !== undefined)
+				WORKER_FLAGS.ENABLE_DELTA_COMPRESSION = data.deltaCompression;
+			if (data.transferableObjects !== undefined)
+				WORKER_FLAGS.USE_TRANSFERABLE_OBJECTS = data.transferableObjects;
+
+			// Apply batching setting
+			batchingEnabled = WORKER_FLAGS.ENABLE_BATCHING;
+
+			queueMessageWithPriority(MESSAGE_PRIORITY.LOW, 'optimizationsUpdated', {
+				success: true,
+				currentFlags: { ...WORKER_FLAGS }
+			});
 			break;
 		}
 
@@ -400,16 +656,18 @@ self.onmessage = function (e: MessageEvent) {
 				);
 
 				// Send back the updated star data
-				self.postMessage(
+				queueMessageWithPriority(
+					MESSAGE_PRIORITY.HIGH,
+					'starCountChanged',
 					{
-						type: 'starCountChanged',
-						data: {
-							starData,
-							config
-						}
+						starData,
+						config
 					},
 					[starData.buffer]
 				);
+
+				// Create a new buffer since we transferred the old one
+				starData = new Float32Array(config.starCount * STAR_DATA_ELEMENTS);
 			}
 			break;
 		}
@@ -424,55 +682,69 @@ self.onmessage = function (e: MessageEvent) {
 			);
 
 			// Send back the reset stars
-			self.postMessage(
+			queueMessageWithPriority(
+				MESSAGE_PRIORITY.HIGH,
+				'reset',
 				{
-					type: 'reset',
-					data: {
-						starData,
-						config
-					}
+					starData,
+					config
 				},
 				[starData.buffer]
 			);
 
+			// Create a new buffer since we transferred the old one
+			starData = new Float32Array(config.starCount * STAR_DATA_ELEMENTS);
 			break;
 		}
 
 		case 'adaptToDevice': {
 			// Handle device-specific adaptations
-			self.postMessage({
-				type: 'deviceAdapted',
-				data: {
-					success: true
-				}
+			queueMessageWithPriority(MESSAGE_PRIORITY.LOW, 'deviceAdapted', {
+				success: true,
+				performanceTier: data.performanceTier || 2
 			});
 			break;
 		}
 
 		case 'cleanup': {
-			// Perform worker cleanup
+			// Enhanced cleanup that cancels pending operations
+			if (batchTimer !== null) {
+				clearTimeout(batchTimer);
+				batchTimer = null;
+			}
 
-			// 1. Nullify large TypedArrays
+			// Process any pending messages before cleanup
+			processBatch();
+			processPriorityQueue();
+
+			// Nullify large TypedArrays
 			if (starData) {
 				// Create a tiny replacement to release memory
 				starData = new Float32Array(1);
 			}
 
-			// 2. Clear any timers or intervals
+			// Clear change tracking arrays
+			changedStarIndices = [];
+			if (changedStarFlags) {
+				changedStarFlags = new Uint8Array(1);
+			}
+
+			// Clear any timers or intervals
 			if (statsInterval) {
 				clearInterval(statsInterval);
 				statsInterval = null;
 			}
 
-			// 3. Reset all counters and accumulators
+			// Reset all counters and accumulators
 			statsObjectsCreated = 0;
 			statsObjectsReused = 0;
 			lastStatsReport = 0;
 
-			// 4. Null out config reference
-			config = null as any; // Using type assertion to avoid TypeScript errors
+			// Clear pending message queues
+			pendingMessages = [];
+			priorityQueue = [];
 
-			// 5. Send acknowledgement before termination
+			// Send acknowledgement before termination
 			self.postMessage({
 				type: 'cleanupComplete',
 				data: { success: true }

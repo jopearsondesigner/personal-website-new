@@ -49,9 +49,13 @@ export class CanvasStarFieldManager {
 	private offscreenCanvas: HTMLCanvasElement | null = null;
 	private offscreenCtx: CanvasRenderingContext2D | null = null;
 	private resizeObserver: ResizeObserver | null = null;
-	private changedStarIndices: number[] | null = [];
+	private changedStarIndices: number[] = [];
 	private requestFrameFn: (callback: FrameRequestCallback) => number = requestAnimationFrame;
 	private cancelFrameFn: (handle: number) => void = cancelAnimationFrame;
+
+	// Added for worker communication optimization
+	private frameRequestTimer: number | null = null;
+	private workerRequestInterval = 16.7; // Target 60fps
 
 	// Star field parameters
 	private starCount = 300;
@@ -144,6 +148,9 @@ export class CanvasStarFieldManager {
 		}
 	}
 
+	/**
+	 * Enhanced worker initialization with better error handling
+	 */
 	private initWorker() {
 		if (!browser || !window.Worker) return;
 
@@ -156,53 +163,8 @@ export class CanvasStarFieldManager {
 			// Connect the worker to the bridge for statistics tracking
 			starPoolBridge.connectWorker(this.worker);
 
-			// Handle messages from worker
-			this.worker.onmessage = (event) => {
-				const { type, data } = event.data;
-
-				switch (type) {
-					case 'initialized':
-					case 'reset':
-					case 'frameUpdate':
-					case 'starCountChanged': {
-						// Store the received TypedArray
-						this.starData = data.starData;
-
-						// Update store if needed
-						if (this.store) {
-							this.store.update((state) => ({
-								...state,
-								starData: this.starData
-							}));
-						}
-
-						// Update pool statistics
-						if (data.config) {
-							// Update active object count (all stars are active in initialized state)
-							starPoolBridge.updateActiveCount(data.config.starCount, data.config.starCount);
-						}
-
-						// Immediately request next frame for frame updates
-						if (type === 'frameUpdate' && this.isRunning && !this.isPaused) {
-							this.requestNextFrame();
-						}
-						break;
-					}
-					case 'statsUpdate': {
-						// Forward stats to the bridge
-						if (data && (data.created > 0 || data.reused > 0)) {
-							if (data.created) starPoolBridge.recordCreated(data.created);
-							if (data.reused) starPoolBridge.recordReused(data.reused);
-						}
-						break;
-					}
-					case 'poolStatsUpdated': {
-						// Force sync of stats to ensure UI updates
-						starPoolBridge.forceSyncStats();
-						break;
-					}
-				}
-			};
+			// Setup enhanced message handler
+			this.setupWorkerMessageHandler();
 
 			// Initialize the worker with current configuration
 			this.initializeWorker();
@@ -210,6 +172,183 @@ export class CanvasStarFieldManager {
 			console.error('Failed to initialize optimized star field worker:', error);
 			this.worker = null;
 		}
+	}
+
+	/**
+	 * Enhanced handler for worker messages with support for batched and partial updates
+	 */
+	private setupWorkerMessageHandler() {
+		if (!this.worker) return;
+
+		this.worker.onmessage = (event) => {
+			const { type, data } = event.data;
+
+			// Handle batched messages
+			if (type === 'batchedMessages') {
+				// Process each message in the batch
+				data.forEach((msg: { type: string; data: any }) => {
+					this.handleWorkerMessage(msg.type, msg.data);
+				});
+				return;
+			}
+
+			// Handle individual messages
+			this.handleWorkerMessage(type, data);
+		};
+	}
+
+	/**
+	 * Process individual worker messages
+	 */
+	private handleWorkerMessage(type: string, data: any) {
+		switch (type) {
+			case 'initialized':
+			case 'reset':
+			case 'frameUpdate':
+			case 'starCountChanged': {
+				// Store the received TypedArray
+				this.starData = data.starData;
+
+				// Update store if needed
+				if (this.store) {
+					this.store.update((state) => ({
+						...state,
+						starData: this.starData
+					}));
+				}
+
+				// Update pool statistics
+				if (data.config) {
+					// Update active object count (all stars are active in initialized state)
+					starPoolBridge.updateActiveCount(data.config.starCount, data.config.starCount);
+				}
+
+				// Schedule next frame for continuous animation
+				if (type === 'frameUpdate' && this.isRunning && !this.isPaused) {
+					this.scheduleNextFrameRequest();
+				}
+				break;
+			}
+
+			case 'partialFrameUpdate': {
+				// Handle partial updates - apply only the changed stars
+				if (data.changedIndices && data.changedStarData && this.starData) {
+					this.applyPartialUpdate(data.changedIndices, data.changedStarData);
+				}
+
+				// Update config if provided
+				if (data.config) {
+					this.updateConfigFromWorker(data.config);
+				}
+
+				// Schedule next frame
+				if (this.isRunning && !this.isPaused) {
+					this.scheduleNextFrameRequest();
+				}
+				break;
+			}
+
+			case 'noChanges': {
+				// Handle the case where no stars changed
+				if (data.config) {
+					this.updateConfigFromWorker(data.config);
+				}
+
+				// Schedule next frame
+				if (this.isRunning && !this.isPaused) {
+					this.scheduleNextFrameRequest();
+				}
+				break;
+			}
+
+			case 'statsUpdate': {
+				// Forward stats to the bridge
+				if (data && (data.created > 0 || data.reused > 0)) {
+					if (data.created) starPoolBridge.recordCreated(data.created);
+					if (data.reused) starPoolBridge.recordReused(data.reused);
+				}
+				break;
+			}
+
+			case 'poolStatsUpdated': {
+				// Force sync of stats to ensure UI updates
+				starPoolBridge.forceSyncStats();
+				break;
+			}
+
+			case 'cleanupComplete': {
+				// Handle worker cleanup completion
+				console.log('Worker cleanup completed successfully');
+
+				// Proceed with termination if needed
+				if (this.worker && this.cleanupInProgress) {
+					this.worker.terminate();
+					this.worker = null;
+				}
+				break;
+			}
+
+			case 'optimizationsUpdated': {
+				// Log optimization changes
+				console.log('Worker optimizations updated:', data.currentFlags);
+				break;
+			}
+		}
+	}
+
+	/**
+	 * Apply partial updates to the star data
+	 */
+	private applyPartialUpdate(indices: number[], partialData: Float32Array): void {
+		if (!this.starData) return;
+
+		for (let i = 0; i < indices.length; i++) {
+			const starIndex = indices[i];
+			const sourceBaseIndex = i * STAR_DATA_ELEMENTS;
+			const destBaseIndex = starIndex * STAR_DATA_ELEMENTS;
+
+			// Copy all elements for this star
+			for (let j = 0; j < STAR_DATA_ELEMENTS; j++) {
+				this.starData[destBaseIndex + j] = partialData[sourceBaseIndex + j];
+			}
+		}
+	}
+
+	/**
+	 * Update local config from worker config
+	 */
+	private updateConfigFromWorker(workerConfig: StarFieldConfig): void {
+		// Only update values that we care about on the main thread
+		if (workerConfig.speed !== undefined) this.speed = workerConfig.speed;
+		if (workerConfig.baseSpeed !== undefined) this.baseSpeed = workerConfig.baseSpeed;
+		if (workerConfig.boostSpeed !== undefined) this.boostSpeed = workerConfig.boostSpeed;
+	}
+
+	/**
+	 * Use a timer to batch frame requests to the worker
+	 */
+	private scheduleNextFrameRequest(): void {
+		// Cancel existing timer if any
+		if (this.frameRequestTimer !== null) {
+			clearTimeout(this.frameRequestTimer);
+		}
+
+		const now = performance.now();
+		const timeSinceLastRequest = now - this.lastWorkerUpdateTime;
+
+		// Determine when to send the next request
+		let delay = 0;
+		if (timeSinceLastRequest < this.workerRequestInterval) {
+			// Wait until we reach our target interval
+			delay = this.workerRequestInterval - timeSinceLastRequest;
+		}
+
+		// Schedule the next request
+		this.frameRequestTimer = setTimeout(() => {
+			this.frameRequestTimer = null;
+			this.lastWorkerUpdateTime = performance.now();
+			this.requestNextFrame();
+		}, delay) as unknown as number;
 	}
 
 	private initializeWorker() {
@@ -232,6 +371,86 @@ export class CanvasStarFieldManager {
 		});
 	}
 
+	/**
+	 * Dynamically adjust worker communication frequency based on device performance
+	 */
+	public setWorkerUpdateInterval(interval: number): void {
+		if (interval >= 8 && interval <= 100) {
+			// Sanity check (8ms-100ms)
+			this.workerRequestInterval = interval;
+		}
+	}
+
+	/**
+	 * Configure worker optimization flags
+	 */
+	public configureWorkerOptimizations(options: {
+		batching?: boolean;
+		partialUpdates?: boolean;
+		deltaCompression?: boolean;
+		transferableObjects?: boolean;
+	}): void {
+		if (!this.worker) return;
+
+		this.worker.postMessage({
+			type: 'toggleOptimizations',
+			data: options
+		});
+	}
+
+	/**
+	 * Adaptive worker strategy that adjusts based on device performance
+	 */
+	public adaptWorkerStrategy(devicePerformance: {
+		tier: number; // 1=low, 2=medium, 3=high
+		fps: number;
+		memoryUsage: number;
+	}): void {
+		if (!this.worker) return;
+
+		// Adjust worker communication frequency
+		if (devicePerformance.tier === 1) {
+			// Low-end device - reduce update frequency
+			this.workerRequestInterval = 33.3; // Target 30fps
+
+			// Reduce data transfer with aggressive partial updates
+			this.configureWorkerOptimizations({
+				partialUpdates: true,
+				deltaCompression: true,
+				transferableObjects: true
+			});
+		} else if (devicePerformance.tier === 2) {
+			// Mid-tier device - balanced approach
+			this.workerRequestInterval = 20; // Target ~50fps
+
+			// Use partial updates but not delta compression
+			this.configureWorkerOptimizations({
+				partialUpdates: true,
+				deltaCompression: false,
+				transferableObjects: true
+			});
+		} else {
+			// High-end device - maximize quality
+			this.workerRequestInterval = 16.7; // Target 60fps
+
+			// Use all optimizations
+			this.configureWorkerOptimizations({
+				partialUpdates: true,
+				deltaCompression: true,
+				transferableObjects: true
+			});
+		}
+
+		// Update worker with adaptive settings
+		this.worker.postMessage({
+			type: 'adaptToDevice',
+			data: {
+				performanceTier: devicePerformance.tier,
+				targetFps: Math.floor(1000 / this.workerRequestInterval)
+			}
+		});
+	}
+
 	setContainer(element: HTMLElement) {
 		if (!browser) return;
 
@@ -250,6 +469,27 @@ export class CanvasStarFieldManager {
 
 		// Setup resize observer
 		this.setupResizeObserver();
+	}
+
+	/**
+	 * Helper method to create partial star data for optimization
+	 */
+	private createPartialStarData(indices: number[]): Float32Array {
+		if (!this.starData) return new Float32Array(0);
+
+		const partialData = new Float32Array(indices.length * STAR_DATA_ELEMENTS);
+
+		for (let i = 0; i < indices.length; i++) {
+			const starIndex = indices[i];
+			const sourceOffset = starIndex * STAR_DATA_ELEMENTS;
+			const destOffset = i * STAR_DATA_ELEMENTS;
+
+			for (let j = 0; j < STAR_DATA_ELEMENTS; j++) {
+				partialData[destOffset + j] = this.starData[sourceOffset + j];
+			}
+		}
+
+		return partialData;
 	}
 
 	/**
@@ -441,102 +681,60 @@ export class CanvasStarFieldManager {
 	}
 
 	/**
-	 * Helper method to create partial star data for optimization
-	 */
-	private createPartialStarData(indices: number[]): Float32Array {
-		if (!this.starData) return new Float32Array(0);
-
-		const partialData = new Float32Array(indices.length * STAR_DATA_ELEMENTS);
-
-		for (let i = 0; i < indices.length; i++) {
-			const starIndex = indices[i];
-			const sourceOffset = starIndex * STAR_DATA_ELEMENTS;
-			const destOffset = i * STAR_DATA_ELEMENTS;
-
-			for (let j = 0; j < STAR_DATA_ELEMENTS; j++) {
-				partialData[destOffset + j] = this.starData[sourceOffset + j];
-			}
-		}
-
-		return partialData;
-	}
-
-	/**
-	 * Optimization: Partial updates to TypedArray
-	 * Benefit: Reduces data transfer between threads
+	 * Improved requestNextFrame that uses our established patterns
 	 */
 	private requestNextFrame() {
 		if (!this.worker || !this.isRunning || this.isPaused) return;
 
 		const now = performance.now();
+		const deltaTime = now - this.lastTime;
 
-		// Only update at specific intervals
-		if (now - this.lastWorkerUpdateTime < this.workerUpdateInterval) return;
+		// Determine whether to send partial or full update request
+		const usePartialUpdate =
+			this.starData &&
+			this.changedStarIndices &&
+			this.changedStarIndices.length > 0 &&
+			this.changedStarIndices.length < this.starCount / 2;
 
-		this.lastWorkerUpdateTime = now;
+		if (usePartialUpdate) {
+			// Send partial update request
+			this.worker.postMessage({
+				type: 'requestPartialFrame',
+				data: {
+					deltaTime,
+					dimensions: this.dimensionsChanged
+						? {
+								width: this.containerWidth,
+								height: this.containerHeight
+							}
+						: null,
+					changedIndices: this.changedStarIndices,
+					changedStarData: this.createPartialStarData(this.changedStarIndices)
+				}
+			});
 
-		// Track which stars have changed to enable partial updates
-		if (this.starData && this.changedStarIndices && this.changedStarIndices.length > 0) {
-			// If more than 50% of stars changed, transfer the whole array
-			if (this.changedStarIndices.length > this.starCount / 2) {
-				this.worker.postMessage(
-					{
-						type: 'requestFrame',
-						data: {
-							deltaTime: now - this.lastTime,
-							dimensions: this.dimensionsChanged
-								? {
-										width: this.containerWidth,
-										height: this.containerHeight
-									}
-								: null,
-							starData: this.starData,
-							fullUpdate: true
-						}
-					},
-					[this.starData.buffer] // Transfer ownership
-				);
-
-				this.starData = null;
-			} else {
-				// Otherwise send only changed indices for partial update
-				this.worker.postMessage({
-					type: 'requestPartialFrame',
-					data: {
-						deltaTime: now - this.lastTime,
-						dimensions: this.dimensionsChanged
-							? {
-									width: this.containerWidth,
-									height: this.containerHeight
-								}
-							: null,
-						changedIndices: this.changedStarIndices,
-						changedStarData: this.createPartialStarData(this.changedStarIndices)
-					}
-				});
-			}
-
+			// Reset indices
 			this.changedStarIndices = [];
 		} else if (this.starData) {
-			// First frame or no change tracking yet
+			// Send full update request with transferable
 			this.worker.postMessage(
 				{
 					type: 'requestFrame',
 					data: {
-						deltaTime: now - this.lastTime,
+						deltaTime,
 						dimensions: this.dimensionsChanged
 							? {
 									width: this.containerWidth,
 									height: this.containerHeight
 								}
 							: null,
-						starData: this.starData,
-						fullUpdate: true
+						starData: this.starData
 					}
 				},
 				[this.starData.buffer]
 			);
 
+			// Null out the reference since we transferred it
 			this.starData = null;
 		}
 
@@ -583,7 +781,7 @@ export class CanvasStarFieldManager {
 		}
 
 		// Request next frame from worker at appropriate intervals
-		this.requestNextFrame();
+		this.scheduleNextFrameRequest();
 	};
 
 	// Updated renderStars method that uses the optimized renderer:
@@ -785,8 +983,7 @@ export class CanvasStarFieldManager {
 	}
 
 	/**
-	 * Optimization: Proper cleanup with explicit nullification
-	 * Benefit: Helps garbage collection reclaim memory
+	 * Enhanced cleanup method that properly releases resources and cancels pending operations
 	 */
 	public cleanup() {
 		// 1. Stop animation to prevent further rendering
@@ -798,7 +995,13 @@ export class CanvasStarFieldManager {
 			starPoolBridge.forceSyncStats();
 		}
 
-		// 3. Properly terminate worker with clean shutdown
+		// 3. Cancel any pending frame requests
+		if (this.frameRequestTimer !== null) {
+			clearTimeout(this.frameRequestTimer);
+			this.frameRequestTimer = null;
+		}
+
+		// 4. Properly terminate worker with clean shutdown
 		if (this.worker) {
 			// Send cleanup message to allow worker to clean up its resources
 			this.worker.postMessage({ type: 'cleanup' });
@@ -810,13 +1013,13 @@ export class CanvasStarFieldManager {
 			}, 50);
 		}
 
-		// 4. Disconnect ResizeObserver
+		// 5. Disconnect ResizeObserver
 		if (this.resizeObserver) {
 			this.resizeObserver.disconnect();
 			this.resizeObserver = null;
 		}
 
-		// 5. Remove canvas with proper GPU resource release
+		// 6. Remove canvas with proper GPU resource release
 		if (this.canvas) {
 			// Clear any content to help release WebGL contexts/resources
 			if (this.ctx) {
@@ -837,7 +1040,7 @@ export class CanvasStarFieldManager {
 			this.canvas = null;
 		}
 
-		// 6. Do the same for offscreen canvas if used
+		// 7. Do the same for offscreen canvas if used
 		if (this.offscreenCanvas) {
 			if (this.offscreenCtx) {
 				this.offscreenCtx.clearRect(0, 0, this.offscreenCanvas.width, this.offscreenCanvas.height);
@@ -846,31 +1049,31 @@ export class CanvasStarFieldManager {
 			this.offscreenCanvas = null;
 		}
 
-		// 7. Clear TypedArray references
+		// 8. Clear TypedArray references
 		if (this.starData) {
 			// Clear the reference - TypedArrays aren't easily "cleared" otherwise
 			this.starData = null;
 		}
 
-		// 8. Release container reference
+		// 9. Release container reference
 		this.container = null;
 
-		// 9. Clean up star renderer
+		// 10. Clean up star renderer
 		this.starRenderer = null;
 
-		// 10. Break potential circular references
+		// 11. Break potential circular references
 		if (this.renderCallback) {
 			this.renderCallback = null;
 		}
 
-		// 11. Help garbage collector by nullifying object properties
+		// 12. Help garbage collector by nullifying object properties
 		this.dimensionsChanged = false;
 		this.isRunning = false;
 		this.isPaused = false;
-		this.changedStarIndices = null;
+		this.changedStarIndices = [];
 		this.lastWorkerUpdateTime = 0;
 
-		// 12. Suggest garbage collection (this won't force it, just hints)
+		// 13. Suggest garbage collection (this won't force it, just hints)
 		setTimeout(() => {
 			// Create temporary large object and discard it
 			const tempArray = new Array(1000).fill(0);
