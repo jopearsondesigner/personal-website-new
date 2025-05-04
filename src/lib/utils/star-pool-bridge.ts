@@ -9,6 +9,8 @@ import { PoolStatsDebugger } from './debug-pool-stats';
 interface WorkerStats {
 	created: number;
 	reused: number;
+	active?: number;
+	total?: number;
 }
 
 /**
@@ -17,15 +19,24 @@ interface WorkerStats {
  */
 class StarPoolBridge {
 	private lastReportTime = 0;
-	private lastSyncTime = 0; // Added for the new syncStats method
-	private reportInterval = 500; // Reduced to 500ms for more frequent updates
+	private lastSyncTime = 0;
+	private reportInterval = 1000; // Increased to 1000ms to reduce update frequency
 	private worker: Worker | null = null;
 	private workerStatsBuffer: WorkerStats = {
 		created: 0,
-		reused: 0
+		reused: 0,
+		active: 0,
+		total: 0
 	};
 	private initialized = false;
 	private debugMode = false;
+	private statsSyncScheduled = false;
+	private activeListeners = new Set<string>();
+
+	// Optimization: Add batch update threshold
+	private updateThreshold = 5; // Minimum updates before sending
+	private pendingCreated = 0;
+	private pendingReused = 0;
 
 	constructor() {
 		if (browser) {
@@ -40,7 +51,27 @@ class StarPoolBridge {
 				// Ignore localStorage errors
 				this.debugMode = false;
 			}
+
+			// Add cleanup handler on page unload
+			this.setupUnloadHandler();
 		}
+	}
+
+	/**
+	 /**
+	 * Setup cleanup handler on page unload
+	 * Benefit: Ensures resources are properly released when navigating away
+	 */
+	private setupUnloadHandler(): void {
+		if (!browser) return;
+
+		window.addEventListener('beforeunload', () => {
+			// Flush any pending stats
+			this.flushStatsBuffer(true);
+
+			// Disconnect from worker
+			this.cleanup();
+		});
 	}
 
 	/**
@@ -83,13 +114,22 @@ class StarPoolBridge {
 	 * Connect to a worker to send and receive statistics updates
 	 */
 	connectWorker(worker: Worker): void {
+		// Cleanup existing worker connection if any
+		if (this.worker) {
+			this.cleanup();
+		}
+
 		this.worker = worker;
 
 		// Initial stats sync
 		this.forceSyncStats();
 
 		// Set up message handler for worker stats
-		worker.addEventListener('message', this.handleWorkerMessage);
+		const messageHandlerKey = 'statsUpdate';
+		if (!this.activeListeners.has(messageHandlerKey)) {
+			worker.addEventListener('message', this.handleWorkerMessage);
+			this.activeListeners.add(messageHandlerKey);
+		}
 
 		if (this.debugMode) {
 			console.log('StarPoolBridge: Connected to worker');
@@ -121,17 +161,27 @@ class StarPoolBridge {
 			);
 		}
 
-		// Accumulate stats from worker with proper type checking
-		if (data.created && typeof data.created === 'number') {
-			this.workerStatsBuffer.created += data.created;
+		// Validate data to prevent NaN or undefined values
+		const created = typeof data.created === 'number' && !isNaN(data.created) ? data.created : 0;
+		const reused = typeof data.reused === 'number' && !isNaN(data.reused) ? data.reused : 0;
+		const active = typeof data.active === 'number' && !isNaN(data.active) ? data.active : undefined;
+		const total = typeof data.total === 'number' && !isNaN(data.total) ? data.total : undefined;
+
+		// Accumulate stats from worker
+		this.workerStatsBuffer.created += created;
+		this.workerStatsBuffer.reused += reused;
+
+		// Update active/total counts if provided
+		if (active !== undefined) {
+			this.workerStatsBuffer.active = active;
 		}
 
-		if (data.reused && typeof data.reused === 'number') {
-			this.workerStatsBuffer.reused += data.reused;
+		if (total !== undefined) {
+			this.workerStatsBuffer.total = total;
 		}
 
-		// Report immediately if we have statistics to report
-		if (this.workerStatsBuffer.created > 0 || this.workerStatsBuffer.reused > 0) {
+		// Only flush if we have pending stats and exceed threshold
+		if (this.workerStatsBuffer.created + this.workerStatsBuffer.reused >= this.updateThreshold) {
 			this.flushStatsBuffer();
 		}
 	}
@@ -139,8 +189,10 @@ class StarPoolBridge {
 	/**
 	 * Flush the stats buffer to the tracker
 	 */
-	private flushStatsBuffer(): void {
-		if (this.workerStatsBuffer.created === 0 && this.workerStatsBuffer.reused === 0) return;
+	private flushStatsBuffer(force: boolean = false): void {
+		// Skip if no stats to report and not forced
+		if (!force && this.workerStatsBuffer.created === 0 && this.workerStatsBuffer.reused === 0)
+			return;
 
 		if (this.debugMode) {
 			console.debug(
@@ -151,23 +203,39 @@ class StarPoolBridge {
 		// Report the buffered stats to the tracker
 		if (this.workerStatsBuffer.created > 0) {
 			starPoolTracker.recordObjectCreated(this.workerStatsBuffer.created);
+			// Store locally for batched updates
+			this.pendingCreated += this.workerStatsBuffer.created;
+			this.workerStatsBuffer.created = 0;
 		}
 
 		if (this.workerStatsBuffer.reused > 0) {
 			starPoolTracker.recordObjectReused(this.workerStatsBuffer.reused);
+			// Store locally for batched updates
+			this.pendingReused += this.workerStatsBuffer.reused;
+			this.workerStatsBuffer.reused = 0;
 		}
 
-		// Force immediate UI update
-		starPoolTracker.reportNow();
+		// Update pool state if active/total counts are available
+		if (
+			typeof this.workerStatsBuffer.active === 'number' &&
+			typeof this.workerStatsBuffer.total === 'number'
+		) {
+			starPoolTracker.updatePoolState(this.workerStatsBuffer.active, this.workerStatsBuffer.total);
+		}
 
-		// Reset the buffer
-		this.workerStatsBuffer.created = 0;
-		this.workerStatsBuffer.reused = 0;
+		// Only force UI update on threshold or force
+		if (force || this.pendingCreated + this.pendingReused >= this.updateThreshold) {
+			// Force immediate UI update
+			starPoolTracker.reportNow();
+			this.pendingCreated = 0;
+			this.pendingReused = 0;
+		}
 
 		this.lastReportTime = performance.now();
 
 		// Log stats after update if in debug mode
 		if (this.debugMode) {
+			// Delay logging to allow for store updates
 			setTimeout(() => {
 				PoolStatsDebugger.logStats();
 			}, 50);
@@ -180,17 +248,28 @@ class StarPoolBridge {
 	private setupIntervalCheck(): void {
 		if (!browser) return;
 
-		// Check more frequently for better responsiveness
-		setInterval(() => {
-			this.flushStatsBuffer();
+		// Check less frequently to reduce performance impact
+		const intervalId = setInterval(() => {
+			// Only flush if we have something to report
+			if (
+				this.workerStatsBuffer.created > 0 ||
+				this.workerStatsBuffer.reused > 0 ||
+				this.pendingCreated > 0 ||
+				this.pendingReused > 0
+			) {
+				this.flushStatsBuffer(true);
+			}
 
-			// Only do full stats sync less frequently to reduce overhead
+			// Only do full stats sync less frequently
 			const now = performance.now();
 			if (now - this.lastReportTime >= this.reportInterval) {
 				this.syncStats();
 				this.lastReportTime = now;
 			}
-		}, 250);
+		}, 1000); // Increased to 1 second
+
+		// Store the interval ID for cleanup
+		(this as any).intervalId = intervalId;
 	}
 
 	/**
@@ -200,18 +279,57 @@ class StarPoolBridge {
 		const now = performance.now();
 
 		// Throttle updates unless forced
-		if (!force && now - this.lastSyncTime < 100) return;
-		this.lastSyncTime = now;
+		if (!force && now - this.lastSyncTime < 500) return;
 
+		// Prevent multiple concurrent syncs
+		if (this.statsSyncScheduled && !force) return;
+
+		this.lastSyncTime = now;
+		this.statsSyncScheduled = true;
+
+		if (!this.worker) {
+			this.statsSyncScheduled = false;
+			return;
+		}
+
+		// Schedule the actual sync for next frame to reduce jank
+		if (browser && typeof requestAnimationFrame !== 'undefined') {
+			requestAnimationFrame(() => {
+				this.performStatsSync();
+				this.statsSyncScheduled = false;
+			});
+		} else {
+			// Fallback if requestAnimationFrame is not available
+			setTimeout(() => {
+				this.performStatsSync();
+				this.statsSyncScheduled = false;
+			}, 0);
+		}
+	}
+
+	/**
+	 * Perform the actual stats synchronization
+	 */
+	private performStatsSync(): void {
 		if (!this.worker) return;
 
 		// Get current stats with proper defensive access
-		const stats = get(objectPoolStatsStore) || {
-			activeObjects: 0,
-			totalCapacity: 0,
-			objectsCreated: 0,
-			objectsReused: 0
-		};
+		let stats = null;
+		try {
+			stats = get(objectPoolStatsStore);
+		} catch (e) {
+			// Handle potential error during store access
+			console.warn('Error accessing objectPoolStatsStore:', e);
+		}
+
+		if (!stats) {
+			stats = {
+				activeObjects: 0,
+				totalCapacity: 0,
+				objectsCreated: 0,
+				objectsReused: 0
+			};
+		}
 
 		// Ensure we're not sending NaN or undefined
 		const safeStats = {
@@ -229,15 +347,23 @@ class StarPoolBridge {
 		}
 
 		// Send corrected stats to worker
-		this.worker.postMessage({
-			type: 'updatePoolStats',
-			data: safeStats
-		});
+		try {
+			this.worker.postMessage({
+				type: 'updatePoolStats',
+				data: safeStats
+			});
 
-		// Request fresh stats from worker
-		this.worker.postMessage({
-			type: 'requestStats'
-		});
+			// Request fresh stats from worker
+			this.worker.postMessage({
+				type: 'requestStats'
+			});
+		} catch (e) {
+			// Handle potential error during postMessage
+			console.warn('Error communicating with worker:', e);
+
+			// Worker might be terminated or disconnected
+			this.worker = null;
+		}
 	}
 
 	/**
@@ -250,8 +376,15 @@ class StarPoolBridge {
 			console.debug(`StarPoolBridge: Recording ${count} object(s) created`);
 		}
 
+		// Store for batched updates
+		this.pendingCreated += count;
+
 		starPoolTracker.recordObjectCreated(count);
-		this.flushStatsBuffer();
+
+		// Only flush on threshold
+		if (this.pendingCreated + this.pendingReused >= this.updateThreshold) {
+			this.flushStatsBuffer();
+		}
 	}
 
 	/**
@@ -264,8 +397,15 @@ class StarPoolBridge {
 			console.debug(`StarPoolBridge: Recording ${count} object(s) reused`);
 		}
 
+		// Store for batched updates
+		this.pendingReused += count;
+
 		starPoolTracker.recordObjectReused(count);
-		this.flushStatsBuffer();
+
+		// Only flush on threshold
+		if (this.pendingCreated + this.pendingReused >= this.updateThreshold) {
+			this.flushStatsBuffer();
+		}
 	}
 
 	/**
@@ -278,7 +418,7 @@ class StarPoolBridge {
 		this.initializeStatsStore();
 
 		// Flush any pending stats
-		this.flushStatsBuffer();
+		this.flushStatsBuffer(true);
 
 		// Sync with worker
 		this.syncStats(true); // Force the sync
@@ -297,9 +437,17 @@ class StarPoolBridge {
 	updateActiveCount(active: number, total: number): void {
 		if (!browser) return;
 
+		// Ensure values are valid
+		active = Math.max(0, active);
+		total = Math.max(active, total);
+
 		if (this.debugMode) {
 			console.debug(`StarPoolBridge: Updating active count - ${active}/${total}`);
 		}
+
+		// Update local buffer
+		this.workerStatsBuffer.active = active;
+		this.workerStatsBuffer.total = total;
 
 		starPoolTracker.updatePoolState(active, total);
 	}
@@ -308,10 +456,33 @@ class StarPoolBridge {
 	 * Cleanup resources when no longer needed
 	 */
 	cleanup(): void {
+		// Flush any pending stats
+		this.flushStatsBuffer(true);
+
+		// Remove event listener if worker exists
 		if (this.worker) {
 			this.worker.removeEventListener('message', this.handleWorkerMessage);
+			this.activeListeners.clear();
 			this.worker = null;
 		}
+
+		// Clear interval if it exists
+		if ((this as any).intervalId) {
+			clearInterval((this as any).intervalId);
+			(this as any).intervalId = null;
+		}
+
+		// Clear stats buffers
+		this.workerStatsBuffer = {
+			created: 0,
+			reused: 0,
+			active: 0,
+			total: 0
+		};
+
+		this.pendingCreated = 0;
+		this.pendingReused = 0;
+		this.statsSyncScheduled = false;
 	}
 }
 
