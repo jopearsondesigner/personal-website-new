@@ -34,10 +34,8 @@ interface NavigatorWithDeviceMemory extends Navigator {
 }
 
 export interface DeviceCapabilities {
+	// Core performance tier
 	tier: 'high' | 'medium' | 'low';
-	rendering: RenderingCapabilities;
-	memory: MemoryCapabilities;
-	performance: PerformanceCapabilities;
 
 	// General settings
 	maxStars: number;
@@ -99,7 +97,7 @@ export interface DeviceCapabilities {
 	objectPoolMargin: number; // Extra capacity percentage (e.g., 0.2 = 20% extra)
 }
 
-interface RenderingCapabilities {
+export interface RenderingCapabilities {
 	quality: number;
 	useWebGL: boolean;
 	useOffscreenCanvas: boolean;
@@ -110,7 +108,7 @@ interface RenderingCapabilities {
 	enableDoubleBuffering: boolean;
 }
 
-interface MemoryCapabilities {
+export interface MemoryCapabilities {
 	maxStars: number;
 	maxTrailLength: number;
 	maxSectors: number;
@@ -119,7 +117,7 @@ interface MemoryCapabilities {
 	enableMemoryMonitoring: boolean;
 }
 
-interface PerformanceCapabilities {
+export interface PerformanceCapabilities {
 	targetFPS: number;
 	enableAdaptiveQuality: boolean;
 	enableFrameSkipping: boolean;
@@ -131,8 +129,6 @@ interface PerformanceCapabilities {
 export interface ObjectPoolStats {
 	// Pool capacity
 	totalCapacity: number;
-
-	// Usage statistics
 	activeObjects: number;
 	utilizationRate: number; // 0-1 percentage of pool in use
 
@@ -152,31 +148,6 @@ export interface ObjectPoolStats {
 // Default high-end capability settings
 const highCapabilities: DeviceCapabilities = {
 	tier: 'high',
-	rendering: {
-		quality: 1.0,
-		useWebGL: true,
-		useOffscreenCanvas: true,
-		useWorker: true,
-		enableGlow: true,
-		enableTrails: true,
-		enableHighDPI: true,
-		enableDoubleBuffering: true
-	},
-	memory: {
-		maxStars: 20000,
-		maxTrailLength: 20,
-		maxSectors: 100,
-		useTypedArrays: true,
-		enableGarbageCollection: true,
-		enableMemoryMonitoring: true
-	},
-	performance: {
-		targetFPS: 60,
-		enableAdaptiveQuality: true,
-		enableFrameSkipping: true,
-		enablePerformanceMonitoring: true,
-		enableBrowserOptimizations: true
-	},
 	maxStars: 60,
 	effectsLevel: 'normal',
 	useHardwareAcceleration: true,
@@ -222,8 +193,6 @@ const mediumCapabilities: DeviceCapabilities = {
 	tier: 'medium',
 	maxStars: 40,
 	effectsLevel: 'reduced',
-	useWebGL: false,
-	useShadersIfAvailable: false,
 	frameSkip: 1, // Render every other frame
 	updateInterval: 32, // ~30fps
 	enableChromaticAberration: false,
@@ -234,7 +203,6 @@ const mediumCapabilities: DeviceCapabilities = {
 	prioritizeMainContent: true, // Prioritize main content on medium devices
 	prioritizeInteractivity: true, // Prioritize interactive elements on medium devices
 	useDeferredLoading: true, // Use deferred loading on medium devices
-	useCanvas: true, // Still use canvas but with simpler rendering
 	enableScanlines: false, // Disable complex effects
 	animateInBackground: false, // Don't animate in background to save resources
 	useObjectPooling: true,
@@ -248,11 +216,9 @@ const lowCapabilities: DeviceCapabilities = {
 	tier: 'low',
 	maxStars: 20,
 	effectsLevel: 'minimal',
-	useWebGL: false,
 	frameSkip: 2, // Render every third frame
 	updateInterval: 50, // ~20fps
 	animateInBackground: false,
-	enableGlow: false,
 	enableBlur: false,
 	enableShadows: false,
 	enableReflections: false,
@@ -270,14 +236,14 @@ const lowCapabilities: DeviceCapabilities = {
 	objectPoolMargin: 0.5 // 50% extra capacity to avoid creating new objects
 };
 
-// Special iOS optimized settings for iPhone 14 and similar devices
+// Special iOS optimized settings for iPhone and similar devices
 const iosOptimizedCapabilities: DeviceCapabilities = {
 	...mediumCapabilities,
 	tier: 'medium',
 	maxStars: 30,
 	frameSkip: 1,
 	useCanvas: true,
-	useWebGL: false,
+	useShadersIfAvailable: false,
 	enableBlur: false,
 	enableChromaticAberration: false,
 	enableInterlace: false,
@@ -285,8 +251,6 @@ const iosOptimizedCapabilities: DeviceCapabilities = {
 	optimizeForIOSSafari: true,
 	preventIOSOverscrollFreezing: true,
 	useIOSCompatibleEffects: true,
-	useShadersIfAvailable: false,
-	enableGlow: false,
 	enableParallax: false,
 	useObjectPooling: true,
 	objectPoolSize: 150, // iOS-specific pool size
@@ -294,40 +258,21 @@ const iosOptimizedCapabilities: DeviceCapabilities = {
 };
 
 /**
- * Feature detection to check GPU acceleration availability
+ * Fast GPU acceleration check - avoids overhead of WebGL extension queries
  */
-function detectGPUAcceleration(): boolean {
+function quickDetectGPUAcceleration(): boolean {
 	if (!browser) return true;
 
-	// Create a canvas element
-	const canvas = document.createElement('canvas');
-	const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-
-	// Check if WebGL is available
-	if (!gl) {
+	try {
+		const canvas = document.createElement('canvas');
+		return !!(canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
+	} catch (e) {
 		return false;
 	}
-
-	// Check for WebGL extensions and capabilities
-	const extensions = gl.getSupportedExtensions();
-	const hasFloatTextures = extensions?.includes('OES_texture_float');
-	const hasInstancing = extensions?.includes('ANGLE_instanced_arrays');
-
-	// Get info about the GPU
-	const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-	const renderer = debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : '';
-
-	// Check for low-power GPUs
-	const isLowPowerGPU = renderer?.includes('Intel') || renderer?.includes('Microsoft Basic Render');
-
-	// Clean up
-	gl.getExtension('WEBGL_lose_context')?.loseContext();
-
-	return hasFloatTextures && hasInstancing && !isLowPowerGPU;
 }
 
 /**
- * Detect if user prefers reduced motion
+ * Detect if user prefers reduced motion - simplified
  */
 function detectReducedMotion(): boolean {
 	if (!browser) return false;
@@ -335,308 +280,198 @@ function detectReducedMotion(): boolean {
 }
 
 /**
- * Detect if the device is on battery and low on power
- */
-async function detectBatteryIssues(): Promise<boolean> {
-	if (!browser || !('getBattery' in navigator)) return false;
-
-	try {
-		// @ts-ignore: Battery API might not be available in all browsers
-		const battery = await navigator.getBattery();
-
-		// Check if battery is discharging and below 20%
-		return !battery.charging && battery.level < 0.2;
-	} catch (e) {
-		return false;
-	}
-}
-
-/**
- * Detect iOS Safari specific issues
- */
-function detectIOSSafariIssues(): boolean {
-	if (!browser) return false;
-
-	const ua = navigator.userAgent;
-	const isIOS = /iPad|iPhone|iPod/.test(ua);
-	const isSafari = /Safari/.test(ua) && !/Chrome/.test(ua);
-
-	return isIOS && isSafari;
-}
-
-/**
- * Check for specific iPhone 14 optimizations
- */
-function isIPhone14(): boolean {
-	if (!browser) return false;
-
-	const ua = navigator.userAgent;
-	return /iPhone14/.test(ua) || /iPhone 14/.test(ua);
-}
-
-/**
- * Optimization: Avoid DOM manipulation in benchmarks
- * Benefit: Eliminates layout thrashing during benchmark
- */
-async function performBenchmark(): Promise<number> {
-	if (!browser) return 1.0;
-
-	let score = 1.0;
-	const startTime = performance.now();
-
-	// Calculation benchmark without DOM manipulation
-	let result = 0;
-	for (let i = 0; i < 10000; i++) {
-		result += Math.sin(i) * Math.cos(i);
-	}
-
-	// Memory allocation benchmark
-	const arrays = [];
-	for (let i = 0; i < 5; i++) {
-		arrays.push(new Float32Array(1000));
-		for (let j = 0; j < 1000; j++) {
-			arrays[i][j] = Math.random();
-		}
-	}
-
-	// Clean up to avoid memory leak
-	arrays.length = 0;
-
-	const endTime = performance.now();
-	const benchmarkTime = endTime - startTime;
-
-	// Normalize score (lower is better)
-	if (benchmarkTime < 50) {
-		score = 1.0; // High-end device
-	} else if (benchmarkTime < 200) {
-		score = 0.7; // Medium device
-	} else {
-		score = 0.4; // Low-end device
-	}
-
-	return score;
-}
-
-/**
- * Get a quick estimate of device capabilities without heavy benchmarking
+ * Simple device detection with fewer API calls and UA checks
  */
 function getQuickCapabilitiesEstimate(): DeviceCapabilities {
 	if (!browser) {
 		return highCapabilities; // Default to high for SSR
 	}
 
-	// Detect device characteristics without relying solely on UA
+	// Core device characteristics that actually matter for performance
 	const pixelRatio = window.devicePixelRatio || 1;
-	const ua = navigator.userAgent;
-	const screenWidth = window.innerWidth;
-	const isIOS = /iPad|iPhone|iPod/.test(ua);
-	const isAndroid = /Android/.test(ua);
-	const isMobile = isIOS || isAndroid || screenWidth < 768;
-
-	// Quick device tier determination based on simple heuristics
-	if (isIOS) {
-		return { ...iosOptimizedCapabilities };
-	} else if (isMobile) {
-		return { ...lowCapabilities };
-	} else if (navigator.hardwareConcurrency < 4) {
-		return { ...lowCapabilities };
-	} else if (navigator.hardwareConcurrency >= 8 && pixelRatio >= 2) {
-		return { ...highCapabilities };
-	} else {
-		return { ...mediumCapabilities };
-	}
-}
-
-/**
- * Perform detailed device capability detection
- */
-async function performDetailedDetection(): Promise<DeviceCapabilities> {
-	if (!browser) {
-		return highCapabilities; // Default to high for SSR
-	}
-
-	// Detect device characteristics without relying solely on UA
-	const pixelRatio = window.devicePixelRatio || 1;
-	const ua = navigator.userAgent;
 	const screenWidth = window.innerWidth;
 	const screenHeight = window.innerHeight;
+	const ua = navigator.userAgent;
 
-	// Detect iOS without UA sniffing when possible
+	// Quick platform detection focusing on performance-impacting factors
 	const isIOS =
-		/iPad|iPhone|iPod/.test(ua) ||
+		/iPad|iPhone|iPod/i.test(ua) ||
 		(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-	const isAndroid = /Android/.test(ua);
+	const isAndroid = /Android/i.test(ua);
 	const isMobile = isIOS || isAndroid || screenWidth < 768;
-	const isTablet = (isIOS || isAndroid) && screenWidth >= 768;
+	const isTablet = (isIOS || isAndroid) && Math.min(screenWidth, screenHeight) >= 768;
 	const isDesktop = !isMobile && !isTablet;
 
-	// Use hardware concurrency as hint of processing power
-	const hardwareConcurrency = navigator.hardwareConcurrency || 1;
+	// Hardware detection
+	const concurrency = navigator.hardwareConcurrency || 2;
+	const memory = (navigator as NavigatorWithDeviceMemory).deviceMemory || 4;
+	const hasReducedMotion = detectReducedMotion();
+	const hasGPU = quickDetectGPUAcceleration();
 
-	// Feature detection
-	const hasGPUAcceleration = detectGPUAcceleration();
-	const preferReducedMotion = detectReducedMotion();
-	const hasBatteryIssues = await detectBatteryIssues();
-	const isIOSSafari = detectIOSSafariIssues();
-	const isIPad = isIOS && screenWidth >= 768;
+	// Quick tier determination based on available hardware and form factor
+	let tier: 'low' | 'medium' | 'high';
 
-	// Run performance benchmark
-	const benchmarkScore = await performBenchmark();
-
-	// Enhanced detection for low-end devices
-	const isLowEndDevice =
-		benchmarkScore < 0.4 ||
-		hardwareConcurrency <= 2 ||
-		(isAndroid && /Android [1-4]\./.test(ua)) ||
-		navigator.deviceMemory < 2 || // Check device memory if available
-		(isIOS && /iPhone [5-8]|iPad [1-4]|iPod/.test(ua)); // Older iOS devices
-
-	if (isLowEndDevice) {
-		// Ultra-low settings for very weak devices
-		return {
-			...lowCapabilities,
-			maxStars: 50, // Even fewer stars
-			frameSkip: 3, // Render every 4th frame
-			updateInterval: 100, // ~10fps target
-			useCanvas: true,
-			useWebGL: false,
-			enableGlow: false,
-			enableBlur: false,
-			enableShadows: false,
-			enableReflections: false,
-			enableParallax: false,
-			enablePulse: false,
-			enableScanlines: false,
-			enablePhosphorDecay: false,
-			enableInterlace: false,
-			enableChromaticAberration: false,
-			useObjectPooling: true,
-			objectPoolSize: 60, // Small pool for ultra-low end
-			objectPoolMargin: 0.2 // 20% margin
-		};
+	if (
+		hasReducedMotion ||
+		(isMobile && concurrency <= 4) ||
+		memory <= 2 ||
+		!hasGPU ||
+		(isIOS && /iPhone [5-8]|iPad [1-4]|iPod/.test(ua)) ||
+		(isAndroid && /Android [1-7]\./.test(ua))
+	) {
+		tier = 'low';
+	} else if (isMobile || isTablet || concurrency <= 6 || memory <= 4 || pixelRatio < 2) {
+		tier = 'medium';
+	} else {
+		tier = 'high';
 	}
 
-	// Choose appropriate device profile based on multiple factors
+	// Start with appropriate base capabilities
 	let capabilities: DeviceCapabilities;
-
-	// Special case for known problematic device - iPhone 14
-	if (isIPhone14()) {
-		capabilities = { ...iosOptimizedCapabilities };
-	}
-	// Low-end device detection
-	else if (
-		benchmarkScore < 0.5 ||
-		hardwareConcurrency <= 4 ||
-		(isAndroid && /Android [1-5]\./.test(ua)) ||
-		hasBatteryIssues ||
-		preferReducedMotion
-	) {
+	if (tier === 'low') {
 		capabilities = { ...lowCapabilities };
-	}
-	// High-end device detection
-	else if (
-		benchmarkScore > 0.8 &&
-		hasGPUAcceleration &&
-		hardwareConcurrency >= 6 &&
-		isDesktop &&
-		!preferReducedMotion
-	) {
+	} else if (tier === 'medium') {
+		capabilities = { ...mediumCapabilities };
+	} else {
 		capabilities = { ...highCapabilities };
 	}
-	// Default to medium for most devices
-	else {
-		capabilities = { ...mediumCapabilities };
+
+	// Apply iOS-specific optimizations if needed
+	if (isIOS) {
+		// Special handling for iOS devices
+		capabilities = {
+			...capabilities,
+			...iosOptimizedCapabilities,
+			isIOS: true,
+			isMobile,
+			isTablet: isTablet,
+			isDesktop: isDesktop,
+			devicePixelRatio: pixelRatio,
+			// iOS Safari has known performance issues with certain effects
+			enableBlur: false,
+			enableShadows: false,
+			preventIOSOverscrollFreezing: true,
+			optimizeForIOSSafari: true,
+			useIOSCompatibleEffects: true
+		};
+
+		// Additional optimizations for older iOS devices
+		if (/(iPhone [5-8]|iPad [1-4]|iPod)/.test(ua)) {
+			capabilities.tier = 'low';
+			capabilities.maxStars = 15;
+			capabilities.frameSkip = 2;
+		}
 	}
 
-	// Apply device-specific refinements
-	capabilities.devicePixelRatio = pixelRatio;
-	capabilities.isMobile = isMobile;
-	capabilities.isIOS = isIOS;
-	capabilities.isAndroid = isAndroid;
-	capabilities.isTablet = isTablet;
-	capabilities.isDesktop = isDesktop;
-	capabilities.hasGPUAcceleration = hasGPUAcceleration;
-	capabilities.preferReducedMotion = preferReducedMotion;
-	capabilities.hasBatteryIssues = hasBatteryIssues;
+	// Apply Android-specific optimizations
+	if (isAndroid) {
+		capabilities.isAndroid = true;
+		capabilities.isMobile = isMobile;
+		capabilities.isTablet = isTablet;
+		capabilities.isDesktop = false;
+		capabilities.devicePixelRatio = pixelRatio;
 
-	// Additional iOS-specific optimizations
-	if (isIOS) {
-		capabilities.optimizeForIOSSafari = isIOSSafari;
-		capabilities.preventIOSOverscrollFreezing = true;
-		capabilities.useIOSCompatibleEffects = true;
-
-		// WebGL frequently causes issues on iOS Safari
-		capabilities.useWebGL = false;
-		capabilities.enableChromaticAberration = false;
+		// Less effects on Android by default
 		capabilities.enableInterlace = false;
+		capabilities.enableChromaticAberration = false;
+		capabilities.enablePhosphorDecay = false;
 
-		// Further reduce effects on older iOS devices
-		if (/(iPhone 8|iPhone 9|iPhone X|iPhone 11)/.test(ua)) {
+		// Reduce effects on older Android versions
+		if (/Android [1-7]\./.test(ua)) {
 			capabilities.tier = 'low';
-			capabilities.maxStars = 20;
+			capabilities.maxStars = 15;
+			capabilities.frameSkip = 2;
 			capabilities.enableScanlines = false;
 			capabilities.enableBlur = false;
-		}
-
-		// iPad optimizations
-		if (isIPad) {
-			// iPads can handle more effects than iPhones
-			capabilities.maxStars = Math.min(40, capabilities.maxStars);
-			capabilities.useWebGL = capabilities.tier === 'high'; // Only use WebGL on high-end iPads
+			capabilities.enableShadows = false;
 		}
 	}
 
-	// Reduce features when hardware acceleration is not available
-	if (!hasGPUAcceleration) {
-		capabilities.tier = 'low';
-		capabilities.enableBlur = false;
-		capabilities.enableGlow = false;
-		capabilities.enableShadows = false;
-		capabilities.enableReflections = false;
-	}
-
-	// For devices with reduced memory/CPU, prioritize responsiveness
-	if (capabilities.tier !== 'high') {
-		capabilities.prioritizeMainContent = true;
-		capabilities.prioritizeInteractivity = true;
-	}
-
-	// Apply reduced motion preference if detected
-	if (preferReducedMotion) {
+	// Apply reduced motion preference
+	if (hasReducedMotion) {
+		capabilities.preferReducedMotion = true;
 		capabilities.enableParallax = false;
 		capabilities.enablePulse = false;
 		capabilities.effectsLevel = 'minimal';
+		capabilities.frameSkip = Math.max(1, capabilities.frameSkip);
 	}
 
+	// Return the optimized capabilities
 	return capabilities;
 }
 
 /**
- * Optimization: Deferred heavy operations and benchmarking
- * Benefit: Faster initialization and reduced startup impact
+ * Simple lightweight benchmark for checking device processing power
+ */
+function runLightweightBenchmark(): number {
+	if (!browser) return 1.0;
+
+	const startTime = performance.now();
+
+	// Simple computation benchmark that doesn't block UI
+	let result = 0;
+	const iterations = 20000;
+	for (let i = 0; i < iterations; i++) {
+		result += Math.sin(i * 0.01);
+	}
+
+	const endTime = performance.now();
+	const duration = endTime - startTime;
+
+	// Normalize score between 0-1 (higher is better)
+	const score = Math.max(0, Math.min(1, 1 - duration / 100));
+
+	return score;
+}
+
+/**
+ * Optimized device capability detection with reduced overhead
  */
 async function determineDeviceCapabilities(): Promise<DeviceCapabilities> {
+	if (!browser) {
+		return highCapabilities; // Default to high for SSR
+	}
+
 	// Quick initial detection based on simple heuristics
 	const quickCapabilities = getQuickCapabilitiesEstimate();
 
-	// Return quick results immediately
+	// Return quick results immediately for low-end devices or when reduced motion is preferred
+	if (quickCapabilities.tier === 'low' || quickCapabilities.preferReducedMotion) {
+		return quickCapabilities;
+	}
+
+	// For potentially higher capability devices, schedule benchmark for later
 	setTimeout(() => {
-		// Then schedule detailed detection for later when the app is idle
-		requestIdleCallback(
-			() => {
-				performDetailedDetection().then((detailedCapabilities) => {
-					// Update device capabilities with more detailed results
-					deviceCapabilities.set(detailedCapabilities);
-				});
-			},
-			{ timeout: 2000 }
-		); // Ensure it runs within 2 seconds
-	}, 50);
+		// Only run benchmark if page is visible
+		if (!document.hidden) {
+			const benchmarkScore = runLightweightBenchmark();
+
+			// Update capabilities based on benchmark score
+			if (benchmarkScore < 0.5) {
+				// Lower performance than initially detected
+				deviceCapabilities.update((caps) => ({
+					...caps,
+					tier: 'low',
+					frameSkip: Math.max(1, caps.frameSkip),
+					enableBlur: false,
+					enableShadows: false,
+					maxStars: Math.min(caps.maxStars, 25)
+				}));
+			} else if (benchmarkScore >= 0.8 && quickCapabilities.tier !== 'high') {
+				// Better performance than initially detected
+				deviceCapabilities.update((caps) => ({
+					...caps,
+					tier: 'medium', // Only upgrade to medium, not high
+					frameSkip: Math.min(caps.frameSkip, 1)
+				}));
+			}
+		}
+	}, 1000); // Delay benchmark to not impact initial load
 
 	return quickCapabilities;
 }
 
-// Create the deviceCapabilities store
+// Create stores
 export const deviceCapabilities = writable<DeviceCapabilities>(highCapabilities);
 export const memoryUsageStore = writable<number>(0);
 
@@ -654,19 +489,24 @@ export const objectPoolStatsStore = writable<ObjectPoolStats>({
 });
 
 // Initialize capabilities
-async function initializeCapabilities() {
+function initializeCapabilities() {
 	if (browser) {
-		const detectedCapabilities = await determineDeviceCapabilities();
-		deviceCapabilities.set(detectedCapabilities);
+		// Start with fast detection immediately for better startup performance
+		determineDeviceCapabilities().then((detectedCapabilities) => {
+			deviceCapabilities.set(detectedCapabilities);
+		});
 	}
 }
 
-// Add the setupPerformanceMonitoring function
+// Optimized performance monitoring setup
 export function setupPerformanceMonitoring() {
 	if (!browser) return () => {};
 
 	let active = false;
 	let rafId: number | null = null;
+	let lastTime = 0;
+	let frameCount = 0;
+	let monitoringInterval: number | null = null;
 
 	const startMonitoring = () => {
 		if (active) return;
@@ -675,36 +515,30 @@ export function setupPerformanceMonitoring() {
 		// Initialize capabilities if not already done
 		initializeCapabilities();
 
-		// Simple FPS counter
-		let frameCount = 0;
-		let lastTime = performance.now();
-
-		const monitorLoop = () => {
-			const now = performance.now();
-			frameCount++;
-
-			if (now - lastTime >= 1000) {
-				const fps = Math.round((frameCount * 1000) / (now - lastTime));
-				frameCount = 0;
-				lastTime = now;
-
-				// Monitor memory if available
-				if (browser && 'memory' in performance) {
+		// Use lower frequency monitoring interval for memory
+		monitoringInterval = window.setInterval(() => {
+			// Check memory usage periodically instead of every frame
+			if ('memory' in performance) {
+				try {
 					const memory = (performance as any).memory;
 					if (memory) {
 						const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
-						memoryUsageStore.set(memUsage);
+						memoryUsageStore.set(Math.max(0, Math.min(1, memUsage)));
 					}
+				} catch (e) {
+					// Ignore memory API errors
 				}
 			}
 
-			rafId = requestAnimationFrame(monitorLoop);
-		};
-
-		rafId = requestAnimationFrame(monitorLoop);
+			// Reset frame counter periodically in case requestAnimationFrame stops
+			if (Date.now() - lastTime > 5000) {
+				frameCount = 0;
+				lastTime = Date.now();
+			}
+		}, 3000);
 	};
 
-	// Start monitoring if in browser
+	// Start monitoring in browser
 	if (browser) {
 		startMonitoring();
 	}
@@ -716,49 +550,39 @@ export function setupPerformanceMonitoring() {
 			cancelAnimationFrame(rafId);
 			rafId = null;
 		}
+		if (monitoringInterval !== null) {
+			clearInterval(monitoringInterval);
+			monitoringInterval = null;
+		}
 	};
 }
 
-// Update object pool statistics
+// Efficient update for object pool statistics
 export function updateObjectPoolStats(stats: Partial<ObjectPoolStats>) {
 	if (!browser) return;
 
-	// Create a copy to avoid mutation issues
-	const updatedStats = { ...stats };
-
 	objectPoolStatsStore.update((currentStats) => {
-		// Start with current stats as base
-		const newStats = { ...currentStats };
+		// Create new stats object with updated values
+		const newStats = { ...currentStats, ...stats };
 
-		// Update with new values
-		Object.keys(updatedStats).forEach((key) => {
-			if (updatedStats[key] !== undefined) {
-				newStats[key] = updatedStats[key];
-			}
-		});
-
-		// Calculate derived statistics if relevant fields were updated
+		// Calculate derived statistics if needed
 		if (
-			(updatedStats.activeObjects !== undefined || updatedStats.totalCapacity !== undefined) &&
+			(stats.activeObjects !== undefined || stats.totalCapacity !== undefined) &&
 			newStats.totalCapacity > 0
 		) {
 			newStats.utilizationRate = newStats.activeObjects / newStats.totalCapacity;
 		}
 
-		// Update reuse ratio when object counts change
-		if (updatedStats.objectsCreated !== undefined || updatedStats.objectsReused !== undefined) {
+		// Update reuse ratio when relevant fields change
+		if (stats.objectsCreated !== undefined || stats.objectsReused !== undefined) {
 			const total = newStats.objectsCreated + newStats.objectsReused;
 			newStats.reuseRatio = total > 0 ? newStats.objectsReused / total : 0;
 		}
 
-		// Calculate memory savings if object reuse was updated or we're initializing
-		// Even if memory savings is provided, recalculate to ensure consistency
-		if (
-			updatedStats.objectsReused !== undefined ||
-			updatedStats.estimatedMemorySaved === undefined
-		) {
-			// Use star object size estimate (240 bytes) if not provided
-			const objectSize = 240;
+		// Estimate memory savings if not provided but we have reuse data
+		if (stats.objectsReused !== undefined && stats.estimatedMemorySaved === undefined) {
+			// Use a simple fixed object size estimate when specific size unknown
+			const objectSize = 240; // bytes
 			newStats.estimatedMemorySaved = (newStats.objectsReused * objectSize) / 1024; // in KB
 		}
 
@@ -766,26 +590,27 @@ export function updateObjectPoolStats(stats: Partial<ObjectPoolStats>) {
 	});
 }
 
-// Add the setupEventListeners function
+// Setup visibility event listeners for performance optimization
 export function setupEventListeners() {
 	if (!browser) return () => {};
 
-	// Setup event listeners for performance events
+	// Visibility change handler for performance
 	const visibilityChangeHandler = () => {
-		// Update capability settings based on visibility
 		if (document.hidden) {
-			// Pause or reduce animations when tab not visible
+			// Pause animations when tab not visible
 			deviceCapabilities.update((caps) => ({
 				...caps,
 				animateInBackground: false
 			}));
 		} else {
-			// Restore animations when tab visible again
-			initializeCapabilities();
+			// Resume normal operations when tab is visible again
+			setTimeout(() => {
+				initializeCapabilities();
+			}, 300); // Short delay to let the browser stabilize
 		}
 	};
 
-	// Setup event listeners
+	// Add event listener
 	document.addEventListener('visibilitychange', visibilityChangeHandler);
 
 	// Return cleanup function
@@ -794,109 +619,39 @@ export function setupEventListeners() {
 	};
 }
 
-// Initialize capabilities when imported
+// Initialize capabilities on module load
 if (browser) {
 	initializeCapabilities();
 }
 
-const checkHighEndGPU = (): boolean => {
+/**
+ * Quick GPU detection - simplified to reduce unnecessary calls
+ */
+const checkGPUCapabilities = (): 'high' | 'medium' | 'low' => {
+	if (!browser) return 'medium';
+
 	try {
 		const canvas = document.createElement('canvas');
 		const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-		if (!gl || !(gl instanceof WebGLRenderingContext)) return false;
 
-		const debugInfo = gl.getExtension('WEBGL_debug_renderer_info') as WebGLDebugInfo | null;
-		if (!debugInfo) return false;
+		if (!gl) return 'low';
 
-		const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-		return /nvidia|geforce|radeon|amd|intel iris/i.test(String(renderer).toLowerCase());
-	} catch (e) {
-		return false;
-	}
-};
+		// Basic check for WebGL capabilities
+		const extensions = gl.getSupportedExtensions() || [];
 
-const checkMediumEndGPU = (): boolean => {
-	try {
-		const canvas = document.createElement('canvas');
-		const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-		return !!(gl && gl instanceof WebGLRenderingContext);
-	} catch (e) {
-		return false;
-	}
-};
-
-const getDeviceCapabilities = (): DeviceCapabilities => {
-	const isHighEndGPU = checkHighEndGPU();
-	const isMediumEndGPU = checkMediumEndGPU();
-	const deviceMemory = navigator.deviceMemory ?? 4;
-	const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-		navigator.userAgent
-	);
-	const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-	const isFirefox = /firefox/i.test(navigator.userAgent);
-	const isChrome = /chrome/i.test(navigator.userAgent);
-	const isEdge = /edge/i.test(navigator.userAgent);
-	const isOpera = /opera/i.test(navigator.userAgent);
-	const isIE = /msie|trident/i.test(navigator.userAgent);
-	const isHighEndDevice = deviceMemory >= 8 && !isMobile;
-	const isMediumEndDevice = deviceMemory >= 4 && !isMobile;
-	const isLowEndDevice = deviceMemory < 4 || isMobile;
-	const isHighEndBrowser = isChrome || isEdge || isOpera;
-	const isMediumEndBrowser = isFirefox || isSafari;
-	const isLowEndBrowser = isIE;
-	const isHighEnd = isHighEndGPU && isHighEndDevice && isHighEndBrowser;
-	const isMediumEnd = isMediumEndGPU && isMediumEndDevice && isMediumEndBrowser;
-	const isLowEnd = isLowEndDevice || isLowEndBrowser;
-
-	const tier = isHighEnd ? 'high' : isMediumEnd ? 'medium' : 'low';
-	const quality = isHighEnd ? 1 : isMediumEnd ? 0.75 : 0.5;
-	const useWebGL = isHighEnd || isMediumEnd;
-	const useOffscreenCanvas = isHighEnd || isMediumEnd;
-	const useWorker = isHighEnd || isMediumEnd;
-	const enableGlow = isHighEnd;
-	const enableTrails = isHighEnd || isMediumEnd;
-	const enableHighDPI = isHighEnd || isMediumEnd;
-	const enableDoubleBuffering = isHighEnd || isMediumEnd;
-	const maxStars = isHighEnd ? 10000 : isMediumEnd ? 5000 : 1000;
-	const maxTrailLength = isHighEnd ? 20 : isMediumEnd ? 10 : 5;
-	const maxSectors = isHighEnd ? 16 : isMediumEnd ? 8 : 4;
-	const useTypedArrays = isHighEnd || isMediumEnd;
-	const enableGarbageCollection = isHighEnd || isMediumEnd;
-	const enableMemoryMonitoring = isHighEnd || isMediumEnd;
-	const targetFPS = isHighEnd ? 60 : isMediumEnd ? 30 : 15;
-	const enableAdaptiveQuality = isHighEnd || isMediumEnd;
-	const enableFrameSkipping = isHighEnd || isMediumEnd;
-	const enablePerformanceMonitoring = isHighEnd || isMediumEnd;
-	const enableBrowserOptimizations = isHighEnd || isMediumEnd;
-
-	const capabilities: DeviceCapabilities = {
-		tier,
-		rendering: {
-			quality,
-			useWebGL,
-			useOffscreenCanvas,
-			useWorker,
-			enableGlow,
-			enableTrails,
-			enableHighDPI,
-			enableDoubleBuffering
-		},
-		memory: {
-			maxStars,
-			maxTrailLength,
-			maxSectors,
-			useTypedArrays,
-			enableGarbageCollection,
-			enableMemoryMonitoring
-		},
-		performance: {
-			targetFPS,
-			enableAdaptiveQuality,
-			enableFrameSkipping,
-			enablePerformanceMonitoring,
-			enableBrowserOptimizations
+		// Check for some key extensions
+		if (
+			extensions.includes('WEBGL_compressed_texture_s3tc') &&
+			extensions.includes('OES_texture_float') &&
+			extensions.includes('ANGLE_instanced_arrays')
+		) {
+			return 'high';
+		} else if (gl.getParameter(gl.MAX_TEXTURE_SIZE) >= 4096) {
+			return 'medium';
 		}
-	};
 
-	return capabilities;
+		return 'low';
+	} catch (e) {
+		return 'low';
+	}
 };
