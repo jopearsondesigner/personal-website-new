@@ -38,10 +38,11 @@ let statsInterval: number | null = null; // Added for cleanup handler
 let starData: Float32Array;
 
 /**
- * Optimization: Implement change detection to track modified stars
- * Benefit: Enables partial updates
+ * Optimization: Enhanced change detection with significance tracking
+ * Benefit: Enables more efficient partial updates
  */
 let changedStarIndices: number[] = [];
+let significantChanges = false;
 
 /**
  * Optimization: Batch statistics reporting
@@ -62,6 +63,8 @@ function initializeStars(
 	height: number,
 	depth: number
 ): Float32Array {
+	const startTime = performance.now();
+
 	// Create a new Float32Array to hold all star data
 	// Each star has 6 values: x, y, z, prevX, prevY, inUse
 	const dataSize = count * STAR_DATA_ELEMENTS;
@@ -72,17 +75,21 @@ function initializeStars(
 	batchedStats.created += count;
 
 	// Initialize stars with random positions
-	for (let i = 0; i < count; i++) {
-		const baseIndex = i * STAR_DATA_ELEMENTS;
+	// Using a more optimized loop without unnecessary calculations per iteration
+	for (let i = 0, baseIndex = 0; i < count; i++, baseIndex += STAR_DATA_ELEMENTS) {
+		// Set random position - precalculate range values
+		const randomX = Math.random() * width * 2 - width;
+		const randomY = Math.random() * height * 2 - height;
+		const randomZ = Math.random() * depth;
 
-		// Set random position
-		newStarData[baseIndex] = Math.random() * width * 2 - width; // x
-		newStarData[baseIndex + 1] = Math.random() * height * 2 - height; // y
-		newStarData[baseIndex + 2] = Math.random() * depth; // z
+		// Set current position
+		newStarData[baseIndex] = randomX; // x
+		newStarData[baseIndex + 1] = randomY; // y
+		newStarData[baseIndex + 2] = randomZ; // z
 
 		// Set previous position (same as current initially)
-		newStarData[baseIndex + 3] = newStarData[baseIndex]; // prevX
-		newStarData[baseIndex + 4] = newStarData[baseIndex + 1]; // prevY
+		newStarData[baseIndex + 3] = randomX; // prevX
+		newStarData[baseIndex + 4] = randomY; // prevY
 
 		// Set inUse flag (1.0 = true, 0.0 = false)
 		newStarData[baseIndex + 5] = 1.0; // inUse
@@ -90,6 +97,10 @@ function initializeStars(
 
 	// Force stats report after initialization
 	reportStats(true);
+
+	// Report initialization time
+	const initTime = performance.now() - startTime;
+	console.debug(`Star field initialized ${count} stars in ${initTime.toFixed(2)}ms`);
 
 	return newStarData;
 }
@@ -154,9 +165,13 @@ function updateStars(deltaTime: number): void {
 
 	// Clear previous change tracking
 	changedStarIndices = [];
+	significantChanges = false;
 
 	// Calculate time-based movement scale
 	const timeScale = deltaTime / 16.7; // Normalized to 60fps
+
+	// Threshold for considering a star's movement "significant"
+	const movementThreshold = 0.1;
 
 	// Update each star position
 	for (let i = 0; i < config.starCount; i++) {
@@ -181,16 +196,19 @@ function updateStars(deltaTime: number): void {
 			resetStar(i, containerWidth, containerHeight, maxDepth);
 			// Track this change
 			changedStarIndices.push(i);
-		} else if (Math.abs(starData[baseIndex + 2] - prevZ) > 0.1) {
+			significantChanges = true; // Reset is always significant
+		} else if (Math.abs(starData[baseIndex + 2] - prevZ) > movementThreshold) {
 			// Also track stars that moved significantly
 			changedStarIndices.push(i);
 		}
 	}
 
 	// Report stats if we had changes
-	if (changedStarIndices.length > 0) {
+	if (significantChanges) {
 		// Force report if we had any resets to ensure they're captured
-		reportStats(changedStarIndices.length > 0);
+		reportStats(true);
+	} else if (changedStarIndices.length > 0) {
+		reportStats(false);
 	}
 }
 
@@ -205,6 +223,12 @@ function getChangedStarIndices(): number[] {
  * Extract partial star data for only the changed stars
  */
 function extractPartialStarData(indices: number[]): Float32Array {
+	// If more than 40% of stars changed, just send the whole array
+	// This avoids the overhead of extracting too many individual stars
+	if (indices.length > config.starCount * 0.4) {
+		return starData;
+	}
+
 	const partialData = new Float32Array(indices.length * STAR_DATA_ELEMENTS);
 
 	for (let i = 0; i < indices.length; i++) {
@@ -242,6 +266,57 @@ function updatePartialStarData(indices: number[], partialData: Float32Array): vo
  */
 function setBoost(boosting: boolean): void {
 	config.speed = boosting ? config.boostSpeed : config.baseSpeed;
+}
+
+/**
+ * Enhanced cleanup with better memory management
+ */
+function performCleanup() {
+	// 1. Nullify large TypedArrays
+	if (starData) {
+		// Create a tiny replacement to release memory
+		starData = new Float32Array(1);
+	}
+
+	// 2. Clear any timers or intervals
+	if (statsInterval) {
+		clearInterval(statsInterval);
+		statsInterval = null;
+	}
+
+	// 3. Reset all counters and accumulators
+	statsObjectsCreated = 0;
+	statsObjectsReused = 0;
+	lastStatsReport = 0;
+	batchedStats = {
+		created: 0,
+		reused: 0,
+		lastReportTime: 0
+	};
+	changedStarIndices = [];
+
+	// 4. Null out config reference
+	config = {
+		starCount: 0,
+		maxDepth: 0,
+		speed: 0,
+		baseSpeed: 0,
+		boostSpeed: 0,
+		containerWidth: 0,
+		containerHeight: 0
+	};
+
+	// 5. Tell the browser to optimize garbage collection
+	if (typeof globalThis.gc !== 'undefined') {
+		try {
+			(globalThis as any).gc();
+		} catch (e) {
+			// GC not available, ignore
+		}
+	}
+
+	// 6. Report completion
+	return { success: true };
 }
 
 /**
@@ -295,6 +370,9 @@ self.onmessage = function (e: MessageEvent) {
 		}
 
 		case 'requestFrame': {
+			// Timestamp start of processing for performance monitoring
+			const processingStart = performance.now();
+
 			// Receive the star data back from the main thread
 			if (data.starData) {
 				starData = data.starData;
@@ -314,13 +392,18 @@ self.onmessage = function (e: MessageEvent) {
 				config.speed = Math.max(config.baseSpeed, config.speed * 0.98);
 			}
 
+			// Add processing time to monitor performance
+			const processingTime = performance.now() - processingStart;
+
 			// Send back updated stars using transferable objects
 			self.postMessage(
 				{
 					type: 'frameUpdate',
 					data: {
 						starData,
-						config
+						config,
+						processingTime,
+						isFullUpdate: true
 					}
 				},
 				[starData.buffer]
@@ -330,10 +413,21 @@ self.onmessage = function (e: MessageEvent) {
 		}
 
 		case 'requestPartialFrame': {
+			// Timestamp start of processing for performance monitoring
+			const processingStart = performance.now();
+
 			// Handle partial updates for changed stars only
 			if (data.changedIndices && data.changedStarData) {
-				// Update only the changed star data
-				updatePartialStarData(data.changedIndices, data.changedStarData);
+				// Check if we received the full array or just partial data
+				const isFullUpdate = data.changedStarData.length === starData.length;
+
+				if (isFullUpdate) {
+					// Fast path: direct assignment if full data
+					starData = data.changedStarData;
+				} else {
+					// Update only the changed star data
+					updatePartialStarData(data.changedIndices, data.changedStarData);
+				}
 			}
 
 			// Update star positions
@@ -350,22 +444,54 @@ self.onmessage = function (e: MessageEvent) {
 				config.speed = Math.max(config.baseSpeed, config.speed * 0.98);
 			}
 
-			// Send back only changed stars this time
+			// Get the updated changed indices
 			const changedIndices = getChangedStarIndices();
+			const extractedData = extractPartialStarData(changedIndices);
+			const isFullData = extractedData.length === starData.length;
+
+			// Add processing time to monitor performance
+			const processingTime = performance.now() - processingStart;
+
+			// Adapt to send either partial or full update based on what's more efficient
 			if (changedIndices.length > 0) {
-				self.postMessage({
-					type: 'partialFrameUpdate',
-					data: {
-						changedIndices: changedIndices,
-						changedStarData: extractPartialStarData(changedIndices),
-						config
-					}
-				});
+				if (isFullData) {
+					// Full data transfer is more efficient when many stars change
+					self.postMessage(
+						{
+							type: 'frameUpdate',
+							data: {
+								starData: extractedData,
+								config,
+								processingTime,
+								isFullUpdate: true
+							}
+						},
+						[extractedData.buffer]
+					);
+				} else {
+					// Partial update when only a few stars changed
+					self.postMessage(
+						{
+							type: 'partialFrameUpdate',
+							data: {
+								changedIndices: changedIndices,
+								changedStarData: extractedData,
+								config,
+								processingTime,
+								isFullUpdate: false
+							}
+						},
+						[extractedData.buffer]
+					);
+				}
 			} else {
 				// If no changes, just send a no-change signal
 				self.postMessage({
 					type: 'noChanges',
-					data: { config }
+					data: {
+						config,
+						processingTime
+					}
 				});
 			}
 
@@ -451,31 +577,12 @@ self.onmessage = function (e: MessageEvent) {
 
 		case 'cleanup': {
 			// Perform worker cleanup
+			const result = performCleanup();
 
-			// 1. Nullify large TypedArrays
-			if (starData) {
-				// Create a tiny replacement to release memory
-				starData = new Float32Array(1);
-			}
-
-			// 2. Clear any timers or intervals
-			if (statsInterval) {
-				clearInterval(statsInterval);
-				statsInterval = null;
-			}
-
-			// 3. Reset all counters and accumulators
-			statsObjectsCreated = 0;
-			statsObjectsReused = 0;
-			lastStatsReport = 0;
-
-			// 4. Null out config reference
-			config = null as any; // Using type assertion to avoid TypeScript errors
-
-			// 5. Send acknowledgement before termination
+			// Send acknowledgement before termination
 			self.postMessage({
 				type: 'cleanupComplete',
-				data: { success: true }
+				data: result
 			});
 
 			break;

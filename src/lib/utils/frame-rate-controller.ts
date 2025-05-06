@@ -15,21 +15,18 @@ export const fpsStore = writable<number>(60);
 /**
  * Manages frame rate monitoring and adaptive quality control
  * Provides frame skipping and quality adjustment mechanisms
+ * Optimized for minimal overhead during animation
  */
 class FrameRateController {
 	// Configuration
 	private targetFPS = 60;
 	private maxSkippedFrames = 2;
 	private measurementInterval = 1000; // 1 second
-	private fpsHistorySize = 60; // Store last 60 frames for FPS calculation
 	private qualityAdjustmentThreshold = 0.05; // Minimum quality change to notify
-	private hysteresisThreshold = 0.1; // Prevent oscillation between quality levels
 	private qualityIncreaseDelay = 5000; // Wait time before increasing quality (ms)
-	private lastQualityIncreaseTime = 0;
 	private minQuality = 0.4; // Minimum quality level to maintain
 	private maxQuality = 1.0; // Maximum quality level
 	private qualityStep = 0.1; // Step size for quality adjustments
-	private fpsStabilityThreshold = 0.9; // FPS must be stable for this percentage of target
 
 	// State
 	private qualitySubscribers: QualityCallback[] = [];
@@ -38,22 +35,25 @@ class FrameRateController {
 	private skippedFrames = 0;
 	private lastFrameTime = 0;
 	private lastMeasurementTime = 0;
+	private lastQualityAdjustTime = 0;
+	private lastQualityIncreaseTime = 0;
 	private currentFPS = 60;
 	private currentQuality = 1.0;
 	private adaptiveEnabled = true;
-	private lastFrameTimestamps: number[] = [];
-	private frameTimeDiffs: number[] = [];
 	private isMonitoring = false;
 	private monitoringRAFId: number | null = null;
-	private consecutiveLowFPSFrames = 0;
-	private consecutiveHighFPSFrames = 0;
-	private debugMode = false;
 	private memoryCheckInterval: ReturnType<typeof setInterval> | null = null;
 	private lastMemoryUsage = 0;
-	private qualityTrend: number[] = []; // Track recent quality adjustments
+	private qualityTrend: number[] = []; // Track recent quality adjustments (limited to 5 items)
+	private debugMode = false;
+	private onBatteryPower = false;
+	private lowBatteryMode = false;
 
 	constructor() {
 		if (browser) {
+			// Check for battery status to enable additional optimizations
+			this.checkBatteryStatus();
+
 			this.setupMonitoring();
 			this.setupMemoryMonitoring();
 
@@ -62,53 +62,35 @@ class FrameRateController {
 
 			// Handle orientation changes which may affect performance
 			window.addEventListener('orientationchange', this.handleOrientationChange);
+
+			// Listen for device power changes
+			this.setupPowerModeListeners();
 		}
 	}
 
 	/**
-	 * Setup RAF loop for monitoring FPS
+	 * Setup RAF loop for monitoring FPS - simplified to reduce overhead
 	 */
 	private setupMonitoring() {
 		if (this.isMonitoring || !browser) return;
 		this.isMonitoring = true;
 
-		// Pre-allocate arrays with fixed size to avoid resizing
-		this.frameTimeDiffs = new Array(this.fpsHistorySize).fill(0);
-		this.lastFrameTimestamps = new Array(this.fpsHistorySize).fill(0);
-
-		// Track array indices for circular buffer pattern
-		let frameTimeIndex = 0;
-		let timestampIndex = 0;
-
 		const monitorLoop = () => {
-			const now = performance.now();
+			// Skip processing when document is hidden to save resources
+			if (!document.hidden) {
+				const now = performance.now();
 
-			// Calculate time since last frame
-			if (this.lastFrameTime > 0) {
-				const frameDiff = now - this.lastFrameTime;
+				// Increment frame count for FPS calculation
+				this.frameCount++;
 
-				// Filter out unreasonable values (tab switches, etc)
-				if (frameDiff > 0 && frameDiff < 1000) {
-					// Use circular buffer for frameTimeDiffs
-					this.frameTimeDiffs[frameTimeIndex] = frameDiff;
-					frameTimeIndex = (frameTimeIndex + 1) % this.fpsHistorySize;
+				// Calculate FPS and adjust quality on measurement interval
+				if (now - this.lastMeasurementTime >= this.measurementInterval) {
+					this.calculateFPS(now);
+					this.adjustQuality(now);
+					this.lastMeasurementTime = now;
 				}
-			}
 
-			this.lastFrameTime = now;
-
-			// Use circular buffer for timestamps
-			this.lastFrameTimestamps[timestampIndex] = now;
-			timestampIndex = (timestampIndex + 1) % this.fpsHistorySize;
-
-			// Calculate FPS using improved method
-			this.calculateFPS();
-
-			// Adjust quality if needed (every second)
-			if (now - this.lastMeasurementTime > this.measurementInterval) {
-				this.lastMeasurementTime = now;
-				this.adjustQuality();
-				this.analyzePerformanceTrend();
+				this.lastFrameTime = now;
 			}
 
 			// Use requestIdleCallback when available for less critical task
@@ -128,35 +110,22 @@ class FrameRateController {
 	}
 
 	/**
-	 * Fix: Improve FPS calculation accuracy
+	 * Simplified FPS calculation with less overhead
 	 */
-	private calculateFPS(): void {
-		// Skip calculation when document is hidden
-		if (document.hidden) return;
+	private calculateFPS(now: number): void {
+		// Calculate time span since last measurement
+		const timeSpan = now - this.lastMeasurementTime;
 
-		const now = performance.now();
+		if (timeSpan <= 0 || this.frameCount <= 0) return;
 
-		// Use valid timestamps from our buffer
-		const validTimestamps = this.lastFrameTimestamps.filter((ts) => ts > 0);
-
-		if (validTimestamps.length < 2) return;
-
-		// Sort timestamps to ensure correct order
-		validTimestamps.sort((a, b) => a - b);
-
-		// Calculate time span between oldest and newest timestamp
-		const timeSpan = validTimestamps[validTimestamps.length - 1] - validTimestamps[0];
-
-		if (timeSpan <= 0) return;
-
-		// Calculate frames per second
-		const frameCount = validTimestamps.length - 1;
-		const rawFPS = (frameCount * 1000) / timeSpan;
+		// Calculate frames per second based on frame count
+		const rawFPS = (this.frameCount * 1000) / timeSpan;
+		this.frameCount = 0; // Reset frame count
 
 		// Apply bounds to prevent unrealistic values
 		const boundedFPS = Math.max(1, Math.min(120, rawFPS));
 
-		// Apply smoothing for UI stability
+		// Apply smoothing for UI stability (less aggressive)
 		this.currentFPS = this.currentFPS * 0.7 + boundedFPS * 0.3;
 
 		// Update store and notify subscribers
@@ -165,33 +134,54 @@ class FrameRateController {
 	}
 
 	/**
-	 * Analyze longer-term performance trends
+	 * Improved adaptive quality control with hysteresis and better stability
 	 */
-	private analyzePerformanceTrend() {
-		// Only start trend analysis after collecting enough data
-		if (this.qualityTrend.length < 5) return;
+	private adjustQuality(now: number): void {
+		if (!this.adaptiveEnabled) return;
 
-		// Check if all recent adjustments were in the same direction
-		const allDecreasing = this.qualityTrend.every((change) => change <= 0);
-		const allIncreasing = this.qualityTrend.every((change) => change >= 0);
+		const targetFPS = this.targetFPS;
+		const currentFPS = this.currentFPS;
 
-		// Reset trend data periodically
-		if (this.qualityTrend.length > 10) {
-			this.qualityTrend = this.qualityTrend.slice(-5);
+		// Calculate FPS ratio
+		const fpsRatio = currentFPS / targetFPS;
+
+		// More aggressive downscaling when FPS is very low
+		if (fpsRatio < 0.5) {
+			// FPS is critically low - reduce quality more aggressively
+			const newQuality = Math.max(this.minQuality, this.currentQuality - this.qualityStep * 2);
+
+			if (Math.abs(newQuality - this.currentQuality) >= this.qualityAdjustmentThreshold) {
+				this.currentQuality = newQuality;
+				this.qualityTrend.push(-this.qualityStep * 2);
+				this.notifyQualitySubscribers(this.currentQuality);
+			}
+		}
+		// Normal downscaling when FPS is moderately low
+		else if (fpsRatio < 0.85) {
+			const newQuality = Math.max(this.minQuality, this.currentQuality - this.qualityStep);
+
+			if (Math.abs(newQuality - this.currentQuality) >= this.qualityAdjustmentThreshold) {
+				this.currentQuality = newQuality;
+				this.qualityTrend.push(-this.qualityStep);
+				this.notifyQualitySubscribers(this.currentQuality);
+			}
+		}
+		// Increase quality when FPS is stable and high enough
+		else if (fpsRatio > 1.1 && now - this.lastQualityIncreaseTime > this.qualityIncreaseDelay) {
+			// FPS is higher than target - we can increase quality
+			const newQuality = Math.min(this.maxQuality, this.currentQuality + this.qualityStep * 0.5);
+
+			if (Math.abs(newQuality - this.currentQuality) >= this.qualityAdjustmentThreshold) {
+				this.currentQuality = newQuality;
+				this.qualityTrend.push(this.qualityStep * 0.5);
+				this.lastQualityIncreaseTime = now;
+				this.notifyQualitySubscribers(this.currentQuality);
+			}
 		}
 
-		// If performance continues to degrade even at lowest quality,
-		// suggest more drastic optimization to device capabilities
-		if (allDecreasing && this.currentQuality <= 0.4 && this.currentFPS < this.targetFPS * 0.5) {
-			const capabilities = get(deviceCapabilities);
-			if (capabilities.tier !== 'low') {
-				// Log suggestion only in debug mode
-				if (this.debugMode) {
-					console.warn(
-						'Critical performance issue detected: Recommend enabling low tier optimizations'
-					);
-				}
-			}
+		// Trim quality trend history
+		if (this.qualityTrend.length > 5) {
+			this.qualityTrend = this.qualityTrend.slice(-5);
 		}
 	}
 
@@ -207,8 +197,7 @@ class FrameRateController {
 			// Reset measurements when becoming visible again
 			this.lastFrameTime = 0;
 			this.lastMeasurementTime = 0;
-			this.lastFrameTimestamps = [];
-			this.frameTimeDiffs = [];
+			this.frameCount = 0;
 			this.setupMonitoring();
 		}
 	};
@@ -223,9 +212,8 @@ class FrameRateController {
 		setTimeout(() => {
 			this.lastFrameTime = 0;
 			this.lastMeasurementTime = 0;
-			this.lastFrameTimestamps = [];
-			this.frameTimeDiffs = [];
-		}, 500);
+			this.frameCount = 0;
+		}, 300); // Shorter delay than before
 	};
 
 	/**
@@ -240,7 +228,7 @@ class FrameRateController {
 	}
 
 	/**
-	 * Setup memory monitoring
+	 * Setup memory monitoring - simplified to reduce overhead
 	 */
 	private setupMemoryMonitoring() {
 		if (!browser || !('performance' in window)) return;
@@ -248,24 +236,31 @@ class FrameRateController {
 		// Check if memory API is available
 		const hasMemoryAPI = 'memory' in (performance as any);
 
+		if (!hasMemoryAPI) return; // Don't set up interval if not available
+
 		this.memoryCheckInterval = setInterval(() => {
-			if (hasMemoryAPI) {
-				try {
-					const memory = (performance as any).memory;
-					if (memory && memory.jsHeapSizeLimit > 0) {
-						const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
+			try {
+				const memory = (performance as any).memory;
+				if (memory && memory.jsHeapSizeLimit > 0) {
+					const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
 
-						// Apply smoothing to avoid jumps
-						this.lastMemoryUsage = this.lastMemoryUsage * 0.7 + memUsage * 0.3;
+					// Apply smoothing to avoid jumps
+					this.lastMemoryUsage = this.lastMemoryUsage * 0.7 + memUsage * 0.3;
 
-						// Store memory usage in shared store with validation
-						memoryUsageStore.set(Math.max(0, Math.min(1, this.lastMemoryUsage)));
+					// Store memory usage in shared store with validation
+					memoryUsageStore.set(Math.max(0, Math.min(1, this.lastMemoryUsage)));
+
+					// If memory usage is high, trigger garbage collection hint
+					if (this.lastMemoryUsage > 0.7) {
+						this.forceGarbageCollectionHint();
 					}
-				} catch (e) {
+				}
+			} catch (e) {
+				if (this.debugMode) {
 					console.error('Error accessing memory metrics:', e);
 				}
 			}
-		}, 2000); // Lower frequency to reduce overhead
+		}, 5000); // Lower frequency to reduce overhead (every 5s instead of 2s)
 	}
 
 	/**
@@ -274,10 +269,6 @@ class FrameRateController {
 	 */
 	private forceGarbageCollectionHint() {
 		if (!browser) return;
-
-		// Clear unused arrays
-		this.lastFrameTimestamps = this.lastFrameTimestamps.slice(-30);
-		this.frameTimeDiffs = this.frameTimeDiffs.slice(-30);
 
 		// Hint to browser to garbage collect
 		if ((window as any).gc) {
@@ -289,72 +280,133 @@ class FrameRateController {
 		}
 
 		// Alternative approach to hint GC
-		if (this.lastFrameTimestamps.length > 30) {
-			const temp = this.lastFrameTimestamps;
-			this.lastFrameTimestamps = [];
+		if (this.qualityTrend.length > 0) {
+			const temp = this.qualityTrend;
+			this.qualityTrend = [];
 			setTimeout(() => {
-				this.lastFrameTimestamps = temp.slice(-30);
+				this.qualityTrend = temp.slice(-5);
 			}, 0);
 		}
 	}
 
 	/**
-	 * Adjust quality based on measured FPS with hysteresis
+	 * Check battery status for additional optimizations
 	 */
-	private adjustQuality() {
-		if (!this.adaptiveEnabled) return;
+	private async checkBatteryStatus(): Promise<void> {
+		if (!browser || !('getBattery' in navigator)) return;
 
-		const now = performance.now();
-		const targetFPS = this.targetFPS;
-		const currentFPS = this.currentFPS;
-		const fpsRatio = currentFPS / targetFPS;
+		try {
+			// @ts-ignore - Battery API
+			const battery = await navigator.getBattery();
 
-		// Only adjust quality if we have enough data points
-		if (this.frameTimeDiffs.filter((diff) => diff > 0).length < 10) return;
+			// Apply more aggressive optimizations on battery power
+			this.onBatteryPower = !battery.charging;
+			this.lowBatteryMode = battery.level < 0.2;
 
-		// Calculate FPS stability
-		const stableFrames = this.frameTimeDiffs.filter(
-			(diff) => diff > 0 && diff < (1000 / targetFPS) * 1.5
-		).length;
-		const stabilityRatio = stableFrames / this.frameTimeDiffs.length;
+			if (this.onBatteryPower) {
+				// Increase frame skipping on battery power
+				deviceCapabilities.update((caps) => ({
+					...caps,
+					frameSkip: caps.frameSkip + 1,
+					updateInterval: Math.max(caps.updateInterval, 32) // Minimum 30fps target
+				}));
 
-		// Determine if we need to adjust quality
-		if (fpsRatio < this.fpsStabilityThreshold && stabilityRatio < 0.8) {
-			// FPS is too low and unstable
-			const newQuality = Math.max(this.minQuality, this.currentQuality - this.qualityStep);
+				if (this.lowBatteryMode) {
+					// Even more aggressive for low battery
+					deviceCapabilities.update((caps) => ({
+						...caps,
+						tier: 'low',
+						frameSkip: caps.frameSkip + 2,
+						updateInterval: Math.max(caps.updateInterval, 50), // ~20fps target
+						enableShadows: false,
+						enableBlur: false,
+						enableGlow: false,
+						enableParallax: false
+					}));
 
-			if (Math.abs(newQuality - this.currentQuality) >= this.qualityAdjustmentThreshold) {
-				this.currentQuality = newQuality;
-				this.qualityTrend.push(-this.qualityStep);
-				this.notifyQualitySubscribers(this.currentQuality);
+					// Set lower quality on low battery
+					this.setQualityOverride(0.5);
+				}
 			}
-		} else if (
-			fpsRatio > this.fpsStabilityThreshold &&
-			stabilityRatio > 0.9 &&
-			now - this.lastQualityIncreaseTime > this.qualityIncreaseDelay
-		) {
-			// FPS is stable and high enough to increase quality
-			const newQuality = Math.min(this.maxQuality, this.currentQuality + this.qualityStep);
 
-			if (Math.abs(newQuality - this.currentQuality) >= this.qualityAdjustmentThreshold) {
-				this.currentQuality = newQuality;
-				this.qualityTrend.push(this.qualityStep);
-				this.lastQualityIncreaseTime = now;
-				this.notifyQualitySubscribers(this.currentQuality);
-			}
-		}
-
-		// Trim quality trend history
-		if (this.qualityTrend.length > 10) {
-			this.qualityTrend = this.qualityTrend.slice(-10);
+			// Listen for battery changes
+			battery.addEventListener('chargingchange', () => this.checkBatteryStatus());
+			battery.addEventListener('levelchange', () => this.checkBatteryStatus());
+		} catch (e) {
+			// Battery API not available
 		}
 	}
 
 	/**
-	 * Check if we should render this frame based on adaptive frame skipping
+	 * Setup listeners for device power mode changes
+	 */
+	private setupPowerModeListeners(): void {
+		if (!browser) return;
+
+		// Listen for Data Saver mode
+		if ('connection' in navigator) {
+			const connection = (navigator as any).connection;
+			if (connection) {
+				const connectionChangeHandler = () => {
+					if (connection.saveData) {
+						// Data saver mode is enabled - use low power settings
+						deviceCapabilities.update((caps) => ({
+							...caps,
+							tier: 'low',
+							frameSkip: Math.max(2, caps.frameSkip),
+							enableShadows: false,
+							enableBlur: false,
+							enableGlow: false,
+							useCanvas: true, // Canvas is typically more efficient
+							maxStars: Math.min(caps.maxStars, 30)
+						}));
+
+						this.setQualityOverride(0.4);
+					}
+				};
+
+				connection.addEventListener('change', connectionChangeHandler);
+
+				// Initial check
+				connectionChangeHandler();
+			}
+		}
+
+		// Respond to device theme preference for potential power saving
+		const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+		if (darkModeMediaQuery.matches) {
+			// Dark mode might indicate user preference for battery saving
+			this.setQualityOverride(Math.min(this.currentQuality, 0.9));
+		}
+
+		// Detect reduced motion preference
+		const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+		if (reducedMotionQuery.matches) {
+			// User prefers reduced motion - likely wants battery saving too
+			deviceCapabilities.update((caps) => ({
+				...caps,
+				enableParallax: false,
+				enablePulse: false,
+				frameSkip: Math.max(1, caps.frameSkip)
+			}));
+
+			this.setQualityOverride(Math.min(this.currentQuality, 0.7));
+		}
+	}
+
+	/**
+	 * Improved frame skipping logic with better adaptation to device performance
 	 */
 	public shouldRenderFrame(): boolean {
 		if (!browser) return true;
+
+		// Always skip if document is hidden (we're not animating anyway)
+		if (document.hidden) {
+			return false;
+		}
+
+		// Count frames for FPS calculation
+		this.frameCount++;
 
 		const now = performance.now();
 		const elapsed = now - this.lastFrameTime;
@@ -365,29 +417,43 @@ class FrameRateController {
 			return true;
 		}
 
-		// Always render if enough time has passed regardless of skipping
-		// This ensures animations don't appear frozen
-		if (elapsed > 33) {
-			// ~30fps minimum
+		// Always render if enough time has passed to maintain minimum responsiveness
+		const minFrameInterval = 1000 / 30; // Minimum 30fps equivalent
+		if (elapsed > minFrameInterval) {
 			this.lastFrameTime = now;
 			this.skippedFrames = 0;
 			return true;
 		}
 
-		// Get the maximum frame skip from device capabilities
+		// Adaptive frame skipping based on device capabilities and current quality
 		const capabilities = get(deviceCapabilities);
-		const maxSkip = capabilities.frameSkip;
 
-		// Adaptive frame skipping based on quality level
-		const adaptiveMaxSkip = Math.min(1, maxSkip + (1 - this.currentQuality) * 1);
+		// Dynamic skip rate based on current quality and device tier
+		const baseSkipRate = capabilities.frameSkip;
+		const qualityFactor = Math.max(0, 2 - this.currentQuality * 2); // 0 at quality 1.0, 2 at quality 0
 
-		// Skip frames based on quality and device capability, but limit to ensure smoothness
-		if (this.skippedFrames >= adaptiveMaxSkip) {
+		// Determine skip rate
+		const skipRate = Math.min(3, Math.floor(baseSkipRate + qualityFactor));
+
+		// Use aggressive frame skipping for low FPS situations
+		if (this.currentFPS < this.targetFPS * 0.7) {
+			// In low FPS scenarios, skip more frames
+			if (this.skippedFrames >= skipRate) {
+				this.lastFrameTime = now;
+				this.skippedFrames = 0;
+				return true;
+			} else {
+				this.skippedFrames++;
+				return false;
+			}
+		}
+
+		// More conservative frame skipping for higher FPS
+		if (this.skippedFrames >= Math.max(0, skipRate - 1)) {
 			this.lastFrameTime = now;
 			this.skippedFrames = 0;
 			return true;
 		} else {
-			// Skip this frame
 			this.skippedFrames++;
 			return false;
 		}
@@ -427,26 +493,30 @@ class FrameRateController {
 	 * Notify all quality subscribers
 	 */
 	private notifyQualitySubscribers(quality: number) {
-		this.qualitySubscribers.forEach((callback) => {
+		for (let i = 0; i < this.qualitySubscribers.length; i++) {
 			try {
-				callback(quality);
+				this.qualitySubscribers[i](quality);
 			} catch (error) {
-				console.error('Error in quality subscriber:', error);
+				if (this.debugMode) {
+					console.error('Error in quality subscriber:', error);
+				}
 			}
-		});
+		}
 	}
 
 	/**
 	 * Notify all FPS subscribers
 	 */
 	private notifyFPSSubscribers(fps: number) {
-		this.fpsSubscribers.forEach((callback) => {
+		for (let i = 0; i < this.fpsSubscribers.length; i++) {
 			try {
-				callback(fps);
+				this.fpsSubscribers[i](fps);
 			} catch (error) {
-				console.error('Error in FPS subscriber:', error);
+				if (this.debugMode) {
+					console.error('Error in FPS subscriber:', error);
+				}
 			}
-		});
+		}
 	}
 
 	/**
@@ -500,10 +570,9 @@ class FrameRateController {
 			quality: this.currentQuality,
 			frameCount: this.frameCount,
 			skippedFrames: this.skippedFrames,
-			consecutiveLowFPSFrames: this.consecutiveLowFPSFrames,
-			consecutiveHighFPSFrames: this.consecutiveHighFPSFrames,
-			lastQualityChangeTime: this.lastQualityIncreaseTime,
-			memoryUsage: this.lastMemoryUsage
+			memoryUsage: this.lastMemoryUsage,
+			onBatteryPower: this.onBatteryPower,
+			lowBatteryMode: this.lowBatteryMode
 		};
 	}
 

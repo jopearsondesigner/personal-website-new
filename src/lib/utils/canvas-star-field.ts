@@ -52,6 +52,9 @@ export class CanvasStarFieldManager {
 	private changedStarIndices: number[] | null = [];
 	private requestFrameFn: (callback: FrameRequestCallback) => number = requestAnimationFrame;
 	private cancelFrameFn: (handle: number) => void = cancelAnimationFrame;
+	private lastFrameDuration = 16;
+	private lastFrameStartTime = 0;
+	private lastWorkerProcessingTime = 0;
 
 	// Star field parameters
 	private starCount = 300;
@@ -156,9 +159,36 @@ export class CanvasStarFieldManager {
 			// Connect the worker to the bridge for statistics tracking
 			starPoolBridge.connectWorker(this.worker);
 
-			// Handle messages from worker
+			// Performance tracking
+			let workerMessageCount = 0;
+			let lastPerformanceLog = performance.now();
+			const performanceLogInterval = 5000; // 5 seconds
+
+			// Handle messages from worker with performance tracking
 			this.worker.onmessage = (event) => {
 				const { type, data } = event.data;
+
+				// Count messages for performance monitoring
+				workerMessageCount++;
+
+				// Log performance metrics periodically
+				const now = performance.now();
+				if (now - lastPerformanceLog > performanceLogInterval) {
+					console.debug(
+						`Worker communication: ${workerMessageCount} messages in ${Math.round((now - lastPerformanceLog) / 1000)}s`
+					);
+					workerMessageCount = 0;
+					lastPerformanceLog = now;
+				}
+
+				// Record processing time if provided
+				if (data && data.processingTime) {
+					this.lastWorkerProcessingTime = data.processingTime;
+				}
+
+				// Store the frame processing time for adaptive updates
+				this.lastFrameDuration = performance.now() - this.lastFrameStartTime;
+				this.lastFrameStartTime = performance.now();
 
 				switch (type) {
 					case 'initialized':
@@ -184,10 +214,48 @@ export class CanvasStarFieldManager {
 
 						// Immediately request next frame for frame updates
 						if (type === 'frameUpdate' && this.isRunning && !this.isPaused) {
-							this.requestNextFrame();
+							// Schedule next frame with a slight delay to prevent overwhelming
+							// the browser with worker messages
+							this.scheduleNextFrameRequest();
 						}
 						break;
 					}
+
+					case 'partialFrameUpdate': {
+						// Apply partial updates to existing star data
+						if (data.changedIndices && data.changedStarData) {
+							// If we have no existing data yet, create it
+							if (!this.starData) {
+								this.starData = new Float32Array(this.starCount * STAR_DATA_ELEMENTS);
+							}
+
+							// Update star data with partial update
+							this.applyPartialStarData(data.changedIndices, data.changedStarData);
+
+							// Update store if needed
+							if (this.store) {
+								this.store.update((state) => ({
+									...state,
+									starData: this.starData
+								}));
+							}
+						}
+
+						// Schedule next frame with optimized timing
+						if (this.isRunning && !this.isPaused) {
+							this.scheduleNextFrameRequest();
+						}
+						break;
+					}
+
+					case 'noChanges': {
+						// Even with no changes, we need to schedule the next frame request
+						if (this.isRunning && !this.isPaused) {
+							this.scheduleNextFrameRequest();
+						}
+						break;
+					}
+
 					case 'statsUpdate': {
 						// Forward stats to the bridge
 						if (data && (data.created > 0 || data.reused > 0)) {
@@ -329,7 +397,7 @@ export class CanvasStarFieldManager {
 
 		// Update star renderer dimensions
 		if (this.starRenderer) {
-			this.starRenderer.updateDimensions(this.containerWidth, this.containerHeight);
+			this.starRenderer.updateDimensions(width, height);
 		}
 
 		// Only resize if dimensions actually changed
@@ -394,6 +462,7 @@ export class CanvasStarFieldManager {
 		this.isRunning = true;
 		this.isPaused = false;
 		this.lastTime = performance.now();
+		this.lastFrameStartTime = performance.now();
 
 		// Update store state
 		if (this.store) {
@@ -462,48 +531,99 @@ export class CanvasStarFieldManager {
 	}
 
 	/**
-	 * Optimization: Partial updates to TypedArray
-	 * Benefit: Reduces data transfer between threads
+	 * Apply partial star data received from worker to the main star data array
+	 */
+	private applyPartialStarData(indices: number[], partialData: Float32Array): void {
+		if (!this.starData) return;
+
+		for (let i = 0; i < indices.length; i++) {
+			const starIndex = indices[i];
+			const destBaseIndex = starIndex * STAR_DATA_ELEMENTS;
+			const sourceBaseIndex = i * STAR_DATA_ELEMENTS;
+
+			// Copy all elements for this star
+			for (let j = 0; j < STAR_DATA_ELEMENTS; j++) {
+				this.starData[destBaseIndex + j] = partialData[sourceBaseIndex + j];
+			}
+		}
+	}
+
+	/**
+	 * Schedule next frame request with throttling to prevent message flooding
+	 */
+	private scheduleNextFrameRequest(): void {
+		// Use requestIdleCallback when available for better performance
+		if ('requestIdleCallback' in window) {
+			(window as any).requestIdleCallback(
+				() => {
+					this.requestNextFrame();
+				},
+				{ timeout: 100 }
+			); // 100ms timeout to ensure it runs even without idle time
+		} else {
+			// Fallback to setTimeout with a small delay
+			setTimeout(() => {
+				this.requestNextFrame();
+			}, 0);
+		}
+	}
+
+	/**
+	 * Dynamically determine update interval based on device performance
+	 * This allows for automatic batching on lower-end devices
+	 */
+	private getAdaptiveUpdateInterval(): number {
+		// Base interval
+		let interval = this.workerUpdateInterval;
+
+		// If we detect poor performance, increase the interval to batch more updates
+		if (this.lastFrameDuration > 32) {
+			// More than 32ms per frame (below 30fps)
+			interval = Math.min(100, interval * 1.5); // Up to 100ms max (10 updates/second)
+		} else if (this.lastFrameDuration < 16) {
+			// Less than 16ms per frame (above 60fps)
+			interval = Math.max(16, interval * 0.8); // Down to 16ms min (60 updates/second)
+		}
+
+		return interval;
+	}
+
+	/**
+	 * Optimization: Adaptive update strategy that chooses between full and partial updates
+	 * Benefit: Minimizes data transfer and processing overhead
 	 */
 	private requestNextFrame() {
 		if (!this.worker || !this.isRunning || this.isPaused) return;
 
 		const now = performance.now();
 
-		// Only update at specific intervals
-		if (now - this.lastWorkerUpdateTime < this.workerUpdateInterval) return;
+		// Dynamic update interval based on device performance
+		// This allows slower devices to batch more updates
+		const updateInterval = this.getAdaptiveUpdateInterval();
+
+		// Only update at specific intervals to batch operations
+		if (now - this.lastWorkerUpdateTime < updateInterval) return;
 
 		this.lastWorkerUpdateTime = now;
 
-		// Track which stars have changed to enable partial updates
-		if (this.starData && this.changedStarIndices && this.changedStarIndices.length > 0) {
-			// If more than 50% of stars changed, transfer the whole array
-			if (this.changedStarIndices.length > this.starCount / 2) {
-				this.worker.postMessage(
-					{
-						type: 'requestFrame',
-						data: {
-							deltaTime: now - this.lastTime,
-							dimensions: this.dimensionsChanged
-								? {
-										width: this.containerWidth,
-										height: this.containerHeight
-									}
-								: null,
-							starData: this.starData,
-							fullUpdate: true
-						}
-					},
-					[this.starData.buffer] // Transfer ownership
-				);
+		// Calculate the real delta time accounting for the batching
+		const realDeltaTime = now - this.lastTime;
 
-				this.starData = null;
-			} else {
-				// Otherwise send only changed indices for partial update
+		// Track which stars have changed to enable partial updates
+		if (this.starData) {
+			// Adaptive strategy based on how many stars changed
+			const threshold = this.starCount * 0.4; // 40% threshold
+			const usePartialUpdate =
+				this.changedStarIndices &&
+				this.changedStarIndices.length > 0 &&
+				this.changedStarIndices.length < threshold;
+
+			if (usePartialUpdate) {
+				// Partial update for better performance when few stars changed
 				this.worker.postMessage({
 					type: 'requestPartialFrame',
 					data: {
-						deltaTime: now - this.lastTime,
+						deltaTime: realDeltaTime,
 						dimensions: this.dimensionsChanged
 							? {
 									width: this.containerWidth,
@@ -514,30 +634,45 @@ export class CanvasStarFieldManager {
 						changedStarData: this.createPartialStarData(this.changedStarIndices)
 					}
 				});
+			} else {
+				// Full update when many stars changed or on first frame
+				this.worker.postMessage(
+					{
+						type: 'requestFrame',
+						data: {
+							deltaTime: realDeltaTime,
+							dimensions: this.dimensionsChanged
+								? {
+										width: this.containerWidth,
+										height: this.containerHeight
+									}
+								: null,
+							starData: this.starData
+						}
+					},
+					[this.starData.buffer] // Transfer ownership
+				);
+
+				// Clear reference to transferred buffer
+				this.starData = null;
 			}
 
+			// Reset change tracking after update
 			this.changedStarIndices = [];
-		} else if (this.starData) {
-			// First frame or no change tracking yet
-			this.worker.postMessage(
-				{
-					type: 'requestFrame',
-					data: {
-						deltaTime: now - this.lastTime,
-						dimensions: this.dimensionsChanged
-							? {
-									width: this.containerWidth,
-									height: this.containerHeight
-								}
-							: null,
-						starData: this.starData,
-						fullUpdate: true
-					}
-				},
-				[this.starData.buffer]
-			);
-
-			this.starData = null;
+		} else {
+			// No data yet, request a full frame
+			this.worker.postMessage({
+				type: 'requestFrame',
+				data: {
+					deltaTime: realDeltaTime,
+					dimensions: this.dimensionsChanged
+						? {
+								width: this.containerWidth,
+								height: this.containerHeight
+							}
+						: null
+				}
+			});
 		}
 
 		// Reset dimensions changed flag
