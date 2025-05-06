@@ -19,11 +19,7 @@
 		PerformanceBenchmark,
 		benchmarkResultsStore
 	} from '$lib/utils/performance-benchmarking';
-	import {
-		enhancedMemoryMonitor,
-		type MemoryEvent,
-		MemoryEventType
-	} from '$lib/utils/enhanced-memory-monitor';
+	import { memoryMonitor, type MemoryEvent, MemoryEventType } from '$lib/utils/memory-monitor';
 	import { performanceTestRunner } from '$lib/utils/performance-test-runner';
 
 	// Monitor element for touch event handling
@@ -394,7 +390,7 @@
 	function generateMemoryReport() {
 		if (!browser) return;
 
-		memoryReport = enhancedMemoryMonitor.getMemoryLeakReport();
+		memoryReport = memoryMonitor.getMemoryLeakReport();
 		showMemoryReport = true;
 	}
 
@@ -402,14 +398,14 @@
 	function suggestGarbageCollection() {
 		if (!browser) return;
 
-		enhancedMemoryMonitor.suggestGarbageCollection();
+		memoryMonitor.suggestGarbageCollection();
 	}
 
 	// Update memory events from monitor
 	function updateMemoryEvents() {
 		if (!browser) return;
 
-		memoryEvents = enhancedMemoryMonitor.getEvents();
+		memoryEvents = memoryMonitor.getEvents();
 	}
 
 	// Select a benchmark result for comparison
@@ -1253,7 +1249,7 @@
 				<div class="memory-controls">
 					<button class="memory-btn" on:click={generateMemoryReport}> Generate Report </button>
 					<button class="memory-btn" on:click={suggestGarbageCollection}> Suggest GC </button>
-					<button class="memory-btn" on:click={() => enhancedMemoryMonitor.takeSnapshot()}>
+					<button class="memory-btn" on:click={() => memoryMonitor.takeSnapshot()}>
 						Take Snapshot
 					</button>
 				</div>

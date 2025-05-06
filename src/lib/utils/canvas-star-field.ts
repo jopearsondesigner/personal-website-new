@@ -6,6 +6,7 @@ import { get } from 'svelte/store';
 import { starPoolBridge } from './star-pool-bridge';
 import { StarRenderer, RENDER_MODE } from './star-renderer';
 import type { RenderedStar } from './star-renderer';
+import { starPoolTracker } from './pool-stats-tracker';
 
 // Constants for TypedArray structure
 const STAR_DATA_ELEMENTS = 6; // x, y, z, prevX, prevY, inUse
@@ -158,6 +159,17 @@ export class CanvasStarFieldManager {
 
 			// Connect the worker to the bridge for statistics tracking
 			starPoolBridge.connectWorker(this.worker);
+
+			// ===== ADD HERE: FORCE STATS UPDATE #3 =====
+			// Force stats sync after worker connection
+			starPoolBridge.forceSyncStats();
+
+			// Explicitly initialize pool stats
+			starPoolTracker.reportNow();
+
+			// Set initial counts (initially all stars are active)
+			starPoolBridge.updateActiveCount(this.starCount, this.starCount);
+			// ==========================================
 
 			// Performance tracking
 			let workerMessageCount = 0;
@@ -481,7 +493,12 @@ export class CanvasStarFieldManager {
 		// Ensure pool statistics are initialized and synced
 		starPoolBridge.forceSyncStats();
 
-		// Update active star count (all stars are active when starting)
+		// Add explicit object counting
+		const activeCount = this.starCount; // All stars active at start
+		starPoolBridge.updateActiveCount(activeCount, this.starCount);
+		// ==========================================
+
+		// This existing line should be modified to use the active count variable
 		if (this.worker) {
 			starPoolBridge.updateActiveCount(this.starCount, this.starCount);
 		}
@@ -913,10 +930,16 @@ export class CanvasStarFieldManager {
 			type: 'reset'
 		});
 
+		// ===== ADD HERE: FORCE STATS UPDATE #2 =====
+		// Force immediate stats update
+		starPoolBridge.forceSyncStats();
+
 		// Force stats sync after reset
-		setTimeout(() => {
-			starPoolBridge.forceSyncStats();
-		}, 100);
+		starPoolBridge.updateActiveCount(this.starCount, this.starCount);
+
+		// Clear any old object creation stats
+		starPoolTracker.reportNow();
+		// ==========================================
 	}
 
 	/**
