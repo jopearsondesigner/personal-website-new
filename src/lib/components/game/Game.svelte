@@ -1,15 +1,10 @@
 <!-- src/lib/components/game/Game.svelte -->
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { browser } from '$app/environment';
 	import { fade } from 'svelte/transition';
-	import { Cog } from 'lucide-svelte';
-	import { setupGame } from './game.js';
-	import { get } from 'svelte/store';
-	import { writable } from 'svelte/store';
-	// Import the game store
+	import { writable, get } from 'svelte/store';
 	import { gameStore } from '$lib/stores/game-store';
-	import { createEventDispatcher } from 'svelte';
 	import type { GameState, GameData } from '$lib/types/game';
 
 	const dispatch = createEventDispatcher();
@@ -22,17 +17,13 @@
 		}
 	}
 
+	// Consolidated state management
 	const deviceState = writable({
 		isTouchDevice: false,
 		windowWidth: 0,
 		showControls: false
 	});
 
-	const gameState = writable({
-		animationFrame: null
-	});
-
-	// Create a dedicated error state store
 	const errorState = writable({
 		hasError: false,
 		message: '',
@@ -43,108 +34,100 @@
 		level: 'error' // 'error', 'warning', 'info'
 	});
 
-	function detectDevice() {
-		if (!browser) return;
-		const isMobile =
-			/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
-			(navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
-
-		deviceState.update((state) => ({
-			...state,
-			isTouchDevice: isMobile,
-			windowWidth: window.innerWidth
-		}));
-	}
-
 	let canvas: HTMLCanvasElement;
 	let gameContainer: HTMLDivElement;
 	let errorContainer: HTMLDivElement;
 	let scale = 1;
-	let scaleFactor = 0.9;
-	let controlsPosition = { x: 0, y: 0 };
 	let mounted = false;
-	let errorTimeout: NodeJS.Timeout;
+	let errorTimeout: ReturnType<typeof setTimeout>;
 	let gameInstance: any;
 	let isInitializing = true;
+	let gameModule: any = null;
 
 	const GAME_WIDTH = 800;
 	const GAME_HEIGHT = 600;
 
+	// Optimized device detection using a single function that runs once
+	function detectDevice() {
+		if (!browser) return;
+
+		const isMobile =
+			/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+			(navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+
+		deviceState.set({
+			isTouchDevice: isMobile,
+			windowWidth: window.innerWidth,
+			showControls: isMobile || window.innerWidth < 1024
+		});
+	}
+
+	// Optimized debounce function
 	function debounce(func: Function, wait: number) {
-		let timeout: NodeJS.Timeout;
+		let timeout: ReturnType<typeof setTimeout>;
 		return function executedFunction(...args: any[]) {
-			const later = () => {
-				clearTimeout(timeout);
-				func(...args);
-			};
 			clearTimeout(timeout);
-			timeout = setTimeout(later, wait);
+			timeout = setTimeout(() => func(...args), wait);
 		};
 	}
 
+	// Optimized scale calculation with improved performance characteristics
 	function calculateScale() {
 		if (!gameContainer || !browser || !mounted) return;
 
 		const containerWidth = gameContainer.clientWidth;
 		const containerHeight = gameContainer.clientHeight;
-
 		const isMobile = get(deviceState).isTouchDevice;
 
-		// Increase scale factors for better space utilization
-		const mobileScaleFactor = isMobile ? 0.98 : 0.98; // Maximized for both
-		const currentScaleFactor = isMobile ? mobileScaleFactor : 0.98; // Increased from 0.8 to 0.98
+		// Use a single scale factor
+		const currentScaleFactor = isMobile ? 0.98 : 0.98;
+		const padding = isMobile ? 16 : 0;
 
-		// Reduce padding to maximize canvas space
-		const padding = isMobile ? 16 : 0; // Reduced from 32px to 16px padding on mobile
 		const availableWidth = (containerWidth - padding) * currentScaleFactor;
 		const availableHeight = (containerHeight - padding) * currentScaleFactor;
 
-		const widthScale = availableWidth / GAME_WIDTH;
-		const heightScale = availableHeight / GAME_HEIGHT;
+		// Calculate scale once
+		scale = Math.min(availableWidth / GAME_WIDTH, availableHeight / GAME_HEIGHT);
 
-		// Use the smaller scale to maintain aspect ratio
-		scale = Math.min(widthScale, heightScale);
-
-		// Ensure minimum scale for visibility but allow higher maximum
+		// Ensure minimum scale for visibility
 		scale = Math.max(scale, isMobile ? 0.4 : 0.5);
 
-		const wrapper = gameContainer.querySelector('.game-scale-wrapper');
+		// Single DOM update
+		const wrapper = gameContainer?.querySelector('.game-scale-wrapper');
 		if (wrapper) {
-			wrapper.style.transform = `scale(${scale})`;
-			wrapper.style.transformOrigin = 'center center';
-			wrapper.style.width = `${GAME_WIDTH}px`;
-			wrapper.style.height = `${GAME_HEIGHT}px`;
+			(wrapper as HTMLElement).style.cssText = `
+				transform: scale(${scale});
+				transform-origin: center center;
+				width: ${GAME_WIDTH}px;
+				height: ${GAME_HEIGHT}px;
+			`;
 		}
 	}
+
+	// Efficient event handlers
+	const handleResize = debounce(() => {
+		if (!browser || !mounted) return;
+		calculateScale();
+	}, 100);
 
 	function handleOrientation() {
 		if (!browser || !mounted) return;
 		setTimeout(handleResize, 100);
 	}
 
-	const handleResize = debounce(() => {
-		if (!browser || !mounted) return;
-		detectDevice();
-		calculateScale();
-
-		// Force a recalculation after a short delay to ensure stable dimensions
-		setTimeout(() => {
-			calculateScale();
-		}, 50);
-	}, 100);
-
-	function handleControlInput(event) {
+	function handleControlInput(event: CustomEvent) {
 		const { detail } = event;
+		const keyEvent = detail.value ? 'keydown' : 'keyup';
 
 		if (detail.type === 'joystick') {
 			const { x, y } = detail.value;
 			if (Math.abs(x) > 0.5) {
 				window.dispatchEvent(
-					new KeyboardEvent('keydown', { key: x > 0 ? 'ArrowRight' : 'ArrowLeft' })
+					new KeyboardEvent(keyEvent, { key: x > 0 ? 'ArrowRight' : 'ArrowLeft' })
 				);
 			}
 			if (y < -0.5) {
-				window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+				window.dispatchEvent(new KeyboardEvent(keyEvent, { key: 'ArrowUp' }));
 			}
 		} else if (detail.type === 'button') {
 			const keyMap = {
@@ -155,13 +138,12 @@
 			};
 
 			if (keyMap[detail.button]) {
-				window.dispatchEvent(
-					new KeyboardEvent(detail.value ? 'keydown' : 'keyup', { key: keyMap[detail.button] })
-				);
+				window.dispatchEvent(new KeyboardEvent(keyEvent, { key: keyMap[detail.button] }));
 			}
 		}
 	}
 
+	// Game state management
 	function dispatchGameState() {
 		if (!browser) return;
 
@@ -175,7 +157,6 @@
 		} else if (gameData.isPaused) {
 			currentState = 'paused';
 		} else if (gameData.gameActive) {
-			// Using gameActive instead of isPlaying
 			currentState = 'playing';
 		}
 
@@ -183,12 +164,7 @@
 		dispatch('stateChange', { state: currentState });
 	}
 
-	// Add this reactive statement to watch for game state changes
-	$: if (browser && $gameStore) {
-		dispatchGameState();
-	}
-
-	// New function to handle game errors
+	// Error handling with improved management
 	function handleGameError(
 		error: Error | string,
 		level: 'error' | 'warning' | 'info' = 'error',
@@ -197,12 +173,17 @@
 	) {
 		console.error('[Game] Error occurred:', error);
 
+		// Clear any existing timeout
+		if (errorTimeout) {
+			clearTimeout(errorTimeout);
+		}
+
 		// Format error message
 		const errorMessage = typeof error === 'string' ? error : error.message;
 		const errorDetails = typeof error === 'string' ? '' : error.stack;
 
-		// Update error state
-		errorState.update((state) => ({
+		// Update error state in a single operation
+		errorState.set({
 			hasError: true,
 			message: errorMessage,
 			details: errorDetails,
@@ -210,21 +191,14 @@
 			isVisible: true,
 			dismissible,
 			level
-		}));
+		});
 
 		// Also update game store to pause the game
 		gameStore.setPaused(true);
 
-		// Clear any existing timeout
-		if (errorTimeout) {
-			clearTimeout(errorTimeout);
-		}
-
 		// Auto-dismiss non-critical errors after timeout
 		if (timeout > 0) {
-			errorTimeout = setTimeout(() => {
-				dismissError();
-			}, timeout);
+			errorTimeout = setTimeout(dismissError, timeout);
 		}
 
 		return error;
@@ -237,22 +211,38 @@
 		}));
 	}
 
+	// Dynamic import of game module
+	async function loadGameModule() {
+		try {
+			// Dynamic import only when needed
+			const module = await import('./game.js');
+			gameModule = module;
+			return module;
+		} catch (error) {
+			handleGameError(`Failed to load game module: ${error.message}`, 'error', true, 0);
+			throw error;
+		}
+	}
+
+	// Optimized game initialization
 	async function initializeGame() {
 		if (!canvas || !browser) return;
 
 		try {
+			if (!gameModule) {
+				// Only load the module if not already loaded
+				gameModule = await loadGameModule();
+			}
+
 			// Setup the game with custom error handler
-			gameInstance = await setupGame(canvas);
+			gameInstance = await gameModule.setupGame(canvas);
 
 			// Connect to the game's internal state
-			// This sets up the initial values from localStorage (if available)
 			window.gameStoreUpdater = (gameData) => {
 				if (gameData) {
-					console.log('UI receiving game state update:', gameData);
 					gameStore.updateState(gameData);
-
-					// After updating the store, dispatch the state change
-					setTimeout(dispatchGameState, 0);
+					// Use requestAnimationFrame for smoother updates
+					requestAnimationFrame(dispatchGameState);
 				}
 			};
 
@@ -261,37 +251,47 @@
 			// Add a small delay to ensure all calculations are complete
 			setTimeout(() => {
 				isInitializing = false;
-			}, 100);
+			}, 50);
 		} catch (error) {
-			isInitializing = false; // Ensure visibility even if there's an error
+			isInitializing = false;
 			handleGameError(`Game initialization failed: ${error.message}`, 'error', true, 0);
 		}
 	}
 
+	// Efficient lifecycle methods
 	onMount(() => {
 		if (!browser) return;
 
 		mounted = true;
 		console.log('[Game] Component mounted');
 
+		// Run once at mount
 		detectDevice();
 
 		// Setup global error handler for runtime errors
-		window.addEventListener('error', (e) => {
+		const errorHandler = (e: ErrorEvent) => {
 			// Only handle game-related errors
-			if (e.message.includes('game') || e.filename.includes('game')) {
+			if (e.message?.includes('game') || e.filename?.includes('game')) {
 				handleGameError(e.error || e.message);
 				e.preventDefault(); // Prevent default error handling
 			}
-		});
+		};
+
+		window.addEventListener('error', errorHandler);
+		window.addEventListener('orientationchange', handleOrientation);
+		window.addEventListener('resize', handleResize);
 
 		// Initialize the game
 		initializeGame().catch((err) => {
 			handleGameError(`Failed to start game: ${err.message}`);
 		});
 
-		window.addEventListener('orientationchange', handleOrientation);
-		window.addEventListener('resize', handleResize);
+		// Return cleanup function for onDestroy
+		return () => {
+			window.removeEventListener('error', errorHandler);
+			window.removeEventListener('orientationchange', handleOrientation);
+			window.removeEventListener('resize', handleResize);
+		};
 	});
 
 	onDestroy(() => {
@@ -302,24 +302,6 @@
 			canvas.removeEventListener('touchmove', (e) => e.preventDefault());
 			canvas.removeEventListener('touchend', (e) => e.preventDefault());
 		}
-
-		const currentDeviceState = get(deviceState);
-		const currentGameState = get(gameState);
-
-		if (currentDeviceState.isTouchDevice) {
-			document.body.style.removeProperty('overflow');
-			document.body.style.removeProperty('position');
-			document.body.style.removeProperty('width');
-			document.documentElement.style.removeProperty('position');
-			document.documentElement.style.removeProperty('width');
-		}
-
-		if (currentGameState.animationFrame) {
-			cancelAnimationFrame(currentGameState.animationFrame);
-		}
-
-		window.removeEventListener('resize', handleResize);
-		window.removeEventListener('orientationchange', handleOrientation);
 
 		if (errorTimeout) {
 			clearTimeout(errorTimeout);
@@ -333,23 +315,20 @@
 		mounted = false;
 	});
 
+	// Reactive statement to watch for game state changes
+	$: if (browser && $gameStore) {
+		dispatchGameState();
+	}
+
 	// Reactive statement to handle error state changes
 	$: if ($errorState.isVisible && errorContainer) {
-		// Ensure error container is visible and positioned correctly
+		// Use CSS variables for more efficient updates
 		errorContainer.style.opacity = '1';
 		errorContainer.style.transform = 'translateY(0)';
 	} else if (errorContainer) {
 		errorContainer.style.opacity = '0';
 		errorContainer.style.transform = 'translateY(-20px)';
 	}
-
-	// Connect to the game's internal state
-	window.gameStoreUpdater = (gameData) => {
-		if (gameData) {
-			console.log('UI receiving game state update:', gameData);
-			gameStore.updateState(gameData);
-		}
-	};
 </script>
 
 <div
@@ -367,7 +346,6 @@
 				width={GAME_WIDTH}
 				height={GAME_HEIGHT}
 				class="canvas-pixel-art"
-				style="image-rendering: pixelated; image-rendering: crisp-edges; -webkit-backface-visibility: hidden; backface-visibility: hidden;"
 			/>
 
 			<div class="neon-glow" />
@@ -435,14 +413,14 @@
 		width: 800px;
 		height: 600px;
 		background: black;
-		border-radius: 16px; /* Reduced from 20px */
-		outline: 4px solid var(--dark-mode-bg); /* Reduced from 6px */
+		border-radius: 16px;
+		outline: 4px solid var(--dark-mode-bg);
 		box-shadow:
 			inset 0 0 50px rgba(0, 0, 0, 0.5),
 			0 0 30px rgba(0, 0, 0, 0.3);
 		overflow: hidden;
 		transform-origin: center;
-		will-change: transform; /* Add for performance */
+		will-change: transform;
 	}
 
 	/* Add light mode styles */
@@ -455,11 +433,10 @@
 		display: block;
 		margin: 0 auto;
 		position: relative;
-	}
-
-	.canvas-pixel-art {
 		image-rendering: pixelated;
 		image-rendering: crisp-edges;
+		-webkit-backface-visibility: hidden;
+		backface-visibility: hidden;
 		background: black;
 		position: relative;
 		z-index: 1;
@@ -576,14 +553,12 @@
 		margin: 4px 0;
 	}
 
-	/* Media Queries */
+	/* Media Queries - simplified and optimized */
 	@media (max-width: 1023px) {
 		.game-container {
 			border-radius: 12px;
-			outline: 4px solid var(--dark-mode-bg); /* Reduced from 6px */
+			outline: 4px solid var(--dark-mode-bg);
 			margin: 0;
-			height: auto;
-			width: 100%;
 		}
 
 		:global(.light) .game-container {
@@ -591,13 +566,7 @@
 		}
 
 		.game-wrapper {
-			padding: 0.5rem; /* Reduced from 1rem */
-		}
-
-		.game-scale-wrapper {
-			display: flex;
-			align-items: center;
-			justify-content: center;
+			padding: 0.5rem;
 		}
 
 		.neon-glow {
@@ -613,27 +582,14 @@
 
 	@media (orientation: portrait) and (max-width: 1023px) {
 		.game-wrapper {
-			height: calc(100% - 80px); /* Reduced from 120px */
+			height: calc(100% - 80px);
 		}
 	}
 
 	@media (orientation: landscape) and (max-width: 1023px) {
 		.game-wrapper {
 			height: calc(100vh - var(--controls-height-landscape));
-			padding: 0.25rem; /* Added minimal padding */
-		}
-	}
-
-	@media (orientation: portrait) and (max-width: 1023px) {
-		.game-wrapper {
-			height: calc(100% - 120px);
-		}
-	}
-
-	@media (orientation: landscape) and (max-width: 1023px) {
-		.game-wrapper {
-			height: calc(100vh - var(--controls-height-landscape));
-			padding-right: 0;
+			padding: 0.25rem;
 		}
 	}
 </style>
