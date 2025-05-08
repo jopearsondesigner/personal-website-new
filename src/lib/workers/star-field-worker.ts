@@ -37,6 +37,9 @@ let statsInterval: number | null = null; // Added for cleanup handler
 // Format: [x1, y1, z1, prevX1, prevY1, inUse1, x2, y2, z2, prevX2, prevY2, inUse2, ...]
 let starData: Float32Array;
 
+// Track if the starData buffer has been transferred
+let starDataBufferTransferred = false;
+
 /**
  * Optimization: Enhanced change detection with significance tracking
  * Benefit: Enables more efficient partial updates
@@ -161,6 +164,17 @@ function reportStats(force: boolean = false): void {
  * Update star positions based on time delta
  */
 function updateStars(deltaTime: number): void {
+	if (starDataBufferTransferred) {
+		// If our buffer was transferred, recreate it
+		starData = initializeStars(
+			config.starCount,
+			config.containerWidth,
+			config.containerHeight,
+			config.maxDepth
+		);
+		starDataBufferTransferred = false;
+	}
+
 	const { containerWidth, containerHeight, maxDepth, speed } = config;
 
 	// Clear previous change tracking
@@ -226,7 +240,9 @@ function extractPartialStarData(indices: number[]): Float32Array {
 	// If more than 40% of stars changed, just send the whole array
 	// This avoids the overhead of extracting too many individual stars
 	if (indices.length > config.starCount * 0.4) {
-		return starData;
+		// Create a copy of the full star data to avoid transferring the original
+		const fullCopy = new Float32Array(starData);
+		return fullCopy;
 	}
 
 	const partialData = new Float32Array(indices.length * STAR_DATA_ELEMENTS);
@@ -288,6 +304,7 @@ function performCleanup() {
 	statsObjectsCreated = 0;
 	statsObjectsReused = 0;
 	lastStatsReport = 0;
+	starDataBufferTransferred = false;
 	batchedStats = {
 		created: 0,
 		reused: 0,
@@ -338,17 +355,25 @@ self.onmessage = function (e: MessageEvent) {
 				config.maxDepth
 			);
 
+			// Reset our tracking flag when we create new data
+			starDataBufferTransferred = false;
+
+			// Create a copy for transferring
+			const starDataCopy = new Float32Array(starData);
+
 			// Send back the initialized stars using transferable objects
 			self.postMessage(
 				{
 					type: 'initialized',
 					data: {
-						starData,
+						starData: starDataCopy,
 						config
 					}
 				},
-				[starData.buffer]
+				[starDataCopy.buffer]
 			);
+
+			// We don't mark the original buffer as transferred
 			break;
 		}
 
@@ -376,6 +401,18 @@ self.onmessage = function (e: MessageEvent) {
 			// Receive the star data back from the main thread
 			if (data.starData) {
 				starData = data.starData;
+				starDataBufferTransferred = false; // Reset flag as we have new data
+			}
+
+			// If the buffer was transferred, we need to recreate it
+			if (starDataBufferTransferred) {
+				starData = initializeStars(
+					config.starCount,
+					config.containerWidth,
+					config.containerHeight,
+					config.maxDepth
+				);
+				starDataBufferTransferred = false;
 			}
 
 			// Update star positions
@@ -392,6 +429,9 @@ self.onmessage = function (e: MessageEvent) {
 				config.speed = Math.max(config.baseSpeed, config.speed * 0.98);
 			}
 
+			// Create a copy for transferring
+			const starDataCopy = new Float32Array(starData);
+
 			// Add processing time to monitor performance
 			const processingTime = performance.now() - processingStart;
 
@@ -400,15 +440,16 @@ self.onmessage = function (e: MessageEvent) {
 				{
 					type: 'frameUpdate',
 					data: {
-						starData,
+						starData: starDataCopy,
 						config,
 						processingTime,
 						isFullUpdate: true
 					}
 				},
-				[starData.buffer]
+				[starDataCopy.buffer]
 			);
 
+			// We don't mark our original buffer as transferred
 			break;
 		}
 
@@ -424,10 +465,35 @@ self.onmessage = function (e: MessageEvent) {
 				if (isFullUpdate) {
 					// Fast path: direct assignment if full data
 					starData = data.changedStarData;
+					starDataBufferTransferred = false; // Reset flag as we have new data
 				} else {
+					// If our buffer was transferred, we need a new one first
+					if (starDataBufferTransferred) {
+						// Recreate star data if it was transferred
+						starData = initializeStars(
+							config.starCount,
+							config.containerWidth,
+							config.containerHeight,
+							config.maxDepth
+						);
+						starDataBufferTransferred = false;
+					}
+
 					// Update only the changed star data
 					updatePartialStarData(data.changedIndices, data.changedStarData);
 				}
+			}
+
+			// If our buffer was transferred, we need a new one
+			if (starDataBufferTransferred) {
+				// Recreate star data if it was transferred
+				starData = initializeStars(
+					config.starCount,
+					config.containerWidth,
+					config.containerHeight,
+					config.maxDepth
+				);
+				starDataBufferTransferred = false;
 			}
 
 			// Update star positions
@@ -446,8 +512,30 @@ self.onmessage = function (e: MessageEvent) {
 
 			// Get the updated changed indices
 			const changedIndices = getChangedStarIndices();
-			const extractedData = extractPartialStarData(changedIndices);
-			const isFullData = extractedData.length === starData.length;
+
+			// Create a new buffer for transfer - NEVER use the original
+			let dataToTransfer;
+			const isFullData = changedIndices.length > config.starCount * 0.4;
+
+			if (isFullData) {
+				// Create a complete copy for transfer
+				dataToTransfer = new Float32Array(starData);
+			} else {
+				// Create partial data for transfer (using a safer approach)
+				const bufferSize = changedIndices.length * STAR_DATA_ELEMENTS;
+				dataToTransfer = new Float32Array(bufferSize);
+
+				for (let i = 0; i < changedIndices.length; i++) {
+					const starIndex = changedIndices[i];
+					const sourceBaseIndex = starIndex * STAR_DATA_ELEMENTS;
+					const destBaseIndex = i * STAR_DATA_ELEMENTS;
+
+					// Copy all elements for this star
+					for (let j = 0; j < STAR_DATA_ELEMENTS; j++) {
+						dataToTransfer[destBaseIndex + j] = starData[sourceBaseIndex + j];
+					}
+				}
+			}
 
 			// Add processing time to monitor performance
 			const processingTime = performance.now() - processingStart;
@@ -460,13 +548,13 @@ self.onmessage = function (e: MessageEvent) {
 						{
 							type: 'frameUpdate',
 							data: {
-								starData: extractedData,
+								starData: dataToTransfer,
 								config,
 								processingTime,
 								isFullUpdate: true
 							}
 						},
-						[extractedData.buffer]
+						[dataToTransfer.buffer]
 					);
 				} else {
 					// Partial update when only a few stars changed
@@ -475,15 +563,17 @@ self.onmessage = function (e: MessageEvent) {
 							type: 'partialFrameUpdate',
 							data: {
 								changedIndices: changedIndices,
-								changedStarData: extractedData,
+								changedStarData: dataToTransfer,
 								config,
 								processingTime,
 								isFullUpdate: false
 							}
 						},
-						[extractedData.buffer]
+						[dataToTransfer.buffer]
 					);
 				}
+
+				// We don't mark our original buffer as transferred
 			} else {
 				// If no changes, just send a no-change signal
 				self.postMessage({
@@ -493,6 +583,7 @@ self.onmessage = function (e: MessageEvent) {
 						processingTime
 					}
 				});
+				// No buffer transferred in this case
 			}
 
 			break;
@@ -518,24 +609,31 @@ self.onmessage = function (e: MessageEvent) {
 
 			// If star count changed, reinitialize stars
 			if (data.config.starCount && data.config.starCount !== oldStarCount) {
+				// Recreate stars with new count
 				starData = initializeStars(
 					config.starCount,
 					config.containerWidth,
 					config.containerHeight,
 					config.maxDepth
 				);
+				starDataBufferTransferred = false;
+
+				// Create a copy for transferring
+				const starDataCopy = new Float32Array(starData);
 
 				// Send back the updated star data
 				self.postMessage(
 					{
 						type: 'starCountChanged',
 						data: {
-							starData,
+							starData: starDataCopy,
 							config
 						}
 					},
-					[starData.buffer]
+					[starDataCopy.buffer]
 				);
+
+				// We don't mark our original buffer as transferred
 			}
 			break;
 		}
@@ -548,19 +646,24 @@ self.onmessage = function (e: MessageEvent) {
 				config.containerHeight,
 				config.maxDepth
 			);
+			starDataBufferTransferred = false;
+
+			// Create a copy for transferring
+			const starDataCopy = new Float32Array(starData);
 
 			// Send back the reset stars
 			self.postMessage(
 				{
 					type: 'reset',
 					data: {
-						starData,
+						starData: starDataCopy,
 						config
 					}
 				},
-				[starData.buffer]
+				[starDataCopy.buffer]
 			);
 
+			// We don't mark our original buffer as transferred
 			break;
 		}
 

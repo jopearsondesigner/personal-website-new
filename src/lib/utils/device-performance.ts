@@ -72,6 +72,11 @@ export interface DeviceCapabilities {
 	isTablet: boolean;
 	isDesktop: boolean;
 
+	isLowPerformance: boolean;
+	useWorker: boolean;
+	useParallax: boolean;
+	enableGlow: boolean;
+
 	// Memory and resources
 	estimatedRAM: 'low' | 'medium' | 'high';
 	gpuTier: 'low' | 'medium' | 'high';

@@ -314,6 +314,16 @@ html.dark .nav-button:active {
 	opacity: 0;
 }
 
+/* Hardware acceleration utility */
+.hardware-accelerated {
+	transform: translateZ(0);
+	backface-visibility: hidden;
+	perspective: 1000px;
+	will-change: transform, opacity;
+	contain: layout style paint;
+	content-visibility: auto;
+}
+
 /* Responsive Layouts */
 @media (orientation: landscape) {
 	.game-wrapper {

@@ -13,21 +13,26 @@ export interface SectionConfig {
 }
 
 // Import all section components
-import Hero from '$lib/components/sections/Hero.svelte';
+import HeroContainer from '$lib/components/sections/HeroContainer.svelte'; // Fixed import path
 import About from '$lib/components/sections/About.svelte';
 import Work from '$lib/components/sections/Work.svelte';
 import Contact from '$lib/components/sections/Contact.svelte';
-// Remove the Blog import since the component doesn't exist
 
 // Define your sections configuration
 export const sections: SectionConfig[] = [
 	{
 		id: 'hero',
-		component: Hero,
+		component: HeroContainer, // Updated component
 		title: 'Home',
 		order: 1,
 		fullHeight: true,
-		showInNav: true
+		showInNav: true,
+		props: {
+			// Optional props specific to the arcade-style hero
+			initialScreen: 'main',
+			enableParallax: true,
+			highQuality: true
+		}
 	},
 	{
 		id: 'about',

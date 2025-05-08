@@ -1,7 +1,8 @@
 <!-- src/routes/+layout.svelte -->
 
 <script lang="ts">
-	import '../app.css';
+	import '$lib/styles/variables.css';
+	import '$lib/styles/app.css';
 	import Navbar from '$lib/components/layout/Navbar.svelte';
 	import NavBrand from '$lib/components/layout/Navbrand.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
@@ -24,6 +25,7 @@
 		setupPerformanceMonitoring,
 		setupEventListeners
 	} from '$lib/utils/device-performance';
+
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
 	import PerformanceMonitor from '$lib/components/devtools/PerformanceMonitor.svelte';
 	// Import performance monitor visibility store
