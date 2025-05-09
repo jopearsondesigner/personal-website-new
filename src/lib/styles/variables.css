@@ -29,7 +29,7 @@
 	--glass-reflectivity: 0.15;
 	--glass-specular-intensity: 0.7;
 	--glass-curvature: 3%;
-	--glass-edge-highlight: rgba(255, 255, 255, 0.8);
+	--glass-edge-highlight: rgba(245, 245, 220, 0.8);
 	--glass-dust-opacity: 0.03;
 	--glass-smudge-opacity: 0.04;
 	--internal-reflection-opacity: 0.045;
