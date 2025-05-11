@@ -1,4 +1,3 @@
-<!-- src/lib/components/ui/ArcadeScreen.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { browser } from '$app/environment';
@@ -20,6 +19,7 @@
 	let glassEffectsHandler: Function | null = null;
 	let isMobileDevice = false;
 	let isLowPerformanceDevice = false;
+	let isInitializing = true;
 
 	// Event dispatcher
 	const dispatch = createEventDispatcher();
@@ -56,6 +56,14 @@
 			document.documentElement.style.setProperty('--internal-reflection-opacity', '0.045');
 		}
 
+		// During initialization, set initial opacity for glass elements to 0
+		if (isInitializing && glassContainer) {
+			const glassElements = glassContainer.querySelectorAll('div');
+			glassElements.forEach((el) => {
+				(el as HTMLElement).style.opacity = '0';
+			});
+		}
+
 		// Create subtle movement with mouse for glass reflections
 		const handleMouseMove = (e) => {
 			if (!glassContainer) return;
@@ -84,7 +92,10 @@
 			if (specular) {
 				(specular as HTMLElement).style.transform =
 					`translate(${-moveX * 0.8}px, ${-moveY * 0.8}px)`;
-				(specular as HTMLElement).style.opacity = 0.2 + Math.abs(offsetX * offsetY) * 0.1;
+				(specular as HTMLElement).style.opacity = (
+					0.2 +
+					Math.abs(offsetX * offsetY) * 0.1
+				).toString();
 			}
 
 			if (reflection) {
@@ -129,12 +140,22 @@
 		// Detect device capabilities
 		detectDeviceCapabilities();
 
-		// Initialize glass effects
+		// Initialize glass effects first
 		glassEffectsHandler = initializeGlassEffects();
 
-		// Apply power-up sequence effect
+		// Start power-up sequence with proper animation timing
 		if (arcadeScreen) {
+			// First add the power-sequence class to trigger the CRT power-up effect
 			arcadeScreen.classList.add('power-sequence');
+
+			// After a short delay, trigger the glass warm-up effect
+			setTimeout(() => {
+				const glassContainer = document.querySelector('.screen-glass-container');
+				if (glassContainer) {
+					glassContainer.classList.add('glass-warmup');
+					isInitializing = false;
+				}
+			}, 150); // Short delay to ensure power sequence starts first
 		}
 
 		// Apply iOS-specific fixes
@@ -175,7 +196,7 @@
 	class="crt-screen hardware-accelerated relative glow rounded-[3vmin] overflow-hidden will-change-transform"
 	bind:this={arcadeScreen}
 >
-	<!-- CRT screen effects -->
+	<!-- CRT screen effects - keep the z-index lower than content -->
 	<ScreenEffects />
 
 	<!-- Screen content based on current screen state -->
@@ -190,7 +211,7 @@
 		<GameScreen on:stateChange={handleGameStateChange} />
 	{/if}
 
-	<!-- Glass effects and overlays -->
+	<!-- Glass effects and overlays - this needs highest z-index -->
 	<div class="screen-glass-container rounded-[3vmin] hardware-accelerated">
 		<div class="screen-glass-outer rounded-[3vmin]"></div>
 		<div class="screen-glass-inner rounded-[3vmin]"></div>
@@ -261,13 +282,13 @@
 		mix-blend-mode: screen;
 	}
 
-	/* Glass container styling */
+	/* Glass container styling - fixed z-index to be above content but below scanlines */
 	.screen-glass-container {
 		position: absolute;
 		inset: 0;
 		overflow: hidden;
 		pointer-events: none;
-		z-index: 10; /* Increased z-index to be above all content */
+		z-index: 20; /* Higher z-index to ensure it's above content but below scanlines */
 		will-change: transform, filter;
 		transform-style: preserve-3d;
 	}
@@ -388,6 +409,11 @@
 		animation: slowInternalReflection 12s ease-in-out infinite alternate;
 	}
 
+	/* NEW CLASS: Add glass warmup animation class */
+	.glass-warmup > div {
+		animation: glassWarmUp 3s ease-out forwards;
+	}
+
 	/* Animation keyframes for glass effects */
 	@keyframes slowGlassShift {
 		0% {
@@ -460,6 +486,26 @@
 		}
 		100% {
 			opacity: 0;
+		}
+	}
+
+	/* Glass warmup animation */
+	@keyframes glassWarmUp {
+		0% {
+			opacity: 0;
+			filter: brightness(0.5) blur(2px);
+		}
+		30% {
+			opacity: 0.3;
+			filter: brightness(0.7) blur(1px);
+		}
+		60% {
+			opacity: 0.5;
+			filter: brightness(0.85) blur(0.5px);
+		}
+		100% {
+			opacity: 0;
+			filter: brightness(1) blur(0);
 		}
 	}
 

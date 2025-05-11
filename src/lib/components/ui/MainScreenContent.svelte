@@ -132,7 +132,10 @@
 
 			if (timeline) {
 				currentTimeline = timeline;
-				timeline.play();
+
+				setTimeout(() => {
+					timeline.play();
+				}, 300); // Delay animations to start after power-up sequence begins
 			}
 
 			// Update animation state
@@ -201,7 +204,7 @@
 		detectDeviceCapabilities();
 
 		// Start animations with a small delay to ensure DOM is ready
-		setTimeout(startAnimations, 100);
+		setTimeout(startAnimations, 250);
 	});
 
 	onDestroy(() => {

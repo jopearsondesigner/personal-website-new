@@ -1,9 +1,10 @@
 /* src/lib/styles/variables.css */
+
 :root {
-	/* Cabinet dimensions */
+	/* Cabinet dimensions (unchanged) */
 	--arcade-cabinet-width: min(100%, 1000px);
 	--arcade-cabinet-height: min(90vh, 700px);
-	/* Layout */
+	/* Layout (unchanged) */
 	--arcade-screen-width: min(95vw, 800px);
 	--arcade-screen-height: min(70vh, 600px);
 	--border-radius: 4vmin;
@@ -11,11 +12,11 @@
 	--screen-recess: 1.8vmin;
 	--bezel-thickness: 0.8vmin;
 
-	/* Typography */
+	/* Typography (unchanged) */
 	--header-font-size: 70px;
 	--insert-concept-font-size: 4.45vmin;
 
-	/* Colors */
+	/* Colors (unchanged) */
 	--screen-border-color: rgba(226, 226, 189, 1);
 	--header-text-color: rgba(227, 255, 238, 1);
 	--insert-concept-color: rgba(245, 245, 220, 1);
@@ -23,18 +24,23 @@
 	--glass-reflection: rgba(255, 255, 255, 0.15);
 	--screen-glow-opacity: 0.6;
 
-	/* Enhanced Glass Physics */
+	/* Enhanced Glass Physics - ADJUSTED for better visibility */
 	--glass-thickness: 0.4vmin;
 	--glass-refraction: 1.2;
 	--glass-reflectivity: 0.15;
 	--glass-specular-intensity: 0.7;
 	--glass-curvature: 3%;
 	--glass-edge-highlight: rgba(245, 245, 220, 0.8);
-	--glass-dust-opacity: 0.03;
-	--glass-smudge-opacity: 0.04;
-	--internal-reflection-opacity: 0.045;
+	--glass-dust-opacity: 0.03; /* Keep as is */
+	--glass-smudge-opacity: 0.04; /* Keep as is */
+	--internal-reflection-opacity: 0.045; /* Keep as is */
 
-	/* Shadows & Effects */
+	/* Animation timing variables - NEW */
+	--power-sequence-duration: 1.5s;
+	--glass-warmup-duration: 3s;
+	--glass-warmup-delay: 150ms;
+
+	/* Shadows & Effects (unchanged) */
 	--cabinet-shadow: 0 20px 40px rgba(0, 0, 0, 0.25), 0 5px 15px rgba(0, 0, 0, 0.15),
 		inset 0 3px 8px rgba(0, 0, 0, 0.2);
 
@@ -51,7 +57,7 @@
 		transparent 60%
 	);
 
-	/* Light theme variables */
+	/* Light theme variables (unchanged) */
 	--light-cabinet-primary: rgba(240, 240, 240, 1);
 	--light-cabinet-secondary: rgba(230, 230, 230, 1);
 	--light-cabinet-tertiary: rgba(220, 220, 220, 1);
@@ -64,7 +70,7 @@
 	--light-bezel-gradient-end: rgba(190, 190, 190, 1);
 }
 
-/* Media Queries */
+/* Media Queries (unchanged) */
 @media (min-width: 768px) {
 	:root {
 		--arcade-screen-width: 80vw;
@@ -74,7 +80,7 @@
 	}
 }
 
-/* Animations */
+/* Animations - UPDATED */
 @keyframes powerUpSequence {
 	0% {
 		filter: brightness(0) blur(2px);
@@ -116,7 +122,7 @@
 		filter: brightness(0.85) blur(0.5px);
 	}
 	100% {
-		opacity: 1;
+		opacity: 0;
 		filter: brightness(1) blur(0);
 	}
 }
@@ -164,11 +170,12 @@
 	content-visibility: auto;
 }
 
-/* Animation utilities */
+/* Animation utilities - UPDATED */
 .power-sequence {
-	animation: powerUpSequence 2.5s ease-out;
+	animation: powerUpSequence var(--power-sequence-duration) ease-out;
 }
 
-.power-sequence .screen-glass-container > div {
-	animation: glassWarmUp 3s ease-out forwards;
+/* Add new class to control glass warmup independently */
+.glass-warmup > div {
+	animation: glassWarmUp var(--glass-warmup-duration) ease-out forwards;
 }

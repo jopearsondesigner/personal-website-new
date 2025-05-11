@@ -17,15 +17,26 @@
 	});
 </script>
 
-<!-- CRT screen effects layers -->
-<div class="phosphor-decay rounded-[3vmin]"></div>
-<div class="shadow-mask rounded-[3vmin]"></div>
-<div class="interlace rounded-[3vmin]"></div>
-<div class="screen-reflection rounded-[3vmin]"></div>
-<div class="screen-glare rounded-[3vmin]"></div>
-<div class="glow-effect rounded-[3vmin]"></div>
+<!-- Wrap all effects in a container with proper z-index -->
+<div class="screen-effects-container">
+	<!-- CRT screen effects layers -->
+	<div class="phosphor-decay rounded-[3vmin]"></div>
+	<div class="shadow-mask rounded-[3vmin]"></div>
+	<div class="interlace rounded-[3vmin]"></div>
+	<div class="screen-reflection rounded-[3vmin]"></div>
+	<div class="screen-glare rounded-[3vmin]"></div>
+	<div class="glow-effect rounded-[3vmin]"></div>
+</div>
 
 <style>
+	/* Add a container to control z-index of all effects */
+	.screen-effects-container {
+		position: absolute;
+		inset: 0;
+		z-index: 5; /* Lower than glass effects (z-index: 20) */
+		pointer-events: none;
+	}
+
 	/* CRT effect styles */
 	.phosphor-decay {
 		position: absolute;
@@ -75,6 +86,7 @@
 			);
 		mix-blend-mode: overlay;
 		opacity: 0.7;
+		z-index: 1; /* Higher than base screen effects but lower than glass */
 	}
 
 	.screen-glare {
@@ -89,11 +101,12 @@
 			transparent 100%
 		);
 		pointer-events: none;
-		z-index: 2;
+		z-index: 2; /* Higher than screen-reflection but lower than glass */
 	}
 
 	.glow-effect {
 		will-change: opacity;
+		z-index: 3; /* Higher than other screen effects */
 	}
 
 	/* Animations */
