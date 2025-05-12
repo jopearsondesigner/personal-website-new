@@ -282,6 +282,7 @@
 			mix-blend-mode: soft-light;  /* Gentler blending */
 		}
 
+		/* Fine-tuned bezel for better integration with white cabinet */
 		:global(html.light) .screen-bezel {
 			background: linear-gradient(
 				to bottom,
@@ -289,53 +290,54 @@
 				var(--light-bezel-gradient-end) 100%
 			);
 			box-shadow:
-				inset 0 1px 3px rgba(0, 0, 0, 0.08),
-				0 0 1px rgba(255, 255, 255, 0.9),
-				0 2px 4px rgba(0, 0, 0, 0.03);
+				inset 0 1px 2px rgba(0, 0, 0, 0.05),
+				0 0 1px rgba(255, 255, 255, 0.95),
+				0 2px 3px rgba(0, 0, 0, 0.02);
 			border-radius: calc(var(--border-radius) + 4px);
+			border: 1px solid rgba(220, 220, 220, 0.5);
 		}
 
 		/* Enhanced mobile t-molding with subtler effect */
 		:global(html.light) .t-molding::before {
-			opacity: 0.2;
+			opacity: 0.15;
 			background: linear-gradient(
 				90deg,
 				var(--light-cabinet-accent) 0%,
-				rgba(0, 150, 255, 0.2) 50%,
+				rgba(0, 150, 255, 0.15) 50%,
 				var(--light-cabinet-accent) 100%
 			);
-			filter: blur(3px);
+			filter: blur(4px);
 		}
 
 		:global(html.light) .t-molding::after {
-			opacity: 0.15;
+			opacity: 0.12;
 			box-shadow:
-				inset 0 0 6px rgba(255, 255, 255, 0.3),
-				0 0 8px var(--light-cabinet-accent);
+				inset 0 0 6px rgba(255, 255, 255, 0.4),
+				0 0 6px var(--light-cabinet-accent);
 		}
 
 		/* Refined corner accents for mobile light mode */
 		:global(html.light) .corner-accent {
-			opacity: 0.3;
+			opacity: 0.25;
 			background: radial-gradient(
 				circle at center,
-				rgba(255, 255, 255, 0.7),
+				rgba(255, 255, 255, 0.8),
 				rgba(255, 255, 255, 0.05) 70%,
 				transparent 100%
 			);
-			filter: blur(1px);
+			filter: blur(1.5px);
 		}
 
 		/* Softer light spill for mobile light mode */
 		:global(html.light) .light-spill {
 			background: radial-gradient(circle at 50% 50%, var(--light-cabinet-accent), transparent 70%);
-			opacity: 0.06;
+			opacity: 0.04;
 			filter: blur(15px);
 		}
 
 		/* Subtler control panel light in mobile light mode */
 		:global(html.light) .control-panel-light {
-			opacity: 0.15;
+			opacity: 0.12;
 			background: linear-gradient(to bottom, var(--light-cabinet-accent), transparent);
 		}
 
