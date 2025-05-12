@@ -80,6 +80,32 @@
 	}
 }
 
+@media (max-width: 768px) {
+	:root {
+		/* Mobile Light Theme Cabinet - Enhanced for modern aesthetic */
+		--light-cabinet-primary: #f8f8f8;    /* Almost white background */
+		--light-cabinet-secondary: #f0f0f0;  /* Very light gray gradient color */
+		--light-cabinet-tertiary: #e8e8e8;   /* Lighter component backgrounds */
+		--light-cabinet-accent: rgba(0, 150, 255, 0.5);  /* Subtle blue accent color */
+		--light-shadow-subtle: rgba(0, 0, 0, 0.03);  /* Very faint shadows */
+		--light-shadow-medium: rgba(0, 0, 0, 0.05);  /* Light shadows */
+		--light-highlight: rgba(255, 255, 255, 0.8);  /* White highlight effect */
+		--light-screen-glow: rgba(0, 120, 255, 0.3);  /* Subtle blue glow */
+		--light-screen-glow-intensity: 0.08;  /* Reduced glow intensity */
+		--light-cabinet-border-radius: 12px;  /* Rounded corners */
+		--light-cabinet-border-color: rgba(0, 0, 0, 0.05);  /* Very subtle border */
+		--light-cabinet-texture-opacity: 0.02;  /* Nearly invisible texture */
+		--light-bezel-gradient-start: rgba(220, 220, 220, 1);  /* Light bezel gradient */
+		--light-bezel-gradient-end: rgba(200, 200, 200, 1);  /* Light bezel gradient */
+
+		/* Override other variables for mobile */
+		--screen-glow-opacity: 0.1;  /* Reduced glow effect */
+		--shadow-mask-size: 2px;  /* Smaller shadow mask */
+		--border-radius: 12px;  /* Consistent border radius */
+		--bezel-thickness: 0.6vmin;  /* Thinner bezel */
+	}
+}
+
 /* Animations - UPDATED */
 @keyframes powerUpSequence {
 	0% {
