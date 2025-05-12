@@ -4,6 +4,7 @@
 	import { browser } from '$app/environment';
 	import { get } from 'svelte/store';
 	import StarFieldManager from '$lib/components/effects/StarFieldManager.svelte';
+	import StarField from '$lib/components/effects/StarField.svelte';
 	import { animationState } from '$lib/stores/animation-store';
 	import { deviceCapabilities } from '$lib/utils/device-performance';
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
@@ -214,9 +215,9 @@
 		bind:this={starContainer}
 	>
 		{#if starContainer}
-			<StarFieldManager
+			<StarField
 				bind:this={starFieldComponent}
-				{starContainer}
+				containerElement={starContainer as HTMLElement}
 				starCount={300}
 				enableBoost={true}
 				baseSpeed={0.25}
