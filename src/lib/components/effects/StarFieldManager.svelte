@@ -6,8 +6,8 @@
 	import { deviceCapabilities } from '$lib/utils/device-performance';
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
 
-	// Props
-	export let containerElement: HTMLElement;
+	// Props - Make containerElement nullable to match StarField
+	export let containerElement: HTMLElement | null = null;
 	export let starCount: number = 300;
 	export let enableBoost: boolean = true;
 	export let baseSpeed: number = 0.25;
@@ -311,8 +311,14 @@
 	let resizeObserver = null;
 
 	onMount(() => {
-		if (!browser || !containerElement) {
-			console.error('StarFieldManager: Cannot initialize - browser or container unavailable');
+		if (!browser) {
+			console.error('StarFieldManager: Cannot initialize - browser unavailable');
+			return;
+		}
+
+		if (!containerElement) {
+			console.error('StarFieldManager: Cannot initialize - no container element provided');
+			dispatch('error', { message: 'No container element provided' });
 			return;
 		}
 
