@@ -10,8 +10,8 @@
 	export let enableBoost = true;
 	export let maxDepth = 32;
 	// Keep original speeds for stability
-	export let baseSpeed = 0.25; // Reverted from 0.5 to original value
-	export let boostSpeed = 2;   // Reverted from 4 to original value
+	export let baseSpeed = 0.25; // Original value for consistent animation
+	export let boostSpeed = 2;   // Original value for consistent animation
 
 	// Component state
 	let canvasElement: HTMLCanvasElement;
@@ -27,7 +27,8 @@
 	let boosting = false;
 	let animationFrameId: number | null = null;
 	let speed = baseSpeed;
-	let canvasInitialized = false; // New flag to track canvas initialization
+	let canvasInitialized = false; // Track canvas initialization
+	let errorCount = 0; // Track number of errors for recovery purposes
 
 	// Star colors with glow
 	const starColors = [
@@ -41,6 +42,7 @@
 
 	// Initialize stars
 	function initStars() {
+		console.log('StarField: Initializing stars array with count:', starCount);
 		stars = [];
 		for (let i = 0; i < starCount; i++) {
 			createStar();
@@ -49,7 +51,10 @@
 
 	function createStar() {
 		// Ensure canvas is available before creating stars
-		if (!canvasElement) return;
+		if (!canvasElement) {
+			console.warn('StarField: Cannot create star - canvas not initialized');
+			return;
+		}
 		
 		const star = {
 			x: Math.random() * canvasElement.width * 2 - canvasElement.width,
@@ -65,12 +70,12 @@
 	function setupCanvas() {
 		if (!containerElement) {
 			console.error('StarField error: containerElement is null or undefined');
-			return;
+			return false;
 		}
 
 		try {
 			// Check if canvas already exists to prevent duplicates
-			const existingCanvas = containerElement.querySelector('canvas#starfield');
+			const existingCanvas = containerElement.querySelector('canvas.star-field-canvas'); // Unified class name
 			if (existingCanvas) {
 				console.log('Using existing canvas element');
 				canvasElement = existingCanvas as HTMLCanvasElement;
@@ -78,25 +83,29 @@
 				console.log('Creating new canvas element for container', containerElement);
 				canvasElement = document.createElement('canvas');
 				canvasElement.id = 'starfield';
+				canvasElement.className = 'star-field-canvas'; // Add unified class name
 				canvasElement.style.position = 'absolute';
 				canvasElement.style.top = '0';
 				canvasElement.style.left = '0';
 				canvasElement.style.width = '100%';
 				canvasElement.style.height = '100%';
+				canvasElement.style.pointerEvents = 'none'; // Prevent interference with interactions
 				containerElement.appendChild(canvasElement);
 			}
 
 			ctx = canvasElement.getContext('2d');
 			if (!ctx) {
 				console.error('Failed to get canvas context');
-				return;
+				return false;
 			}
 			
 			resizeCanvas();
 			canvasInitialized = true; // Mark canvas as initialized
 			console.log('Canvas initialized successfully with size', canvasElement.width, 'x', canvasElement.height);
+			return true;
 		} catch (error) {
 			console.error('Error setting up canvas:', error);
+			return false;
 		}
 	}
 
@@ -118,84 +127,107 @@
 
 	// Animation loop with enhanced effects
 	function animate() {
+		// Always clear previous animation frame to prevent duplicates
+		if (animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+			animationFrameId = null;
+		}
+
 		if (!ctx || !canvasElement || !isRunning) {
 			// Skip animation if not properly initialized or not running
-			if (isRunning) {
-				animationFrameId = requestAnimationFrame(animate);
-			}
 			return;
 		}
 
-		// LONGER TAILS: Reduced alpha for slower fade, creating longer trails
-		ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-		ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+		try {
+			// LONGER TAILS: Reduced alpha for slower fade, creating longer trails
+			ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+			ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
 
-		const centerX = canvasElement.width / 2;
-		const centerY = canvasElement.height / 2;
+			const centerX = canvasElement.width / 2;
+			const centerY = canvasElement.height / 2;
 
-		for (let i = 0; i < stars.length; i++) {
-			const star = stars[i];
+			for (let i = 0; i < stars.length; i++) {
+				const star = stars[i];
 
-			star.prevX = star.x;
-			star.prevY = star.y;
-
-			star.z -= speed;
-
-			if (star.z <= 0) {
-				star.x = Math.random() * canvasElement.width * 2 - canvasElement.width;
-				star.y = Math.random() * canvasElement.height * 2 - canvasElement.height;
-				star.z = maxDepth;
 				star.prevX = star.x;
 				star.prevY = star.y;
-				continue;
+
+				star.z -= speed;
+
+				if (star.z <= 0) {
+					star.x = Math.random() * canvasElement.width * 2 - canvasElement.width;
+					star.y = Math.random() * canvasElement.height * 2 - canvasElement.height;
+					star.z = maxDepth;
+					star.prevX = star.x;
+					star.prevY = star.y;
+					continue;
+				}
+
+				const scale = maxDepth / star.z;
+				const x2d = (star.x - centerX) * scale + centerX;
+				const y2d = (star.y - centerY) * scale + centerY;
+
+				if (x2d < 0 || x2d >= canvasElement.width || y2d < 0 || y2d >= canvasElement.height) {
+					continue;
+				}
+
+				// LARGER STARS: Increased size for more visibility
+				const size = (1 - star.z / maxDepth) * 3; // Back to original value 3
+
+				const colorIndex = Math.floor((1 - star.z / maxDepth) * (starColors.length - 1));
+				const color = starColors[colorIndex];
+
+				// GLOW EFFECT: Add glow to stars
+				ctx.shadowColor = color;
+				ctx.shadowBlur = size * 3; // Glow radius
+
+				if (speed > baseSpeed * 1.5) {
+					const prevScale = maxDepth / (star.z + speed);
+					const prevX = (star.prevX - centerX) * prevScale + centerX;
+					const prevY = (star.prevY - centerY) * prevScale + centerY;
+
+					// ENHANCED TRAILS: Add glow to trails too
+					ctx.beginPath();
+					ctx.moveTo(prevX, prevY);
+					ctx.lineTo(x2d, y2d);
+					ctx.strokeStyle = color;
+					ctx.lineWidth = size;
+					ctx.stroke();
+				} else {
+					ctx.beginPath();
+					ctx.arc(x2d, y2d, size, 0, Math.PI * 2);
+					ctx.fillStyle = color;
+					ctx.fill();
+				}
+
+				// Reset shadow for next star
+				ctx.shadowBlur = 0;
 			}
 
-			const scale = maxDepth / star.z;
-			const x2d = (star.x - centerX) * scale + centerX;
-			const y2d = (star.y - centerY) * scale + centerY;
-
-			if (x2d < 0 || x2d >= canvasElement.width || y2d < 0 || y2d >= canvasElement.height) {
-				continue;
+			if (!boosting && speed > baseSpeed) {
+				speed = Math.max(baseSpeed, speed * 0.98);
 			}
-
-			// LARGER STARS: Increased size for more visibility
-			const size = (1 - star.z / maxDepth) * 3; // Back to original value 3
-
-			const colorIndex = Math.floor((1 - star.z / maxDepth) * (starColors.length - 1));
-			const color = starColors[colorIndex];
-
-			// GLOW EFFECT: Add glow to stars
-			ctx.shadowColor = color;
-			ctx.shadowBlur = size * 3; // Glow radius
-
-			if (speed > baseSpeed * 1.5) {
-				const prevScale = maxDepth / (star.z + speed);
-				const prevX = (star.prevX - centerX) * prevScale + centerX;
-				const prevY = (star.prevY - centerY) * prevScale + centerY;
-
-				// ENHANCED TRAILS: Add glow to trails too
-				ctx.beginPath();
-				ctx.moveTo(prevX, prevY);
-				ctx.lineTo(x2d, y2d);
-				ctx.strokeStyle = color;
-				ctx.lineWidth = size;
-				ctx.stroke();
-			} else {
-				ctx.beginPath();
-				ctx.arc(x2d, y2d, size, 0, Math.PI * 2);
-				ctx.fillStyle = color;
-				ctx.fill();
+			
+			// Schedule next frame using requestAnimationFrame
+			if (isRunning) {
+				animationFrameId = requestAnimationFrame(animate);
 			}
-
-			// Reset shadow for next star
-			ctx.shadowBlur = 0;
+		} catch (error) {
+			console.error('Error in StarField animation loop:', error);
+			errorCount++;
+			
+			// Recovery mechanism - if too many errors, stop animation
+			if (errorCount > 10) {
+				console.error('Too many errors, stopping animation');
+				isRunning = false;
+				return;
+			}
+			
+			// Try to continue animation despite error
+			if (isRunning) {
+				animationFrameId = requestAnimationFrame(animate);
+			}
 		}
-
-		if (!boosting && speed > baseSpeed) {
-			speed = Math.max(baseSpeed, speed * 0.98);
-		}
-		
-		animationFrameId = requestAnimationFrame(animate);
 	}
 
 	// Event handlers
@@ -225,9 +257,17 @@
 	export function start() {
 		if (isRunning) return;
 		
+		// Reset error count on start
+		errorCount = 0;
 		isRunning = true;
+		
 		if (!canvasInitialized && containerElement) {
-			setupCanvas();
+			const success = setupCanvas();
+			if (!success) {
+				console.error('StarField: Failed to set up canvas, cannot start animation');
+				isRunning = false;
+				return;
+			}
 			initStars();
 		}
 		animate();
@@ -244,28 +284,42 @@
 		boosting = false;
 	}
 
+	// Stop animation
+	export function stop() {
+		isRunning = false;
+		if (animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+			animationFrameId = null;
+		}
+		console.log('StarField animation stopped');
+	}
+
 	// Lifecycle
 	onMount(() => {
 		if (!browser) return;
 
 		if (containerElement) {
-			setupCanvas();
-			initStars();
+			const success = setupCanvas();
+			if (success) {
+				initStars();
 
-			if (enableBoost) {
-				window.addEventListener('keydown', handleKeyDown);
-				window.addEventListener('keyup', handleKeyUp);
-				window.addEventListener('touchstart', handleTouchStart);
-				window.addEventListener('touchend', handleTouchEnd);
-			}
+				if (enableBoost) {
+					window.addEventListener('keydown', handleKeyDown);
+					window.addEventListener('keyup', handleKeyUp);
+					window.addEventListener('touchstart', handleTouchStart);
+					window.addEventListener('touchend', handleTouchEnd);
+				}
 
-			window.addEventListener('resize', resizeCanvas);
+				window.addEventListener('resize', resizeCanvas);
 
-			if (autoStart) {
-				// Slight delay to ensure everything is ready
-				setTimeout(() => {
-					start();
-				}, 100);
+				if (autoStart) {
+					// Slight delay to ensure everything is ready
+					setTimeout(() => {
+						start();
+					}, 100);
+				}
+			} else {
+				console.error('StarField: Failed to set up canvas');
 			}
 		} else {
 			console.error('StarField error: No container element provided');
@@ -275,6 +329,10 @@
 	onDestroy(() => {
 		if (!browser) return;
 
+		// Stop animation
+		stop();
+
+		// Remove event listeners
 		if (enableBoost) {
 			window.removeEventListener('keydown', handleKeyDown);
 			window.removeEventListener('keyup', handleKeyUp);
@@ -284,10 +342,7 @@
 
 		window.removeEventListener('resize', resizeCanvas);
 
-		if (animationFrameId) {
-			cancelAnimationFrame(animationFrameId);
-		}
-
+		// Clean up canvas element
 		if (canvasElement && canvasElement.parentNode) {
 			canvasElement.parentNode.removeChild(canvasElement);
 		}
