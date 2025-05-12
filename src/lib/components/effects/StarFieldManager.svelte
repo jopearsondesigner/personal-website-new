@@ -24,13 +24,17 @@
 	let isBoosting = false;
 	let animationFrameId = null;
 	let adaptiveQualityEnabled = true;
+	let isCanvasInitialized = false; // New flag to track canvas initialization
 
 	// Event dispatcher
 	const dispatch = createEventDispatcher();
 
 	// Initialize the star field
 	function initStarField() {
-		if (!canvas || !ctx || !containerElement) return;
+		if (!canvas || !ctx || !containerElement) {
+			console.error('StarFieldManager: Cannot initialize star field - missing canvas, context, or container');
+			return;
+		}
 
 		// Adjust canvas size to container
 		resizeCanvas();
@@ -42,6 +46,7 @@
 		if (!isRunning) {
 			isRunning = true;
 			animationLoop();
+			console.log('StarFieldManager: Animation started');
 		}
 	}
 
@@ -62,108 +67,132 @@
 				color: `rgba(255, 255, 255, ${Math.random() * 0.5 + 0.5})`
 			});
 		}
+		console.log(`StarFieldManager: Created ${stars.length} stars`);
 	}
 
 	// Resize canvas to match container
 	export function resizeCanvas() {
 		if (!canvas || !containerElement) return;
 
-		const rect = containerElement.getBoundingClientRect();
-		canvas.width = rect.width;
-		canvas.height = rect.height;
-
-		// Re-create stars after resize
-		if (stars.length > 0) {
-			createStars();
+		try {
+			const rect = containerElement.getBoundingClientRect();
+			canvas.width = rect.width;
+			canvas.height = rect.height;
+			
+			console.log('StarFieldManager: Canvas resized to', canvas.width, 'x', canvas.height);
+			
+			// Re-create stars after resize
+			if (stars.length > 0) {
+				createStars();
+			}
+		} catch (error) {
+			console.error('StarFieldManager: Error during resize:', error);
 		}
 	}
 
 	// Animation loop
 	function animationLoop() {
 		if (!isRunning || isPaused || !ctx) {
+			// Safely exit if we shouldn't be running
 			return;
 		}
 
-		// Only render if frame should be rendered (performance optimization)
-		if (frameRateController.shouldRenderFrame()) {
-			// Clear canvas
-			ctx.clearRect(0, 0, canvas.width, canvas.height);
+		try {
+			// Only render if frame should be rendered (performance optimization)
+			// Temporarily disable frame rate controller to debug animation
+			// if (frameRateController.shouldRenderFrame()) {
+			if (true) {  // Always render every frame while debugging
+				// Clear canvas
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-			// Set center point
-			const centerX = canvas.width / 2;
-			const centerY = canvas.height / 2;
+				// Set center point
+				const centerX = canvas.width / 2;
+				const centerY = canvas.height / 2;
 
-			// Calculate current speed
-			const currentSpeed = isBoosting ? boostSpeed : baseSpeed;
+				// Calculate current speed
+				const currentSpeed = isBoosting ? boostSpeed : baseSpeed;
 
-			// Update and draw stars
-			for (let i = 0; i < stars.length; i++) {
-				const star = stars[i];
+				// Update and draw stars
+				for (let i = 0; i < stars.length; i++) {
+					const star = stars[i];
 
-				// Save previous position for trails
-				star.prevX = star.x;
-				star.prevY = star.y;
-
-				// Move star forward
-				star.z -= currentSpeed;
-
-				// Reset star if it goes too far
-				if (star.z <= 0) {
-					star.z = maxDepth;
-					star.x = Math.random() * canvas.width - centerX;
-					star.y = Math.random() * canvas.height - centerY;
+					// Save previous position for trails
 					star.prevX = star.x;
 					star.prevY = star.y;
-				}
 
-				// Calculate 3D projection
-				const scale = maxDepth / star.z;
-				const x = star.x * scale + centerX;
-				const y = star.y * scale + centerY;
-				const size = star.size * scale;
+					// Move star forward
+					star.z -= currentSpeed;
 
-				// Only draw if in canvas bounds
-				if (x >= 0 && x <= canvas.width && y >= 0 && y <= canvas.height) {
-					// Draw star
-					ctx.beginPath();
-					ctx.fillStyle = star.color;
-					ctx.arc(x, y, size, 0, Math.PI * 2);
-					ctx.fill();
+					// Reset star if it goes too far
+					if (star.z <= 0) {
+						star.z = maxDepth;
+						star.x = Math.random() * canvas.width - centerX;
+						star.y = Math.random() * canvas.height - centerY;
+						star.prevX = star.x;
+						star.prevY = star.y;
+						continue;
+					}
 
-					// Draw trail if boosting and glow is enabled
-					if (isBoosting && enableGlow) {
-						const prevScale = maxDepth / (star.z + currentSpeed);
-						const prevX = star.prevX * prevScale + centerX;
-						const prevY = star.prevY * prevScale + centerY;
+					// Calculate 3D projection
+					const scale = maxDepth / star.z;
+					const x = star.x * scale + centerX;
+					const y = star.y * scale + centerY;
+					const size = star.size * scale;
 
-						// Create gradient for trail
-						const gradient = ctx.createLinearGradient(prevX, prevY, x, y);
-						gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
-						gradient.addColorStop(1, 'rgba(255, 255, 255, 0.5)');
-
-						// Draw trail line
+					// Only draw if in canvas bounds
+					if (x >= 0 && x <= canvas.width && y >= 0 && y <= canvas.height) {
+						// Draw star
 						ctx.beginPath();
-						ctx.strokeStyle = gradient;
-						ctx.lineWidth = size * 0.8;
-						ctx.moveTo(prevX, prevY);
-						ctx.lineTo(x, y);
-						ctx.stroke();
+						ctx.fillStyle = star.color;
+						ctx.arc(x, y, size, 0, Math.PI * 2);
+						ctx.fill();
+
+						// Draw trail if boosting and glow is enabled
+						if (isBoosting && enableGlow) {
+							const prevScale = maxDepth / (star.z + currentSpeed);
+							const prevX = star.prevX * prevScale + centerX;
+							const prevY = star.prevY * prevScale + centerY;
+
+							// Create gradient for trail
+							const gradient = ctx.createLinearGradient(prevX, prevY, x, y);
+							gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+							gradient.addColorStop(1, 'rgba(255, 255, 255, 0.5)');
+
+							// Draw trail line
+							ctx.beginPath();
+							ctx.strokeStyle = gradient;
+							ctx.lineWidth = size * 0.8;
+							ctx.moveTo(prevX, prevY);
+							ctx.lineTo(x, y);
+							ctx.stroke();
+						}
 					}
 				}
 			}
-		}
 
-		// Request next frame
-		animationFrameId = requestAnimationFrame(animationLoop);
+			// Request next frame
+			animationFrameId = requestAnimationFrame(animationLoop);
+		} catch (error) {
+			console.error('StarFieldManager: Error in animation loop:', error);
+			// Attempt to recover
+			isPaused = true;
+			setTimeout(() => {
+				isPaused = false;
+				animationLoop();
+			}, 1000);
+		}
 	}
 
 	// Public methods
 	export function start() {
 		if (!isRunning) {
+			console.log('StarFieldManager: Starting animation');
 			isRunning = true;
 			isPaused = false;
 			if (canvas && containerElement) {
 				initStarField();
+			} else {
+				console.error('StarFieldManager: Cannot start - missing canvas or container');
 			}
 		} else if (isPaused) {
 			isPaused = false;
@@ -172,6 +201,7 @@
 	}
 
 	export function stop() {
+		console.log('StarFieldManager: Stopping animation');
 		isRunning = false;
 		if (animationFrameId) {
 			cancelAnimationFrame(animationFrameId);
@@ -206,6 +236,8 @@
 	export function adaptToDeviceCapabilities(capabilities) {
 		if (!capabilities) return;
 
+		console.log('StarFieldManager: Adapting to device capabilities', capabilities);
+
 		// Adapt star count
 		if (capabilities.maxStars && capabilities.maxStars !== starCount) {
 			starCount = capabilities.maxStars;
@@ -222,9 +254,11 @@
 	function setupResizeObserver() {
 		if (!browser || !containerElement) return null;
 
+		console.log('StarFieldManager: Setting up resize observer');
 		const resizeObserver = new ResizeObserver(() => {
 			// Only resize if we're running
 			if (isRunning) {
+				console.log('StarFieldManager: Resize detected');
 				resizeCanvas();
 			}
 		});
@@ -237,35 +271,55 @@
 	let resizeObserver = null;
 
 	onMount(() => {
-		if (!browser || !containerElement) return;
-
-		// Create canvas element
-		canvas = document.createElement('canvas');
-		canvas.classList.add('star-field-canvas');
-		canvas.style.position = 'absolute';
-		canvas.style.inset = '0';
-		canvas.style.pointerEvents = 'none';
-
-		// Add canvas to container with a console log for debugging
-		console.log('Adding canvas to container', containerElement);
-		containerElement.appendChild(canvas);
-
-		// Get context and check if it's valid
-		ctx = canvas.getContext('2d');
-		if (!ctx) {
-			console.error('Failed to get canvas context');
+		if (!browser || !containerElement) {
+			console.error('StarFieldManager: Cannot initialize - browser or container unavailable');
 			return;
 		}
 
-		// Set up resize observer
-		resizeObserver = setupResizeObserver();
+		console.log('StarFieldManager: Mounting component');
 
-		// Initialize if enabled
-		if (isRunning) {
-			// Delay to ensure sizing is correct
+		try {
+			// Check if canvas already exists to prevent duplicates
+			let existingCanvas = containerElement.querySelector('canvas.star-field-canvas');
+			
+			if (existingCanvas) {
+				console.log('StarFieldManager: Using existing canvas');
+				canvas = existingCanvas as HTMLCanvasElement;
+			} else {
+				// Create canvas element
+				console.log('StarFieldManager: Creating new canvas element');
+				canvas = document.createElement('canvas');
+				canvas.classList.add('star-field-canvas');
+				canvas.style.position = 'absolute';
+				canvas.style.inset = '0';
+				canvas.style.pointerEvents = 'none';
+				
+				// Add canvas to container
+				console.log('StarFieldManager: Adding canvas to container', containerElement);
+				containerElement.appendChild(canvas);
+			}
+
+			// Get context and check if it's valid
+			ctx = canvas.getContext('2d');
+			if (!ctx) {
+				console.error('StarFieldManager: Failed to get canvas context');
+				return;
+			}
+
+			// Set initial dimensions
+			canvas.width = containerElement.clientWidth || window.innerWidth;
+			canvas.height = containerElement.clientHeight || window.innerHeight;
+			isCanvasInitialized = true;
+
+			// Set up resize observer
+			resizeObserver = setupResizeObserver();
+
+			// Initialize if enabled - delay to ensure DOM is ready
 			setTimeout(() => {
-				initStarField();
-			}, 50);
+				start();
+			}, 100);
+		} catch (error) {
+			console.error('StarFieldManager: Error during initialization:', error);
 		}
 	});
 
@@ -288,6 +342,8 @@
 		canvas = null;
 		ctx = null;
 		stars = [];
+		
+		console.log('StarFieldManager: Component destroyed and cleaned up');
 	});
 </script>
 
