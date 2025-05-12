@@ -9,9 +9,9 @@
 	export let starCount = 300;
 	export let enableBoost = true;
 	export let maxDepth = 32;
-	// FASTER MOVEMENT: Increased base and boost speeds
-	export let baseSpeed = 0.5; // Doubled from 0.25
-	export let boostSpeed = 4; // Doubled from 2
+	// Keep original speeds for stability
+	export let baseSpeed = 0.25; // Reverted from 0.5 to original value
+	export let boostSpeed = 2;   // Reverted from 4 to original value
 
 	// Component state
 	let canvasElement: HTMLCanvasElement;
@@ -27,6 +27,7 @@
 	let boosting = false;
 	let animationFrameId: number | null = null;
 	let speed = baseSpeed;
+	let canvasInitialized = false; // New flag to track canvas initialization
 
 	// Star colors with glow
 	const starColors = [
@@ -47,6 +48,9 @@
 	}
 
 	function createStar() {
+		// Ensure canvas is available before creating stars
+		if (!canvasElement) return;
+		
 		const star = {
 			x: Math.random() * canvasElement.width * 2 - canvasElement.width,
 			y: Math.random() * canvasElement.height * 2 - canvasElement.height,
@@ -59,30 +63,68 @@
 
 	// Setup canvas
 	function setupCanvas() {
-		if (!containerElement) return;
+		if (!containerElement) {
+			console.error('StarField error: containerElement is null or undefined');
+			return;
+		}
 
-		canvasElement = document.createElement('canvas');
-		canvasElement.id = 'starfield';
-		canvasElement.style.position = 'absolute';
-		canvasElement.style.top = '0';
-		canvasElement.style.left = '0';
-		canvasElement.style.width = '100%';
-		canvasElement.style.height = '100%';
-		containerElement.appendChild(canvasElement);
+		try {
+			// Check if canvas already exists to prevent duplicates
+			const existingCanvas = containerElement.querySelector('canvas#starfield');
+			if (existingCanvas) {
+				console.log('Using existing canvas element');
+				canvasElement = existingCanvas as HTMLCanvasElement;
+			} else {
+				console.log('Creating new canvas element for container', containerElement);
+				canvasElement = document.createElement('canvas');
+				canvasElement.id = 'starfield';
+				canvasElement.style.position = 'absolute';
+				canvasElement.style.top = '0';
+				canvasElement.style.left = '0';
+				canvasElement.style.width = '100%';
+				canvasElement.style.height = '100%';
+				containerElement.appendChild(canvasElement);
+			}
 
-		ctx = canvasElement.getContext('2d');
-		resizeCanvas();
+			ctx = canvasElement.getContext('2d');
+			if (!ctx) {
+				console.error('Failed to get canvas context');
+				return;
+			}
+			
+			resizeCanvas();
+			canvasInitialized = true; // Mark canvas as initialized
+			console.log('Canvas initialized successfully with size', canvasElement.width, 'x', canvasElement.height);
+		} catch (error) {
+			console.error('Error setting up canvas:', error);
+		}
 	}
 
 	// Resize canvas
 	function resizeCanvas() {
+		if (!canvasElement) return;
+		
+		// Set canvas dimensions to match window size
 		canvasElement.width = window.innerWidth;
 		canvasElement.height = window.innerHeight;
+		
+		console.log('Canvas resized to', canvasElement.width, 'x', canvasElement.height);
+		
+		// Reinitialize stars after resize
+		if (stars.length > 0) {
+			initStars();
+		}
 	}
 
 	// Animation loop with enhanced effects
 	function animate() {
-		requestAnimationFrame(animate);
+		if (!ctx || !canvasElement || !isRunning) {
+			// Skip animation if not properly initialized or not running
+			if (isRunning) {
+				animationFrameId = requestAnimationFrame(animate);
+			}
+			return;
+		}
 
 		// LONGER TAILS: Reduced alpha for slower fade, creating longer trails
 		ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
@@ -117,7 +159,7 @@
 			}
 
 			// LARGER STARS: Increased size for more visibility
-			const size = (1 - star.z / maxDepth) * 4; // Changed from 3 to 4
+			const size = (1 - star.z / maxDepth) * 3; // Back to original value 3
 
 			const colorIndex = Math.floor((1 - star.z / maxDepth) * (starColors.length - 1));
 			const color = starColors[colorIndex];
@@ -152,6 +194,8 @@
 		if (!boosting && speed > baseSpeed) {
 			speed = Math.max(baseSpeed, speed * 0.98);
 		}
+		
+		animationFrameId = requestAnimationFrame(animate);
 	}
 
 	// Event handlers
@@ -180,8 +224,14 @@
 	// Start animation
 	export function start() {
 		if (isRunning) return;
+		
 		isRunning = true;
+		if (!canvasInitialized && containerElement) {
+			setupCanvas();
+			initStars();
+		}
 		animate();
+		console.log('StarField animation started');
 	}
 
 	// Public boost methods
@@ -212,8 +262,13 @@
 			window.addEventListener('resize', resizeCanvas);
 
 			if (autoStart) {
-				start();
+				// Slight delay to ensure everything is ready
+				setTimeout(() => {
+					start();
+				}, 100);
 			}
+		} else {
+			console.error('StarField error: No container element provided');
 		}
 	});
 
@@ -236,6 +291,8 @@
 		if (canvasElement && canvasElement.parentNode) {
 			canvasElement.parentNode.removeChild(canvasElement);
 		}
+		
+		console.log('StarField destroyed and cleaned up');
 	});
 </script>
 
