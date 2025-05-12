@@ -231,18 +231,71 @@
 		}
 
 		/* Mobile light mode specific */
-		:global(html.light) .arcade-screen-wrapper {
-			margin-top: calc(-0.8 * var(--navbar-height, 64px));
-		}
-
-		:global(html.light) .cabinet-plastic,
-		:global(html.light) .arcade-screen-wrapper,
-		:global(html.light) .screen-bezel {
-			overflow: hidden;
+		:global(html.light) #arcade-cabinet {
+			background: linear-gradient(
+				180deg,
+				var(--light-cabinet-primary) 0%,
+				var(--light-cabinet-secondary) 100%
+			);
+			box-shadow:
+				0 10px 20px rgba(0, 0, 0, 0.08),
+				0 5px 15px rgba(0, 0, 0, 0.04),
+				inset 0 1px 2px var(--light-highlight);
 			border-radius: var(--light-cabinet-border-radius);
 		}
 
-		/* T-molding light theme */
+		:global(html.light) .cabinet-plastic {
+			background: linear-gradient(
+				180deg,
+				var(--light-cabinet-secondary) 0%,
+				var(--light-cabinet-tertiary) 100%
+			);
+			box-shadow:
+				inset 0 5px 15px rgba(0, 0, 0, 0.02),
+				inset -3px 0 8px rgba(0, 0, 0, 0.01),
+				inset 3px 0 8px rgba(0, 0, 0, 0.01),
+				inset 0 -3px 8px rgba(0, 0, 0, 0.02);
+			border-radius: var(--light-cabinet-border-radius);
+			border: 1px solid var(--light-cabinet-border-color);
+		}
+
+		:global(html.light) .cabinet-background {
+			background: linear-gradient(
+				45deg,
+				rgba(240, 240, 240, 0.2) 0%,
+				rgba(250, 250, 250, 0.2) 50%,
+				rgba(240, 240, 240, 0.2) 100%
+			);
+			opacity: 0.6;
+			mix-blend-mode: overlay;
+		}
+
+		:global(html.light) .cabinet-wear {
+			background: repeating-linear-gradient(
+				45deg,
+				transparent 0px,
+				transparent 5px,
+				rgba(0, 0, 0, var(--light-cabinet-texture-opacity)) 5px,
+				rgba(0, 0, 0, var(--light-cabinet-texture-opacity)) 6px
+			);
+			opacity: 0.2;
+			mix-blend-mode: soft-light;  /* Gentler blending */
+		}
+
+		:global(html.light) .screen-bezel {
+			background: linear-gradient(
+				to bottom,
+				var(--light-bezel-gradient-start) 0%,
+				var(--light-bezel-gradient-end) 100%
+			);
+			box-shadow:
+				inset 0 1px 3px rgba(0, 0, 0, 0.08),
+				0 0 1px rgba(255, 255, 255, 0.9),
+				0 2px 4px rgba(0, 0, 0, 0.03);
+			border-radius: calc(var(--border-radius) + 4px);
+		}
+
+		/* Enhanced mobile t-molding with subtler effect */
 		:global(html.light) .t-molding::before {
 			opacity: 0.2;
 			background: linear-gradient(
@@ -252,6 +305,48 @@
 				var(--light-cabinet-accent) 100%
 			);
 			filter: blur(3px);
+		}
+
+		:global(html.light) .t-molding::after {
+			opacity: 0.15;
+			box-shadow:
+				inset 0 0 6px rgba(255, 255, 255, 0.3),
+				0 0 8px var(--light-cabinet-accent);
+		}
+
+		/* Refined corner accents for mobile light mode */
+		:global(html.light) .corner-accent {
+			opacity: 0.3;
+			background: radial-gradient(
+				circle at center,
+				rgba(255, 255, 255, 0.7),
+				rgba(255, 255, 255, 0.05) 70%,
+				transparent 100%
+			);
+			filter: blur(1px);
+		}
+
+		/* Softer light spill for mobile light mode */
+		:global(html.light) .light-spill {
+			background: radial-gradient(circle at 50% 50%, var(--light-cabinet-accent), transparent 70%);
+			opacity: 0.06;
+			filter: blur(15px);
+		}
+
+		/* Subtler control panel light in mobile light mode */
+		:global(html.light) .control-panel-light {
+			opacity: 0.15;
+			background: linear-gradient(to bottom, var(--light-cabinet-accent), transparent);
+		}
+
+		:global(html.light) .arcade-screen-wrapper {
+			margin-top: calc(-0.8 * var(--navbar-height, 64px));
+		}
+
+		:global(html.light) .cabinet-plastic,
+		:global(html.light) .screen-bezel {
+			overflow: hidden;
+			border-radius: var(--light-cabinet-border-radius);
 		}
 	}
 </style>
