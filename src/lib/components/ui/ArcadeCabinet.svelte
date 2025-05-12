@@ -343,7 +343,9 @@
 			margin-top: calc(-0.8 * var(--navbar-height, 64px));
 		}
 
+		/* Ensure proper border-radius on light mode elements */
 		:global(html.light) .cabinet-plastic,
+		:global(html.light) .arcade-screen-wrapper,
 		:global(html.light) .screen-bezel {
 			overflow: hidden;
 			border-radius: var(--light-cabinet-border-radius);
