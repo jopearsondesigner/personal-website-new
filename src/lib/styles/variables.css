@@ -95,8 +95,10 @@
 		--light-cabinet-border-radius: 12px;  /* Rounded corners */
 		--light-cabinet-border-color: rgba(0, 0, 0, 0.05);  /* Very subtle border */
 		--light-cabinet-texture-opacity: 0.02;  /* Nearly invisible texture */
-		--light-bezel-gradient-start: rgba(220, 220, 220, 1);  /* Light bezel gradient */
-		--light-bezel-gradient-end: rgba(200, 200, 200, 1);  /* Light bezel gradient */
+		
+		/* Fine-tuned bezel gradients for better integration with white cabinet */
+		--light-bezel-gradient-start: rgba(245, 245, 245, 1);  /* Lighter start, closer to white */
+		--light-bezel-gradient-end: rgba(220, 220, 220, 1);    /* Still light but provides dimension */
 
 		/* Override other variables for mobile */
 		--screen-glow-opacity: 0.1;  /* Reduced glow effect */
