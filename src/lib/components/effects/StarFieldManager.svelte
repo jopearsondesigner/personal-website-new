@@ -14,6 +14,7 @@
 	export let boostSpeed: number = 2;
 	export let maxDepth: number = 32;
 	export let enableGlow: boolean = true;
+	export let debugMode: boolean = false; // New prop to enable/disable debug mode
 
 	// Internal state
 	let canvas: HTMLCanvasElement;
@@ -24,7 +25,8 @@
 	let isBoosting = false;
 	let animationFrameId = null;
 	let adaptiveQualityEnabled = true;
-	let isCanvasInitialized = false; // New flag to track canvas initialization
+	let isCanvasInitialized = false; // Canvas initialization tracking
+	let errorCount = 0; // Track errors for recovery
 
 	// Event dispatcher
 	const dispatch = createEventDispatcher();
@@ -33,20 +35,27 @@
 	function initStarField() {
 		if (!canvas || !ctx || !containerElement) {
 			console.error('StarFieldManager: Cannot initialize star field - missing canvas, context, or container');
-			return;
+			return false;
 		}
 
-		// Adjust canvas size to container
-		resizeCanvas();
+		try {
+			// Adjust canvas size to container
+			resizeCanvas();
 
-		// Set up stars
-		createStars();
+			// Set up stars
+			createStars();
 
-		// Start animation loop if not already running
-		if (!isRunning) {
-			isRunning = true;
-			animationLoop();
-			console.log('StarFieldManager: Animation started');
+			// Start animation loop if not already running
+			if (!isRunning) {
+				isRunning = true;
+				animationLoop();
+				console.log('StarFieldManager: Animation started');
+			}
+			
+			return true;
+		} catch (error) {
+			console.error('StarFieldManager: Error initializing star field:', error);
+			return false;
 		}
 	}
 
@@ -72,21 +81,30 @@
 
 	// Resize canvas to match container
 	export function resizeCanvas() {
-		if (!canvas || !containerElement) return;
+		if (!canvas || !containerElement) return false;
 
 		try {
 			const rect = containerElement.getBoundingClientRect();
-			canvas.width = rect.width;
-			canvas.height = rect.height;
 			
-			console.log('StarFieldManager: Canvas resized to', canvas.width, 'x', canvas.height);
-			
-			// Re-create stars after resize
-			if (stars.length > 0) {
-				createStars();
+			// Make sure dimensions are valid numbers
+			if (rect.width && rect.height && rect.width > 0 && rect.height > 0) {
+				canvas.width = rect.width;
+				canvas.height = rect.height;
+				
+				console.log('StarFieldManager: Canvas resized to', canvas.width, 'x', canvas.height);
+				
+				// Re-create stars after resize
+				if (stars.length > 0) {
+					createStars();
+				}
+				return true;
+			} else {
+				console.error('StarFieldManager: Invalid container dimensions:', rect);
+				return false;
 			}
 		} catch (error) {
 			console.error('StarFieldManager: Error during resize:', error);
+			return false;
 		}
 	}
 
@@ -98,10 +116,8 @@
 		}
 
 		try {
-			// Only render if frame should be rendered (performance optimization)
-			// Temporarily disable frame rate controller to debug animation
-			// if (frameRateController.shouldRenderFrame()) {
-			if (true) {  // Always render every frame while debugging
+			// Re-enable frame rate controller but keep in debug mode if needed
+			if (debugMode || frameRateController.shouldRenderFrame()) {
 				// Clear canvas
 				ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -170,11 +186,24 @@
 				}
 			}
 
-			// Request next frame
+			// Request next frame with proper tracking
+			if (animationFrameId) {
+				cancelAnimationFrame(animationFrameId);
+			}
 			animationFrameId = requestAnimationFrame(animationLoop);
+			
 		} catch (error) {
 			console.error('StarFieldManager: Error in animation loop:', error);
-			// Attempt to recover
+			errorCount++;
+			
+			// Stop animation if too many errors
+			if (errorCount > 10) {
+				dispatch('error', { message: 'Too many errors in animation loop' });
+				stop();
+				return;
+			}
+			
+			// Error recovery - try again after a delay
 			isPaused = true;
 			setTimeout(() => {
 				isPaused = false;
@@ -189,10 +218,13 @@
 			console.log('StarFieldManager: Starting animation');
 			isRunning = true;
 			isPaused = false;
+			errorCount = 0; // Reset error count
+			
 			if (canvas && containerElement) {
 				initStarField();
 			} else {
 				console.error('StarFieldManager: Cannot start - missing canvas or container');
+				dispatch('error', { message: 'Cannot start - missing canvas or container' });
 			}
 		} else if (isPaused) {
 			isPaused = false;
@@ -207,6 +239,7 @@
 			cancelAnimationFrame(animationFrameId);
 			animationFrameId = null;
 		}
+		dispatch('stop');
 	}
 
 	export function pause() {
@@ -215,21 +248,25 @@
 			cancelAnimationFrame(animationFrameId);
 			animationFrameId = null;
 		}
+		dispatch('pause');
 	}
 
 	export function resume() {
 		if (isRunning && isPaused) {
 			isPaused = false;
 			animationLoop();
+			dispatch('resume');
 		}
 	}
 
 	export function boost() {
 		isBoosting = true;
+		dispatch('boost');
 	}
 
 	export function unboost() {
 		isBoosting = false;
+		dispatch('unboost');
 	}
 
 	// Adapt to device capabilities
@@ -248,6 +285,8 @@
 
 		// Adapt glow effects
 		enableGlow = capabilities.enableGlow !== undefined ? capabilities.enableGlow : enableGlow;
+		
+		dispatch('adapted', { capabilities });
 	}
 
 	// Monitor window resize
@@ -256,10 +295,11 @@
 
 		console.log('StarFieldManager: Setting up resize observer');
 		const resizeObserver = new ResizeObserver(() => {
-			// Only resize if we're running
-			if (isRunning) {
+			// Only resize if we're running and initialized
+			if (isRunning && isCanvasInitialized) {
 				console.log('StarFieldManager: Resize detected');
 				resizeCanvas();
+				dispatch('resize', { width: canvas.width, height: canvas.height });
 			}
 		});
 
@@ -290,6 +330,7 @@
 				console.log('StarFieldManager: Creating new canvas element');
 				canvas = document.createElement('canvas');
 				canvas.classList.add('star-field-canvas');
+				canvas.id = 'starfield'; // Unified ID with StarField component
 				canvas.style.position = 'absolute';
 				canvas.style.inset = '0';
 				canvas.style.pointerEvents = 'none';
@@ -303,6 +344,7 @@
 			ctx = canvas.getContext('2d');
 			if (!ctx) {
 				console.error('StarFieldManager: Failed to get canvas context');
+				dispatch('error', { message: 'Failed to get canvas context' });
 				return;
 			}
 
@@ -310,6 +352,7 @@
 			canvas.width = containerElement.clientWidth || window.innerWidth;
 			canvas.height = containerElement.clientHeight || window.innerHeight;
 			isCanvasInitialized = true;
+			dispatch('initialized');
 
 			// Set up resize observer
 			resizeObserver = setupResizeObserver();
@@ -320,6 +363,7 @@
 			}, 100);
 		} catch (error) {
 			console.error('StarFieldManager: Error during initialization:', error);
+			dispatch('error', { message: 'Error during initialization', error });
 		}
 	});
 
@@ -344,6 +388,7 @@
 		stars = [];
 		
 		console.log('StarFieldManager: Component destroyed and cleaned up');
+		dispatch('destroyed');
 	});
 </script>
 
