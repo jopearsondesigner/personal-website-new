@@ -633,6 +633,34 @@
 				transparent 80%
 			);
 		}
+		/* Light mode mobile border-radius overrides */
+		:global(html.light) #game-screen {
+			border-radius: var(--light-cabinet-border-radius);
+		}
+
+		:global(html.light) .game-view-container {
+			border-radius: calc(var(--light-cabinet-border-radius) - 1px);
+		}
+
+		:global(html.light) .game-background {
+			border-radius: var(--light-cabinet-border-radius);
+		}
+
+		:global(html.light) .game-background::before {
+			border-radius: calc(var(--light-cabinet-border-radius) + 2px);
+		}
+
+		:global(html.light) .game-background::after {
+			border-radius: calc(var(--light-cabinet-border-radius) - 1px);
+		}
+
+		:global(html.light) .side-panel.left {
+			border-radius: var(--light-cabinet-border-radius) 0 0 var(--light-cabinet-border-radius);
+		}
+
+		:global(html.light) .side-panel.right {
+			border-radius: 0 var(--light-cabinet-border-radius) var(--light-cabinet-border-radius) 0;
+		}
 	}
 
 	/* ==========================================================================
