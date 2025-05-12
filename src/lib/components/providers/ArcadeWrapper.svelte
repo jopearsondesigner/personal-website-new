@@ -3,7 +3,6 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import ArcadeCabinet from '$lib/components/ui/ArcadeCabinet.svelte';
-	import PerformanceMonitor from '$lib/components/devtools/PerformanceMonitor.svelte';
 
 	// Props
 	export let currentScreen = 'main';
@@ -65,11 +64,6 @@
 				Arcade Cabinet Debug
 			</div>
 		{/if}
-	</div>
-
-	<!-- Performance Monitor rendered separately -->
-	<div style="position: absolute; top: 0; right: 0; z-index: 9000;">
-		<PerformanceMonitor />
 	</div>
 </div>
 
