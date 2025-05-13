@@ -59,6 +59,13 @@
 		// Set other required CSS variables
 		document.documentElement.style.setProperty('--glass-thickness', '2px');
 		document.documentElement.style.setProperty('--glass-edge-highlight', 'rgba(255, 255, 255, 0.1)');
+		
+		// IMPORTANT: Set default border-radius if not defined
+		const computedStyle = getComputedStyle(document.documentElement);
+		const currentBorderRadius = computedStyle.getPropertyValue('--border-radius').trim();
+		if (!currentBorderRadius || currentBorderRadius === 'initial') {
+			document.documentElement.style.setProperty('--border-radius', '3vmin');
+		}
 
 		// During initialization, set initial opacity for glass elements to 0
 		if (isInitializing && glassContainer) {
@@ -158,6 +165,7 @@
 				if (glassContainer) {
 					glassContainer.classList.add('glass-warmup');
 					isInitializing = false;
+					console.log('Glass warmup started');
 				}
 			}, 150); // Short delay to ensure power sequence starts first
 		}
@@ -297,22 +305,22 @@
 		transform-style: preserve-3d;
 	}
 
-	/* Glass effects */
+	/* Glass effects with more visible defaults */
 	.screen-glass-outer {
 		position: absolute;
 		inset: 0;
 		background: linear-gradient(
 			135deg,
 			transparent 0%,
-			rgba(255, 255, 255, 0.01) 15%,
-			rgba(255, 255, 255, var(--glass-reflectivity)) 45%,
-			rgba(255, 255, 255, 0.01) 75%,
+			rgba(255, 255, 255, 0.02) 15%,
+			rgba(255, 255, 255, var(--glass-reflectivity, 0.15)) 45%,
+			rgba(255, 255, 255, 0.02) 75%,
 			transparent 100%
 		);
-		border-radius: var(--border-radius);
+		border-radius: var(--border-radius, 3vmin);
 		backdrop-filter: brightness(1.03) contrast(1.05);
 		mix-blend-mode: overlay;
-		transform: perspective(1000px) translateZ(var(--glass-thickness));
+		transform: perspective(1000px) translateZ(var(--glass-thickness, 2px));
 		opacity: 0.7;
 	}
 
@@ -326,8 +334,8 @@
 			rgba(0, 0, 0, 0.15) 100%
 		);
 		opacity: 0.5;
-		border-radius: var(--border-radius);
-		transform: perspective(1000px) translateZ(calc(var(--glass-thickness) * 0.5));
+		border-radius: var(--border-radius, 3vmin);
+		transform: perspective(1000px) translateZ(calc(var(--glass-thickness, 2px) * 0.5));
 	}
 
 	.screen-glass-reflection {
@@ -342,7 +350,7 @@
 			transparent 80%
 		);
 		opacity: 0.6;
-		border-radius: var(--border-radius);
+		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: screen;
 		animation: slowGlassShift 8s ease-in-out infinite alternate;
 	}
@@ -350,8 +358,8 @@
 	.screen-glass-edge {
 		position: absolute;
 		inset: 0;
-		border: 2px solid var(--glass-edge-highlight);
-		border-radius: var(--border-radius);
+		border: 2px solid var(--glass-edge-highlight, rgba(255, 255, 255, 0.1));
+		border-radius: var(--border-radius, 3vmin);
 		opacity: 0.12;
 		box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.1);
 		background: transparent;
@@ -363,9 +371,9 @@
 		position: absolute;
 		inset: 0;
 		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%%25' height='100%%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-		opacity: var(--glass-smudge-opacity);
+		opacity: var(--glass-smudge-opacity, 0.04);
 		filter: contrast(120%) brightness(150%);
-		border-radius: var(--border-radius);
+		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: overlay;
 		transform: scale(1.01);
 	}
@@ -374,9 +382,9 @@
 		position: absolute;
 		inset: 0;
 		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='dust'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.15 0'/%3E%3C/filter%3E%3Crect width='100%%25' height='100%%25' filter='url(%23dust)'/%3E%3C/svg%3E");
-		opacity: var(--glass-dust-opacity);
+		opacity: var(--glass-dust-opacity, 0.03);
 		filter: contrast(150%) brightness(120%);
-		border-radius: var(--border-radius);
+		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: overlay;
 		transform: scale(1.02);
 	}
@@ -391,7 +399,7 @@
 			transparent 70%
 		);
 		opacity: 0.2;
-		border-radius: var(--border-radius);
+		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: screen;
 		filter: blur(2px);
 	}
@@ -407,10 +415,25 @@
 			rgba(0, 0, 255, 0.01) 60%,
 			transparent 70%
 		);
-		opacity: var(--internal-reflection-opacity);
-		border-radius: var(--border-radius);
+		opacity: var(--internal-reflection-opacity, 0.045);
+		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: screen;
 		animation: slowInternalReflection 12s ease-in-out infinite alternate;
+	}
+
+	/* ENHANCED: Made the glass edge effect more visible like in screenshot 2 */  
+	.screen-glass-container::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border: 1px solid rgba(0, 255, 255, 0.3); /* Cyan edge highlight */
+		border-radius: var(--border-radius, 3vmin);
+		box-shadow: 
+			inset 0 0 20px rgba(0, 255, 255, 0.1),
+			0 0 10px rgba(0, 255, 255, 0.2);
+		pointer-events: none;
+		opacity: 1;
+		mix-blend-mode: screen;
 	}
 
 	/* FIXED: Corrected glass warmup animation class */
@@ -437,11 +460,11 @@
 
 	@keyframes slowInternalReflection {
 		0% {
-			opacity: var(--internal-reflection-opacity);
+			opacity: var(--internal-reflection-opacity, 0.045);
 			transform: translateX(-10px) translateY(-5px);
 		}
 		100% {
-			opacity: calc(var(--internal-reflection-opacity) * 1.5);
+			opacity: calc(var(--internal-reflection-opacity, 0.045) * 1.5);
 			transform: translateX(10px) translateY(5px);
 		}
 	}
