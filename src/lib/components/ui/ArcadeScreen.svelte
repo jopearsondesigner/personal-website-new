@@ -33,11 +33,20 @@
 	function initializeGlassEffects() {
 		if (!browser) return;
 
+		console.log('Initializing glass effects...');
+		
 		// Get the glass container with a more specific selector
 		const glassContainer = document.querySelector('.screen-glass-container');
-		console.log('Glass container:', glassContainer);
+		console.log('Glass container found:', !!glassContainer);
+		
 		if (!glassContainer) {
-			console.error('Glass container not found');
+			console.error('Glass container not found - checking DOM structure');
+			// Debug: Log the actual DOM structure
+			const screen = document.querySelector('#arcade-screen');
+			console.log('Arcade screen found:', !!screen);
+			if (screen) {
+				console.log('Screen HTML:', screen.innerHTML.substring(0, 500));
+			}
 			return;
 		}
 
@@ -60,6 +69,12 @@
 		document.documentElement.style.setProperty('--glass-thickness', '2px');
 		document.documentElement.style.setProperty('--glass-edge-highlight', 'rgba(255, 255, 255, 0.1)');
 		
+		// Set brand teal colors for glass effects
+		document.documentElement.style.setProperty('--teal-100', '#B3EFEF');
+		document.documentElement.style.setProperty('--teal-200', '#80E7E7');
+		document.documentElement.style.setProperty('--teal-300', '#4DDCDC');
+		document.documentElement.style.setProperty('--teal-500', '#00A8A8');
+		
 		// IMPORTANT: Set default border-radius if not defined
 		const computedStyle = getComputedStyle(document.documentElement);
 		const currentBorderRadius = computedStyle.getPropertyValue('--border-radius').trim();
@@ -70,8 +85,10 @@
 		// During initialization, set initial opacity for glass elements to 0
 		if (isInitializing && glassContainer) {
 			const glassElements = glassContainer.querySelectorAll('div');
+			console.log('Glass elements found:', glassElements.length);
 			glassElements.forEach((el) => {
 				(el as HTMLElement).style.opacity = '0';
+				console.log('Set opacity to 0 for:', el.className);
 			});
 		}
 
@@ -148,6 +165,8 @@
 	onMount(() => {
 		if (!browser) return;
 
+		console.log('ArcadeScreen mounted');
+		
 		// Detect device capabilities
 		detectDeviceCapabilities();
 
@@ -156,16 +175,18 @@
 
 		// Start power-up sequence with proper animation timing
 		if (arcadeScreen) {
+			console.log('Starting power-up sequence');
 			// First add the power-sequence class to trigger the CRT power-up effect
 			arcadeScreen.classList.add('power-sequence');
 
 			// After a short delay, trigger the glass warm-up effect
 			setTimeout(() => {
 				const glassContainer = document.querySelector('.screen-glass-container');
+				console.log('Triggering glass warmup, container found:', !!glassContainer);
 				if (glassContainer) {
 					glassContainer.classList.add('glass-warmup');
 					isInitializing = false;
-					console.log('Glass warmup started');
+					console.log('Glass warmup started, classes:', glassContainer.className);
 				}
 			}, 150); // Short delay to ensure power sequence starts first
 		}
@@ -223,16 +244,16 @@
 		<GameScreen on:stateChange={handleGameStateChange} />
 	{/if}
 
-	<!-- Glass effects and overlays - this needs highest z-index -->
-	<div class="screen-glass-container rounded-[3vmin] hardware-accelerated">
-		<div class="screen-glass-outer rounded-[3vmin]"></div>
-		<div class="screen-glass-inner rounded-[3vmin]"></div>
-		<div class="screen-glass-reflection rounded-[3vmin]"></div>
-		<div class="screen-glass-edge rounded-[3vmin]"></div>
-		<div class="screen-glass-smudges rounded-[3vmin]"></div>
-		<div class="screen-glass-dust rounded-[3vmin]"></div>
-		<div class="screen-glass-specular rounded-[3vmin]"></div>
-		<div class="screen-internal-reflection rounded-[3vmin]"></div>
+	<!-- Glass effects and overlays - TESTING WITH VISIBLE EFFECTS -->
+	<div class="screen-glass-container rounded-[3vmin] hardware-accelerated" data-test="glass-effects">
+		<div class="screen-glass-outer rounded-[3vmin]" data-test="glass-outer"></div>
+		<div class="screen-glass-inner rounded-[3vmin]" data-test="glass-inner"></div>
+		<div class="screen-glass-reflection rounded-[3vmin]" data-test="glass-reflection"></div>
+		<div class="screen-glass-edge rounded-[3vmin]" data-test="glass-edge"></div>
+		<div class="screen-glass-smudges rounded-[3vmin]" data-test="glass-smudges"></div>
+		<div class="screen-glass-dust rounded-[3vmin]" data-test="glass-dust"></div>
+		<div class="screen-glass-specular rounded-[3vmin]" data-test="glass-specular"></div>
+		<div class="screen-internal-reflection rounded-[3vmin]" data-test="glass-internal"></div>
 	</div>
 
 	<div
@@ -294,34 +315,38 @@
 		mix-blend-mode: screen;
 	}
 
-	/* Glass container styling - fixed z-index to be above content but below scanlines */
+	/* Glass container styling - TESTING WITH HIGH VISIBILITY */
 	.screen-glass-container {
 		position: absolute;
 		inset: 0;
 		overflow: hidden;
 		pointer-events: none;
-		z-index: 20; /* Higher z-index to ensure it's above content but below scanlines */
+		z-index: 20;
 		will-change: transform, filter;
 		transform-style: preserve-3d;
+		/* TESTING: Temporary bright background to check visibility */
+		background: rgba(255, 0, 0, 0.1); /* Red tint to test visibility */
 	}
 
-	/* Glass effects with more visible defaults */
+	/* Glass effects with HIGHLY VISIBLE settings for testing */
 	.screen-glass-outer {
 		position: absolute;
 		inset: 0;
 		background: linear-gradient(
 			135deg,
 			transparent 0%,
-			rgba(255, 255, 255, 0.02) 15%,
-			rgba(255, 255, 255, var(--glass-reflectivity, 0.15)) 45%,
-			rgba(255, 255, 255, 0.02) 75%,
+			rgba(128, 231, 231, 0.3) 15%, /* Using teal-200 */
+			rgba(77, 220, 220, 0.4) 45%, /* Using teal-300 */
+			rgba(128, 231, 231, 0.3) 75%, /* Using teal-200 */
 			transparent 100%
 		);
 		border-radius: var(--border-radius, 3vmin);
-		backdrop-filter: brightness(1.03) contrast(1.05);
+		backdrop-filter: brightness(1.1) contrast(1.1);
 		mix-blend-mode: overlay;
 		transform: perspective(1000px) translateZ(var(--glass-thickness, 2px));
-		opacity: 0.7;
+		opacity: 1; /* TESTING: Full opacity */
+		/* TESTING: Add a colored background for visibility */
+		box-shadow: inset 0 0 50px rgba(0, 168, 168, 0.2); /* Using teal-500 */
 	}
 
 	.screen-glass-inner {
@@ -330,10 +355,10 @@
 		background: radial-gradient(
 			ellipse at center,
 			transparent 30%,
-			rgba(0, 0, 0, 0.07) 75%,
-			rgba(0, 0, 0, 0.15) 100%
+			rgba(0, 168, 168, 0.1) 75%, /* Using teal-500 */
+			rgba(0, 168, 168, 0.2) 100% /* Using teal-500 */
 		);
-		opacity: 0.5;
+		opacity: 1; /* TESTING: Full opacity */
 		border-radius: var(--border-radius, 3vmin);
 		transform: perspective(1000px) translateZ(calc(var(--glass-thickness, 2px) * 0.5));
 	}
@@ -344,12 +369,12 @@
 		background: linear-gradient(
 			135deg,
 			transparent 20%,
-			rgba(255, 255, 255, 0.03) 40%,
-			rgba(255, 255, 255, 0.07) 50%,
-			rgba(255, 255, 255, 0.03) 60%,
+			rgba(179, 239, 239, 0.2) 40%, /* Using teal-100 */
+			rgba(128, 231, 231, 0.3) 50%, /* Using teal-200 */
+			rgba(179, 239, 239, 0.2) 60%, /* Using teal-100 */
 			transparent 80%
 		);
-		opacity: 0.6;
+		opacity: 1; /* TESTING: Full opacity */
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: screen;
 		animation: slowGlassShift 8s ease-in-out infinite alternate;
@@ -358,10 +383,12 @@
 	.screen-glass-edge {
 		position: absolute;
 		inset: 0;
-		border: 2px solid var(--glass-edge-highlight, rgba(255, 255, 255, 0.1));
+		border: 2px solid rgba(77, 220, 220, 0.5); /* Using teal-300 */
 		border-radius: var(--border-radius, 3vmin);
-		opacity: 0.12;
-		box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.1);
+		opacity: 1; /* TESTING: Full opacity */
+		box-shadow: 
+			inset 0 0 20px rgba(0, 168, 168, 0.3), /* Using teal-500 */
+			0 0 10px rgba(77, 220, 220, 0.4); /* Using teal-300 */
 		background: transparent;
 		background-clip: padding-box;
 		backdrop-filter: blur(0.5px);
@@ -371,7 +398,7 @@
 		position: absolute;
 		inset: 0;
 		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%%25' height='100%%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-		opacity: var(--glass-smudge-opacity, 0.04);
+		opacity: 0.2; /* TESTING: More visible opacity */
 		filter: contrast(120%) brightness(150%);
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: overlay;
@@ -382,7 +409,7 @@
 		position: absolute;
 		inset: 0;
 		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='dust'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.15 0'/%3E%3C/filter%3E%3Crect width='100%%25' height='100%%25' filter='url(%23dust)'/%3E%3C/svg%3E");
-		opacity: var(--glass-dust-opacity, 0.03);
+		opacity: 0.1; /* TESTING: More visible opacity */
 		filter: contrast(150%) brightness(120%);
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: overlay;
@@ -394,11 +421,11 @@
 		inset: 0;
 		background: radial-gradient(
 			ellipse at center,
-			rgba(255, 255, 255, 0.2) 0%,
-			rgba(255, 255, 255, 0.05) 60%,
+			rgba(179, 239, 239, 0.6) 0%, /* Using teal-100 */
+			rgba(179, 239, 239, 0.2) 60%, /* Using teal-100 */
 			transparent 70%
 		);
-		opacity: 0.2;
+		opacity: 1; /* TESTING: Full opacity */
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: screen;
 		filter: blur(2px);
@@ -410,41 +437,43 @@
 		background: linear-gradient(
 			135deg,
 			transparent 30%,
-			rgba(0, 255, 255, 0.01) 40%,
-			rgba(255, 0, 255, 0.02) 50%,
-			rgba(0, 0, 255, 0.01) 60%,
+			rgba(0, 168, 168, 0.05) 40%, /* Using teal-500 */
+			rgba(77, 220, 220, 0.08) 50%, /* Using teal-300 */
+			rgba(0, 168, 168, 0.05) 60%, /* Using teal-500 */
 			transparent 70%
 		);
-		opacity: var(--internal-reflection-opacity, 0.045);
+		opacity: 1; /* TESTING: Full opacity */
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: screen;
 		animation: slowInternalReflection 12s ease-in-out infinite alternate;
 	}
 
-	/* ENHANCED: Made the glass edge effect more visible like in screenshot 2 */  
+	/* TESTING: Make the cyan edge effect VERY VISIBLE */  
 	.screen-glass-container::after {
 		content: '';
 		position: absolute;
 		inset: 0;
-		border: 1px solid rgba(0, 255, 255, 0.3); /* Cyan edge highlight */
+		border: 3px solid rgba(77, 220, 220, 0.8); /* Using teal-300 with high opacity */
 		border-radius: var(--border-radius, 3vmin);
 		box-shadow: 
-			inset 0 0 20px rgba(0, 255, 255, 0.1),
-			0 0 10px rgba(0, 255, 255, 0.2);
+			inset 0 0 30px rgba(0, 168, 168, 0.4), /* Using teal-500 */
+			0 0 20px rgba(77, 220, 220, 0.6); /* Using teal-300 */
 		pointer-events: none;
 		opacity: 1;
 		mix-blend-mode: screen;
+		z-index: 100; /* TESTING: Higher z-index */
 	}
 
-	/* FIXED: Corrected glass warmup animation class */
-	.screen-glass-container.glass-warmup .screen-glass-outer,
-	.screen-glass-container.glass-warmup .screen-glass-inner,
-	.screen-glass-container.glass-warmup .screen-glass-reflection,
-	.screen-glass-container.glass-warmup .screen-glass-edge,
-	.screen-glass-container.glass-warmup .screen-glass-smudges,
-	.screen-glass-container.glass-warmup .screen-glass-dust,
-	.screen-glass-container.glass-warmup .screen-glass-specular,
-	.screen-glass-container.glass-warmup .screen-internal-reflection {
+	/* TESTING: Remove conditions from warmup animation */
+	.screen-glass-container .screen-glass-outer,
+	.screen-glass-container .screen-glass-inner,
+	.screen-glass-container .screen-glass-reflection,
+	.screen-glass-container .screen-glass-edge,
+	.screen-glass-container .screen-glass-smudges,
+	.screen-glass-container .screen-glass-dust,
+	.screen-glass-container .screen-glass-specular,
+	.screen-glass-container .screen-internal-reflection {
+		/* TESTING: Apply animation immediately without conditions */
 		animation: glassWarmUp 3s ease-out forwards;
 	}
 
@@ -460,11 +489,11 @@
 
 	@keyframes slowInternalReflection {
 		0% {
-			opacity: var(--internal-reflection-opacity, 0.045);
+			opacity: 0.5;
 			transform: translateX(-10px) translateY(-5px);
 		}
 		100% {
-			opacity: calc(var(--internal-reflection-opacity, 0.045) * 1.5);
+			opacity: 1;
 			transform: translateX(10px) translateY(5px);
 		}
 	}
@@ -523,23 +552,13 @@
 		}
 	}
 
-	/* FIXED: Glass warmup animation - now properly shows the glass effects */
+	/* TESTING: Simplified glass warmup animation */
 	@keyframes glassWarmUp {
 		0% {
 			opacity: 0;
-			filter: brightness(0.5) blur(2px);
-		}
-		30% {
-			opacity: 0.3;
-			filter: brightness(0.7) blur(1px);
-		}
-		60% {
-			opacity: 0.7;
-			filter: brightness(0.85) blur(0.5px);
 		}
 		100% {
 			opacity: 1;
-			filter: brightness(1) blur(0);
 		}
 	}
 
