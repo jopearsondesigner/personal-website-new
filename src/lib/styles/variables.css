@@ -147,11 +147,11 @@
 		filter: brightness(0.7) blur(1px);
 	}
 	60% {
-		opacity: 0.5;
+		opacity: 0.7;
 		filter: brightness(0.85) blur(0.5px);
 	}
 	100% {
-		opacity: 0;
+		opacity: 1; /* FIXED: Changed from 0 to 1 */
 		filter: brightness(1) blur(0);
 	}
 }
