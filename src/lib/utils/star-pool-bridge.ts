@@ -58,7 +58,6 @@ class StarPoolBridge {
 	}
 
 	/**
-	 /**
 	 * Setup cleanup handler on page unload
 	 * Benefit: Ensures resources are properly released when navigating away
 	 */
