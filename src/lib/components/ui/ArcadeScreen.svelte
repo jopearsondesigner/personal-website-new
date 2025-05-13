@@ -45,27 +45,27 @@
 		// Apply initial glass physics based on screen type
 		if (currentScreen === 'game') {
 			// For game screen, slightly adjust glass properties for gameplay visibility
-			document.documentElement.style.setProperty('--glass-reflectivity', '0.08');
-			document.documentElement.style.setProperty('--glass-dust-opacity', '0.015');
-			document.documentElement.style.setProperty('--glass-smudge-opacity', '0.02');
-			document.documentElement.style.setProperty('--internal-reflection-opacity', '0.02');
+			document.documentElement.style.setProperty('--glass-reflectivity', '0.12');
+			document.documentElement.style.setProperty('--glass-dust-opacity', '0.02');
+			document.documentElement.style.setProperty('--glass-smudge-opacity', '0.03');
+			document.documentElement.style.setProperty('--internal-reflection-opacity', '0.035');
 		} else {
 			// For main screen, use default glass settings
-			document.documentElement.style.setProperty('--glass-reflectivity', '0.1');
-			document.documentElement.style.setProperty('--glass-dust-opacity', '0.025');
-			document.documentElement.style.setProperty('--glass-smudge-opacity', '0.03');
-			document.documentElement.style.setProperty('--internal-reflection-opacity', '0.025');
+			document.documentElement.style.setProperty('--glass-reflectivity', '0.15');
+			document.documentElement.style.setProperty('--glass-dust-opacity', '0.03');
+			document.documentElement.style.setProperty('--glass-smudge-opacity', '0.04');
+			document.documentElement.style.setProperty('--internal-reflection-opacity', '0.045');
 		}
 
 		// Set other required CSS variables
-		document.documentElement.style.setProperty('--glass-thickness', '1px');
-		document.documentElement.style.setProperty('--glass-edge-highlight', 'rgba(255, 255, 255, 0.05)');
+		document.documentElement.style.setProperty('--glass-thickness', '2px');
+		document.documentElement.style.setProperty('--glass-edge-highlight', 'rgba(255, 255, 255, 0.1)');
 		
-		// Set brand teal colors for glass effects (very subtle)
-		document.documentElement.style.setProperty('--teal-glass-100', 'rgba(240, 253, 253, 0.01)'); // Extremely subtle
-		document.documentElement.style.setProperty('--teal-glass-200', 'rgba(191, 247, 247, 0.02)'); // Extremely subtle  
-		document.documentElement.style.setProperty('--teal-glass-300', 'rgba(165, 243, 243, 0.03)'); // Very subtle
-		document.documentElement.style.setProperty('--teal-glass-500', 'rgba(6, 161, 161, 0.05)'); // Subtle
+		// Set brand teal colors for glass effects (subtle)
+		document.documentElement.style.setProperty('--teal-100', 'rgba(179, 239, 239, 0.03)'); // Very subtle
+		document.documentElement.style.setProperty('--teal-200', 'rgba(128, 231, 231, 0.05)'); // Very subtle
+		document.documentElement.style.setProperty('--teal-300', 'rgba(77, 220, 220, 0.08)'); // Very subtle
+		document.documentElement.style.setProperty('--teal-500', 'rgba(0, 168, 168, 0.1)'); // Very subtle
 		
 		// IMPORTANT: Set default border-radius if not defined
 		const computedStyle = getComputedStyle(document.documentElement);
@@ -99,7 +99,7 @@
 			const offsetY = (e.clientY - centerY) / (rect.height / 2);
 
 			// Calculate movement limits
-			const maxMove = 4; // maximum movement in pixels (reduced for subtlety)
+			const maxMove = 8; // maximum movement in pixels
 			const moveX = offsetX * maxMove;
 			const moveY = offsetY * maxMove;
 
@@ -109,16 +109,16 @@
 
 			if (specular) {
 				(specular as HTMLElement).style.transform =
-					`translate(${-moveX * 0.5}px, ${-moveY * 0.5}px)`;
+					`translate(${-moveX * 0.8}px, ${-moveY * 0.8}px)`;
 				(specular as HTMLElement).style.opacity = (
-					0.1 +
-					Math.abs(offsetX * offsetY) * 0.05
+					0.2 +
+					Math.abs(offsetX * offsetY) * 0.1
 				).toString();
 			}
 
 			if (reflection) {
 				(reflection as HTMLElement).style.transform =
-					`translate(${moveX * 0.2}px, ${moveY * 0.2}px)`;
+					`translate(${moveX * 0.3}px, ${moveY * 0.3}px)`;
 			}
 		};
 
@@ -309,26 +309,26 @@
 		z-index: 20;
 		will-change: transform, filter;
 		transform-style: preserve-3d;
-		/* REMOVED: All testing background colors */
+		/* REMOVED: No more testing background colors */
 	}
 
-	/* Glass effects with VERY SUBTLE, REALISTIC values */
+	/* Glass effects with SUBTLE, REALISTIC values */
 	.screen-glass-outer {
 		position: absolute;
 		inset: 0;
 		background: linear-gradient(
 			135deg,
 			transparent 0%,
-			var(--teal-glass-100) 20%,
-			var(--teal-glass-200) 40%,
-			var(--teal-glass-100) 60%,
+			var(--teal-100) 15%,
+			var(--teal-200) 45%,
+			var(--teal-100) 75%,
 			transparent 100%
 		);
 		border-radius: var(--border-radius, 3vmin);
-		backdrop-filter: brightness(1.005) contrast(1.01);
+		backdrop-filter: brightness(1.01) contrast(1.02);
 		mix-blend-mode: overlay;
-		transform: perspective(1000px) translateZ(var(--glass-thickness, 1px));
-		opacity: 0.1; /* Very subtle */
+		transform: perspective(1000px) translateZ(var(--glass-thickness, 2px));
+		opacity: 0.3; /* Much more subtle */
 	}
 
 	.screen-glass-inner {
@@ -336,13 +336,13 @@
 		inset: 0;
 		background: radial-gradient(
 			ellipse at center,
-			transparent 40%,
-			rgba(0, 0, 0, 0.01) 80%,
-			rgba(0, 0, 0, 0.025) 100%
+			transparent 30%,
+			rgba(0, 0, 0, 0.02) 75%,
+			rgba(0, 0, 0, 0.05) 100%
 		);
-		opacity: 0.2; /* Subtle */
+		opacity: 0.4; /* Subtle */
 		border-radius: var(--border-radius, 3vmin);
-		transform: perspective(1000px) translateZ(calc(var(--glass-thickness, 1px) * 0.5));
+		transform: perspective(1000px) translateZ(calc(var(--glass-thickness, 2px) * 0.5));
 	}
 
 	.screen-glass-reflection {
@@ -350,52 +350,52 @@
 		inset: 0;
 		background: linear-gradient(
 			135deg,
-			transparent 30%,
-			var(--teal-glass-100) 45%,
-			var(--teal-glass-200) 50%,
-			var(--teal-glass-100) 55%,
-			transparent 70%
+			transparent 20%,
+			var(--teal-100) 40%,
+			var(--teal-200) 50%,
+			var(--teal-100) 60%,
+			transparent 80%
 		);
-		opacity: 0.15; /* Subtle */
+		opacity: 0.4; /* Subtle */
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: screen;
-		animation: slowGlassShift 10s ease-in-out infinite alternate;
+		animation: slowGlassShift 8s ease-in-out infinite alternate;
 	}
 
 	.screen-glass-edge {
 		position: absolute;
 		inset: 0;
-		border: 1px solid var(--teal-glass-300);
+		border: 1px solid var(--teal-300); /* Subtle teal border */
 		border-radius: var(--border-radius, 3vmin);
-		opacity: 0.3; /* Visible but not overwhelming */
+		opacity: 0.6; /* Visible but not overwhelming */
 		box-shadow: 
-			inset 0 0 10px var(--teal-glass-500),
-			0 0 4px var(--teal-glass-300);
+			inset 0 0 15px var(--teal-500),
+			0 0 8px var(--teal-300);
 		background: transparent;
 		background-clip: padding-box;
-		backdrop-filter: blur(0.25px);
+		backdrop-filter: blur(0.5px);
 	}
 
 	.screen-glass-smudges {
 		position: absolute;
 		inset: 0;
 		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%%25' height='100%%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-		opacity: var(--glass-smudge-opacity, 0.03);
-		filter: contrast(110%) brightness(130%);
+		opacity: var(--glass-smudge-opacity, 0.04);
+		filter: contrast(120%) brightness(150%);
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: overlay;
-		transform: scale(1.005);
+		transform: scale(1.01);
 	}
 
 	.screen-glass-dust {
 		position: absolute;
 		inset: 0;
 		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='dust'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.15 0'/%3E%3C/filter%3E%3Crect width='100%%25' height='100%%25' filter='url(%23dust)'/%3E%3C/svg%3E");
-		opacity: var(--glass-dust-opacity, 0.025);
-		filter: contrast(120%) brightness(110%);
+		opacity: var(--glass-dust-opacity, 0.03);
+		filter: contrast(150%) brightness(120%);
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: overlay;
-		transform: scale(1.01);
+		transform: scale(1.02);
 	}
 
 	.screen-glass-specular {
@@ -403,45 +403,45 @@
 		inset: 0;
 		background: radial-gradient(
 			ellipse at center,
-			rgba(255, 255, 255, 0.04) 0%,
-			rgba(255, 255, 255, 0.015) 50%,
+			rgba(255, 255, 255, 0.08) 0%,
+			rgba(255, 255, 255, 0.02) 60%,
 			transparent 70%
 		);
-		opacity: 0.3; /* Subtle */
+		opacity: 0.6; /* Subtle */
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: screen;
-		filter: blur(1px);
+		filter: blur(2px);
 	}
 
 	.screen-internal-reflection {
 		position: absolute;
 		inset: 0;
 		background: linear-gradient(
-			45deg,
-			transparent 35%,
-			var(--teal-glass-500) 45%,
-			var(--teal-glass-300) 50%,
-			var(--teal-glass-500) 55%,
-			transparent 65%
+			135deg,
+			transparent 30%,
+			var(--teal-500) 40%,
+			var(--teal-300) 50%,
+			var(--teal-500) 60%,
+			transparent 70%
 		);
-		opacity: var(--internal-reflection-opacity, 0.025);
+		opacity: var(--internal-reflection-opacity, 0.045);
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: screen;
-		animation: slowInternalReflection 15s ease-in-out infinite alternate;
+		animation: slowInternalReflection 12s ease-in-out infinite alternate;
 	}
 
-	/* Subtle teal edge effect */  
+	/* Subtle cyan edge effect like in reference */  
 	.screen-glass-container::after {
 		content: '';
 		position: absolute;
 		inset: 0;
-		border: 1px solid var(--teal-glass-300);
+		border: 1px solid var(--teal-300);
 		border-radius: var(--border-radius, 3vmin);
 		box-shadow: 
-			inset 0 0 8px var(--teal-glass-500),
-			0 0 4px var(--teal-glass-300);
+			inset 0 0 15px var(--teal-500),
+			0 0 8px var(--teal-300);
 		pointer-events: none;
-		opacity: 0.8;
+		opacity: 1;
 		mix-blend-mode: screen;
 	}
 
@@ -454,27 +454,27 @@
 	.screen-glass-container.glass-warmup .screen-glass-dust,
 	.screen-glass-container.glass-warmup .screen-glass-specular,
 	.screen-glass-container.glass-warmup .screen-internal-reflection {
-		animation: glassWarmUp 2s ease-out forwards;
+		animation: glassWarmUp 3s ease-out forwards;
 	}
 
 	/* Animation keyframes for glass effects */
 	@keyframes slowGlassShift {
 		0% {
-			transform: translateX(-3px) translateY(-1px);
+			transform: translateX(-5px) translateY(-2px);
 		}
 		100% {
-			transform: translateX(3px) translateY(1px);
+			transform: translateX(5px) translateY(2px);
 		}
 	}
 
 	@keyframes slowInternalReflection {
 		0% {
-			opacity: var(--internal-reflection-opacity, 0.025);
-			transform: translateX(-5px) translateY(-2px);
+			opacity: var(--internal-reflection-opacity, 0.045);
+			transform: translateX(-10px) translateY(-5px);
 		}
 		100% {
-			opacity: calc(var(--internal-reflection-opacity, 0.025) * 1.2);
-			transform: translateX(5px) translateY(2px);
+			opacity: calc(var(--internal-reflection-opacity, 0.045) * 1.5);
+			transform: translateX(10px) translateY(5px);
 		}
 	}
 
@@ -505,21 +505,27 @@
 		opacity: 0;
 		z-index: 30;
 		pointer-events: none;
-		animation: powerSequence 1s ease-out forwards;
+		animation: powerSequence 1.5s ease-out forwards;
 	}
 
 	@keyframes powerSequence {
 		0% {
 			opacity: 1;
 		}
-		15% {
+		10% {
+			opacity: 0.8;
+		}
+		20% {
 			opacity: 0.6;
 		}
 		30% {
-			opacity: 0.3;
+			opacity: 0.8;
 		}
-		45% {
-			opacity: 0.1;
+		40% {
+			opacity: 0.4;
+		}
+		60% {
+			opacity: 0.2;
 		}
 		100% {
 			opacity: 0;
@@ -530,11 +536,15 @@
 	@keyframes glassWarmUp {
 		0% {
 			opacity: 0;
-			filter: brightness(0.8) blur(1px);
+			filter: brightness(0.5) blur(2px);
 		}
-		40% {
-			opacity: 0.5;
-			filter: brightness(0.9) blur(0.5px);
+		30% {
+			opacity: 0.3;
+			filter: brightness(0.7) blur(1px);
+		}
+		60% {
+			opacity: 0.7;
+			filter: brightness(0.85) blur(0.5px);
 		}
 		100% {
 			opacity: 1;
