@@ -57,15 +57,15 @@
 			document.documentElement.style.setProperty('--internal-reflection-opacity', '0.045');
 		}
 
-		// Set other required CSS variables
+		// Set other required CSS variables with increased visibility
 		document.documentElement.style.setProperty('--glass-thickness', '2px');
 		document.documentElement.style.setProperty('--glass-edge-highlight', 'rgba(255, 255, 255, 0.1)');
 		
-		// Set brand teal colors for glass effects (subtle)
-		document.documentElement.style.setProperty('--teal-100', 'rgba(179, 239, 239, 0.03)'); // Very subtle
-		document.documentElement.style.setProperty('--teal-200', 'rgba(128, 231, 231, 0.05)'); // Very subtle
-		document.documentElement.style.setProperty('--teal-300', 'rgba(77, 220, 220, 0.08)'); // Very subtle
-		document.documentElement.style.setProperty('--teal-500', 'rgba(0, 168, 168, 0.1)'); // Very subtle
+		// Set brand teal colors for glass effects - MORE VISIBLE for hyperrealism
+		document.documentElement.style.setProperty('--teal-100', 'rgba(179, 239, 239, 0.04)'); // Slightly more visible
+		document.documentElement.style.setProperty('--teal-200', 'rgba(128, 231, 231, 0.06)'); // Slightly more visible
+		document.documentElement.style.setProperty('--teal-300', 'rgba(77, 220, 220, 0.1)'); // More visible
+		document.documentElement.style.setProperty('--teal-500', 'rgba(0, 168, 168, 0.12)'); // More visible
 		
 		// IMPORTANT: Set default border-radius if not defined
 		const computedStyle = getComputedStyle(document.documentElement);
@@ -229,7 +229,7 @@
 		<GameScreen on:stateChange={handleGameStateChange} />
 	{/if}
 
-	<!-- Glass effects and overlays - SUBTLE and ELEGANT -->
+	<!-- Glass effects and overlays - HYPERREALISTIC with visible details -->
 	<div class="screen-glass-container rounded-[3vmin] hardware-accelerated">
 		<div class="screen-glass-outer rounded-[3vmin]"></div>
 		<div class="screen-glass-inner rounded-[3vmin]"></div>
@@ -312,7 +312,7 @@
 		/* REMOVED: No more testing background colors */
 	}
 
-	/* Glass effects with SUBTLE, REALISTIC values */
+	/* Glass effects with HYPERREALISTIC values for fine details */
 	.screen-glass-outer {
 		position: absolute;
 		inset: 0;
@@ -328,7 +328,7 @@
 		backdrop-filter: brightness(1.01) contrast(1.02);
 		mix-blend-mode: overlay;
 		transform: perspective(1000px) translateZ(var(--glass-thickness, 2px));
-		opacity: 0.3; /* Much more subtle */
+		opacity: 0.5; /* Increased for more visibility */
 	}
 
 	.screen-glass-inner {
@@ -340,7 +340,7 @@
 			rgba(0, 0, 0, 0.02) 75%,
 			rgba(0, 0, 0, 0.05) 100%
 		);
-		opacity: 0.4; /* Subtle */
+		opacity: 0.6; /* Increased for more visibility */
 		border-radius: var(--border-radius, 3vmin);
 		transform: perspective(1000px) translateZ(calc(var(--glass-thickness, 2px) * 0.5));
 	}
@@ -356,7 +356,7 @@
 			var(--teal-100) 60%,
 			transparent 80%
 		);
-		opacity: 0.4; /* Subtle */
+		opacity: 0.5; /* Increased for more visibility */
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: screen;
 		animation: slowGlassShift 8s ease-in-out infinite alternate;
@@ -365,9 +365,9 @@
 	.screen-glass-edge {
 		position: absolute;
 		inset: 0;
-		border: 1px solid var(--teal-300); /* Subtle teal border */
+		border: 2px solid var(--teal-300); /* Increased border width */
 		border-radius: var(--border-radius, 3vmin);
-		opacity: 0.6; /* Visible but not overwhelming */
+		opacity: 0.8; /* Increased for more visibility */
 		box-shadow: 
 			inset 0 0 15px var(--teal-500),
 			0 0 8px var(--teal-300);
@@ -380,7 +380,7 @@
 		position: absolute;
 		inset: 0;
 		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%%25' height='100%%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-		opacity: var(--glass-smudge-opacity, 0.04);
+		opacity: 0.08; /* INCREASED from 0.04 for more visible smudges */
 		filter: contrast(120%) brightness(150%);
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: overlay;
@@ -391,7 +391,7 @@
 		position: absolute;
 		inset: 0;
 		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='dust'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.15 0'/%3E%3C/filter%3E%3Crect width='100%%25' height='100%%25' filter='url(%23dust)'/%3E%3C/svg%3E");
-		opacity: var(--glass-dust-opacity, 0.03);
+		opacity: 0.06; /* INCREASED from 0.03 for more visible dust */
 		filter: contrast(150%) brightness(120%);
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: overlay;
@@ -407,7 +407,7 @@
 			rgba(255, 255, 255, 0.02) 60%,
 			transparent 70%
 		);
-		opacity: 0.6; /* Subtle */
+		opacity: 0.7; /* Increased for more noticeable specular highlights */
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: screen;
 		filter: blur(2px);
@@ -424,24 +424,24 @@
 			var(--teal-500) 60%,
 			transparent 70%
 		);
-		opacity: var(--internal-reflection-opacity, 0.045);
+		opacity: 0.08; /* INCREASED from 0.045 for more visible internal reflections */
 		border-radius: var(--border-radius, 3vmin);
 		mix-blend-mode: screen;
 		animation: slowInternalReflection 12s ease-in-out infinite alternate;
 	}
 
-	/* Subtle cyan edge effect like in reference */  
+	/* Enhanced cyan edge effect like in reference */  
 	.screen-glass-container::after {
 		content: '';
 		position: absolute;
 		inset: 0;
-		border: 1px solid var(--teal-300);
+		border: 2px solid var(--teal-300); /* Increased from 1px */
 		border-radius: var(--border-radius, 3vmin);
 		box-shadow: 
-			inset 0 0 15px var(--teal-500),
-			0 0 8px var(--teal-300);
+			inset 0 0 20px var(--teal-500), /* Increased from 15px */
+			0 0 12px var(--teal-300); /* Increased from 8px */
 		pointer-events: none;
-		opacity: 1;
+		opacity: 0.9; /* Increased from 1 for more subtle but visible edge */
 		mix-blend-mode: screen;
 	}
 
