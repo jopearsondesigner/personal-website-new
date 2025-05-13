@@ -131,7 +131,8 @@
 					left: '0',
 					width: '100%',
 					height: '100%',
-					pointerEvents: 'none'
+					pointerEvents: 'none',
+					touchAction: 'none'
 				});
 
 				containerElement.appendChild(canvasElement);
@@ -158,6 +159,26 @@
 				canvasElement.height
 			);
 			dispatch('canvas-initialized', { width: canvasElement.width, height: canvasElement.height });
+
+			// Add boost interaction area
+			const boostArea = document.createElement('div');
+			boostArea.className = 'boost-interaction-area';
+			Object.assign(boostArea.style, {
+				position: 'absolute',
+				top: '0',
+				left: '0',
+				width: '100%',
+				height: '100%',
+				pointerEvents: 'auto',
+				touchAction: 'none',
+				zIndex: '1'
+			});
+			containerElement.appendChild(boostArea);
+
+			// Add touch handlers to the boost area instead of the canvas
+			boostArea.addEventListener('touchstart', handleTouchStart, { passive: false });
+			boostArea.addEventListener('touchend', handleTouchEnd, { passive: false });
+
 			return true;
 		} catch (error) {
 			console.error('Error setting up canvas:', error);
@@ -373,13 +394,21 @@
 	}
 
 	function handleTouchStart(e: TouchEvent) {
-		e.preventDefault();
-		boost();
+		const target = e.target as HTMLElement;
+		// Only prevent default if we're not touching a UI element
+		if (!target.closest('nav, button, a, input, select, textarea')) {
+			e.preventDefault();
+			boost();
+		}
 	}
 
 	function handleTouchEnd(e: TouchEvent) {
-		e.preventDefault();
-		unboost();
+		const target = e.target as HTMLElement;
+		// Only prevent default if we're not touching a UI element
+		if (!target.closest('nav, button, a, input, select, textarea')) {
+			e.preventDefault();
+			unboost();
+		}
 	}
 
 	// Public methods
@@ -502,8 +531,6 @@
 				if (enableBoost) {
 					window.addEventListener('keydown', handleKeyDown);
 					window.addEventListener('keyup', handleKeyUp);
-					window.addEventListener('touchstart', handleTouchStart, { passive: false });
-					window.addEventListener('touchend', handleTouchEnd, { passive: false });
 				}
 
 				// Handle window resize
@@ -546,8 +573,6 @@
 		if (enableBoost) {
 			window.removeEventListener('keydown', handleKeyDown);
 			window.removeEventListener('keyup', handleKeyUp);
-			window.removeEventListener('touchstart', handleTouchStart);
-			window.removeEventListener('touchend', handleTouchEnd);
 		}
 
 		window.removeEventListener('resize', resizeCanvas);
@@ -555,6 +580,14 @@
 		// Clean up canvas
 		if (canvasElement?.parentNode) {
 			canvasElement.parentNode.removeChild(canvasElement);
+		}
+
+		// Remove boost area
+		const boostArea = containerElement?.querySelector('.boost-interaction-area');
+		if (boostArea) {
+			boostArea.removeEventListener('touchstart', handleTouchStart);
+			boostArea.removeEventListener('touchend', handleTouchEnd);
+			boostArea.remove();
 		}
 
 		dispatch('destroyed');

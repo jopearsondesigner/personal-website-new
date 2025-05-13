@@ -4,6 +4,7 @@
 	/* Cabinet dimensions (unchanged) */
 	--arcade-cabinet-width: min(100%, 1000px);
 	--arcade-cabinet-height: min(90vh, 700px);
+
 	/* Layout (unchanged) */
 	--arcade-screen-width: min(95vw, 800px);
 	--arcade-screen-height: min(70vh, 600px);
@@ -83,28 +84,28 @@
 @media (max-width: 768px) {
 	:root {
 		/* Mobile Light Theme Cabinet - Enhanced for modern aesthetic */
-		--light-cabinet-primary: #f8f8f8;    /* Almost white background */
-		--light-cabinet-secondary: #f0f0f0;  /* Very light gray gradient color */
-		--light-cabinet-tertiary: #e8e8e8;   /* Lighter component backgrounds */
-		--light-cabinet-accent: rgba(0, 150, 255, 0.5);  /* Subtle blue accent color */
-		--light-shadow-subtle: rgba(0, 0, 0, 0.03);  /* Very faint shadows */
-		--light-shadow-medium: rgba(0, 0, 0, 0.05);  /* Light shadows */
-		--light-highlight: rgba(255, 255, 255, 0.8);  /* White highlight effect */
-		--light-screen-glow: rgba(0, 120, 255, 0.3);  /* Subtle blue glow */
-		--light-screen-glow-intensity: 0.08;  /* Reduced glow intensity */
-		--light-cabinet-border-radius: 12px;  /* Rounded corners */
-		--light-cabinet-border-color: rgba(0, 0, 0, 0.05);  /* Very subtle border */
-		--light-cabinet-texture-opacity: 0.02;  /* Nearly invisible texture */
-		
+		--light-cabinet-primary: #f8f8f8; /* Almost white background */
+		--light-cabinet-secondary: #f0f0f0; /* Very light gray gradient color */
+		--light-cabinet-tertiary: #e8e8e8; /* Lighter component backgrounds */
+		--light-cabinet-accent: rgba(0, 150, 255, 0.5); /* Subtle blue accent color */
+		--light-shadow-subtle: rgba(0, 0, 0, 0.03); /* Very faint shadows */
+		--light-shadow-medium: rgba(0, 0, 0, 0.05); /* Light shadows */
+		--light-highlight: rgba(255, 255, 255, 0.8); /* White highlight effect */
+		--light-screen-glow: rgba(0, 120, 255, 0.3); /* Subtle blue glow */
+		--light-screen-glow-intensity: 0.08; /* Reduced glow intensity */
+		--light-cabinet-border-radius: 12px; /* Rounded corners */
+		--light-cabinet-border-color: rgba(0, 0, 0, 0.05); /* Very subtle border */
+		--light-cabinet-texture-opacity: 0.02; /* Nearly invisible texture */
+
 		/* Fine-tuned bezel gradients for better integration with white cabinet */
-		--light-bezel-gradient-start: rgba(245, 245, 245, 1);  /* Lighter start, closer to white */
-		--light-bezel-gradient-end: rgba(220, 220, 220, 1);    /* Still light but provides dimension */
+		--light-bezel-gradient-start: rgba(245, 245, 245, 1); /* Lighter start, closer to white */
+		--light-bezel-gradient-end: rgba(220, 220, 220, 1); /* Still light but provides dimension */
 
 		/* Override other variables for mobile */
-		--screen-glow-opacity: 0.1;  /* Reduced glow effect */
-		--shadow-mask-size: 2px;  /* Smaller shadow mask */
-		--border-radius: 12px;  /* Consistent border radius */
-		--bezel-thickness: 0.6vmin;  /* Thinner bezel */
+		--screen-glow-opacity: 0.1; /* Reduced glow effect */
+		--shadow-mask-size: 2px; /* Smaller shadow mask */
+		--border-radius: 12px; /* Consistent border radius */
+		--bezel-thickness: 0.6vmin; /* Thinner bezel */
 	}
 }
 

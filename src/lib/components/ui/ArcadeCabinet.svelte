@@ -293,7 +293,6 @@
 				inset 0 1px 2px rgba(255, 255, 255, 0.8),
 				inset 0 -1px 1px rgba(0, 0, 0, 0.02),
 				0 1px 2px rgba(0, 0, 0, 0.03);
-
 			border-radius: calc(var(--border-radius) + 4px);
 			border: 1px solid rgba(220, 220, 220, 0.5);
 		}
