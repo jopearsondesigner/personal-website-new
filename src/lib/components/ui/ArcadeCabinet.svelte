@@ -279,20 +279,21 @@
 				rgba(0, 0, 0, var(--light-cabinet-texture-opacity)) 6px
 			);
 			opacity: 0.2;
-			mix-blend-mode: soft-light;  /* Gentler blending */
+			mix-blend-mode: soft-light; /* Gentler blending */
 		}
 
 		/* Fine-tuned bezel for better integration with white cabinet */
 		:global(html.light) .screen-bezel {
 			background: linear-gradient(
 				to bottom,
-				var(--light-bezel-gradient-start) 0%,
-				var(--light-bezel-gradient-end) 100%
+				rgba(254, 254, 254, 1) 0%,
+				/* Almost pure white */ rgba(240, 240, 240, 1) 100% /* Very light gray */
 			);
 			box-shadow:
-				inset 0 1px 2px rgba(0, 0, 0, 0.05),
-				0 0 1px rgba(255, 255, 255, 0.95),
-				0 2px 3px rgba(0, 0, 0, 0.02);
+				inset 0 1px 2px rgba(255, 255, 255, 0.8),
+				inset 0 -1px 1px rgba(0, 0, 0, 0.02),
+				0 1px 2px rgba(0, 0, 0, 0.03);
+
 			border-radius: calc(var(--border-radius) + 4px);
 			border: 1px solid rgba(220, 220, 220, 0.5);
 		}
