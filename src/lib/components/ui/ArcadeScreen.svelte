@@ -56,6 +56,10 @@
 			document.documentElement.style.setProperty('--internal-reflection-opacity', '0.045');
 		}
 
+		// Set other required CSS variables
+		document.documentElement.style.setProperty('--glass-thickness', '2px');
+		document.documentElement.style.setProperty('--glass-edge-highlight', 'rgba(255, 255, 255, 0.1)');
+
 		// During initialization, set initial opacity for glass elements to 0
 		if (isInitializing && glassContainer) {
 			const glassElements = glassContainer.querySelectorAll('div');
@@ -358,7 +362,7 @@
 	.screen-glass-smudges {
 		position: absolute;
 		inset: 0;
-		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%%25' height='100%%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
 		opacity: var(--glass-smudge-opacity);
 		filter: contrast(120%) brightness(150%);
 		border-radius: var(--border-radius);
@@ -369,7 +373,7 @@
 	.screen-glass-dust {
 		position: absolute;
 		inset: 0;
-		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='dust'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.15 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23dust)'/%3E%3C/svg%3E");
+		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='dust'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.15 0'/%3E%3C/filter%3E%3Crect width='100%%25' height='100%%25' filter='url(%23dust)'/%3E%3C/svg%3E");
 		opacity: var(--glass-dust-opacity);
 		filter: contrast(150%) brightness(120%);
 		border-radius: var(--border-radius);
@@ -409,8 +413,15 @@
 		animation: slowInternalReflection 12s ease-in-out infinite alternate;
 	}
 
-	/* NEW CLASS: Add glass warmup animation class */
-	.glass-warmup > div {
+	/* FIXED: Corrected glass warmup animation class */
+	.screen-glass-container.glass-warmup .screen-glass-outer,
+	.screen-glass-container.glass-warmup .screen-glass-inner,
+	.screen-glass-container.glass-warmup .screen-glass-reflection,
+	.screen-glass-container.glass-warmup .screen-glass-edge,
+	.screen-glass-container.glass-warmup .screen-glass-smudges,
+	.screen-glass-container.glass-warmup .screen-glass-dust,
+	.screen-glass-container.glass-warmup .screen-glass-specular,
+	.screen-glass-container.glass-warmup .screen-internal-reflection {
 		animation: glassWarmUp 3s ease-out forwards;
 	}
 
@@ -489,7 +500,7 @@
 		}
 	}
 
-	/* Glass warmup animation */
+	/* FIXED: Glass warmup animation - now properly shows the glass effects */
 	@keyframes glassWarmUp {
 		0% {
 			opacity: 0;
@@ -500,11 +511,11 @@
 			filter: brightness(0.7) blur(1px);
 		}
 		60% {
-			opacity: 0.5;
+			opacity: 0.7;
 			filter: brightness(0.85) blur(0.5px);
 		}
 		100% {
-			opacity: 0;
+			opacity: 1;
 			filter: brightness(1) blur(0);
 		}
 	}
