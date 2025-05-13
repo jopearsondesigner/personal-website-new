@@ -61,11 +61,11 @@
 		document.documentElement.style.setProperty('--glass-thickness', '2px');
 		document.documentElement.style.setProperty('--glass-edge-highlight', 'rgba(255, 255, 255, 0.1)');
 		
-		// Set brand teal colors for glass effects - MORE VISIBLE for hyperrealism
-		document.documentElement.style.setProperty('--teal-100', 'rgba(179, 239, 239, 0.04)'); // Slightly more visible
-		document.documentElement.style.setProperty('--teal-200', 'rgba(128, 231, 231, 0.06)'); // Slightly more visible
-		document.documentElement.style.setProperty('--teal-300', 'rgba(77, 220, 220, 0.1)'); // More visible
-		document.documentElement.style.setProperty('--teal-500', 'rgba(0, 168, 168, 0.12)'); // More visible
+		// Set ACTUAL brand teal colors from your palette with opacity
+		document.documentElement.style.setProperty('--teal-50', '#E0F7F7, 0.04'); // Teal 50 with opacity
+		document.documentElement.style.setProperty('--teal-100', '#B3EFEF, 0.06'); // Teal 100 with opacity
+		document.documentElement.style.setProperty('--teal-300', '#4DDCDC, 0.1');  // Teal 300 with opacity
+		document.documentElement.style.setProperty('--teal-500', '#00A8A8, 0.12'); // Your brand teal with opacity
 		
 		// IMPORTANT: Set default border-radius if not defined
 		const computedStyle = getComputedStyle(document.documentElement);
@@ -229,7 +229,7 @@
 		<GameScreen on:stateChange={handleGameStateChange} />
 	{/if}
 
-	<!-- Glass effects and overlays - HYPERREALISTIC with visible details -->
+	<!-- Glass effects and overlays - HYPERREALISTIC with your brand teal colors -->
 	<div class="screen-glass-container rounded-[3vmin] hardware-accelerated">
 		<div class="screen-glass-outer rounded-[3vmin]"></div>
 		<div class="screen-glass-inner rounded-[3vmin]"></div>
@@ -312,16 +312,16 @@
 		/* REMOVED: No more testing background colors */
 	}
 
-	/* Glass effects with HYPERREALISTIC values for fine details */
+	/* Glass effects with HYPERREALISTIC values using your brand teal colors */
 	.screen-glass-outer {
 		position: absolute;
 		inset: 0;
 		background: linear-gradient(
 			135deg,
 			transparent 0%,
-			var(--teal-100) 15%,
-			var(--teal-200) 45%,
-			var(--teal-100) 75%,
+			rgba(224, 247, 247, 0.04) 15%, /* Using your teal-50 */
+			rgba(179, 239, 239, 0.06) 45%, /* Using your teal-100 */
+			rgba(224, 247, 247, 0.04) 75%, /* Using your teal-50 */
 			transparent 100%
 		);
 		border-radius: var(--border-radius, 3vmin);
@@ -351,9 +351,9 @@
 		background: linear-gradient(
 			135deg,
 			transparent 20%,
-			var(--teal-100) 40%,
-			var(--teal-200) 50%,
-			var(--teal-100) 60%,
+			rgba(224, 247, 247, 0.04) 40%, /* Using your teal-50 */
+			rgba(179, 239, 239, 0.06) 50%, /* Using your teal-100 */
+			rgba(224, 247, 247, 0.04) 60%, /* Using your teal-50 */
 			transparent 80%
 		);
 		opacity: 0.5; /* Increased for more visibility */
@@ -365,12 +365,12 @@
 	.screen-glass-edge {
 		position: absolute;
 		inset: 0;
-		border: 2px solid var(--teal-300); /* Increased border width */
+		border: 2px solid rgba(77, 220, 220, 0.1); /* Using your teal-300 with opacity */
 		border-radius: var(--border-radius, 3vmin);
 		opacity: 0.8; /* Increased for more visibility */
 		box-shadow: 
-			inset 0 0 15px var(--teal-500),
-			0 0 8px var(--teal-300);
+			inset 0 0 15px rgba(0, 168, 168, 0.12), /* Using your teal-500 with opacity */
+			0 0 8px rgba(77, 220, 220, 0.1); /* Using your teal-300 with opacity */
 		background: transparent;
 		background-clip: padding-box;
 		backdrop-filter: blur(0.5px);
@@ -419,9 +419,9 @@
 		background: linear-gradient(
 			135deg,
 			transparent 30%,
-			var(--teal-500) 40%,
-			var(--teal-300) 50%,
-			var(--teal-500) 60%,
+			rgba(0, 168, 168, 0.12) 40%, /* Using your teal-500 with opacity */
+			rgba(77, 220, 220, 0.1) 50%, /* Using your teal-300 with opacity */
+			rgba(0, 168, 168, 0.12) 60%, /* Using your teal-500 with opacity */
 			transparent 70%
 		);
 		opacity: 0.08; /* INCREASED from 0.045 for more visible internal reflections */
@@ -430,16 +430,16 @@
 		animation: slowInternalReflection 12s ease-in-out infinite alternate;
 	}
 
-	/* Enhanced cyan edge effect like in reference */  
+	/* Enhanced teal edge effect using your brand colors */  
 	.screen-glass-container::after {
 		content: '';
 		position: absolute;
 		inset: 0;
-		border: 2px solid var(--teal-300); /* Increased from 1px */
+		border: 2px solid rgba(77, 220, 220, 0.1); /* Using your teal-300 with opacity */
 		border-radius: var(--border-radius, 3vmin);
 		box-shadow: 
-			inset 0 0 20px var(--teal-500), /* Increased from 15px */
-			0 0 12px var(--teal-300); /* Increased from 8px */
+			inset 0 0 20px rgba(0, 168, 168, 0.12), /* Using your teal-500 with opacity */
+			0 0 12px rgba(77, 220, 220, 0.1); /* Using your teal-300 with opacity */
 		pointer-events: none;
 		opacity: 0.9; /* Increased from 1 for more subtle but visible edge */
 		mix-blend-mode: screen;
