@@ -1,4 +1,8 @@
-/* src/lib/styles/variables.css */
+/* DO NOT REMOVE THIS COMMENT
+src/lib/styles/variables.css
+DO NOT REMOVE THIS COMMENT  */
+
+/* src/lib/styles/variables.css - Aligned with Balanced Glass Effects */
 
 :root {
 	/* Cabinet dimensions (unchanged) */
@@ -25,23 +29,48 @@
 	--glass-reflection: rgba(255, 255, 255, 0.15);
 	--screen-glow-opacity: 0.6;
 
-	/* Enhanced Glass Physics - ADJUSTED for better visibility */
-	--glass-thickness: 0.4vmin;
-	--glass-refraction: 1.2;
-	--glass-reflectivity: 0.15;
-	--glass-specular-intensity: 0.7;
-	--glass-curvature: 3%;
-	--glass-edge-highlight: rgba(245, 245, 220, 0.8);
-	--glass-dust-opacity: 0.03; /* Keep as is */
-	--glass-smudge-opacity: 0.04; /* Keep as is */
-	--internal-reflection-opacity: 0.045; /* Keep as is */
+	/* BALANCED GLASS EFFECTS - Aligned with ArcadeScreen.svelte */
 
-	/* Animation timing variables - NEW */
+	/* Primary Glass Variables */
+	--glass-reflectivity: 0.15; /* Main screen: 15%, Game screen: 10% */
+	--glass-surface-opacity: 0.04; /* Main screen: 4%, Game screen: 2.5% */
+	--glass-edge-opacity: 0.05; /* Main screen: 5%, Game screen: 3% */
+
+	/* Advanced Glass Properties */
+	--glass-thickness: 1px;
+	--glass-specular-strength: 0.3;
+	--glass-distortion: 0.5px;
+	--glass-chromatic-aberration: 0.5px;
+
+	/* Brand Teal Colors with Glow Values */
+	--teal-50: #e0f7f7;
+	--teal-100: #b3efef;
+	--teal-300: #4ddcdc;
+	--teal-500: #00a8a8;
+
+	/* Teal Colors with Opacity for Glass Effects */
+	--teal-glow-50: rgba(224, 247, 247, 0.08);
+	--teal-glow-100: rgba(179, 239, 239, 0.12);
+	--teal-glow-300: rgba(77, 220, 220, 0.15);
+	--teal-glow-500: rgba(0, 168, 168, 0.18);
+
+	/* Glass Edge Highlights */
+	--glass-edge-highlight: rgba(255, 255, 255, 0.08);
+
+	/* Performance Controls */
+	--mouse-tracking-fps: 67ms; /* ~15 FPS */
+	--enable-backdrop-filter: 1; /* 1 for enabled, 0 for disabled */
+
+	/* Animation Timing Variables */
 	--power-sequence-duration: 1.5s;
-	--glass-warmup-duration: 3s;
+	--glass-warmup-duration: 2s;
 	--glass-warmup-delay: 150ms;
+	--glass-shift-duration: 10s;
+	--specular-float-duration: 5s;
+	--reflection-shift-duration: 8s;
+	--glow-pulse-duration: 3s;
 
-	/* Shadows & Effects (unchanged) */
+	/* Shadows & Effects (enhanced) */
 	--cabinet-shadow: 0 20px 40px rgba(0, 0, 0, 0.25), 0 5px 15px rgba(0, 0, 0, 0.15),
 		inset 0 3px 8px rgba(0, 0, 0, 0.2);
 
@@ -71,7 +100,7 @@
 	--light-bezel-gradient-end: rgba(190, 190, 190, 1);
 }
 
-/* Media Queries (unchanged) */
+/* Media Queries */
 @media (min-width: 768px) {
 	:root {
 		--arcade-screen-width: 80vw;
@@ -106,10 +135,16 @@
 		--shadow-mask-size: 2px; /* Smaller shadow mask */
 		--border-radius: 12px; /* Consistent border radius */
 		--bezel-thickness: 0.6vmin; /* Thinner bezel */
+
+		/* Reduce glass effects on mobile for performance */
+		--glass-reflectivity: 0.08;
+		--glass-surface-opacity: 0.02;
+		--glass-edge-opacity: 0.03;
+		--enable-backdrop-filter: 0; /* Disable backdrop-filter on mobile */
 	}
 }
 
-/* Animations - UPDATED */
+/* Animation Keyframes - Aligned with ArcadeScreen.svelte */
 @keyframes powerUpSequence {
 	0% {
 		filter: brightness(0) blur(2px);
@@ -141,55 +176,70 @@
 	0% {
 		opacity: 0;
 		filter: brightness(0.5) blur(2px);
+		transform: scale(0.95) translateZ(0);
 	}
 	30% {
 		opacity: 0.3;
 		filter: brightness(0.7) blur(1px);
+		transform: scale(0.98) translateZ(0);
 	}
 	60% {
 		opacity: 0.7;
 		filter: brightness(0.85) blur(0.5px);
+		transform: scale(1.01) translateZ(0);
 	}
 	100% {
-		opacity: 1; /* FIXED: Changed from 0 to 1 */
+		opacity: 1;
 		filter: brightness(1) blur(0);
+		transform: scale(1) translateZ(0);
 	}
 }
 
-@keyframes slowGlassShift {
+@keyframes glassShift {
 	0% {
-		opacity: 0.5;
-		transform: translateY(-1px) scale(1.01);
+		opacity: 0.8;
+		transform: translate(-0.5px, -0.5px) scale(1) translateZ(0);
 	}
 	100% {
-		opacity: 0.65;
-		transform: translateY(1px) scale(1.02);
+		opacity: 1;
+		transform: translate(0.5px, 0.5px) scale(1.002) translateZ(0);
 	}
 }
 
-@keyframes subtleSpecularShift {
+@keyframes specularFloat {
 	0% {
-		opacity: 0.15;
-		transform: translate(-2px, -1px) scale(1);
+		opacity: 0.6;
+		transform: translate(-1px, -1px) rotate(0deg) translateZ(0);
 	}
 	100% {
-		opacity: 0.22;
-		transform: translate(2px, 1px) scale(1.03);
+		opacity: 0.8;
+		transform: translate(1px, 1px) rotate(0.5deg) translateZ(0);
 	}
 }
 
-@keyframes subtleReflectionShift {
+@keyframes reflectionShift {
 	0% {
-		opacity: var(--internal-reflection-opacity);
-		transform: translateX(-1px) translateY(1px);
+		opacity: 0.6;
+		transform: translate(0.5px, -0.5px) translateZ(0);
 	}
 	100% {
-		opacity: calc(var(--internal-reflection-opacity) * 1.2);
-		transform: translateX(1px) translateY(-1px);
+		opacity: 0.9;
+		transform: translate(-0.5px, 0.5px) translateZ(0);
 	}
 }
 
-/* Hardware acceleration utility */
+@keyframes glowPulse {
+	0% {
+		opacity: var(--screen-glow-opacity);
+		filter: brightness(1);
+	}
+	100% {
+		opacity: calc(var(--screen-glow-opacity) * 1.3);
+		filter: brightness(1.1);
+	}
+}
+
+/* Hardware acceleration utility - Aligned with ArcadeScreen.svelte */
 .hardware-accelerated {
 	transform: translateZ(0);
 	backface-visibility: hidden;
@@ -199,12 +249,34 @@
 	content-visibility: auto;
 }
 
-/* Animation utilities - UPDATED */
+/* Animation utilities - Aligned with ArcadeScreen.svelte */
 .power-sequence {
 	animation: powerUpSequence var(--power-sequence-duration) ease-out;
 }
 
-/* Add new class to control glass warmup independently */
+/* Glass warmup class to control individual glass elements */
 .glass-warmup > div {
 	animation: glassWarmUp var(--glass-warmup-duration) ease-out forwards;
+}
+
+/* Device-specific optimizations */
+html[data-device-type='low-performance'] {
+	--glass-reflectivity: 0.08;
+	--glass-surface-opacity: 0.02;
+	--glass-edge-opacity: 0.025;
+	--enable-backdrop-filter: 0;
+}
+
+html[data-device-type='mobile'] {
+	--glass-reflectivity: 0.1;
+	--glass-surface-opacity: 0.025;
+	--glass-edge-opacity: 0.035;
+	--enable-backdrop-filter: 0;
+}
+
+html[data-device-type='desktop'] {
+	--glass-reflectivity: 0.15;
+	--glass-surface-opacity: 0.04;
+	--glass-edge-opacity: 0.05;
+	--enable-backdrop-filter: 1;
 }

@@ -15,6 +15,7 @@
 	import { theme } from '$lib/stores/theme';
 	import Tooltip from '$lib/components/ui/Tooltip.svelte';
 	import { browser } from '$app/environment';
+	import { afterNavigate } from '$app/navigation';
 	import { writable } from 'svelte/store';
 	import { layoutStore } from '$lib/stores/store';
 	import MobileNavMenu from '$lib/components/layout/MobileNavMenu.svelte';
@@ -73,6 +74,13 @@
 			});
 		};
 	})();
+
+	// Clean #hero from URL after navigation
+	afterNavigate(() => {
+		if (browser && window.location.hash === '#hero') {
+			history.replaceState(null, '', window.location.pathname + window.location.search);
+		}
+	});
 
 	// Update logo position based on viewport width and orientation
 	const updateLogoPosition = () => {
@@ -259,10 +267,7 @@
 	/>
 	<meta property="og:image:width" content="1200" />
 	<meta property="og:image:height" content="630" />
-	<meta
-		property="og:url"
-		content="https://jopearsondesigner.github.io/personal-website-new/#hero"
-	/>
+	<meta property="og:url" content="https://jopearsondesigner.github.io/personal-website-new/" />
 	<meta property="og:type" content="website" />
 
 	<!-- Twitter Card Meta Tags -->

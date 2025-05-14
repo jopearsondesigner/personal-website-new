@@ -10,7 +10,7 @@ export const load = ({ url, params }) => {
 			// Make sure to update +layout.svelte when updating URL too!!!
 			image:
 				'https://jopearsondesigner.github.io/personal-website-new/assets/images/seo/social-share.png',
-			url: 'https://jopearsondesigner.github.io/personal-website-new/#hero'
+			url: 'https://jopearsondesigner.github.io/personal-website-new'
 		},
 		currentPath: url.pathname,
 		params
