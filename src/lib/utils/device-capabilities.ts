@@ -1,4 +1,8 @@
-// File: src/lib/utils/device-performance.ts
+
+
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/device-performance.ts
+// DO NOT REMOVE THIS COMMENT
 
 import { browser } from '$app/environment';
 import { writable, derived, get as getStore } from 'svelte/store';

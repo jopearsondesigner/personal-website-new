@@ -1,4 +1,6 @@
-// src/lib/stores/a11y-store.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/stores/a11y-store.ts
+// DO NOT REMOVE THIS COMMENT
 import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
 

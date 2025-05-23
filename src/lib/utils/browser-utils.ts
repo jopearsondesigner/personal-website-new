@@ -1,4 +1,6 @@
-// src/lib/utils/browser-utils.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/browser-utils.ts
+// DO NOT REMOVE THIS COMMENT
 
 import { browser } from '$app/environment';
 

@@ -1,5 +1,6 @@
-<!-- File: src/lib/components/layout/NavBrand.svelte -->
-<!-- Location: Update the component to include base path in links -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/layout/NavBrand.svelte
+DO NOT REMOVE THIS COMMENT -->
 
 <script lang="ts">
 	import { base } from '$app/paths'; // Import the base path

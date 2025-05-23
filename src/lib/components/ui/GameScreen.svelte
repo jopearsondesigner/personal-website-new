@@ -1,4 +1,6 @@
-<!-- src/lib/components/ui/GameScreen.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/GameScreen.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import type { GameStateEvent } from '$lib/types/game';
 	import { fade, fly } from 'svelte/transition';
@@ -633,39 +635,39 @@
 				transparent 80%
 			);
 		}
-        
+
 		/* Light mode mobile border-radius overrides */
 		:global(html.light) #game-screen {
 			border-radius: var(--light-cabinet-border-radius);
 		}
-		
+
 		:global(html.light) .game-view-container {
 			border-radius: calc(var(--light-cabinet-border-radius) - 1px);
 		}
-		
+
 		:global(html.light) .game-background {
 			border-radius: var(--light-cabinet-border-radius);
-            border-color: rgba(220, 220, 220, 0.4);
-            box-shadow:
-                inset 0 0 15px rgba(0, 40, 80, 0.05),
-                inset 0 0 5px rgba(120, 160, 220, 0.1),
-                0 0 10px rgba(100, 130, 200, 0.08);
+			border-color: rgba(220, 220, 220, 0.4);
+			box-shadow:
+				inset 0 0 15px rgba(0, 40, 80, 0.05),
+				inset 0 0 5px rgba(120, 160, 220, 0.1),
+				0 0 10px rgba(100, 130, 200, 0.08);
 		}
-		
+
 		:global(html.light) .game-background::before {
 			border-radius: calc(var(--light-cabinet-border-radius) + 2px);
-            opacity: 0.1;
+			opacity: 0.1;
 		}
-		
+
 		:global(html.light) .game-background::after {
 			border-radius: calc(var(--light-cabinet-border-radius) - 1px);
-            opacity: 0.4;
+			opacity: 0.4;
 		}
-		
+
 		:global(html.light) .side-panel.left {
 			border-radius: var(--light-cabinet-border-radius) 0 0 var(--light-cabinet-border-radius);
 		}
-		
+
 		:global(html.light) .side-panel.right {
 			border-radius: 0 var(--light-cabinet-border-radius) var(--light-cabinet-border-radius) 0;
 		}

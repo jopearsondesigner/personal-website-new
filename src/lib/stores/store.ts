@@ -1,3 +1,7 @@
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/stores/store.ts
+// DO NOT REMOVE THIS COMMENT
+
 import { writable, type Writable } from 'svelte/store';
 
 interface LayoutStore {

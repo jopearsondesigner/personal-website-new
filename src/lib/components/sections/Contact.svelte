@@ -1,4 +1,6 @@
-<!-- src/lib/components/sections/Contact.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/sections/Contact.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { fly } from 'svelte/transition';
 	import { backOut } from 'svelte/easing';

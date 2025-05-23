@@ -1,4 +1,6 @@
-// src/lib/utils/css-effects-manager.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/css-effects-manager.ts
+// DO NOT REMOVE THIS COMMENT
 import { browser } from '$app/environment';
 import { get } from 'svelte/store';
 import { animationMode, type AnimationMode } from './animation-mode';

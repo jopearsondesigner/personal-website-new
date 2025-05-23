@@ -1,4 +1,6 @@
-<!-- src/components/Navbar.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/layout/Navbar.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { setContext } from 'svelte';
 	import { writable } from 'svelte/store';

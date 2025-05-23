@@ -1,4 +1,6 @@
-// src/lib/stores/layout-store.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/stores/layout-store.ts
+// DO NOT REMOVE THIS COMMENT
 import { writable, derived } from 'svelte/store';
 
 function createLayoutStore() {

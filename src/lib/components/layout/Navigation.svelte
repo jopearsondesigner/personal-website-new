@@ -1,4 +1,6 @@
-<!-- File: src/lib/components/layout/Navigation.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/layout/Navigation.svelte
+DO NOT REMOVE THIS COMMENT -->
 
 <script lang="ts">
 	import { page } from '$app/stores';

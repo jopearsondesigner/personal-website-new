@@ -1,4 +1,7 @@
-// src/lib/stores/theme.ts
+
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/stores/theme.ts
+DO NOT REMOVE THIS COMMENT
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 

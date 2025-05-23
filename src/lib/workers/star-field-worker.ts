@@ -1,4 +1,6 @@
-// src/lib/workers/star-field-worker.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/workers/star-field-worker.ts
+// DO NOT REMOVE THIS COMMENT
 
 // Constants for TypedArray structure
 const STAR_DATA_ELEMENTS = 6; // x, y, z, prevX, prevY, inUse

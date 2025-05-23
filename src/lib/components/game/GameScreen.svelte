@@ -1,4 +1,6 @@
-<!-- src/lib/components/GameScreen.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/game/GameScreen.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import type { GameStateEvent } from '$lib/types/game';
 	import { fade, fly } from 'svelte/transition';

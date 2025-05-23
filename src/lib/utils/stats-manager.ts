@@ -1,4 +1,6 @@
-// NEW FILE: src/lib/utils/stats-manager.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/stats-manager.ts
+// DO NOT REMOVE THIS COMMENT
 import { browser } from '$app/environment';
 import { get } from 'svelte/store';
 import { objectPoolStatsStore, updateObjectPoolStats } from './device-performance';

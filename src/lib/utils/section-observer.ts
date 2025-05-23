@@ -1,4 +1,6 @@
-// src/lib/utils/section-observer.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/section-observer.ts
+// DO NOT REMOVE THIS COMMENT
 import { onMount } from 'svelte';
 import { writable, type Writable } from 'svelte/store';
 

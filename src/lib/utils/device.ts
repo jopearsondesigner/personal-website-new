@@ -1,4 +1,6 @@
-// Device detection utilities
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/device.ts
+// DO NOT REMOVE THIS COMMENT
 import { browser } from '$app/environment';
 
 // Device type detection

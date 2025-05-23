@@ -1,4 +1,6 @@
-// src/lib/utils/star-pool-bridge.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/star-pool-bridge.ts
+// DO NOT REMOVE THIS COMMENT
 import { browser } from '$app/environment';
 import { starPoolTracker } from './pool-stats-tracker';
 import { get } from 'svelte/store';

@@ -1,4 +1,8 @@
-// src/lib/utils/performance-benchmarking.ts
+
+
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/performance-benchmarking.ts
+// DO NOT REMOVE THIS COMMENT
 import { browser } from '$app/environment';
 import { get, writable, type Writable } from 'svelte/store';
 import { deviceCapabilities } from './device-performance';
@@ -45,7 +49,9 @@ export interface BenchmarkResult {
 export const benchmarkResultsStore: Writable<BenchmarkResult[]> = writable([]);
 
 // Implementation of performance benchmark class
-export class PerformanceBenchmark {
+
+
+utils/memory-monitor.tsexport class PerformanceBenchmark {
 	private benchmarkId: string;
 	private type: BenchmarkType;
 	private duration: number;

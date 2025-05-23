@@ -1,4 +1,6 @@
-<!-- src/lib/components/providers/DeviceCapabilitiesProvider.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/providers/DeviceCapabilitiesProvider.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';

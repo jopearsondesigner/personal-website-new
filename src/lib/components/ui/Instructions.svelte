@@ -1,4 +1,6 @@
-<!-- Instructions.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/Instructions.svelte__.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script>
 	import { fade, fly } from 'svelte/transition';
 	import { createEventDispatcher } from 'svelte';

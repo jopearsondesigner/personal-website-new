@@ -1,4 +1,6 @@
-<!-- src/lib/components/ui/ArcadeCabinet.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/ArcadeCabinet.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 	import ArcadeScreen from '$lib/components/ui/ArcadeScreen.svelte';

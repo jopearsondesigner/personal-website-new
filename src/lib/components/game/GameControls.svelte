@@ -1,4 +1,6 @@
-<!-- src/lib/components/game/GameControls.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/game/GameControls.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { createEventDispatcher, onDestroy, onMount } from 'svelte';
 	import { spring } from 'svelte/motion';

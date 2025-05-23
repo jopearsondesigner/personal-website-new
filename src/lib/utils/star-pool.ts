@@ -1,4 +1,6 @@
-// src/lib/utils/star-pool.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/pool-stats-bridge.ts
+// DO NOT REMOVE THIS COMMENT
 import { browser } from '$app/environment';
 import { starPoolTracker } from './pool-stats-tracker';
 

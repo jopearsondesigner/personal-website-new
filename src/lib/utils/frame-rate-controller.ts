@@ -1,4 +1,6 @@
-// src/lib/utils/frame-rate-controller.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/frame-rate-controller.ts
+// DO NOT REMOVE THIS COMMENT
 
 import { browser } from '$app/environment';
 import { deviceCapabilities } from './device-performance';

@@ -1,5 +1,6 @@
-<!-- src/lib/components/ui/ControlsPortal.svelte -->
-<!-- ControlsPortal.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/ControlsPortal.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment'; // Import browser check for SvelteKit

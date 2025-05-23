@@ -1,9 +1,6 @@
-// src/lib/utils/device-detection.ts
-
-/**
- * Comprehensive device detection utilities for optimizing canvas-based games
- * and other performance-sensitive components.
- */
+// /DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/device-detection.ts
+// DO NOT REMOVE THIS COMMENT
 
 // Device performance tier type
 export type PerformanceTier = 'low' | 'medium' | 'high';

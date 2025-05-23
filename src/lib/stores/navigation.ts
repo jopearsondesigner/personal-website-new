@@ -1,4 +1,6 @@
-// File: src/lib/stores/navigation.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/stores/navigation.ts
+// DO NOT REMOVE THIS COMMENT
 
 import { writable, get } from 'svelte/store';
 import { browser } from '$app/environment';

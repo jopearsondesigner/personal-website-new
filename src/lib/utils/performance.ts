@@ -1,4 +1,6 @@
-// src/lib/utils/performance.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/performance.ts
+// DO NOT REMOVE THIS COMMENT
 
 // Performance measurement utilities
 export const measureFrameRate = (duration = 5000) => {

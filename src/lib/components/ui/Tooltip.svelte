@@ -1,4 +1,6 @@
-<!-- src/lib/components/Tooltip.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/Tooltip.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	export let text: string;
 	export let position: 'top' | 'bottom' | 'left' | 'right' = 'top';

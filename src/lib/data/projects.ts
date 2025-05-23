@@ -1,3 +1,6 @@
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/data/projects.ts
+// DO NOT REMOVE THIS COMMENT
 export interface Project {
 	title: string;
 	description: string;

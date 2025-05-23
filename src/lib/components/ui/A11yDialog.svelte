@@ -1,4 +1,6 @@
-<!-- src/lib/components/A11yDialog.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/A11yDialog.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { focusManager } from '$lib/utils/focus-utils';

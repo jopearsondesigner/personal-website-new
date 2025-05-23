@@ -1,3 +1,7 @@
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/stores/menu-Store.ts
+// DO NOT REMOVE THIS COMMENT
+
 import { writable, derived } from 'svelte/store';
 import type { Writable } from 'svelte/store';
 

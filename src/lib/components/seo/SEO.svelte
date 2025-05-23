@@ -1,3 +1,6 @@
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/seo/SEO.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	export let title = 'Jo Pearson Design | Design Engineer';
 	export let description =

@@ -1,4 +1,6 @@
-// File: src/lib/stores/animation-store.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/stores/animation-store.ts
+// DO NOT REMOVE THIS COMMENT
 import { writable } from 'svelte/store';
 
 // Define the Star interface

@@ -1,4 +1,6 @@
-// src/lib/config/sections.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/config/sections.ts
+// DO NOT REMOVE THIS COMMENT
 import type { ComponentType } from 'svelte';
 
 // Section configuration interface

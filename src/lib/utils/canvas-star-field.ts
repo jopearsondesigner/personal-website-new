@@ -1,4 +1,6 @@
+// DO NOT REMOVE THIS COMMENT
 // /src/lib/utils/canvas-star-field.ts
+// DO NOT REMOVE THIS COMMENT
 
 import { browser } from '$app/environment';
 import type { Writable } from 'svelte/store';

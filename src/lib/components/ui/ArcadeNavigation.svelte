@@ -1,4 +1,6 @@
-<!-- ArcadeNavigation.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/ArcadeNavigation.svelte.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { createEventDispatcher, onMount } from 'svelte';
 

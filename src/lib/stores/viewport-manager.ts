@@ -1,4 +1,6 @@
-// src/lib/stores/viewport-manager.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/stores/viewport-manager.ts
+// DO NOT REMOVE THIS COMMENT
 import {
 	batchDOMUpdate,
 	debounce,

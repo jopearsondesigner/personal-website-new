@@ -1,4 +1,6 @@
-// File: src/lib/utils/animation-utils.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/animation-utils.ts
+// DO NOT REMOVE THIS COMMENT
 import type { Star as ImportedStar } from '$lib/types/animation';
 
 export interface Star {

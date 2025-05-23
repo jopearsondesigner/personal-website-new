@@ -1,8 +1,6 @@
-// src/lib/constants/ui-constants.js
-/**
- * UI Constants for Guardians of Lumara: Vela's Voyage
- * Centralized constants for consistent styling across UI components
- */
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/constants/ui-constants.js
+// DO NOT REMOVE THIS COMMENT
 
 // Icon sizing
 export const ICON_SIZE = 36;

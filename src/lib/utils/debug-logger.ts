@@ -1,4 +1,6 @@
-// src/lib/utils/debug-logger.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/debug-logger.ts
+// DO NOT REMOVE THIS COMMENT
 import { browser } from '$app/environment';
 import { writable, get } from 'svelte/store';
 

@@ -1,4 +1,6 @@
-<!-- src/lib/components/ui/ArcadeCtaButton.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/ArcadeCtaButton.svelte.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script>
 	import { onMount } from 'svelte';
 	import gsap from 'gsap';

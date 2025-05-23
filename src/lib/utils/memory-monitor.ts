@@ -1,4 +1,6 @@
-// src/lib/utils/memory-monitor.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/memory-monitor.ts
+// DO NOT REMOVE THIS COMMENT
 import { browser } from '$app/environment';
 import { writable, get, type Writable } from 'svelte/store';
 import { deviceCapabilities } from './device-performance';

@@ -1,4 +1,6 @@
-<!-- src/lib/components/ui/SkillBar.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/SkillBar.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { tweened } from 'svelte/motion';

@@ -1,4 +1,6 @@
-<!-- CustomDrawer.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/CustomDrawer.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { slide } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';

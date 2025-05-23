@@ -1,4 +1,6 @@
-// src/lib/utils/star-renderer.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/star-renderer.ts
+// DO NOT REMOVE THIS COMMENT
 
 type CanvasRenderingContext2D = globalThis.CanvasRenderingContext2D;
 

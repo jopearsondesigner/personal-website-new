@@ -1,4 +1,6 @@
-// src/lib/utils/animation-mode.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/animation-mode.ts
+// DO NOT REMOVE THIS COMMENT
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 

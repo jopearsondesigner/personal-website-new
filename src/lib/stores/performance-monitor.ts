@@ -1,4 +1,6 @@
-// src/lib/stores/performance-monitor.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/stores/performance-monitor.ts
+// DO NOT REMOVE THIS COMMENT
 import { browser } from '$app/environment';
 import { writable, get } from 'svelte/store';
 

@@ -1,4 +1,6 @@
-<!-- src/lib/components/LoadingScreen.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/LoadingScreen.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { fade } from 'svelte/transition';
 	import Logo from '$lib/assets/images/logo.svg';

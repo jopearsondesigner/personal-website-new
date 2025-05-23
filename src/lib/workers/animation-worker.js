@@ -1,4 +1,6 @@
-// File: /src/lib/workers/animation-worker.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/workers/animation-worker.ts
+// DO NOT REMOVE THIS COMMENT
 
 // Optimize worker communication and processing
 let stars = [];

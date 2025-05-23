@@ -1,4 +1,6 @@
-<!-- src/lib/components/sections/Work.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/sections/Work.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { fade, fly } from 'svelte/transition';

@@ -1,4 +1,6 @@
-// src/lib/stores/screen-store.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/stores/screen-store.ts
+// DO NOT REMOVE THIS COMMENT
 import { writable } from 'svelte/store';
 
 // Define valid screen types

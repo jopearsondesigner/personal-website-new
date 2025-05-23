@@ -1,4 +1,6 @@
-// Create this as src/lib/utils/debug-pool-stats.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/debug-pool-stats.ts
+// DO NOT REMOVE THIS COMMENT
 import { browser } from '$app/environment';
 import { get } from 'svelte/store';
 import { objectPoolStatsStore } from './device-performance';

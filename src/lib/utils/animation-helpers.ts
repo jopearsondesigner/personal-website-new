@@ -1,4 +1,6 @@
-// File: /src/lib/utils/animation-helpers.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/animation-helpers.ts
+// DO NOT REMOVE THIS COMMENT
 
 import { browser } from '$app/environment';
 

@@ -1,4 +1,6 @@
-<!-- src/lib/components/layout/Footer.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/layout/Footer.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { theme } from '$lib/stores/theme';
 

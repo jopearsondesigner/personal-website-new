@@ -1,4 +1,6 @@
-<!-- src/lib/components/layout/MobileNavMenu.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/layout/MobileNavMenu.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { fly, fade, slide } from 'svelte/transition';
 	import { cubicInOut } from 'svelte/easing';

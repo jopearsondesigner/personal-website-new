@@ -1,4 +1,6 @@
-// src/lib/utils/setup-crt-variables.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/utils/setup-crt-variables.ts
+// DO NOT REMOVE THIS COMMENT
 
 /**
  * Sets up all CRT effect CSS variables based on device capabilities

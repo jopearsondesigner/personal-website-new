@@ -1,4 +1,6 @@
-<!-- src/lib/components/ui/ScreenEffects.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/ScreenEffects.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';

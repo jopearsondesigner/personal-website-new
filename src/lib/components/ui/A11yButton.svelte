@@ -1,4 +1,6 @@
-<!-- src/lib/components/A11yButton.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/components/ui/A11yButton.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 	import { motionOK } from '$lib/stores/a11y-store';

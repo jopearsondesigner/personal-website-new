@@ -1,4 +1,6 @@
-// src/lib/data/blog.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/data/blog.ts
+// DO NOT REMOVE THIS COMMENT
 export interface BlogPost {
 	id: string;
 	title: string;

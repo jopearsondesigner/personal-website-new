@@ -1,4 +1,6 @@
-// src/lib/utils/event-manager.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/ils/event-manager.ts
+// DO NOT REMOVE THIS COMMENT
 import { browser } from '$app/environment';
 import { onMount, onDestroy } from 'svelte';
 
