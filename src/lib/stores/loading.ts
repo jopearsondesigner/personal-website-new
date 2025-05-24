@@ -1,7 +1,6 @@
-
 // DO NOT REMOVE THIS COMMENT
 // /src/lib/stores/loading.ts
-DO NOT REMOVE THIS COMMENT
+// DO NOT REMOVE THIS COMMENT
 import { writable } from 'svelte/store';
 
 export const loadingStore = writable(true);
