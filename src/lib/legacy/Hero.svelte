@@ -1,4 +1,6 @@
-<!-- src/lib/components/section/Hero.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+/src/lib/legacy/Hero.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
@@ -1179,9 +1181,9 @@
 	id="hero"
 	class="w-full relative overflow-hidden flex items-center justify-center hardware-accelerated"
 	style="
-    margin-top: calc(-.5 * {$layoutStore.navbarHeight}px);
-    height: calc(100vh + {$layoutStore.navbarHeight}px);
-  "
+		margin-top: calc(-.5 * {$layoutStore.navbarHeight}px);
+		height: calc(100vh + {$layoutStore.navbarHeight}px);
+	"
 >
 	<div
 		id="arcade-cabinet"
@@ -1307,8 +1309,8 @@
 
 <style lang="css">
 	/* ==========================================================================
-       Root Variables
-       ========================================================================== */
+		Root Variables
+		========================================================================== */
 	:root {
 		/* Layout */
 		--arcade-screen-width: min(95vw, 800px);
@@ -1360,8 +1362,8 @@
 	}
 
 	/* ==========================================================================
-   Media Queries
-   ========================================================================== */
+	Media Queries
+	========================================================================== */
 	@media (min-width: 768px) {
 		:root {
 			--arcade-screen-width: 80vw;
@@ -1372,8 +1374,8 @@
 	}
 
 	/* ==========================================================================
-   Layout Components
-   ========================================================================== */
+	Layout Components
+	========================================================================== */
 	section {
 		height: calc(100vh - var(--navbar-height, 64px));
 	}
@@ -1406,8 +1408,8 @@
 	}
 
 	/* ==========================================================================
-       Screen Components
-       ========================================================================== */
+		Screen Components
+		========================================================================== */
 	.arcade-screen-wrapper {
 		position: absolute;
 		padding: var(--screen-recess);
@@ -1436,8 +1438,8 @@
 	}
 
 	/* ==========================================================================
-       Visual Effects
-       ========================================================================== */
+		Visual Effects
+		========================================================================== */
 	.screen-reflection,
 	.screen-glare,
 	.screen-glass,
@@ -1499,8 +1501,8 @@
 	}
 
 	/* ==========================================================================
-       Typography
-       ========================================================================== */
+		Typography
+		========================================================================== */
 	#header {
 		font-family: 'Pixelify Sans', sans-serif;
 		font-size: var(--header-font-size);
@@ -1561,8 +1563,8 @@
 	}
 
 	/* ==========================================================================
-       Insert Concept Styles
-       ========================================================================== */
+		Insert Concept Styles
+		========================================================================== */
 	#insert-concept {
 		font-family: 'Press Start 2P', sans-serif;
 		text-transform: uppercase;
@@ -1580,8 +1582,8 @@
 	}
 
 	/* ==========================================================================
-       Animations
-       ========================================================================== */
+		Animations
+		========================================================================== */
 	@keyframes scanline {
 		0% {
 			background-position: 0 0;
@@ -1695,8 +1697,8 @@
 	}
 
 	/* ==========================================================================
-       Theme-Specific Styles
-       ========================================================================== */
+		Theme-Specific Styles
+		========================================================================== */
 	/* Light Theme */
 	:global(html.light) #arcade-cabinet {
 		background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, transparent 15%),
@@ -1724,8 +1726,8 @@
 	}
 
 	/* ==========================================================================
-       Utility Classes
-       ========================================================================== */
+		Utility Classes
+		========================================================================== */
 	.hardware-accelerated {
 		transform: translateZ(0);
 		backface-visibility: hidden;
@@ -1768,8 +1770,8 @@
 	}
 
 	/* ==========================================================================
-       CRT Effects
-       ========================================================================== */
+		CRT Effects
+		========================================================================== */
 	.crt-screen {
 		--phosphor-decay: 16ms;
 		--refresh-rate: 60Hz;
@@ -1838,8 +1840,8 @@
 	}
 
 	/* ==========================================================================
-       Cabinet Effects
-       ========================================================================== */
+		Cabinet Effects
+		========================================================================== */
 	.cabinet-wear {
 		border-radius: 0;
 		background: repeating-linear-gradient(
@@ -1912,8 +1914,8 @@
 	}
 
 	/* ==========================================================================
-       Lighting Effects
-       ========================================================================== */
+		Lighting Effects
+		========================================================================== */
 	.t-molding {
 		position: absolute;
 		inset: -4px;
@@ -2004,8 +2006,8 @@
 	}
 
 	/* ==========================================================================
-       Space Background
-       ========================================================================== */
+		Space Background
+		========================================================================== */
 	#space-background {
 		position: absolute;
 		inset: 0;
@@ -2040,8 +2042,8 @@
 	}
 
 	/* ==========================================================================
-       Screen Effects and Overlays
-       ========================================================================== */
+		Screen Effects and Overlays
+		========================================================================== */
 	#scanline-overlay {
 		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.0675) 51%);
 		background-size: 100% 4px;
@@ -2071,8 +2073,8 @@
 	}
 
 	/* ==========================================================================
-       Cabinet Materials and Structure
-       ========================================================================== */
+		Cabinet Materials and Structure
+		========================================================================== */
 	.cabinet-metal {
 		background: linear-gradient(180deg, rgba(40, 40, 40, 1) 0%, rgba(20, 20, 20, 1) 100%);
 		box-shadow: var(--cabinet-shadow);
@@ -2273,8 +2275,8 @@
 	}
 
 	/* ==========================================================================
-       Light Theme Variants
-       ========================================================================== */
+		Light Theme Variants
+		========================================================================== */
 	:global(html.light) .screen-glass {
 		background: linear-gradient(
 			35deg,
@@ -2301,7 +2303,7 @@
 	:global(html.light) .screen-bezel {
 		background: linear-gradient(to bottom, rgba(210, 210, 210, 1) 0%, rgba(190, 190, 190, 1) 100%);
 		box-shadow:
-        /* Inner shadow for depth */
+			/* Inner shadow for depth */
 			inset 0 2px 4px rgba(0, 0, 0, 0.15),
 			/* Subtle outer glow */ 0 0 1px rgba(255, 255, 255, 0.8),
 			/* Gentle ambient shadow */ 0 4px 6px rgba(0, 0, 0, 0.06);
@@ -2346,7 +2348,7 @@
 			inset 0 0 100px rgba(0, 0, 0, 0.1);
 		background: linear-gradient(145deg, #111 0%, #222 100%);
 		box-shadow:
-        /* Screen recess shadow */
+			/* Screen recess shadow */
 			0 0 20px rgba(0, 0, 0, 0.08),
 			/* Inner screen shadow */ inset 0 0 40px rgba(0, 0, 0, 0.25),
 			/* Subtle glass effect */ inset 0 0 2px rgba(255, 255, 255, 0.4);
@@ -2378,7 +2380,7 @@
 			rgba(225, 225, 225, 1) 100%
 		);
 		box-shadow:
-       /* Top highlight */
+		/* Top highlight */
 			inset 0 1px 2px rgba(255, 255, 255, 0.95),
 			/* Subtle depth shadows */ inset 0 10px 20px rgba(0, 0, 0, 0.02),
 			inset -4px 0 15px rgba(0, 0, 0, 0.01),
@@ -2401,8 +2403,8 @@
 	}
 
 	/* ==========================================================================
-      Mobile Optimizations
-      ========================================================================== */
+		Mobile Optimizations
+		========================================================================== */
 	@media (max-width: 768px) {
 		/* Optimize star rendering on mobile */
 		.star {
@@ -2486,8 +2488,8 @@
 	}
 
 	/* ==========================================================================
-      Mobile Light Mode Optimizations
-      ========================================================================== */
+		Mobile Light Mode Optimizations
+		========================================================================== */
 	@media (max-width: 768px) {
 		/* Soften glitch effects for mobile light mode */
 		:global(html.light) #header::before {
@@ -2652,8 +2654,8 @@
 	}
 
 	/* ==========================================================================
-      Low Performance Device Optimizations
-      ========================================================================== */
+		Low Performance Device Optimizations
+		========================================================================== */
 	html[data-device-type='low-performance'] .shadow-mask,
 	html[data-device-type='low-performance'] .interlace,
 	html[data-device-type='low-performance'] .phosphor-decay {
@@ -2690,8 +2692,8 @@
 	}
 
 	/* ==========================================================================
-      Fix iOS overscroll issues
-      ========================================================================== */
+		Fix iOS overscroll issues
+		========================================================================== */
 	@supports (-webkit-overflow-scrolling: touch) {
 		body,
 		html {

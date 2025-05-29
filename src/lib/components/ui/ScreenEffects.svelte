@@ -1,6 +1,7 @@
 <!-- DO NOT REMOVE THIS COMMENT
 /src/lib/components/ui/ScreenEffects.svelte
 DO NOT REMOVE THIS COMMENT -->
+<!-- Restored ScreenEffects.svelte - Direct Migration from Hero.svelte -->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
@@ -19,27 +20,61 @@ DO NOT REMOVE THIS COMMENT -->
 	});
 </script>
 
-<!-- Wrap all effects in a container with proper z-index -->
-<div class="screen-effects-container">
-	<!-- CRT screen effects layers -->
-	<div class="phosphor-decay rounded-[3vmin]"></div>
-	<div class="shadow-mask rounded-[3vmin]"></div>
-	<div class="interlace rounded-[3vmin]"></div>
-	<div class="screen-reflection rounded-[3vmin]"></div>
-	<div class="screen-glare rounded-[3vmin]"></div>
-	<div class="glow-effect rounded-[3vmin]"></div>
-</div>
+<!-- CRT screen effects layers - NO WRAPPER, EXACT from Hero.svelte -->
+<div class="phosphor-decay rounded-[3vmin]"></div>
+<div class="shadow-mask rounded-[3vmin]"></div>
+<div class="interlace rounded-[3vmin]"></div>
+<div class="screen-reflection rounded-[3vmin]"></div>
+<div class="screen-glare rounded-[3vmin]"></div>
+<div class="glow-effect rounded-[3vmin]"></div>
 
 <style>
-	/* Add a container to control z-index of all effects */
-	.screen-effects-container {
-		position: absolute;
-		inset: 0;
-		z-index: 5; /* Lower than glass effects (z-index: 20) */
-		pointer-events: none;
+	/* CRT effect styles - EXACT from Hero.svelte */
+	.screen-reflection,
+	.screen-glare,
+	.screen-glass,
+	.glow-effect,
+	.phosphor-decay,
+	.shadow-mask,
+	.interlace {
+		border-radius: var(--border-radius);
 	}
 
-	/* CRT effect styles */
+	.screen-reflection {
+		position: absolute;
+		inset: 0;
+		background: var(--screen-curve),
+			linear-gradient(
+				35deg,
+				transparent 0%,
+				rgba(255, 255, 255, 0.02) 25%,
+				rgba(255, 255, 255, 0.05) 47%,
+				rgba(255, 255, 255, 0.02) 50%,
+				transparent 100%
+			);
+		mix-blend-mode: overlay;
+		opacity: 0.7;
+	}
+
+	.screen-glare {
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			35deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.05) 25%,
+			rgba(255, 255, 255, 0.1) 47%,
+			rgba(255, 255, 255, 0.05) 50%,
+			transparent 100%
+		);
+		pointer-events: none;
+		z-index: 2;
+	}
+
+	.glow-effect {
+		will-change: opacity;
+	}
+
 	.phosphor-decay {
 		position: absolute;
 		inset: 0;
@@ -74,44 +109,7 @@ DO NOT REMOVE THIS COMMENT -->
 		animation: interlaceFlicker calc(1000ms / var(--refresh-rate)) steps(2) infinite;
 	}
 
-	.screen-reflection {
-		position: absolute;
-		inset: 0;
-		background: var(--screen-curve),
-			linear-gradient(
-				35deg,
-				transparent 0%,
-				rgba(255, 255, 255, 0.02) 25%,
-				rgba(255, 255, 255, 0.05) 47%,
-				rgba(255, 255, 255, 0.02) 50%,
-				transparent 100%
-			);
-		mix-blend-mode: overlay;
-		opacity: 0.7;
-		z-index: 1; /* Higher than base screen effects but lower than glass */
-	}
-
-	.screen-glare {
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(
-			35deg,
-			transparent 0%,
-			rgba(255, 255, 255, 0.05) 25%,
-			rgba(255, 255, 255, 0.1) 47%,
-			rgba(255, 255, 255, 0.05) 50%,
-			transparent 100%
-		);
-		pointer-events: none;
-		z-index: 2; /* Higher than screen-reflection but lower than glass */
-	}
-
-	.glow-effect {
-		will-change: opacity;
-		z-index: 3; /* Higher than other screen effects */
-	}
-
-	/* Animations */
+	/* Animations - EXACT from Hero.svelte */
 	@keyframes phosphorPersistence {
 		0% {
 			opacity: 1;
@@ -136,16 +134,7 @@ DO NOT REMOVE THIS COMMENT -->
 		}
 	}
 
-	@keyframes scanline {
-		0% {
-			background-position: 0 0;
-		}
-		100% {
-			background-position: 0 4px;
-		}
-	}
-
-	/* Light theme adjustments */
+	/* Light theme adjustments - EXACT from Hero.svelte */
 	:global(html.light) .screen-reflection {
 		opacity: 0.4;
 		background: linear-gradient(
@@ -158,14 +147,13 @@ DO NOT REMOVE THIS COMMENT -->
 		);
 	}
 
-	/* Mobile optimizations */
+	:global(html.light) .shadow-mask {
+		opacity: 0.2;
+	}
+
+	/* Mobile optimizations - EXACT from Hero.svelte */
 	@media (max-width: 768px) {
 		/* Optimize CRT effects for mobile */
-		:global(.crt-screen) {
-			--shadow-mask-size: 2px; /* Smaller mask for better performance */
-			--bloom-intensity: 0.3; /* Reduced bloom effect */
-		}
-
 		.shadow-mask {
 			opacity: 0.2; /* Reduce opacity for better performance */
 			background-size: 2px 2px; /* Simpler pattern */
@@ -186,20 +174,20 @@ DO NOT REMOVE THIS COMMENT -->
 		}
 	}
 
-	/* Low performance device optimizations */
-	:global(html[data-device-type='low-performance']) .shadow-mask,
-	:global(html[data-device-type='low-performance']) .interlace,
-	:global(html[data-device-type='low-performance']) .phosphor-decay {
+	/* Low performance device optimizations - EXACT from Hero.svelte */
+	html[data-device-type='low-performance'] .shadow-mask,
+	html[data-device-type='low-performance'] .interlace,
+	html[data-device-type='low-performance'] .phosphor-decay {
 		display: none; /* Disable expensive effects on low-performance devices */
 	}
 
-	/* iOS-specific optimizations */
-	:global(.ios-optimized) .shadow-mask,
-	:global(.ios-optimized) .phosphor-decay {
+	/* iOS-specific optimizations - EXACT from Hero.svelte */
+	.ios-optimized .shadow-mask,
+	.ios-optimized .phosphor-decay {
 		display: none;
 	}
 
-	:global(.ios-optimized) .interlace {
+	.ios-optimized .interlace {
 		opacity: 0.3;
 		background-size: 100% 6px;
 	}
