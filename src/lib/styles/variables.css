@@ -32,7 +32,7 @@ DO NOT REMOVE THIS COMMENT  */
 	--glass-reflectivity: 0.15;
 	--glass-specular-intensity: 0.7;
 	--glass-curvature: 3%;
-	--glass-edge-highlight: rgba(255, 255, 255, 0.8);
+	--glass-edge-highlight: rgba(245, 245, 220, 0.8);
 	--glass-dust-opacity: 0.03;
 	--glass-smudge-opacity: 0.04;
 	--internal-reflection-opacity: 0.045;
@@ -110,7 +110,7 @@ DO NOT REMOVE THIS COMMENT  */
 }
 
 /* Global animation definitions - EXACT from Hero.svelte */
-@keyframes powerUpSequence {
+/* @keyframes powerUpSequence {
 	0% {
 		filter: brightness(0) blur(2px);
 		transform: scale(0.98);
@@ -135,7 +135,7 @@ DO NOT REMOVE THIS COMMENT  */
 		filter: brightness(1) blur(0);
 		transform: scale(1);
 	}
-}
+} */
 
 @keyframes slowGlassShift {
 	0% {
@@ -182,11 +182,11 @@ DO NOT REMOVE THIS COMMENT  */
 }
 
 /* Animation utilities */
-.power-sequence {
+/* .power-sequence {
 	animation: powerUpSequence 2.5s ease-out;
-}
+} */
 
 /* Glass warmup triggered by power-sequence class - EXACT from Hero.svelte */
-.power-sequence .screen-glass-container > div {
+/* .power-sequence .screen-glass-container > div {
 	animation: glassWarmUp 3s ease-out forwards;
-}
+} */

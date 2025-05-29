@@ -414,7 +414,7 @@ DO NOT REMOVE THIS COMMENT -->
 		}
 	}
 
-	@keyframes powerUpSequence {
+	/* @keyframes powerUpSequence {
 		0% {
 			filter: brightness(0) blur(2px);
 			transform: scale(0.98);
@@ -439,7 +439,7 @@ DO NOT REMOVE THIS COMMENT -->
 			filter: brightness(1) blur(0);
 			transform: scale(1);
 		}
-	}
+	} */
 
 	@keyframes slowGlassShift {
 		0% {
@@ -475,11 +475,11 @@ DO NOT REMOVE THIS COMMENT -->
 	}
 
 	/* Glass warmup animation using power-sequence class - EXACT from Hero.svelte */
-	.power-sequence .screen-glass-container > div {
+	/* .power-sequence .screen-glass-container > div {
 		animation: glassWarmUp 3s ease-out forwards;
-	}
+	} */
 
-	@keyframes glassWarmUp {
+	/* @keyframes glassWarmUp {
 		0% {
 			opacity: 0;
 			filter: brightness(0.5) blur(2px);
@@ -496,7 +496,7 @@ DO NOT REMOVE THIS COMMENT -->
 			opacity: 1;
 			filter: brightness(1) blur(0);
 		}
-	}
+	} */
 
 	/* Hardware acceleration utility */
 	.hardware-accelerated {
