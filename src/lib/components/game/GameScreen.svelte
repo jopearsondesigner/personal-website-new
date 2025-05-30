@@ -69,7 +69,7 @@ DO NOT REMOVE THIS COMMENT -->
 		decorativeText = [
 			// Controls in left panel
 			{
-				text: 'CONTROLS',
+				text: 'PLAYER CONTROLS',
 				value: 'MOVE',
 				icons: [
 					{ component: LeftArrowIcon, size: ICON_SIZE, color: 'rgba(245, 245, 220, 0.9)' },

@@ -10,38 +10,15 @@
 	height={size}
 	viewBox="0 0 24 24"
 	fill="none"
+	stroke={color}
 	class="instruction-icon"
 >
-	<!-- Improved Keyboard Key Background with better contrast -->
-	<rect
-		x="2"
-		y="4"
-		width="20"
-		height="16"
-		rx="3"
-		fill="rgba(0, 0, 0, 0.6)"
-		stroke={color}
-		stroke-width="1.5"
-	/>
+	<!-- Outer rectangle -->
+	<rect class="st1" x="2" y="4" width="20" height="16" rx="3" ry="3" />
 
-	<!-- Highlight effect for 3D button appearance -->
-	<path
-		d="M2 7C2 5.34315 3.34315 4 5 4H19C20.6569 4 22 5.34315 22 7V7.5H2V7Z"
-		fill="rgba(255, 255, 255, 0.15)"
-	/>
-
-	<!-- Shadow effect for 3D button appearance -->
-	<path
-		d="M2 17.5V17C2 18.6569 3.34315 20 5 20H19C20.6569 20 22 18.6569 22 17V17.5H2Z"
-		fill="rgba(0, 0, 0, 0.3)"
-	/>
-
-	<!-- Right Arrow - thicker and more visible -->
-	<path
-		d="M8 12H16M16 12L12 8M16 12L12 16"
-		stroke={color}
-		stroke-width="2.5"
-		stroke-linecap="round"
-		stroke-linejoin="round"
+	<!-- Right arrow polygon -->
+	<polygon
+		class="st1"
+		points="7.9 9.1 12.2 9.1 12.2 7 18.1 12 12.2 17 12.2 14.9 7.9 14.9 7.9 9.1"
 	/>
 </svg>
