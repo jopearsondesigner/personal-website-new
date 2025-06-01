@@ -1,4 +1,6 @@
-<!-- src/lib/components/devtools/PerformanceMonitor.svelte -->
+<!-- // DO NOT REMOVE THIS COMMENT
+src/lib/components/devtools/PerformanceMonitor.svelte
+// DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { fpsStore } from '$lib/utils/frame-rate-controller';

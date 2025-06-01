@@ -1,5 +1,6 @@
-// File: src/lib/types/animation.ts
-
+// DO NOT REMOVE THIS COMMENT
+// src/lib/types/animation.ts
+// DO NOT REMOVE THIS COMMENT
 export interface Star {
 	id: number;
 	inUse: boolean;

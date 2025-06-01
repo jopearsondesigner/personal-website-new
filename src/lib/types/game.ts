@@ -1,4 +1,6 @@
-// File: src/lib/types/game.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/types/game.ts
+// DO NOT REMOVE THIS COMMENT
 // Create this new file in your existing types directory
 
 export type GameState = 'idle' | 'playing' | 'paused' | 'gameover';

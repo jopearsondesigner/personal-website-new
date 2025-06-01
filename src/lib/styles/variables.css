@@ -37,6 +37,28 @@ DO NOT REMOVE THIS COMMENT  */
 	--glass-smudge-opacity: 0.04;
 	--internal-reflection-opacity: 0.045;
 
+	/* Additional variables for screen glass edge */
+	--glass-edge-highlight-light: rgba(180, 180, 180, 0.9);
+	--glass-edge-opacity: 0.35;
+	--glass-edge-opacity-light: 0.45;
+	--glass-edge-opacity-mobile: 0.3;
+	--glass-edge-border-width: 3px;
+	--glass-edge-border-width-mobile: 2px;
+
+	/* Light theme overrides screen glass */
+	:global(html.light) {
+		--glass-edge-highlight: var(--glass-edge-highlight-light);
+		--glass-edge-opacity: var(--glass-edge-opacity-light);
+	}
+
+	/* Mobile overrides */
+	@media (max-width: 768px) {
+		:root {
+			--glass-edge-opacity: var(--glass-edge-opacity-mobile);
+			--glass-edge-border-width: var(--glass-edge-border-width-mobile);
+		}
+	}
+
 	/* Shadows & Effects - EXACT from Hero.svelte */
 	--cabinet-shadow: 0 20px 40px rgba(0, 0, 0, 0.25), 0 5px 15px rgba(0, 0, 0, 0.15),
 		inset 0 3px 8px rgba(0, 0, 0, 0.2);

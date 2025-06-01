@@ -1,7 +1,7 @@
 
 
 // DO NOT REMOVE THIS COMMENT
-// /src/lib/utils/device-performance.ts
+// /src/lib/utils/device-capabilities.ts
 // DO NOT REMOVE THIS COMMENT
 
 import { browser } from '$app/environment';

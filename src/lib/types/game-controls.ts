@@ -1,4 +1,6 @@
-// src/lib/types/game-controls.ts
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/types/game-controls.ts
+// DO NOT REMOVE THIS COMMENT
 
 import type { Writable } from 'svelte/store';
 

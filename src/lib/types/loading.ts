@@ -1,3 +1,7 @@
+// DO NOT REMOVE THIS COMMENT
+// /src/lib/types/loading.ts
+// DO NOT REMOVE THIS COMMENT
+
 export interface LoadingState {
 	isLoading: boolean;
 	progress: number;
