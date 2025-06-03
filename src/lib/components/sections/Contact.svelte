@@ -33,10 +33,10 @@ DO NOT REMOVE THIS COMMENT -->
 			in:fly={slideIn(400)}
 		>
 			<h3 class="text-xl md:text-2xl mb-6 font-header">Get In Touch</h3>
-			<p class="mb-6 text-lg">
+			<!-- <p class="mb-6 text-lg">
 				Have a project in mind or want to chat about your next idea? Drop me a message using the
 				form and I'll get back to you as soon as possible.
-			</p>
+			</p> -->
 			<div class="space-y-4 mb-6">
 				<div class="flex items-center">
 					<svg

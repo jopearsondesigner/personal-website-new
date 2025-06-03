@@ -75,11 +75,11 @@ DO NOT REMOVE THIS COMMENT -->
 						Jo Pearson
 					</span>
 				</div>
-				<p
+				<!-- <p
 					class="text-center md:text-left text-arcadeBlack-500/80 dark:text-arcadeWhite-200/80 mb-4"
 				>
 					Arcade-inspired web development with a focus on interactive experiences.
-				</p>
+				</p> -->
 				<!-- Social links -->
 				<div class="flex space-x-3 mt-2">
 					{#each socialLinks as link}

@@ -51,7 +51,7 @@ DO NOT REMOVE THIS COMMENT -->
 				<h2
 					class="text-3xl md:text-4xl font-press-start text-arcadeBlack-500 dark:text-arcadeWhite-200 mb-8"
 				>
-					About Me
+					UVP
 				</h2>
 			</div>
 
@@ -60,7 +60,7 @@ DO NOT REMOVE THIS COMMENT -->
 					<div
 						class="bg-arcadeBlack-200/10 dark:bg-arcadeBlack-700/30 p-6 rounded-lg border border-arcadeBlack-200/20 dark:border-arcadeBlack-600/40 shadow-lg backdrop-blur-sm"
 					>
-						<h3 class="text-xl md:text-2xl mb-4 font-header">Who Am I?</h3>
+						<!-- <h3 class="text-xl md:text-2xl mb-4 font-header">Who Am I?</h3>
 						<p class="text-lg mb-4">
 							I'm a designer and developer passionate about creating immersive digital experiences
 							that merge creativity and technology.
@@ -72,7 +72,7 @@ DO NOT REMOVE THIS COMMENT -->
 						<p class="text-lg">
 							My arcade-inspired portfolio showcases my love for retro gaming while demonstrating my
 							modern development skills.
-						</p>
+						</p> -->
 					</div>
 				</div>
 
