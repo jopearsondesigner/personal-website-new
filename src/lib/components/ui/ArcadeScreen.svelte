@@ -33,6 +33,65 @@ DO NOT REMOVE THIS COMMENT -->
 		dispatch('stateChange', event.detail);
 	}
 
+	// Prevent mobile zoom and scrolling
+	function preventMobileZoom() {
+		if (!browser) return;
+
+		// Set viewport meta tag to prevent zoom
+		let viewportMeta = document.querySelector('meta[name="viewport"]');
+		if (!viewportMeta) {
+			viewportMeta = document.createElement('meta');
+			viewportMeta.setAttribute('name', 'viewport');
+			document.head.appendChild(viewportMeta);
+		}
+
+		// Configure viewport to prevent zoom but allow StarField interactions
+		viewportMeta.setAttribute(
+			'content',
+			'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no, viewport-fit=cover'
+		);
+
+		// Prevent touch behaviors that can cause zoom (but allow single touches for StarField)
+		document.addEventListener('touchstart', preventZoomGestures, { passive: false });
+		document.addEventListener('touchmove', preventZoomGestures, { passive: false });
+		document.addEventListener('gesturestart', preventZoomGestures, { passive: false });
+		document.addEventListener('gesturechange', preventZoomGestures, { passive: false });
+		document.addEventListener('gestureend', preventZoomGestures, { passive: false });
+
+		// Prevent double-tap zoom specifically on the arcade screen
+		if (arcadeScreen) {
+			arcadeScreen.addEventListener('touchend', preventDoubleTapZoom, { passive: false });
+		}
+	}
+
+	// Prevent zoom gestures while allowing StarField boost
+	function preventZoomGestures(e: TouchEvent | Event) {
+		// Prevent pinch zoom (multi-touch)
+		if ('touches' in e && e.touches.length > 1) {
+			e.preventDefault();
+			return;
+		}
+
+		// Prevent gesture zoom
+		if (e.type.startsWith('gesture')) {
+			e.preventDefault();
+			return;
+		}
+
+		// Allow single touches for StarField boost - don't prevent them
+		// The StarField component will handle single touch events appropriately
+	}
+
+	// Prevent double-tap zoom with timing-based detection
+	let lastTouchEnd = 0;
+	function preventDoubleTapZoom(e: TouchEvent) {
+		const now = new Date().getTime();
+		if (now - lastTouchEnd <= 300) {
+			e.preventDefault();
+		}
+		lastTouchEnd = now;
+	}
+
 	// Initialize glass effects using CSS variables from variables.css - EXACT from Hero.svelte
 	function initializeGlassEffects() {
 		if (!browser) return;
@@ -132,10 +191,30 @@ DO NOT REMOVE THIS COMMENT -->
 		);
 	}
 
+	// Cleanup mobile zoom prevention
+	function cleanupMobileZoom() {
+		if (!browser) return;
+
+		document.removeEventListener('touchstart', preventZoomGestures);
+		document.removeEventListener('touchmove', preventZoomGestures);
+		document.removeEventListener('gesturestart', preventZoomGestures);
+		document.removeEventListener('gesturechange', preventZoomGestures);
+		document.removeEventListener('gestureend', preventZoomGestures);
+
+		if (arcadeScreen) {
+			arcadeScreen.removeEventListener('touchend', preventDoubleTapZoom);
+		}
+	}
+
 	onMount(() => {
 		if (!browser) return;
 
 		detectDeviceCapabilities();
+
+		// Prevent mobile zoom for game screen
+		if (isMobileDevice) {
+			preventMobileZoom();
+		}
 
 		// Initialize glass effects
 		initializeGlassEffects();
@@ -164,6 +243,10 @@ DO NOT REMOVE THIS COMMENT -->
 		if (glassEffectsHandler) {
 			document.removeEventListener('mousemove', glassEffectsHandler as EventListener);
 		}
+
+		// Cleanup mobile zoom prevention
+		cleanupMobileZoom();
+
 		animationState.resetAnimationState();
 	});
 
@@ -176,7 +259,7 @@ DO NOT REMOVE THIS COMMENT -->
 
 <div
 	id="arcade-screen"
-	class="crt-screen hardware-accelerated relative glow rounded-[3vmin] overflow-hidden"
+	class="crt-screen hardware-accelerated relative glow rounded-[3vmin] overflow-hidden mobile-zoom-prevention"
 	bind:this={arcadeScreen}
 >
 	<!-- CRT screen effects -->
@@ -237,6 +320,17 @@ DO NOT REMOVE THIS COMMENT -->
 		background: linear-gradient(145deg, #111 0%, #444 100%);
 		transform-style: preserve-3d;
 		overflow: hidden;
+	}
+
+	/* Mobile zoom prevention - coordinated with StarField boost */
+	.mobile-zoom-prevention {
+		touch-action: pan-y pinch-zoom; /* Allow panning but prevent zoom, StarField will capture taps */
+		-webkit-user-select: none;
+		-moz-user-select: none;
+		-ms-user-select: none;
+		user-select: none;
+		-webkit-touch-callout: none;
+		-webkit-tap-highlight-color: transparent;
 	}
 
 	/* CRT base styling - EXACT from Hero.svelte */
@@ -414,33 +508,6 @@ DO NOT REMOVE THIS COMMENT -->
 		}
 	}
 
-	/* @keyframes powerUpSequence {
-		0% {
-			filter: brightness(0) blur(2px);
-			transform: scale(0.98);
-		}
-		5% {
-			filter: brightness(0.3) blur(1px);
-			transform: scale(0.99);
-		}
-		10% {
-			filter: brightness(0.1) blur(2px);
-			transform: scale(0.98);
-		}
-		15% {
-			filter: brightness(0.5) blur(0.5px);
-			transform: scale(1);
-		}
-		30% {
-			filter: brightness(0.3) blur(1px);
-			transform: scale(0.99);
-		}
-		100% {
-			filter: brightness(1) blur(0);
-			transform: scale(1);
-		}
-	} */
-
 	@keyframes slowGlassShift {
 		0% {
 			opacity: 0.5;
@@ -473,30 +540,6 @@ DO NOT REMOVE THIS COMMENT -->
 			transform: translateX(1px) translateY(-1px);
 		}
 	}
-
-	/* Glass warmup animation using power-sequence class - EXACT from Hero.svelte */
-	/* .power-sequence .screen-glass-container > div {
-		animation: glassWarmUp 3s ease-out forwards;
-	} */
-
-	/* @keyframes glassWarmUp {
-		0% {
-			opacity: 0;
-			filter: brightness(0.5) blur(2px);
-		}
-		30% {
-			opacity: 0.3;
-			filter: brightness(0.7) blur(1px);
-		}
-		60% {
-			opacity: 0.5;
-			filter: brightness(0.85) blur(0.5px);
-		}
-		100% {
-			opacity: 1;
-			filter: brightness(1) blur(0);
-		}
-	} */
 
 	/* Hardware acceleration utility */
 	.hardware-accelerated {
@@ -541,13 +584,26 @@ DO NOT REMOVE THIS COMMENT -->
 		filter: blur(4vmin);
 	}
 
-	/* Mobile optimizations - EXACT from Hero.svelte */
+	/* Mobile optimizations - EXACT from Hero.svelte with enhanced zoom prevention */
 	@media (max-width: 768px) {
 		.hardware-accelerated {
 			will-change: transform;
 			contain: layout;
 			content-visibility: auto;
 			view-transition-name: none;
+		}
+
+		/* Enhanced mobile zoom prevention - coordinated with StarField boost */
+		#arcade-screen {
+			touch-action: pan-y pinch-zoom; /* Allow panning but prevent zoom, let StarField handle taps */
+			-webkit-user-select: none;
+			-moz-user-select: none;
+			-ms-user-select: none;
+			user-select: none;
+			-webkit-touch-callout: none;
+			-webkit-tap-highlight-color: transparent;
+			overscroll-behavior: contain;
+			-webkit-overflow-scrolling: touch;
 		}
 
 		#scanline-overlay {
@@ -593,5 +649,18 @@ DO NOT REMOVE THIS COMMENT -->
 	.ios-optimized #scanline-overlay {
 		opacity: 0.5;
 		background-size: 100% 6px;
+	}
+
+	/* Additional zoom prevention for all mobile devices - coordinated with StarField boost */
+	@media (max-width: 768px) {
+		* {
+			-webkit-touch-callout: none;
+			-webkit-tap-highlight-color: transparent;
+		}
+
+		/* Ensure StarField boost area can capture touch events */
+		.boost-interaction-area {
+			touch-action: auto !important;
+		}
 	}
 </style>

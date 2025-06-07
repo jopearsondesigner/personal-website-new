@@ -44,6 +44,10 @@ DO NOT REMOVE THIS COMMENT -->
 	let totalFrames = 0;
 	let droppedFrames = 0;
 
+	// Mobile-specific state
+	let boostArea: HTMLElement | null = null;
+	let isMobileDevice = false;
+
 	// Performance optimization states
 	let dynamicQuality = 1.0;
 	let adaptiveStarCount = starCount;
@@ -108,6 +112,16 @@ DO NOT REMOVE THIS COMMENT -->
 		stars.push(star);
 	}
 
+	// Detect mobile device
+	function detectMobile() {
+		isMobileDevice =
+			window.innerWidth < 768 ||
+			/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+		if (debugMode) {
+			console.log('StarField: Mobile device detected:', isMobileDevice);
+		}
+	}
+
 	// Setup canvas with better error handling
 	function setupCanvas() {
 		if (!containerElement) {
@@ -164,30 +178,81 @@ DO NOT REMOVE THIS COMMENT -->
 			);
 			dispatch('canvas-initialized', { width: canvasElement.width, height: canvasElement.height });
 
-			// Add boost interaction area
-			const boostArea = document.createElement('div');
-			boostArea.className = 'boost-interaction-area';
-			Object.assign(boostArea.style, {
-				position: 'absolute',
-				top: '0',
-				left: '0',
-				width: '100%',
-				height: '100%',
-				pointerEvents: 'auto',
-				touchAction: 'none',
-				zIndex: '1'
-			});
-			containerElement.appendChild(boostArea);
-
-			// Add touch handlers to the boost area instead of the canvas
-			boostArea.addEventListener('touchstart', handleTouchStart, { passive: false });
-			boostArea.addEventListener('touchend', handleTouchEnd, { passive: false });
+			// Setup boost interaction area with mobile-optimized approach
+			setupBoostInteraction();
 
 			return true;
 		} catch (error) {
 			console.error('Error setting up canvas:', error);
 			dispatch('error', { error });
 			return false;
+		}
+	}
+
+	// Enhanced boost interaction setup for mobile compatibility
+	function setupBoostInteraction() {
+		if (!containerElement || !enableBoost) return;
+
+		// Remove existing boost area if it exists
+		const existingBoostArea = containerElement.querySelector('.boost-interaction-area');
+		if (existingBoostArea) {
+			existingBoostArea.remove();
+		}
+
+		// Create boost interaction area with mobile-optimized settings
+		boostArea = document.createElement('div');
+		boostArea.className = 'boost-interaction-area';
+
+		// Mobile-optimized styling with higher z-index than glass effects
+		Object.assign(boostArea.style, {
+			position: 'absolute',
+			top: '0',
+			left: '0',
+			width: '100%',
+			height: '100%',
+			pointerEvents: 'auto',
+			touchAction: isMobileDevice ? 'pan-y pinch-zoom' : 'none', // Allow panning but capture taps
+			zIndex: '30', // Higher than glass effects (z-index: 20) and scanlines (z-index: 25)
+			backgroundColor: 'transparent',
+			cursor: 'pointer'
+		});
+
+		containerElement.appendChild(boostArea);
+
+		// Enhanced mobile touch handling
+		if (isMobileDevice) {
+			// Use more specific touch event handling for mobile
+			boostArea.addEventListener('touchstart', handleMobileTouchStart, {
+				passive: false,
+				capture: true // Capture phase to intercept before other handlers
+			});
+			boostArea.addEventListener('touchend', handleMobileTouchEnd, {
+				passive: false,
+				capture: true
+			});
+			boostArea.addEventListener('touchcancel', handleMobileTouchEnd, {
+				passive: false,
+				capture: true
+			});
+
+			// Prevent context menu on long press
+			boostArea.addEventListener('contextmenu', (e) => {
+				e.preventDefault();
+			});
+
+			if (debugMode) {
+				console.log('StarField: Mobile touch handlers setup complete');
+			}
+		} else {
+			// Desktop touch handling (for touch-enabled desktop devices)
+			boostArea.addEventListener('touchstart', handleTouchStart, { passive: false });
+			boostArea.addEventListener('touchend', handleTouchEnd, { passive: false });
+		}
+
+		// Add visual feedback for debug mode
+		if (debugMode) {
+			boostArea.style.backgroundColor = 'rgba(255, 0, 0, 0.1)';
+			boostArea.style.border = '2px dashed red';
 		}
 	}
 
@@ -397,6 +462,51 @@ DO NOT REMOVE THIS COMMENT -->
 		}
 	}
 
+	// Enhanced mobile touch handlers
+	function handleMobileTouchStart(e: TouchEvent) {
+		// Stop event propagation to prevent interference with zoom prevention
+		e.stopPropagation();
+
+		// Only prevent default for single touch (not pinch gestures)
+		if (e.touches.length === 1) {
+			const target = e.target as HTMLElement;
+
+			// Enhanced UI element detection
+			const isUIElement = target.closest(
+				'nav, button, a, input, select, textarea, .cta-button, .hamburger-menu, [role="button"]'
+			);
+
+			if (!isUIElement) {
+				e.preventDefault();
+				boost();
+
+				if (debugMode) {
+					console.log('StarField: Mobile boost activated');
+				}
+			}
+		}
+	}
+
+	function handleMobileTouchEnd(e: TouchEvent) {
+		// Stop event propagation
+		e.stopPropagation();
+
+		const target = e.target as HTMLElement;
+		const isUIElement = target.closest(
+			'nav, button, a, input, select, textarea, .cta-button, .hamburger-menu, [role="button"]'
+		);
+
+		if (!isUIElement) {
+			e.preventDefault();
+			unboost();
+
+			if (debugMode) {
+				console.log('StarField: Mobile boost deactivated');
+			}
+		}
+	}
+
+	// Desktop/fallback touch handlers
 	function handleTouchStart(e: TouchEvent) {
 		const target = e.target as HTMLElement;
 		// Only prevent default if we're not touching a UI element
@@ -446,12 +556,22 @@ DO NOT REMOVE THIS COMMENT -->
 		boosting = true;
 		speed = boostSpeed;
 		dispatch('boost', { active: true });
+
+		// Dispatch a global boost event for BackgroundManager
+		if (browser) {
+			window.dispatchEvent(new CustomEvent('boost', { detail: { active: true } }));
+		}
 	}
 
 	export function unboost() {
 		if (!enableBoost) return;
 		boosting = false;
 		dispatch('boost', { active: false });
+
+		// Dispatch a global boost event for BackgroundManager
+		if (browser) {
+			window.dispatchEvent(new CustomEvent('boost', { detail: { active: false } }));
+		}
 	}
 
 	export function stop() {
@@ -521,6 +641,9 @@ DO NOT REMOVE THIS COMMENT -->
 
 		console.log('StarField mounting');
 
+		// Detect mobile device early
+		detectMobile();
+
 		// Subscribe to frame rate controller for performance adaptation
 		qualityUnsubscribe = frameRateController.subscribeQuality((quality) => {
 			dynamicQuality = quality;
@@ -531,14 +654,17 @@ DO NOT REMOVE THIS COMMENT -->
 			if (success) {
 				initStars();
 
-				// Set up event listeners for boost
+				// Set up event listeners for boost (keyboard for desktop)
 				if (enableBoost) {
 					window.addEventListener('keydown', handleKeyDown);
 					window.addEventListener('keyup', handleKeyUp);
 				}
 
 				// Handle window resize
-				window.addEventListener('resize', resizeCanvas);
+				window.addEventListener('resize', () => {
+					detectMobile(); // Re-detect on resize
+					resizeCanvas();
+				});
 
 				// Auto-start if enabled
 				if (autoStart) {
@@ -586,12 +712,21 @@ DO NOT REMOVE THIS COMMENT -->
 			canvasElement.parentNode.removeChild(canvasElement);
 		}
 
-		// Remove boost area
-		const boostArea = containerElement?.querySelector('.boost-interaction-area');
+		// Remove boost area with enhanced cleanup
 		if (boostArea) {
+			// Remove all event listeners
+			boostArea.removeEventListener('touchstart', handleMobileTouchStart);
+			boostArea.removeEventListener('touchend', handleMobileTouchEnd);
+			boostArea.removeEventListener('touchcancel', handleMobileTouchEnd);
 			boostArea.removeEventListener('touchstart', handleTouchStart);
 			boostArea.removeEventListener('touchend', handleTouchEnd);
-			boostArea.remove();
+			boostArea.removeEventListener('contextmenu', () => {});
+
+			// Remove from DOM
+			if (boostArea.parentNode) {
+				boostArea.parentNode.removeChild(boostArea);
+			}
+			boostArea = null;
 		}
 
 		dispatch('destroyed');
