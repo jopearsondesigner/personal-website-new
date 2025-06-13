@@ -33,7 +33,7 @@ DO NOT REMOVE THIS COMMENT -->
 		dispatch('stateChange', event.detail);
 	}
 
-	// Prevent mobile zoom and scrolling
+	// FIXED: Enhanced prevent mobile zoom with StarField boost compatibility
 	function preventMobileZoom() {
 		if (!browser) return;
 
@@ -51,22 +51,22 @@ DO NOT REMOVE THIS COMMENT -->
 			'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no, viewport-fit=cover'
 		);
 
-		// Prevent touch behaviors that can cause zoom (but allow single touches for StarField)
+		// FIXED: Only prevent multi-touch gestures, allow single touches for StarField
 		document.addEventListener('touchstart', preventZoomGestures, { passive: false });
 		document.addEventListener('touchmove', preventZoomGestures, { passive: false });
 		document.addEventListener('gesturestart', preventZoomGestures, { passive: false });
 		document.addEventListener('gesturechange', preventZoomGestures, { passive: false });
 		document.addEventListener('gestureend', preventZoomGestures, { passive: false });
 
-		// Prevent double-tap zoom specifically on the arcade screen
+		// Prevent double-tap zoom specifically on the arcade screen, but not on StarField area
 		if (arcadeScreen) {
 			arcadeScreen.addEventListener('touchend', preventDoubleTapZoom, { passive: false });
 		}
 	}
 
-	// Prevent zoom gestures while allowing StarField boost
+	// FIXED: Improved zoom gesture prevention that doesn't interfere with StarField boost
 	function preventZoomGestures(e: TouchEvent | Event) {
-		// Prevent pinch zoom (multi-touch)
+		// Only prevent pinch zoom (multi-touch), allow single touches
 		if ('touches' in e && e.touches.length > 1) {
 			e.preventDefault();
 			return;
@@ -78,13 +78,43 @@ DO NOT REMOVE THIS COMMENT -->
 			return;
 		}
 
-		// Allow single touches for StarField boost - don't prevent them
-		// The StarField component will handle single touch events appropriately
+		// FIXED: Check if the touch is on the StarField boost area - if so, don't interfere
+		if ('target' in e && e.target) {
+			const target = e.target as HTMLElement;
+			const isBoostArea = target.closest('.boost-interaction-area');
+
+			// If touching the boost area, let StarField handle it
+			if (isBoostArea) {
+				return; // Don't prevent - let StarField handle this touch
+			}
+		}
+
+		// For other UI elements, prevent if it's a potentially problematic gesture
+		if ('touches' in e && e.touches.length === 1) {
+			const target = e.target as HTMLElement;
+			const isUIElement = target.closest(
+				'nav, button, a, input, select, textarea, .cta-button, .hamburger-menu, [role="button"]'
+			);
+
+			// Only prevent on UI elements to avoid zoom
+			if (isUIElement) {
+				e.preventDefault();
+			}
+		}
 	}
 
 	// Prevent double-tap zoom with timing-based detection
 	let lastTouchEnd = 0;
 	function preventDoubleTapZoom(e: TouchEvent) {
+		// FIXED: Check if this is on StarField boost area
+		const target = e.target as HTMLElement;
+		const isBoostArea = target.closest('.boost-interaction-area');
+
+		// Don't prevent double-tap on boost area
+		if (isBoostArea) {
+			return;
+		}
+
 		const now = new Date().getTime();
 		if (now - lastTouchEnd <= 300) {
 			e.preventDefault();
@@ -322,9 +352,9 @@ DO NOT REMOVE THIS COMMENT -->
 		overflow: hidden;
 	}
 
-	/* Mobile zoom prevention - coordinated with StarField boost */
+	/* FIXED: Mobile zoom prevention that's compatible with StarField boost */
 	.mobile-zoom-prevention {
-		touch-action: pan-y pinch-zoom; /* Allow panning but prevent zoom, StarField will capture taps */
+		/* FIXED: Remove restrictive touch-action, let children handle their own touch behavior */
 		-webkit-user-select: none;
 		-moz-user-select: none;
 		-ms-user-select: none;
@@ -353,7 +383,7 @@ DO NOT REMOVE THIS COMMENT -->
 		background-size: 100% 4px;
 		animation: scanline 0.2s linear infinite;
 		border-radius: calc(var(--border-radius) - 0.5vmin);
-		z-index: 25;
+		z-index: 25; /* Lower than StarField boost area (z-index: 35) */
 	}
 
 	/* Glow effect - EXACT from Hero.svelte */
@@ -380,7 +410,7 @@ DO NOT REMOVE THIS COMMENT -->
 		inset: 0;
 		overflow: hidden;
 		pointer-events: none;
-		z-index: 20; /* Increased z-index to be above all content */
+		z-index: 20; /* Lower than StarField boost area (z-index: 35) */
 		will-change: transform, filter;
 		transform-style: preserve-3d;
 	}
@@ -584,7 +614,7 @@ DO NOT REMOVE THIS COMMENT -->
 		filter: blur(4vmin);
 	}
 
-	/* Mobile optimizations - EXACT from Hero.svelte with enhanced zoom prevention */
+	/* Mobile optimizations - EXACT from Hero.svelte with enhanced StarField compatibility */
 	@media (max-width: 768px) {
 		.hardware-accelerated {
 			will-change: transform;
@@ -593,9 +623,9 @@ DO NOT REMOVE THIS COMMENT -->
 			view-transition-name: none;
 		}
 
-		/* Enhanced mobile zoom prevention - coordinated with StarField boost */
+		/* FIXED: Mobile zoom prevention that works with StarField boost */
 		#arcade-screen {
-			touch-action: pan-y pinch-zoom; /* Allow panning but prevent zoom, let StarField handle taps */
+			/* Remove conflicting touch-action, let StarField handle its own touches */
 			-webkit-user-select: none;
 			-moz-user-select: none;
 			-ms-user-select: none;
@@ -609,6 +639,7 @@ DO NOT REMOVE THIS COMMENT -->
 		#scanline-overlay {
 			background-size: 100% 6px;
 			animation: scanline 0.3s linear infinite;
+			z-index: 25; /* Keep lower than StarField boost area */
 		}
 
 		/* Streamlined scanline effect */
@@ -651,16 +682,19 @@ DO NOT REMOVE THIS COMMENT -->
 		background-size: 100% 6px;
 	}
 
-	/* Additional zoom prevention for all mobile devices - coordinated with StarField boost */
+	/* FIXED: Enhanced mobile touch handling that doesn't conflict with StarField */
 	@media (max-width: 768px) {
+		/* General touch optimizations */
 		* {
 			-webkit-touch-callout: none;
 			-webkit-tap-highlight-color: transparent;
 		}
 
-		/* Ensure StarField boost area can capture touch events */
-		.boost-interaction-area {
-			touch-action: auto !important;
+		/* CRITICAL: Ensure StarField boost area can capture touch events */
+		:global(.boost-interaction-area) {
+			touch-action: none !important;
+			pointer-events: auto !important;
+			z-index: 35 !important; /* Higher than everything else */
 		}
 	}
 </style>
