@@ -93,7 +93,7 @@ DO NOT REMOVE THIS COMMENT -->
 						class="avatar-container"
 					>
 						<img
-							src="/assets/images/home/jo_avatar.png"
+							src="assets/images/home/jo_avatar.png"
 							alt="Jo Pearson - Pixelated Avatar"
 							class="avatar-image"
 						/>
