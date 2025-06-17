@@ -212,8 +212,8 @@ DO NOT REMOVE THIS COMMENT -->
 	}
 
 	.point-indicator {
-		width: 10px;
-		height: 10px;
+		width: 6px;
+		height: 6px;
 		background: var(--accent-color);
 		border-radius: 50%;
 		margin-top: 0.6rem;
