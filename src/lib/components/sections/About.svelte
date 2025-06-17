@@ -183,7 +183,7 @@ DO NOT REMOVE THIS COMMENT -->
 	/* UVP Content */
 	.uvp-content {
 		max-width: 100%;
-		padding-right: 280px;
+		padding-right: 150px;
 		position: relative;
 		z-index: 2;
 	}
@@ -232,8 +232,8 @@ DO NOT REMOVE THIS COMMENT -->
 	.avatar-container {
 		position: absolute;
 		bottom: 0;
-		right: 20px;
-		width: 380px;
+		right: -97px;
+		width: 550px;
 		height: 576px;
 		display: flex;
 		align-items: flex-end;
@@ -241,6 +241,7 @@ DO NOT REMOVE THIS COMMENT -->
 		margin: 0;
 		padding: 0;
 		z-index: 1;
+		overflow: hidden;
 	}
 
 	.avatar-image {
@@ -253,6 +254,7 @@ DO NOT REMOVE THIS COMMENT -->
 		image-rendering: crisp-edges;
 		filter: var(--avatar-filter);
 		display: block;
+		min-height: 576px;
 	}
 
 	/* Enhanced Scanlines */
@@ -486,6 +488,8 @@ DO NOT REMOVE THIS COMMENT -->
 
 		.avatar-image {
 			height: 280px;
+			object-fit: cover;
+			min-height: 280px;
 		}
 
 		.uvp-heading {
@@ -531,6 +535,8 @@ DO NOT REMOVE THIS COMMENT -->
 
 		.avatar-image {
 			height: 220px;
+			object-fit: cover;
+			min-height: 220px;
 		}
 	}
 
