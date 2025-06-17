@@ -354,3 +354,114 @@ html.dark .nav-button:active {
 		display: none;
 	}
 }
+
+/* =============================================================================
+   FIXED: Additional CSS rules to prevent bright gradient bleed-through
+   ============================================================================= */
+
+/* FIXED: Ensure GameScreen doesn't bleed through during transitions */
+:global(.screen-content-layer) {
+	/* Create proper stacking context for game content */
+	position: relative;
+	z-index: 5;
+	/* Ensure content is properly contained */
+	contain: layout style paint;
+	/* Prevent any background bleed-through */
+	isolation: isolate;
+}
+
+/* FIXED: Ensure space background is always rendered first and consistently */
+:global(#space-background) {
+	/* Force browser to prioritize background rendering */
+	will-change: auto !important;
+	/* Ensure it's always painted */
+	contain: layout style paint !important;
+	/* Create proper stacking context */
+	isolation: isolate !important;
+	/* Ensure visibility during all transitions */
+	opacity: 1 !important;
+	visibility: visible !important;
+	/* Prevent any flickering */
+	backface-visibility: hidden;
+	-webkit-backface-visibility: hidden;
+	/* Force hardware acceleration for smooth transitions */
+	transform: translateZ(0);
+	-webkit-transform: translateZ(0);
+}
+
+/* FIXED: Ensure the bright GameScreen gradient is properly contained */
+:global(#game-screen) {
+	/* Prevent background from bleeding through during transitions */
+	contain: layout style paint;
+	/* Create proper stacking context */
+	isolation: isolate;
+	/* Ensure it's properly layered above space background */
+	position: relative;
+	z-index: 2;
+}
+
+/* FIXED: Additional safety net for persistent space background */
+:global(.space-background-persistent::after) {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: radial-gradient(circle at center, #000 20%, #001c4d 70%, #000000 100%);
+	z-index: -2;
+	opacity: 1;
+	border-radius: inherit;
+	/* This acts as a backup if the main background fails to render */
+}
+
+/* FIXED: Transition safety for scroll events */
+:global(.arcade-screen-container) {
+	/* Ensure consistent rendering during scroll transitions */
+	transform: translateZ(0);
+	backface-visibility: hidden;
+	/* Prevent any background switching during animations */
+	will-change: auto;
+	/* Force consistent background rendering */
+	background-attachment: local;
+}
+
+/* FIXED: Mobile-specific fixes for background persistence */
+@media (max-width: 768px) {
+	:global(#space-background) {
+		/* Extra stability on mobile devices */
+		-webkit-transform: translateZ(0) !important;
+		transform: translateZ(0) !important;
+		-webkit-backface-visibility: hidden !important;
+		backface-visibility: hidden !important;
+		/* Prevent any iOS-specific rendering issues */
+		-webkit-perspective: 1000px;
+		perspective: 1000px;
+	}
+
+	:global(.space-background-persistent) {
+		/* Force consistent background on mobile */
+		background-attachment: local !important;
+		background-repeat: no-repeat !important;
+		background-size: cover !important;
+		background-position: center !important;
+	}
+}
+
+/* FIXED: Intersection Observer transition safety */
+@media (prefers-reduced-motion: no-preference) {
+	:global(#space-background) {
+		/* Smooth transitions that don't cause background flickering */
+		transition:
+			opacity 0.1s ease-out,
+			visibility 0.1s ease-out;
+	}
+}
+
+/* FIXED: Force background priority in all stacking contexts */
+:global(.hero-section #space-background),
+:global([id='hero'] #space-background) {
+	/* Ensure space background is always the base layer */
+	z-index: 0 !important;
+	/* Force rendering priority */
+	will-change: auto !important;
+	/* Prevent any theme switching artifacts */
+	transition: none !important;
+}

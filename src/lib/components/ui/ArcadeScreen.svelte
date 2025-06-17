@@ -2,7 +2,6 @@
 src/lib/components/ui/ArcadeScreen.svelte
 DO NOT REMOVE THIS COMMENT -->
 
-<!-- Restored ArcadeScreen.svelte - Exact Migration from Hero.svelte Glass Effects -->
 <script lang="ts">
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { browser } from '$app/environment';
@@ -289,19 +288,23 @@ DO NOT REMOVE THIS COMMENT -->
 
 <div
 	id="arcade-screen"
-	class="crt-screen hardware-accelerated relative glow rounded-[3vmin] overflow-hidden mobile-zoom-prevention"
+	class="crt-screen hardware-accelerated relative glow rounded-[3vmin] overflow-hidden mobile-zoom-prevention arcade-screen-container"
 	bind:this={arcadeScreen}
 >
 	<!-- CRT screen effects -->
 	<ScreenEffects />
 
-	<!-- Screen content -->
-	{#if currentScreen === 'main'}
-		<BackgroundManager {currentScreen} />
-		<MainScreenContent />
-	{:else if currentScreen === 'game'}
-		<GameScreen on:stateChange={handleGameStateChange} />
-	{/if}
+	<!-- FIXED: Always render background first to prevent bright gradient bleed-through -->
+	<BackgroundManager {currentScreen} />
+
+	<!-- Screen content with proper layering -->
+	<div class="screen-content-layer">
+		{#if currentScreen === 'main'}
+			<MainScreenContent />
+		{:else if currentScreen === 'game'}
+			<GameScreen on:stateChange={handleGameStateChange} />
+		{/if}
+	</div>
 
 	<!-- Enhanced Glass Effects System - EXACT HTML structure from Hero.svelte -->
 	<div class="screen-glass-container rounded-[3vmin] hardware-accelerated">
@@ -336,7 +339,7 @@ DO NOT REMOVE THIS COMMENT -->
 </div>
 
 <style lang="css">
-	/* CRT screen styling - EXACT from Hero.svelte */
+	/* FIXED: Enhanced CRT screen styling with proper z-index layering */
 	#arcade-screen {
 		width: var(--arcade-screen-width);
 		height: var(--arcade-screen-height);
@@ -350,6 +353,28 @@ DO NOT REMOVE THIS COMMENT -->
 		background: linear-gradient(145deg, #111 0%, #444 100%);
 		transform-style: preserve-3d;
 		overflow: hidden;
+	}
+
+	/* FIXED: Ensure proper content layering */
+	.arcade-screen-container {
+		/* Create a new stacking context */
+		isolation: isolate;
+		/* Ensure background is painted first */
+		contain: layout style paint;
+		/* Prevent any flickering during transitions */
+		will-change: auto;
+	}
+
+	/* FIXED: Screen content layer with proper z-indexing */
+	.screen-content-layer {
+		position: relative;
+		z-index: 5;
+		width: 100%;
+		height: 100%;
+		/* Ensure this layer doesn't interfere with background rendering */
+		pointer-events: auto;
+		/* Create isolation to prevent bleed-through */
+		isolation: isolate;
 	}
 
 	/* FIXED: Mobile zoom prevention that's compatible with StarField boost */
