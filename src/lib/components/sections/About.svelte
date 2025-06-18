@@ -5,12 +5,14 @@ DO NOT REMOVE THIS COMMENT -->
 	import { onMount } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
 	import { backOut } from 'svelte/easing';
+	import CRTDisplay from '$lib/components/ui/CRTDisplay.svelte';
 	import SkillBar from '$lib/components/ui/SkillBar.svelte';
 
-	// For intersection observer animation
+	// Animation state
 	let sectionVisible = false;
 	let sectionElement: HTMLElement;
 
+	// Configuration data
 	const skills = [
 		{ name: 'Frontend Development', level: 90 },
 		{ name: 'UI/UX Design', level: 85 },
@@ -19,7 +21,7 @@ DO NOT REMOVE THIS COMMENT -->
 		{ name: 'Responsive Design', level: 95 }
 	];
 
-	// UVP bullet points based on your psychometrics test
+	// UVP bullet points based on psychometrics test
 	const uvpPoints = [
 		'Versatile designer with passion for innovation and problem-solving',
 		'Unique blend of creativity and technical expertise',
@@ -50,152 +52,144 @@ DO NOT REMOVE THIS COMMENT -->
 	});
 </script>
 
-<section
-	id="about"
-	class="py-16 min-h-screen flex flex-col justify-center"
-	bind:this={sectionElement}
->
-	<div class="container mx-auto px-4 max-w-6xl">
+<section id="about" class="about-section" bind:this={sectionElement}>
+	<div class="about-container">
 		{#if sectionVisible}
-			<!-- UVP Screen Container -->
-			<div in:fly={{ y: 50, duration: 800, delay: 200, easing: backOut }} class="mb-12">
-				<div class="subtle-screen">
-					<!-- Screen Header -->
-					<div class="screen-header">
-						<span class="uvp-label">UVP</span>
-					</div>
+			<!-- UVP Display Panel -->
+			<div in:fly={{ y: 50, duration: 800, delay: 200, easing: backOut }} class="about-uvp">
+				<CRTDisplay
+					variant="primary"
+					headerLabel="UVP"
+					scanlineIntensity="medium"
+					glassEffect={true}
+					enableHover={true}
+					minHeight="576px"
+					className="uvp-display"
+				>
+					<!-- Main UVP Content -->
+					<div class="uvp-content">
+						<h2 class="uvp-heading">
+							Empowering Brands with Creative Design Solutions for Digital Success.
+						</h2>
 
-					<!-- Screen Content -->
-					<div class="screen-content">
-						<!-- Left Side - UVP Content -->
-						<div class="uvp-content">
-							<h2 class="uvp-heading">
-								Empowering Brands with Creative Design Solutions for Digital Success.
-							</h2>
-
-							<div class="uvp-points">
-								{#each uvpPoints as point, i}
-									<div
-										in:fly={{ x: -20, duration: 400, delay: 600 + i * 100, easing: backOut }}
-										class="uvp-point"
-									>
-										<div class="point-indicator"></div>
-										<span class="point-text">{point}</span>
-									</div>
-								{/each}
-							</div>
+						<div class="uvp-points">
+							{#each uvpPoints as point, i}
+								<div
+									in:fly={{
+										x: -20,
+										duration: 400,
+										delay: 600 + i * 100,
+										easing: backOut
+									}}
+									class="uvp-point"
+								>
+									<div class="point-indicator"></div>
+									<span class="point-text">{point}</span>
+								</div>
+							{/each}
 						</div>
 					</div>
 
-					<!-- Avatar (absolutely positioned) -->
-					<div
-						in:fly={{ x: 50, duration: 800, delay: 800, easing: backOut }}
-						class="avatar-container"
-					>
-						<img
-							src="assets/images/home/jo_avatar.png"
-							alt="Jo Pearson - Pixelated Avatar"
-							class="avatar-image"
-						/>
-					</div>
-
-					<!-- Enhanced scanlines overlay -->
-					<div class="scanlines-container">
-						<div class="scanlines"></div>
-						<div class="scanlines-moving"></div>
-						<div class="scanlines-moving-fast"></div>
-						<div class="screen-flicker"></div>
-					</div>
-				</div>
+					<!-- Avatar positioned through slot -->
+					<svelte:fragment slot="avatar">
+						<div
+							in:fly={{ x: 50, duration: 800, delay: 800, easing: backOut }}
+							class="avatar-wrapper"
+						>
+							<img
+								src="assets/images/home/jo_avatar.png"
+								alt="Jo Pearson - Pixelated Avatar"
+								class="avatar-image"
+							/>
+						</div>
+					</svelte:fragment>
+				</CRTDisplay>
 			</div>
 
-			<!-- Skills Section -->
-			<div in:fly={{ y: 50, duration: 800, delay: 1000, easing: backOut }}>
-				<div class="skills-container subtle-screen">
-					<h3 class="skills-heading">Technical Expertise</h3>
-					<div class="skills-grid">
-						{#each skills as skill, i}
-							<div in:fly={{ y: 20, duration: 400, delay: 1200 + i * 100, easing: backOut }}>
-								<SkillBar name={skill.name} level={skill.level} />
-							</div>
-						{/each}
+			<!-- Technical Expertise Display Panel -->
+			<div in:fly={{ y: 50, duration: 800, delay: 1000, easing: backOut }} class="about-skills">
+				<CRTDisplay
+					variant="secondary"
+					headerLabel="TECH"
+					scanlineIntensity="low"
+					glassEffect={true}
+					enableHover={true}
+					className="skills-display"
+				>
+					<div class="skills-content">
+						<h3 class="skills-heading">Technical Expertise</h3>
+						<div class="skills-grid">
+							{#each skills as skill, i}
+								<SkillBar
+									name={skill.name}
+									level={skill.level}
+									delay={200 + i * 150}
+									variant="primary"
+									glowEffect={true}
+									showPercentage={true}
+								/>
+							{/each}
+						</div>
 					</div>
-
-					<!-- Enhanced scanlines overlay for skills screen -->
-					<div class="scanlines-container">
-						<div class="scanlines"></div>
-						<div class="scanlines-moving"></div>
-						<div class="scanlines-moving-fast"></div>
-						<div class="screen-flicker"></div>
-					</div>
-				</div>
+				</CRTDisplay>
 			</div>
 		{/if}
 	</div>
 </section>
 
 <style>
-	/* Subtle Screen Container */
-	.subtle-screen {
+	/* =============================================================================
+	   About Section Styles
+	   ============================================================================= */
+
+	.about-section {
+		padding: 4rem 0;
+		min-height: 100vh;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
 		position: relative;
+
+		/* Ensure proper background inheritance */
+		background: inherit;
+	}
+
+	.about-container {
 		width: 100%;
-		background: var(--screen-bg);
-		border-radius: 20px;
-		padding: 3rem;
-		box-shadow: var(--screen-shadow);
-		border: 1px solid var(--screen-border);
-		overflow: hidden;
-		backdrop-filter: blur(10px);
-		-webkit-backdrop-filter: blur(10px);
-		transform: translateZ(0);
-		will-change: transform;
-		contain: layout style paint;
+		max-width: 1200px;
+		margin: 0 auto;
+		padding: 0 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 3rem;
 	}
 
-	/* Screen Header */
-	.screen-header {
-		position: absolute;
-		top: 1rem;
-		right: 1.5rem;
-		z-index: 2;
+	/* UVP Section */
+	.about-uvp {
+		width: 100%;
 	}
 
-	.uvp-label {
-		display: inline-block;
-		background: var(--label-bg);
-		color: var(--label-text);
-		padding: 0.5rem 1rem;
-		border-radius: 8px;
-		font-family: var(--font-press-start), monospace;
-		font-size: 0.875rem;
-		letter-spacing: 0.5px;
-		border: 1px solid var(--label-border);
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-	}
-
-	/* Screen Content */
-	.screen-content {
+	:global(.uvp-display) {
+		/* Custom positioning for UVP content */
 		position: relative;
-		z-index: 1;
-		min-height: 576px;
 	}
 
-	/* UVP Content */
 	.uvp-content {
 		max-width: 100%;
-		padding-right: 150px;
+		padding-right: 160px; /* Space for avatar */
 		position: relative;
-		z-index: 2;
+		z-index: 20;
 	}
 
 	.uvp-heading {
 		font-family: var(--header-text), sans-serif;
 		font-size: clamp(2rem, 5vw, 3rem);
 		font-weight: 700;
-		color: var(--heading-color);
+		color: var(--about-heading-color);
 		margin-bottom: 2rem;
 		line-height: 1.2;
 		letter-spacing: -0.02em;
+		text-shadow: 0 2px 4px var(--about-text-shadow);
 	}
 
 	.uvp-points {
@@ -208,39 +202,54 @@ DO NOT REMOVE THIS COMMENT -->
 		display: flex;
 		align-items: flex-start;
 		gap: 1rem;
-		opacity: 0.9;
+		opacity: 0.95;
+		transition: opacity 0.3s ease;
+	}
+
+	.uvp-point:hover {
+		opacity: 1;
 	}
 
 	.point-indicator {
-		width: 6px;
-		height: 6px;
-		background: var(--accent-color);
+		width: 8px;
+		height: 8px;
+		background: var(--about-accent-color);
 		border-radius: 50%;
 		margin-top: 0.6rem;
 		flex-shrink: 0;
-		box-shadow: 0 0 10px var(--accent-glow);
+		box-shadow:
+			0 0 8px var(--about-accent-glow),
+			0 0 16px var(--about-accent-glow-outer);
+		animation: indicatorPulse 2s ease-in-out infinite;
+	}
+
+	@keyframes indicatorPulse {
+		0%,
+		100% {
+			transform: scale(1);
+			opacity: 0.8;
+		}
+		50% {
+			transform: scale(1.1);
+			opacity: 1;
+		}
 	}
 
 	.point-text {
-		color: var(--text-color);
+		color: var(--about-text-color);
 		font-size: 1.2rem;
 		line-height: 1.5;
 		font-weight: 400;
+		text-shadow: 0 1px 2px var(--about-text-shadow-subtle);
 	}
 
-	/* Avatar Container */
-	.avatar-container {
-		position: absolute;
-		bottom: 0;
-		right: -97px;
-		width: 550px;
-		height: 576px;
+	/* Avatar Styling */
+	.avatar-wrapper {
+		width: 100%;
+		height: 100%;
 		display: flex;
 		align-items: flex-end;
 		justify-content: center;
-		margin: 0;
-		padding: 0;
-		z-index: 1;
 		overflow: hidden;
 	}
 
@@ -249,332 +258,213 @@ DO NOT REMOVE THIS COMMENT -->
 		height: 576px;
 		object-fit: cover;
 		object-position: bottom center;
+
+		/* Pixel art rendering */
 		image-rendering: pixelated;
 		image-rendering: -moz-crisp-edges;
 		image-rendering: crisp-edges;
-		filter: var(--avatar-filter);
-		display: block;
-		min-height: 576px;
+
+		/* Enhanced visual effects */
+		filter: var(--about-avatar-filter);
+		transition: filter 0.3s ease;
 	}
 
-	/* Enhanced Scanlines */
-	.scanlines-container {
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		border-radius: inherit;
-		overflow: hidden;
-		pointer-events: none;
-	}
-
-	.scanlines {
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background-image: repeating-linear-gradient(
-			0deg,
-			transparent,
-			transparent 14px,
-			var(--scanline-color) 14px,
-			var(--scanline-color) 16px
-		);
-		opacity: var(--scanline-opacity);
-		pointer-events: none;
-		border-radius: inherit;
-	}
-
-	.scanlines-moving {
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background-image: repeating-linear-gradient(
-				0deg,
-				transparent,
-				transparent 14px,
-				var(--scanline-moving-color) 14px,
-				var(--scanline-moving-color) 16px
-			),
-			repeating-linear-gradient(
-				0deg,
-				transparent,
-				transparent 30px,
-				var(--scanline-moving-color) 30px,
-				var(--scanline-moving-color) 32px
-			),
-			repeating-linear-gradient(
-				0deg,
-				transparent,
-				transparent 46px,
-				var(--scanline-moving-color) 46px,
-				var(--scanline-moving-color) 48px
-			);
-		opacity: var(--scanline-moving-opacity);
-		animation: scanlineMove 4s linear infinite;
-		pointer-events: none;
-		border-radius: inherit;
-	}
-
-	.scanlines-moving-fast {
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background-image: repeating-linear-gradient(
-				0deg,
-				transparent,
-				transparent 62px,
-				var(--scanline-moving-color) 62px,
-				var(--scanline-moving-color) 64px
-			),
-			repeating-linear-gradient(
-				0deg,
-				transparent,
-				transparent 78px,
-				var(--scanline-moving-color) 78px,
-				var(--scanline-moving-color) 80px
-			);
-		opacity: calc(var(--scanline-moving-opacity) * 0.6);
-		animation: scanlineMove 2.5s linear infinite;
-		pointer-events: none;
-		border-radius: inherit;
-	}
-
-	.screen-flicker {
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background: var(--screen-flicker-color);
-		opacity: 0;
-		animation: screenFlicker 6s ease-in-out infinite;
-		pointer-events: none;
-		border-radius: inherit;
-	}
-
-	/* Scanline Animations */
-	@keyframes scanlineMove {
-		0% {
-			transform: translateY(-100%);
-		}
-		100% {
-			transform: translateY(100vh);
-		}
-	}
-
-	@keyframes screenFlicker {
-		0%,
-		94%,
-		100% {
-			opacity: 0;
-		}
-		95%,
-		97% {
-			opacity: var(--flicker-intensity);
-		}
-		96% {
-			opacity: 0;
-		}
+	.avatar-image:hover {
+		filter: var(--about-avatar-filter-hover);
 	}
 
 	/* Skills Section */
-	.skills-container {
+	.about-skills {
+		width: 100%;
+	}
+
+	.skills-content {
 		position: relative;
+		z-index: 20;
 	}
 
 	.skills-heading {
 		font-family: var(--header-text), sans-serif;
 		font-size: 1.75rem;
 		font-weight: 600;
-		color: var(--heading-color);
+		color: var(--about-heading-color);
 		margin-bottom: 2rem;
 		text-align: center;
-		position: relative;
-		z-index: 2;
+		text-shadow: 0 2px 4px var(--about-text-shadow);
 	}
 
 	.skills-grid {
 		display: flex;
 		flex-direction: column;
 		gap: 1.5rem;
-		position: relative;
-		z-index: 2;
 	}
 
-	/* CSS Variables for Theme Support */
+	/* =============================================================================
+	   CSS Custom Properties for About Section
+	   ============================================================================= */
+
 	:root {
-		/* Dark Theme (Default) */
-		--screen-bg: rgba(26, 26, 26, 0.85);
-		--screen-border: rgba(255, 255, 255, 0.1);
-		--screen-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05),
-			0 0 0 1px rgba(255, 255, 255, 0.05);
+		/* Dark Theme Colors */
+		--about-heading-color: var(--arcade-white-200);
+		--about-text-color: rgba(245, 245, 220, 0.92);
+		--about-accent-color: var(--arcade-neon-green-400);
+		--about-accent-glow: rgba(119, 255, 161, 0.4);
+		--about-accent-glow-outer: rgba(119, 255, 161, 0.2);
 
-		--label-bg: rgba(119, 255, 161, 0.1);
-		--label-text: #77ffa1;
-		--label-border: rgba(119, 255, 161, 0.2);
+		/* Text Shadows */
+		--about-text-shadow: rgba(0, 0, 0, 0.3);
+		--about-text-shadow-subtle: rgba(0, 0, 0, 0.1);
 
-		--heading-color: #f5f5dc;
-		--text-color: rgba(245, 245, 220, 0.9);
-		--accent-color: #77ffa1;
-		--accent-glow: rgba(119, 255, 161, 0.3);
-
-		--avatar-filter: brightness(1.05) contrast(1.1);
-
-		--scanline-color: rgba(255, 255, 255, 0.025);
-		--scanline-opacity: 0.7;
-		--scanline-moving-color: rgba(199, 255, 221, 0.08);
-		--scanline-moving-opacity: 0.6;
-		--screen-flicker-color: rgba(255, 255, 255, 0.02);
-		--flicker-intensity: 0.15;
+		/* Avatar Effects */
+		--about-avatar-filter: brightness(1.05) contrast(1.1) saturate(1.1);
+		--about-avatar-filter-hover: brightness(1.1) contrast(1.15) saturate(1.2);
 	}
 
-	/* Light Theme */
+	/* Light Theme Overrides */
 	:global(html.light) {
-		--screen-bg: rgba(248, 248, 248, 0.9);
-		--screen-border: rgba(0, 0, 0, 0.08);
-		--screen-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.8),
-			0 0 0 1px rgba(0, 0, 0, 0.05);
+		--about-heading-color: var(--arcade-black-700);
+		--about-text-color: var(--arcade-black-600);
+		--about-accent-color: var(--arcade-neon-green-700);
+		--about-accent-glow: rgba(0, 179, 90, 0.5);
+		--about-accent-glow-outer: rgba(0, 179, 90, 0.25);
 
-		--label-bg: rgba(159, 255, 191, 0.15);
-		--label-text: #00b35a;
-		--label-border: rgba(159, 255, 191, 0.25);
+		--about-text-shadow: rgba(255, 255, 255, 0.8);
+		--about-text-shadow-subtle: rgba(255, 255, 255, 0.5);
 
-		--heading-color: #1a1a1a;
-		--text-color: #262626;
-		--accent-color: #00e670;
-		--accent-glow: rgba(0, 230, 112, 0.3);
-
-		--avatar-filter: brightness(1) contrast(1.05);
-
-		--scanline-color: rgba(0, 0, 0, 0.02);
-		--scanline-opacity: 0.5;
-		--scanline-moving-color: rgba(119, 255, 161, 0.06);
-		--scanline-moving-opacity: 0.5;
-		--screen-flicker-color: rgba(0, 0, 0, 0.015);
-		--flicker-intensity: 0.1;
+		--about-avatar-filter: brightness(1) contrast(1.05) saturate(1);
+		--about-avatar-filter-hover: brightness(1.05) contrast(1.1) saturate(1.1);
 	}
 
-/* Responsive Design */
-@media (max-width: 768px) {
-	.subtle-screen {
-		padding: 2rem;
-		border-radius: 16px;
-		overflow: visible; /* Added: Prevent avatar cutoff */
+	/* =============================================================================
+	   Responsive Design
+	   ============================================================================= */
+
+	@media (max-width: 768px) {
+		.about-section {
+			padding: 2rem 0;
+		}
+
+		.about-container {
+			padding: 0 0.5rem;
+			gap: 2rem;
+		}
+
+		.uvp-content {
+			padding-right: 0;
+			margin-bottom: 320px; /* Space for mobile avatar */
+		}
+
+		.uvp-heading {
+			text-align: center;
+			margin-bottom: 1.5rem;
+		}
+
+		.point-text {
+			font-size: 1.1rem;
+		}
+
+		.skills-heading {
+			font-size: 1.5rem;
+		}
+
+		/* Ensure avatar positioning works on mobile */
+		:global(.uvp-display .crt-display__avatar) {
+			position: absolute;
+			bottom: 0;
+			right: 50%;
+			transform: translateX(50%);
+			width: 280px;
+			height: 320px;
+		}
+
+		.avatar-image {
+			height: auto;
+			max-height: 320px;
+			object-fit: contain;
+			min-height: auto;
+		}
 	}
 
-	.screen-content {
-		min-height: 400px;
+	@media (max-width: 480px) {
+		.about-container {
+			gap: 1.5rem;
+		}
+
+		.uvp-content {
+			margin-bottom: 280px;
+		}
+
+		.uvp-points {
+			gap: 1rem;
+		}
+
+		.point-text {
+			font-size: 1rem;
+		}
+
+		:global(.uvp-display .crt-display__avatar) {
+			width: 240px;
+			height: 280px;
+		}
+
+		.avatar-image {
+			max-height: 280px;
+		}
 	}
 
-	.uvp-content {
-		padding-right: 0;
-		margin-bottom: 320px; /* Updated: Increased from 280px for better avatar spacing */
+	/* =============================================================================
+	   Accessibility Enhancements
+	   ============================================================================= */
+
+	@media (prefers-reduced-motion: reduce) {
+		.point-indicator {
+			animation: none;
+		}
+
+		.avatar-image {
+			transition: none;
+		}
+
+		.uvp-point {
+			transition: none;
+		}
 	}
 
-	.avatar-container {
-		position: absolute;
-		bottom: 0;
-		right: 50%; /* Updated: Center horizontally instead of using left/right */
-		transform: translateX(50%); /* Added: Center horizontally */
-		width: 280px; /* Updated: Fixed width instead of calc */
-		height: 320px; /* Updated: Increased from 280px */
-		overflow: visible; /* Added: Prevent avatar cutoff */
+	@media (prefers-contrast: high) {
+		.point-indicator {
+			border: 2px solid currentColor;
+		}
+
+		.uvp-heading,
+		.skills-heading {
+			text-shadow: none;
+		}
+
+		.point-text {
+			text-shadow: none;
+		}
+	}
+
+	/* =============================================================================
+	   Performance Optimizations
+	   ============================================================================= */
+
+	.about-section {
+		/* Hardware acceleration */
+		transform: translateZ(0);
+		will-change: auto;
+		contain: layout style paint;
+	}
+
+	.uvp-content,
+	.skills-content {
+		/* Optimize rendering */
+		contain: layout style;
 	}
 
 	.avatar-image {
-		height: auto; /* Updated: Let it scale naturally */
-		max-height: 320px; /* Added: Maximum height constraint */
-		object-fit: contain; /* Updated: Show full avatar instead of cover */
-		object-position: bottom center; /* Added: Position avatar at bottom center */
-		min-height: auto; /* Updated: Remove fixed min-height */
+		/* Optimize image rendering */
+		transform: translateZ(0);
+		backface-visibility: hidden;
 	}
-
-	.uvp-heading {
-		text-align: center;
-		margin-bottom: 1.5rem;
-	}
-
-	.skills-container {
-		padding: 2rem;
-	}
-
-	.screen-header {
-		top: 1rem;
-		right: 1.5rem;
-	}
-
-	.uvp-label {
-		font-size: 0.75rem;
-		padding: 0.375rem 0.75rem;
-	}
-}
-
-@media (max-width: 480px) {
-	.subtle-screen {
-		padding: 1.5rem;
-		overflow: visible; /* Added: Prevent avatar cutoff on small screens */
-	}
-
-	.uvp-points {
-		gap: 1rem;
-	}
-
-	.point-text {
-		font-size: 1rem;
-	}
-
-	.uvp-content {
-		margin-bottom: 280px; /* Updated: Increased from 220px */
-	}
-
-	.avatar-container {
-		height: 280px; /* Updated: Increased from 220px */
-		width: 240px; /* Added: Specific width for small screens */
-		right: 50%; /* Added: Center horizontally */
-		transform: translateX(50%); /* Added: Center horizontally */
-	}
-
-	.avatar-image {
-		height: auto; /* Updated: Let it scale naturally */
-		max-height: 280px; /* Updated: Maximum height instead of fixed */
-		object-fit: contain; /* Updated: Show full avatar instead of cover */
-		min-height: auto; /* Updated: Remove fixed min-height */
-	}
-}
-
-/* Enhanced accessibility */
-@media (prefers-reduced-motion: reduce) {
-	.scanlines-moving,
-	.scanlines-moving-fast,
-	.screen-flicker {
-		animation: none;
-		opacity: 0;
-	}
-
-	.scanlines {
-		opacity: 0.3;
-	}
-
-	.subtle-screen {
-		transform: none;
-	}
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-	.subtle-screen {
-		border-width: 2px;
-	}
-
-	.point-indicator {
-		border: 2px solid currentColor;
-	}
-}
 </style>
