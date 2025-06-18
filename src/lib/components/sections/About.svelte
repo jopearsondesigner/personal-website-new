@@ -93,7 +93,7 @@ DO NOT REMOVE THIS COMMENT -->
 						class="avatar-container"
 					>
 						<img
-							src="/assets/images/home/jo_avatar.png"
+							src="assets/images/home/jo_avatar.png"
 							alt="Jo Pearson - Pixelated Avatar"
 							class="avatar-image"
 						/>
@@ -212,8 +212,8 @@ DO NOT REMOVE THIS COMMENT -->
 	}
 
 	.point-indicator {
-		width: 10px;
-		height: 10px;
+		width: 6px;
+		height: 6px;
 		background: var(--accent-color);
 		border-radius: 50%;
 		margin-top: 0.6rem;
@@ -461,111 +461,120 @@ DO NOT REMOVE THIS COMMENT -->
 		--flicker-intensity: 0.1;
 	}
 
-	/* Responsive Design */
-	@media (max-width: 768px) {
-		.subtle-screen {
-			padding: 2rem;
-			border-radius: 16px;
-		}
-
-		.screen-content {
-			min-height: 400px;
-		}
-
-		.uvp-content {
-			padding-right: 0;
-			margin-bottom: 280px;
-		}
-
-		.avatar-container {
-			position: absolute;
-			bottom: 0;
-			right: 10px;
-			left: 10px;
-			width: calc(100% - 20px);
-			height: 280px;
-		}
-
-		.avatar-image {
-			height: 280px;
-			object-fit: cover;
-			min-height: 280px;
-		}
-
-		.uvp-heading {
-			text-align: center;
-			margin-bottom: 1.5rem;
-		}
-
-		.skills-container {
-			padding: 2rem;
-		}
-
-		.screen-header {
-			top: 1rem;
-			right: 1.5rem;
-		}
-
-		.uvp-label {
-			font-size: 0.75rem;
-			padding: 0.375rem 0.75rem;
-		}
+/* Responsive Design */
+@media (max-width: 768px) {
+	.subtle-screen {
+		padding: 2rem;
+		border-radius: 16px;
+		overflow: visible; /* Added: Prevent avatar cutoff */
 	}
 
-	@media (max-width: 480px) {
-		.subtle-screen {
-			padding: 1.5rem;
-		}
-
-		.uvp-points {
-			gap: 1rem;
-		}
-
-		.point-text {
-			font-size: 1rem;
-		}
-
-		.uvp-content {
-			margin-bottom: 220px;
-		}
-
-		.avatar-container {
-			height: 220px;
-		}
-
-		.avatar-image {
-			height: 220px;
-			object-fit: cover;
-			min-height: 220px;
-		}
+	.screen-content {
+		min-height: 400px;
 	}
 
-	/* Enhanced accessibility */
-	@media (prefers-reduced-motion: reduce) {
-		.scanlines-moving,
-		.scanlines-moving-fast,
-		.screen-flicker {
-			animation: none;
-			opacity: 0;
-		}
-
-		.scanlines {
-			opacity: 0.3;
-		}
-
-		.subtle-screen {
-			transform: none;
-		}
+	.uvp-content {
+		padding-right: 0;
+		margin-bottom: 320px; /* Updated: Increased from 280px for better avatar spacing */
 	}
 
-	/* High contrast mode support */
-	@media (prefers-contrast: high) {
-		.subtle-screen {
-			border-width: 2px;
-		}
-
-		.point-indicator {
-			border: 2px solid currentColor;
-		}
+	.avatar-container {
+		position: absolute;
+		bottom: 0;
+		right: 50%; /* Updated: Center horizontally instead of using left/right */
+		transform: translateX(50%); /* Added: Center horizontally */
+		width: 280px; /* Updated: Fixed width instead of calc */
+		height: 320px; /* Updated: Increased from 280px */
+		overflow: visible; /* Added: Prevent avatar cutoff */
 	}
+
+	.avatar-image {
+		height: auto; /* Updated: Let it scale naturally */
+		max-height: 320px; /* Added: Maximum height constraint */
+		object-fit: contain; /* Updated: Show full avatar instead of cover */
+		object-position: bottom center; /* Added: Position avatar at bottom center */
+		min-height: auto; /* Updated: Remove fixed min-height */
+	}
+
+	.uvp-heading {
+		text-align: center;
+		margin-bottom: 1.5rem;
+	}
+
+	.skills-container {
+		padding: 2rem;
+	}
+
+	.screen-header {
+		top: 1rem;
+		right: 1.5rem;
+	}
+
+	.uvp-label {
+		font-size: 0.75rem;
+		padding: 0.375rem 0.75rem;
+	}
+}
+
+@media (max-width: 480px) {
+	.subtle-screen {
+		padding: 1.5rem;
+		overflow: visible; /* Added: Prevent avatar cutoff on small screens */
+	}
+
+	.uvp-points {
+		gap: 1rem;
+	}
+
+	.point-text {
+		font-size: 1rem;
+	}
+
+	.uvp-content {
+		margin-bottom: 280px; /* Updated: Increased from 220px */
+	}
+
+	.avatar-container {
+		height: 280px; /* Updated: Increased from 220px */
+		width: 240px; /* Added: Specific width for small screens */
+		right: 50%; /* Added: Center horizontally */
+		transform: translateX(50%); /* Added: Center horizontally */
+	}
+
+	.avatar-image {
+		height: auto; /* Updated: Let it scale naturally */
+		max-height: 280px; /* Updated: Maximum height instead of fixed */
+		object-fit: contain; /* Updated: Show full avatar instead of cover */
+		min-height: auto; /* Updated: Remove fixed min-height */
+	}
+}
+
+/* Enhanced accessibility */
+@media (prefers-reduced-motion: reduce) {
+	.scanlines-moving,
+	.scanlines-moving-fast,
+	.screen-flicker {
+		animation: none;
+		opacity: 0;
+	}
+
+	.scanlines {
+		opacity: 0.3;
+	}
+
+	.subtle-screen {
+		transform: none;
+	}
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+	.subtle-screen {
+		border-width: 2px;
+	}
+
+	.point-indicator {
+		border: 2px solid currentColor;
+	}
+}
 </style>
