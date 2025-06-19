@@ -596,6 +596,37 @@ DO NOT REMOVE THIS COMMENT -->
 		}
 	}
 
+	@keyframes powerUpSequence {
+		0% {
+			opacity: 0;
+			transform: scale(0.98);
+			filter: brightness(0) contrast(0);
+		}
+		20% {
+			opacity: 0.3;
+			filter: brightness(0.3) contrast(0.5);
+		}
+		40% {
+			opacity: 0.6;
+			transform: scale(0.99);
+			filter: brightness(0.8) contrast(1.2);
+		}
+		60% {
+			opacity: 0.8;
+			filter: brightness(1.1) contrast(1.1);
+		}
+		80% {
+			opacity: 0.95;
+			transform: scale(1);
+			filter: brightness(1.05) contrast(1.05);
+		}
+		100% {
+			opacity: 1;
+			transform: scale(1);
+			filter: brightness(1) contrast(1);
+		}
+	}
+
 	/* Hardware acceleration utility */
 	.hardware-accelerated {
 		transform: translateZ(0);
@@ -615,23 +646,165 @@ DO NOT REMOVE THIS COMMENT -->
 		-webkit-backface-visibility: hidden;
 	}
 
-	/* Light theme adjustments - EXACT from Hero.svelte */
+	/* ========================================
+	   ENHANCED LIGHT MODE THEME ADJUSTMENTS
+	   ======================================== */
+
+	/* Light mode CRT screen base styling */
+	:global(html.light) .crt-screen {
+		background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
+		box-shadow:
+			inset 0 0 50px rgba(0, 0, 0, 0.1),
+			0 0 20px rgba(0, 0, 0, 0.15),
+			0 5px 15px rgba(0, 0, 0, 0.1);
+	}
+
+	/* Light mode arcade screen background */
+	:global(html.light) #arcade-screen {
+		background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
+		box-shadow:
+			inset 0 0 30px rgba(0, 0, 0, 0.08),
+			0 0 25px rgba(0, 0, 0, 0.12),
+			0 8px 20px rgba(0, 0, 0, 0.1);
+	}
+
+	/* Light mode glow effect - enhanced visibility */
 	:global(html.light) #arcade-screen.glow::after {
-		opacity: 0.15;
-		filter: blur(8px);
+		opacity: 0.25;
+		filter: blur(16px);
 		background: linear-gradient(
 			45deg,
-			rgba(0, 255, 255, 0.4),
-			rgba(0, 0, 255, 0.4),
-			rgba(255, 0, 255, 0.4),
-			rgba(255, 0, 0, 0.4)
+			rgba(0, 150, 255, 0.6),
+			rgba(100, 50, 255, 0.6),
+			rgba(255, 50, 150, 0.6),
+			rgba(255, 100, 0, 0.6)
 		);
+		mix-blend-mode: multiply;
+	}
+
+	/* Light mode scanlines - enhanced visibility */
+	:global(html.light) #scanline-overlay {
+		background: linear-gradient(0deg, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.08) 51%);
+		background-size: 100% 4px;
+		animation: scanline 0.2s linear infinite;
+		opacity: 0.7;
+	}
+
+	/* Light mode glass effects - enhanced realism */
+	:global(html.light) .screen-glass-outer {
+		background: linear-gradient(
+			135deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.02) 15%,
+			rgba(255, 255, 255, 0.25) 45%,
+			rgba(255, 255, 255, 0.02) 75%,
+			transparent 100%
+		);
+		backdrop-filter: brightness(1.05) contrast(1.1);
+		mix-blend-mode: overlay;
+		opacity: 0.8;
+	}
+
+	:global(html.light) .screen-glass-inner {
+		background: radial-gradient(
+			ellipse at center,
+			transparent 20%,
+			rgba(0, 0, 0, 0.05) 70%,
+			rgba(0, 0, 0, 0.12) 100%
+		);
+		opacity: 0.6;
+	}
+
+	:global(html.light) .screen-glass-reflection {
+		background: linear-gradient(
+			135deg,
+			transparent 15%,
+			rgba(255, 255, 255, 0.06) 35%,
+			rgba(255, 255, 255, 0.12) 50%,
+			rgba(255, 255, 255, 0.06) 65%,
+			transparent 85%
+		);
+		opacity: 0.8;
+		mix-blend-mode: overlay;
 	}
 
 	:global(html.light) .screen-glass-edge {
-		opacity: 0.12;
-		box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.3);
+		opacity: 0.2;
+		border: 2px solid rgba(255, 255, 255, 0.3);
+		box-shadow:
+			inset 0 0 12px rgba(255, 255, 255, 0.4),
+			inset 0 0 20px rgba(0, 0, 0, 0.05);
 	}
+
+	:global(html.light) .screen-glass-smudges {
+		opacity: 0.06;
+		filter: contrast(130%) brightness(120%);
+		mix-blend-mode: multiply;
+	}
+
+	:global(html.light) .screen-glass-dust {
+		opacity: 0.05;
+		mix-blend-mode: multiply;
+	}
+
+	:global(html.light) .screen-glass-specular {
+		background: radial-gradient(ellipse at 35% 25%, rgba(255, 255, 255, 0.4) 0%, transparent 30%);
+		opacity: 0.35;
+		mix-blend-mode: overlay;
+		filter: blur(4px);
+	}
+
+	:global(html.light) .screen-internal-reflection {
+		background-image: repeating-linear-gradient(
+			135deg,
+			transparent 0px,
+			rgba(255, 255, 255, 0.025) 1px,
+			transparent 2px,
+			rgba(255, 255, 255, 0.035) 3px
+		);
+		opacity: 0.08;
+		mix-blend-mode: overlay;
+	}
+
+	/* Light mode power sequence animation */
+	:global(html.light) .power-sequence {
+		animation: lightModePowerUpSequence 2.5s ease-out;
+	}
+
+	@keyframes lightModePowerUpSequence {
+		0% {
+			opacity: 0;
+			transform: scale(0.98);
+			filter: brightness(2) contrast(0);
+		}
+		20% {
+			opacity: 0.3;
+			filter: brightness(1.8) contrast(0.5);
+		}
+		40% {
+			opacity: 0.6;
+			transform: scale(0.99);
+			filter: brightness(1.3) contrast(1.2);
+		}
+		60% {
+			opacity: 0.8;
+			filter: brightness(1.1) contrast(1.1);
+		}
+		80% {
+			opacity: 0.95;
+			transform: scale(1);
+			filter: brightness(1.05) contrast(1.05);
+		}
+		100% {
+			opacity: 1;
+			transform: scale(1);
+			filter: brightness(1) contrast(1);
+		}
+	}
+
+	/* ========================================
+	   DARK MODE THEME ADJUSTMENTS
+	   ======================================== */
 
 	/* Dark theme specific */
 	:global(html.dark) #arcade-screen::after {
@@ -639,7 +812,10 @@ DO NOT REMOVE THIS COMMENT -->
 		filter: blur(4vmin);
 	}
 
-	/* Mobile optimizations - EXACT from Hero.svelte with enhanced StarField compatibility */
+	/* ========================================
+	   MOBILE OPTIMIZATIONS
+	   ======================================== */
+
 	@media (max-width: 768px) {
 		.hardware-accelerated {
 			will-change: transform;
@@ -667,17 +843,25 @@ DO NOT REMOVE THIS COMMENT -->
 			z-index: 25; /* Keep lower than StarField boost area */
 		}
 
-		/* Streamlined scanline effect */
-		#scanline-overlay {
-			background-size: 100% 6px; /* Wider scanlines */
-			animation: scanline 0.3s linear infinite; /* Slower movement */
+		/* Mobile Light Mode Cabinet Styles - Enhanced */
+		:global(html.light) #scanline-overlay {
+			opacity: 0.4;
+			background: linear-gradient(0deg, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.06) 51%);
+			background-size: 100% 6px;
+			animation-duration: 0.3s;
 		}
 
-		/* Mobile Light Mode Cabinet Styles */
-		:global(html.light) #scanline-overlay {
-			opacity: 0.2;
-			background-size: 100% 4px;
-			animation-duration: 0.3s;
+		/* Mobile light mode glass effects adjustments */
+		:global(html.light) .screen-glass-outer {
+			opacity: 0.6;
+		}
+
+		:global(html.light) .screen-glass-reflection {
+			opacity: 0.5;
+		}
+
+		:global(html.light) .screen-glass-specular {
+			opacity: 0.25;
 		}
 
 		/* Disable mouse interactions on mobile */
@@ -687,7 +871,10 @@ DO NOT REMOVE THIS COMMENT -->
 		}
 	}
 
-	/* Low performance device optimizations - EXACT from Hero.svelte */
+	/* ========================================
+	   LOW PERFORMANCE DEVICE OPTIMIZATIONS
+	   ======================================== */
+
 	html[data-device-type='low-performance'] #scanline-overlay {
 		opacity: 0.5;
 		background-size: 100% 8px; /* Even simpler scanlines */
@@ -701,13 +888,30 @@ DO NOT REMOVE THIS COMMENT -->
 		transition: none;
 	}
 
-	/* iOS-specific optimizations - EXACT from Hero.svelte */
+	/* Light mode low performance adjustments */
+	:global(html.light) html[data-device-type='low-performance'] #scanline-overlay {
+		opacity: 0.3;
+		background: linear-gradient(0deg, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.04) 51%);
+	}
+
+	/* ========================================
+	   iOS-SPECIFIC OPTIMIZATIONS
+	   ======================================== */
+
 	.ios-optimized #scanline-overlay {
 		opacity: 0.5;
 		background-size: 100% 6px;
 	}
 
-	/* FIXED: Enhanced mobile touch handling that doesn't conflict with StarField */
+	:global(html.light) .ios-optimized #scanline-overlay {
+		opacity: 0.3;
+		background: linear-gradient(0deg, rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.05) 51%);
+	}
+
+	/* ========================================
+	   ENHANCED MOBILE TOUCH HANDLING
+	   ======================================== */
+
 	@media (max-width: 768px) {
 		/* General touch optimizations */
 		* {

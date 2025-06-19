@@ -108,9 +108,9 @@ export default {
 			},
 			fontFamily: {
 				arcade: ['"Press Start 2P"', 'sans-serif'],
-				body: ['Roboto', 'sans-serif'],
+				body: ['IBM Plex Sans', 'sans-serif'],
 				gruppo: ['Gruppo', 'sans-serif'],
-				roboto: ['Roboto', 'sans-serif']
+				ibmPlexMono: ['IBM Plex Sans', 'sans-serif']
 			},
 			fontSize: {
 				base: ['16px', '1.75'], // Body text size and line height

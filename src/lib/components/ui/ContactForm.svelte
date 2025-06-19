@@ -3,9 +3,8 @@
 DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import { fade } from 'svelte/transition';
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy } from 'svelte';
 
-	// Form state
 	let name = '';
 	let email = '';
 	let message = '';
@@ -14,7 +13,6 @@ DO NOT REMOVE THIS COMMENT -->
 	let isSending = false;
 	let messageTimer: ReturnType<typeof setTimeout>;
 
-	// Form validation
 	let errors = {
 		name: '',
 		email: '',
@@ -28,11 +26,7 @@ DO NOT REMOVE THIS COMMENT -->
 
 	function validateForm() {
 		let isValid = true;
-		errors = {
-			name: '',
-			email: '',
-			message: ''
-		};
+		errors = { name: '', email: '', message: '' };
 
 		if (!name.trim()) {
 			errors.name = 'Name is required';
@@ -56,18 +50,14 @@ DO NOT REMOVE THIS COMMENT -->
 	}
 
 	async function handleSubmit() {
-		if (!validateForm()) {
-			return;
-		}
+		if (!validateForm()) return;
 
 		isSending = true;
 
-		// Simulate form submission
 		try {
 			await new Promise((resolve) => setTimeout(resolve, 1500));
 			formSubmitted = true;
 			formError = false;
-			// Reset form
 			name = '';
 			email = '';
 			message = '';
@@ -79,182 +69,146 @@ DO NOT REMOVE THIS COMMENT -->
 		}
 	}
 
-	// Input effect functions
-	function handleFocus(event: FocusEvent) {
-		const target = event.target as HTMLInputElement | HTMLTextAreaElement;
-		const parent = target.parentElement;
-		if (parent) {
-			parent.classList.add('focused');
-		}
-	}
-
-	function handleBlur(event: FocusEvent) {
-		const target = event.target as HTMLInputElement | HTMLTextAreaElement;
-		const parent = target.parentElement;
-		if (parent) {
-			if (!target.value) {
-				parent.classList.remove('focused');
-			}
-		}
-	}
-
-	// Watch for form status changes
 	$: if (formSubmitted || formError) {
-		// Clear any existing timer first
 		if (messageTimer) clearTimeout(messageTimer);
-
-		// Set a new timer
 		messageTimer = setTimeout(() => {
 			formSubmitted = false;
 			formError = false;
 		}, 5000);
 	}
 
-	// Clean up the timer when component is destroyed
 	onDestroy(() => {
 		if (messageTimer) clearTimeout(messageTimer);
 	});
 </script>
 
+<!-- Success/Error Messages -->
 {#if formSubmitted}
 	<div
-		class="success-message p-4 mb-6 bg-arcadeNeonGreen-500/20 border border-arcadeNeonGreen-500 rounded-lg"
+		class="mb-8 p-4 border border-arcadeNeonGreen-500 text-arcadeNeonGreen-500"
 		transition:fade={{ duration: 300 }}
 	>
-		<h3 class="text-lg font-semibold mb-2 text-arcadeNeonGreen-500">Message Sent!</h3>
-		<p>Thanks for reaching out. I'll get back to you soon.</p>
+		✓ Message sent successfully! I'll get back to you soon.
 	</div>
 {:else if formError}
 	<div
-		class="error-message p-4 mb-6 bg-arcadeRed-500/20 border border-arcadeRed-500 rounded-lg"
+		class="mb-8 p-4 border border-arcadeRed-500 text-arcadeRed-500"
 		transition:fade={{ duration: 300 }}
 	>
-		<h3 class="text-lg font-semibold mb-2 text-arcadeRed-500">Oops! Something went wrong</h3>
-		<p>Please try again or contact me directly via email.</p>
+		× Something went wrong. Please try again or email me directly.
 	</div>
 {/if}
 
-<form on:submit|preventDefault={handleSubmit} class="space-y-4">
-	<div class="form-group relative {name ? 'focused' : ''}">
-		<label
-			for="name"
-			class="absolute left-3 top-3 transition-all duration-200 pointer-events-none text-arcadeBlack-500/60 dark:text-arcadeWhite-200/60"
-		>
-			Name
-		</label>
+<!-- Form - Full Width -->
+<form on:submit|preventDefault={handleSubmit} class="w-full space-y-12">
+	<!-- Name Field -->
+	<div class="relative w-full">
 		<input
 			type="text"
 			id="name"
 			bind:value={name}
-			on:focus={handleFocus}
-			on:blur={handleBlur}
-			class="w-full bg-transparent border-b-2 border-arcadeBlack-500/20 dark:border-arcadeWhite-200/20 focus:border-arcadeNeonGreen-500 outline-none py-2 px-3 pt-6 transition-all duration-200"
+			class="w-full px-0 py-4 pb-4 bg-transparent border-0 border-b-2
+				border-arcadeBlack-200 dark:border-arcadeWhite-200/20
+				focus:border-arcadeNeonGreen-500 focus:outline-none
+				text-arcadeBlack-600 dark:text-arcadeWhite-200 text-lg
+				transition-colors duration-300"
+			class:border-arcadeRed-500={errors.name}
 		/>
+		<label
+			for="name"
+			class="uppercase absolute left-0 bottom-1 text-xl font-light
+				text-arcadeBlack-500 dark:text-arcadeWhite-300"
+			class:text-arcadeRed-500={errors.name}
+		>
+			Name
+		</label>
 		{#if errors.name}
-			<p class="text-arcadeRed-500 text-sm mt-1">{errors.name}</p>
+			<p class="mt-2 text-sm text-arcadeRed-500">{errors.name}</p>
 		{/if}
 	</div>
 
-	<div class="form-group relative {email ? 'focused' : ''}">
-		<label
-			for="email"
-			class="absolute left-3 top-3 transition-all duration-200 pointer-events-none text-arcadeBlack-500/60 dark:text-arcadeWhite-200/60"
-		>
-			Email
-		</label>
+	<!-- Email Field -->
+	<div class="relative w-full">
 		<input
 			type="email"
 			id="email"
 			bind:value={email}
-			on:focus={handleFocus}
-			on:blur={handleBlur}
-			class="w-full bg-transparent border-b-2 border-arcadeBlack-500/20 dark:border-arcadeWhite-200/20 focus:border-arcadeNeonGreen-500 outline-none py-2 px-3 pt-6 transition-all duration-200"
+			class="w-full px-0 py-4 pb-4 bg-transparent border-0 border-b-2
+				border-arcadeBlack-200 dark:border-arcadeWhite-200/20
+				focus:border-arcadeNeonGreen-500 focus:outline-none
+				text-arcadeBlack-600 dark:text-arcadeWhite-200 text-lg
+				transition-colors duration-300"
+			class:border-arcadeRed-500={errors.email}
 		/>
+		<label
+			for="email"
+			class="uppercase absolute left-0 bottom-1 text-xl font-light
+				text-arcadeBlack-500 dark:text-arcadeWhite-300"
+			class:text-arcadeRed-500={errors.email}
+		>
+			Email
+		</label>
 		{#if errors.email}
-			<p class="text-arcadeRed-500 text-sm mt-1">{errors.email}</p>
+			<p class="mt-2 text-sm text-arcadeRed-500">{errors.email}</p>
 		{/if}
 	</div>
 
-	<div class="form-group relative {message ? 'focused' : ''}">
+	<!-- Message Field -->
+	<div class="w-full">
 		<label
 			for="message"
-			class="absolute left-3 top-3 transition-all duration-200 pointer-events-none text-arcadeBlack-500/60 dark:text-arcadeWhite-200/60"
+			class="uppercase block text-xl font-light text-arcadeBlack-500 dark:text-arcadeWhite-300 mb-2"
 		>
 			Message
 		</label>
 		<textarea
 			id="message"
 			bind:value={message}
-			on:focus={handleFocus}
-			on:blur={handleBlur}
 			rows="4"
-			class="w-full bg-transparent border-b-2 border-arcadeBlack-500/20 dark:border-arcadeWhite-200/20 focus:border-arcadeNeonGreen-500 outline-none py-2 px-3 pt-6 transition-all duration-200 resize-y"
+			class="w-full px-0 py-4 pb-4 bg-transparent border-0 border-b-2
+				border-arcadeBlack-200 dark:border-arcadeWhite-200/20
+				focus:border-arcadeNeonGreen-500 focus:outline-none
+				text-arcadeBlack-600 dark:text-arcadeWhite-200 text-lg
+				placeholder-arcadeBlack-400 dark:placeholder-arcadeWhite-400
+				transition-colors duration-300 resize-none"
+			placeholder=""
+			class:border-arcadeRed-500={errors.message}
 		></textarea>
 		{#if errors.message}
-			<p class="text-arcadeRed-500 text-sm mt-1">{errors.message}</p>
+			<p class="mt-1 text-sm text-arcadeRed-500">{errors.message}</p>
 		{/if}
 	</div>
 
-	<button
-		type="submit"
-		class="px-6 py-3 mt-6 bg-arcadeBlack-500 dark:bg-arcadeBlack-700 text-arcadeWhite-200
-		rounded-lg shadow-md hover:shadow-lg transition-all duration-300
-		border border-arcadeNeonGreen-500/30 hover:border-arcadeNeonGreen-500
-		hover:bg-arcadeBlack-600 relative overflow-hidden disabled:opacity-70"
-		disabled={isSending}
-	>
-		<span class="relative z-10">
+	<!-- Submit Button -->
+	<div class="pt-6">
+		<button
+			type="submit"
+			disabled={isSending}
+			class="px-8 py-4 bg-transparent border border-arcadeBlack-300 dark:border-arcadeWhite-300
+				text-arcadeBlack-600 dark:text-arcadeWhite-200
+				hover:border-arcadeNeonGreen-500 hover:text-arcadeNeonGreen-500
+				disabled:opacity-50 disabled:cursor-not-allowed
+				transition-colors duration-300 font-normal"
+		>
 			{#if isSending}
-				Sending...
+				<span class="flex items-center space-x-2">
+					<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"
+						></circle>
+						<path
+							class="opacity-75"
+							fill="currentColor"
+							d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+						></path>
+					</svg>
+					<span>Sending...</span>
+				</span>
 			{:else}
-				Send Message
+				<span class="flex items-center space-x-2">
+					<span>Send Message</span>
+					<span>→</span>
+				</span>
 			{/if}
-		</span>
-		<div class="absolute inset-0 overflow-hidden">
-			<div
-				class="crt-loading-bar h-full bg-arcadeNeonGreen-500/20 transition-all"
-				class:w-full={isSending}
-				class:w-0={!isSending}
-			></div>
-		</div>
-	</button>
+		</button>
+	</div>
 </form>
-
-<style>
-	/* Form animations */
-	.form-group.focused label {
-		transform: translateY(-70%) scale(0.8);
-		color: var(--arcade-neon-green-500);
-	}
-
-	.form-group label {
-		transform-origin: 0 0;
-	}
-
-	/* Loading animation */
-	.crt-loading-bar {
-		position: absolute;
-		left: 0;
-		top: 0;
-		transition: width 1.5s linear;
-		background: linear-gradient(
-			90deg,
-			rgba(39, 255, 153, 0.1),
-			rgba(39, 255, 153, 0.4),
-			rgba(39, 255, 153, 0.1)
-		);
-		animation: pulsate 1.5s infinite;
-	}
-
-	@keyframes pulsate {
-		0% {
-			opacity: 0.6;
-		}
-		50% {
-			opacity: 1;
-		}
-		100% {
-			opacity: 0.6;
-		}
-	}
-</style>

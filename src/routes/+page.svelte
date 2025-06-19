@@ -1,4 +1,7 @@
-<!-- src/routes/+page.svelte -->
+<!-- DO NOT REMOVE THIS COMMENT
+src/routes/+page.svelte
+DO NOT REMOVE THIS COMMENT -->
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { getAllSections } from '$lib/config/sections';

@@ -69,7 +69,8 @@ DO NOT REMOVE THIS COMMENT -->
 					<!-- Main UVP Content -->
 					<div class="uvp-content">
 						<h2 class="uvp-heading">
-							Empowering Brands with Creative Design Solutions for Digital Success.
+							Empowering brands with <span class="uvp-heading-uppercase-fix">CREATIVE</span> design solutions
+							geared for success!
 						</h2>
 
 						<div class="uvp-points">
@@ -183,13 +184,17 @@ DO NOT REMOVE THIS COMMENT -->
 
 	.uvp-heading {
 		font-family: var(--header-text), sans-serif;
-		font-size: clamp(2rem, 5vw, 3rem);
+		font-size: clamp(2.5rem, 5vw, 3rem);
 		font-weight: 700;
 		color: var(--about-heading-color);
 		margin-bottom: 2rem;
 		line-height: 1.2;
 		letter-spacing: -0.02em;
 		text-shadow: 0 2px 4px var(--about-text-shadow);
+	}
+
+	.uvp-heading-uppercase-fix {
+		letter-spacing: 0.06em;
 	}
 
 	.uvp-points {
@@ -211,8 +216,8 @@ DO NOT REMOVE THIS COMMENT -->
 	}
 
 	.point-indicator {
-		width: 8px;
-		height: 8px;
+		width: 6px;
+		height: 6px;
 		background: var(--about-accent-color);
 		border-radius: 50%;
 		margin-top: 0.6rem;
@@ -237,7 +242,7 @@ DO NOT REMOVE THIS COMMENT -->
 
 	.point-text {
 		color: var(--about-text-color);
-		font-size: 1.2rem;
+		font-size: 1.575rem;
 		line-height: 1.5;
 		font-weight: 400;
 		text-shadow: 0 1px 2px var(--about-text-shadow-subtle);
