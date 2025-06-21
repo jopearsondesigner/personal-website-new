@@ -25,9 +25,9 @@ DO NOT REMOVE THIS COMMENT -->
 
 	// UVP bullet points based on psychometrics test
 	const uvpPoints = [
-		'Design and develop in one streamlined process—no costly handoffs or miscommunication',
 		'Turn vague ideas into polished products with minimal direction needed',
 		'Full-spectrum capabilities: graphics, UI/UX, branding, and front-end development',
+		'Quality-first handcrafted solutions that stand out from AI/template approaches',
 		'Startup-proven approach that scales to enterprise needs'
 	];
 
@@ -68,8 +68,10 @@ DO NOT REMOVE THIS COMMENT -->
 				>
 					<!-- Main UVP Content -->
 					<div class="uvp-content">
-						<h2 class="uvp-heading">
-							<span class="dark:text-[var(--arcade-bright-yellow-100)]">From concept to code</span
+						<h2 class="uvp-heading orbitron-bold">
+							<span
+								class="text-[var(--metallic-gold-800)] dark:text-[var(--arcade-bright-yellow-100)]"
+								>From concept to code</span
 							>&mdash;eliminating design handoffs for faster, seamless digital solutions
 						</h2>
 
@@ -140,6 +142,42 @@ DO NOT REMOVE THIS COMMENT -->
 
 <style>
 	/* =============================================================================
+	   CSS Custom Properties for About Section
+	   ============================================================================= */
+
+	:root {
+		/* Dark Theme Colors */
+		--about-heading-color: var(--arcade-white-200);
+		--about-text-color: rgba(245, 245, 220, 0.92);
+		--about-accent-color: var(--arcade-neon-green-200);
+		--about-accent-glow: rgba(119, 255, 161, 0.4);
+		--about-accent-glow-outer: rgba(199, 255, 219, 0.2);
+
+		/* Text Shadows */
+		--about-text-shadow: rgba(43, 43, 43, 0.3);
+		--about-text-shadow-subtle: rgba(43, 43, 43, 0.1);
+
+		/* Avatar Effects */
+		--about-avatar-filter: brightness(1.05) contrast(1.1) saturate(1.1);
+		--about-avatar-filter-hover: brightness(1.1) contrast(1.15) saturate(1.2);
+	}
+
+	/* Light Theme Overrides */
+	:global(html.light) {
+		--about-heading-color: var(--arcade-black-700);
+		--about-text-color: var(--arcade-black-600);
+		--about-accent-color: var(--arcade-neon-green-700);
+		--about-accent-glow: rgba(0, 179, 90, 0.5);
+		--about-accent-glow-outer: rgba(0, 179, 90, 0.25);
+
+		--about-text-shadow: rgba(245, 245, 220, 0.8);
+		--about-text-shadow-subtle: rgba(245, 245, 220, 0.5);
+
+		--about-avatar-filter: brightness(1) contrast(1.05) saturate(1);
+		--about-avatar-filter-hover: brightness(1.05) contrast(1.1) saturate(1.1);
+	}
+
+	/* =============================================================================
 	   About Section Styles
 	   ============================================================================= */
 
@@ -177,9 +215,9 @@ DO NOT REMOVE THIS COMMENT -->
 
 	.uvp-content {
 		max-width: 100%;
-		padding-right: 160px; /* Space for avatar */
 		position: relative;
 		z-index: 20;
+		padding-right: 0;
 	}
 
 	.uvp-heading {
@@ -209,7 +247,25 @@ DO NOT REMOVE THIS COMMENT -->
 		align-items: center;
 		gap: 1rem;
 		opacity: 0.95;
-		transition: opacity 0.3s ease;
+		transition:
+			opacity 0.3s ease,
+			max-width 0.3s ease;
+	}
+
+	.uvp-point:nth-child(1) {
+		max-width: 85%; /* Shorter line */
+	}
+
+	.uvp-point:nth-child(2) {
+		max-width: 75%; /* Even shorter to curve around avatar */
+	}
+
+	.uvp-point:nth-child(3) {
+		max-width: 70%; /* Shortest line - curves most around avatar */
+	}
+
+	.uvp-point:nth-child(4) {
+		max-width: 80%; /* Slightly longer as avatar tapers */
 	}
 
 	.uvp-point:hover {
@@ -302,42 +358,6 @@ DO NOT REMOVE THIS COMMENT -->
 		display: flex;
 		flex-direction: column;
 		gap: 1.5rem;
-	}
-
-	/* =============================================================================
-	   CSS Custom Properties for About Section
-	   ============================================================================= */
-
-	:root {
-		/* Dark Theme Colors */
-		--about-heading-color: var(--arcade-white-200);
-		--about-text-color: rgba(245, 245, 220, 0.92);
-		--about-accent-color: var(--arcade-neon-green-200);
-		--about-accent-glow: rgba(119, 255, 161, 0.4);
-		--about-accent-glow-outer: rgba(199, 255, 219, 0.2);
-
-		/* Text Shadows */
-		--about-text-shadow: rgba(43, 43, 43, 0.3);
-		--about-text-shadow-subtle: rgba(43, 43, 43, 0.1);
-
-		/* Avatar Effects */
-		--about-avatar-filter: brightness(1.05) contrast(1.1) saturate(1.1);
-		--about-avatar-filter-hover: brightness(1.1) contrast(1.15) saturate(1.2);
-	}
-
-	/* Light Theme Overrides */
-	:global(html.light) {
-		--about-heading-color: var(--arcade-black-700);
-		--about-text-color: var(--arcade-black-600);
-		--about-accent-color: var(--arcade-neon-green-700);
-		--about-accent-glow: rgba(0, 179, 90, 0.5);
-		--about-accent-glow-outer: rgba(0, 179, 90, 0.25);
-
-		--about-text-shadow: rgba(245, 245, 220, 0.8);
-		--about-text-shadow-subtle: rgba(245, 245, 220, 0.5);
-
-		--about-avatar-filter: brightness(1) contrast(1.05) saturate(1);
-		--about-avatar-filter-hover: brightness(1.05) contrast(1.1) saturate(1.1);
 	}
 
 	/* =============================================================================

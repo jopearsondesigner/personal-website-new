@@ -2,135 +2,21 @@
 /src/lib/components/styles/app.css
 DO NOT REMOVE THIS COMMENT */
 
+/* =============================================================================
+   IMPORTS
+   ============================================================================= */
+
 /* Tailwind Imports */
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
-/* Root Variables */
-:root {
-	/* Arcade Red */
-	--arcade-red-50: #ffe8e0;
-	--arcade-red-100: #ffc6b3;
-	--arcade-red-200: #ff9b80;
-	--arcade-red-300: #ff704d;
-	--arcade-red-400: #ff5426;
-	--arcade-red-500: #ff4500; /* base color */
-	--arcade-red-600: #e63e00;
-	--arcade-red-700: #cc3700;
-	--arcade-red-800: #b33000;
-	--arcade-red-900: #992900;
+/* Variable Definitions */
+@import './variables.css';
 
-	/* Arcade Black */
-	--arcade-black-50: #eaeaea;
-	--arcade-black-100: #d5d5d5;
-	--arcade-black-200: #ababab;
-	--arcade-black-300: #808080;
-	--arcade-black-400: #555555;
-	--arcade-black-500: #2b2b2b; /* base color */
-	--arcade-black-600: #262626;
-	--arcade-black-700: #1a1a1a;
-	--arcade-black-800: #0d0d0d;
-	--arcade-black-900: #000000;
-
-	/* Arcade White */
-	--arcade-white-50: #fafaf0;
-	--arcade-white-100: #f7f7e6;
-	--arcade-white-200: #f5f5dc; /* base color */
-	--arcade-white-300: #ececce;
-	--arcade-white-400: #e2e2bd;
-	--arcade-white-500: #d9d9ab;
-	--arcade-white-600: #c0c08d;
-	--arcade-white-700: #a7a770;
-	--arcade-white-800: #8d8d56;
-	--arcade-white-900: #73733b;
-
-	/* Arcade Electric Blue */
-	--arcade-electric-blue-50: #e6f3ff;
-	--arcade-electric-blue-100: #cce7ff;
-	--arcade-electric-blue-200: #99cfff;
-	--arcade-electric-blue-300: #66b8ff;
-	--arcade-electric-blue-400: #339fff;
-	--arcade-electric-blue-500: #1e90ff; /* base color */
-	--arcade-electric-blue-600: #1a82e6;
-	--arcade-electric-blue-700: #156bbf;
-	--arcade-electric-blue-800: #104d99;
-	--arcade-electric-blue-900: #0b3973;
-
-	/* Arcade Bright Yellow */
-	--arcade-bright-yellow-50: #fff8e1;
-	--arcade-bright-yellow-100: #ffeeb2;
-	--arcade-bright-yellow-200: #ffe480; /* base color */
-	--arcade-bright-yellow-300: #ffda4e;
-	--arcade-bright-yellow-400: #ffd024;
-	--arcade-bright-yellow-500: #ffd700;
-	--arcade-bright-yellow-600: #e6c200;
-	--arcade-bright-yellow-700: #b39a00;
-	--arcade-bright-yellow-800: #806f00;
-	--arcade-bright-yellow-900: #4d4600;
-
-	/* Arcade Neon Green */
-	--arcade-neon-green-50: #e3ffee;
-	--arcade-neon-green-100: #c7ffdd;
-	--arcade-neon-green-200: #9fffbf;
-	--arcade-neon-green-300: #77ffa1;
-	--arcade-neon-green-400: #4fffae;
-	--arcade-neon-green-500: #27ff99; /* base color */
-	--arcade-neon-green-600: #00ff80;
-	--arcade-neon-green-700: #00e670;
-	--arcade-neon-green-800: #00b35a;
-	--arcade-neon-green-900: #00804d;
-
-	/* Arcade Magenta */
-	--arcade-magenta-50: #ffe6ff;
-	--arcade-magenta-100: #ffb3ff;
-	--arcade-magenta-200: #ff80ff;
-	--arcade-magenta-300: #ff4dff;
-	--arcade-magenta-400: #ff1aff;
-	--arcade-magenta-500: #ff00ff; /* base color */
-	--arcade-magenta-600: #e600e6;
-	--arcade-magenta-700: #b300b3;
-	--arcade-magenta-800: #800080;
-	--arcade-magenta-900: #4d004d;
-
-	/* Teal */
-	--teal-50: #e0f7f7;
-	--teal-100: #b3efef;
-	--teal-200: #80e7e7;
-	--teal-300: #4ddcdc;
-	--teal-400: #1ad1d1;
-	--teal-500: #00a8a8; /* base color */
-	--teal-600: #008f8f;
-	--teal-700: #006666;
-	--teal-800: #004d4d;
-	--teal-900: #003333;
-
-	/* Dark Mode Background */
-	--dark-mode-bg: #1a1a1a;
-
-	/* Light Mode Background */
-	--light-mode-bg: #d0d0d0;
-
-	/* Adjusted Light Mode Text Color */
-	--light-mode-text: #2b2b2b;
-
-	/* Fonts */
-	--body-text: 'IBM Plex Sans', sans-serif;
-	--header-text: 'Gruppo', sans-serif;
-	--font-press-start: 'Press Start 2P', cursive;
-	--font-bungee: 'Bungee', cursive;
-
-	/* Light Theme Cabinet */
-	--light-cabinet-primary: #f5f5f5;
-	--light-cabinet-secondary: #e8e8e8;
-	--light-cabinet-tertiary: #dedede;
-	--light-shadow-subtle: rgba(0, 0, 0, 0.05);
-	--light-shadow-medium: rgba(0, 0, 0, 0.1);
-	--light-highlight: rgba(255, 255, 255, 0.9);
-
-	/* Loading Animation */
-	--loading-duration: 1500ms;
-}
+/* =============================================================================
+   MEDIA QUERY VARIABLE OVERRIDES (from original)
+   ============================================================================= */
 
 @media (max-width: 768px) {
 	:root {
@@ -158,12 +44,20 @@ DO NOT REMOVE THIS COMMENT */
 	}
 }
 
+/* =============================================================================
+   THEME TRANSITIONS
+   ============================================================================= */
+
 /* Theme Transition - Instant Switch */
 .theme-transition * {
 	transition: none !important;
 }
 
-/* Global Styles */
+/* =============================================================================
+   GLOBAL STYLES
+   ============================================================================= */
+
+/* HTML Base Styles */
 html {
 	@apply bg-[var(--dark-mode-bg)];
 	background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
@@ -172,6 +66,8 @@ html {
 		linear-gradient(315deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%);
 	background-size: 4px 4px;
 	font-family: var(--body-text), sans-serif;
+	font-weight: var(--ibm-weight-normal);
+	font-variation-settings: 'wght' var(--ibm-weight-normal);
 }
 
 html.light {
@@ -182,6 +78,10 @@ html.light {
 		linear-gradient(315deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%);
 	background-size: 4px 4px;
 }
+
+/* =============================================================================
+   PORTAL SYSTEM
+   ============================================================================= */
 
 /* Add this to your global CSS */
 #controls-portal {
@@ -212,6 +112,10 @@ html.light {
 	}
 }
 
+/* =============================================================================
+   CABINET STYLES
+   ============================================================================= */
+
 /* Cabinet Styles */
 .light-theme-cabinet {
 	--cabinet-depth: 1.5vmin;
@@ -220,10 +124,124 @@ html.light {
 	--screen-glow-opacity: 0.3;
 }
 
+/* =============================================================================
+   TYPOGRAPHY SYSTEM WITH VARIABLE FONT SUPPORT
+   ============================================================================= */
+
 /* Utility Classes */
 .header-text {
 	font-family: var(--header-text), sans-serif;
+	font-weight: var(--orbitron-weight-normal);
+	font-variation-settings: 'wght' var(--orbitron-weight-normal);
 }
+
+/* Branding Text - Gruppo for branding only */
+.branding-text {
+	font-family: var(--branding-text), sans-serif;
+}
+
+/* Variable Font Weight Classes - Orbitron */
+.orbitron-light {
+	font-family: var(--font-orbitron), sans-serif;
+	font-weight: var(--orbitron-weight-light);
+	font-variation-settings: 'wght' var(--orbitron-weight-light);
+}
+
+.orbitron-normal {
+	font-family: var(--font-orbitron), sans-serif;
+	font-weight: var(--orbitron-weight-normal);
+	font-variation-settings: 'wght' var(--orbitron-weight-normal);
+}
+
+.orbitron-medium {
+	font-family: var(--font-orbitron), sans-serif;
+	font-weight: var(--orbitron-weight-medium);
+	font-variation-settings: 'wght' var(--orbitron-weight-medium);
+}
+
+.orbitron-semibold {
+	font-family: var(--font-orbitron), sans-serif;
+	font-weight: var(--orbitron-weight-semibold);
+	font-variation-settings: 'wght' var(--orbitron-weight-semibold);
+}
+
+.orbitron-bold {
+	font-family: var(--font-orbitron), sans-serif;
+	font-weight: var(--orbitron-weight-bold);
+	font-variation-settings: 'wght' var(--orbitron-weight-bold);
+}
+
+.orbitron-black {
+	font-family: var(--font-orbitron), sans-serif;
+	font-weight: var(--orbitron-weight-black);
+	font-variation-settings: 'wght' var(--orbitron-weight-black);
+}
+
+/* IBM Plex Sans Variable Weights */
+.ibm-thin {
+	font-family: var(--body-text), sans-serif;
+	font-weight: var(--ibm-weight-thin);
+	font-variation-settings: 'wght' var(--ibm-weight-thin);
+}
+
+.ibm-light {
+	font-family: var(--body-text), sans-serif;
+	font-weight: var(--ibm-weight-light);
+	font-variation-settings: 'wght' var(--ibm-weight-light);
+}
+
+.ibm-normal {
+	font-family: var(--body-text), sans-serif;
+	font-weight: var(--ibm-weight-normal);
+	font-variation-settings: 'wght' var(--ibm-weight-normal);
+}
+
+.ibm-medium {
+	font-family: var(--body-text), sans-serif;
+	font-weight: var(--ibm-weight-medium);
+	font-variation-settings: 'wght' var(--ibm-weight-medium);
+}
+
+.ibm-semibold {
+	font-family: var(--body-text), sans-serif;
+	font-weight: var(--ibm-weight-semibold);
+	font-variation-settings: 'wght' var(--ibm-weight-semibold);
+}
+
+.ibm-bold {
+	font-family: var(--body-text), sans-serif;
+	font-weight: var(--ibm-weight-bold);
+	font-variation-settings: 'wght' var(--ibm-weight-bold);
+}
+
+/* Pixelify Sans Variable Weights */
+.pixelify-normal {
+	font-family: var(--font-pixelify), sans-serif;
+	font-weight: var(--pixelify-weight-normal);
+	font-variation-settings: 'wght' var(--pixelify-weight-normal);
+}
+
+.pixelify-medium {
+	font-family: var(--font-pixelify), sans-serif;
+	font-weight: var(--pixelify-weight-medium);
+	font-variation-settings: 'wght' var(--pixelify-weight-medium);
+}
+
+.pixelify-semibold {
+	font-family: var(--font-pixelify), sans-serif;
+	font-weight: var(--pixelify-weight-semibold);
+	font-variation-settings: 'wght' var(--pixelify-weight-semibold);
+}
+
+.pixelify-bold {
+	font-family: var(--font-pixelify), sans-serif;
+	font-weight: var(--pixelify-weight-bold);
+	font-variation-settings: 'wght' var(--pixelify-weight-bold);
+}
+
+/* =============================================================================
+   NAVBAR STYLES
+   ============================================================================= */
 
 /* Navbar Backgrounds */
 .navbar-background-dark {
@@ -307,6 +325,10 @@ html.dark .nav-button:active {
 	@apply transform translate-y-1 shadow-sm bg-gradient-to-br from-[#2c2c2c] to-[#444444];
 }
 
+/* =============================================================================
+   TRANSITIONS & ANIMATIONS
+   ============================================================================= */
+
 /* Transitions */
 .fade-enter-active,
 .fade-leave-active {
@@ -328,7 +350,10 @@ html.dark .nav-button:active {
 	content-visibility: auto;
 }
 
-/* Responsive Layouts */
+/* =============================================================================
+   RESPONSIVE LAYOUTS
+   ============================================================================= */
+
 @media (orientation: landscape) {
 	.game-wrapper {
 		padding-bottom: var(--controls-height-landscape);
@@ -493,18 +518,25 @@ html.dark .nav-button:active {
 	text-rendering: optimizeLegibility;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
+	font-family: var(--header-text), sans-serif;
+	font-weight: var(--orbitron-weight-bold);
+	font-variation-settings: 'wght' var(--orbitron-weight-bold);
 }
 
 .contact-subheading {
-	font-weight: 500;
+	font-weight: var(--orbitron-weight-medium);
+	font-variation-settings: 'wght' var(--orbitron-weight-medium);
 	line-height: 1.4;
 	letter-spacing: 0.02em;
+	font-family: var(--header-text), sans-serif;
 }
 
 .contact-body-text {
 	line-height: 1.7;
-	font-weight: 400;
+	font-weight: var(--ibm-weight-normal);
+	font-variation-settings: 'wght' var(--ibm-weight-normal);
 	letter-spacing: 0.01em;
+	font-family: var(--body-text), sans-serif;
 }
 
 /* Minimalist Form Styling */
@@ -524,6 +556,8 @@ html.dark .nav-button:active {
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	width: 100%;
 	padding: 0.75rem 0;
+	font-weight: var(--ibm-weight-normal);
+	font-variation-settings: 'wght' var(--ibm-weight-normal);
 }
 
 .minimal-form-field input:focus,
@@ -542,6 +576,8 @@ html.dark .nav-button:active {
 .minimal-form-field label {
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	cursor: text;
+	font-weight: var(--ibm-weight-medium);
+	font-variation-settings: 'wght' var(--ibm-weight-medium);
 }
 
 /* Contact Links */
@@ -551,6 +587,9 @@ html.dark .nav-button:active {
 	text-decoration: none;
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	position: relative;
+	font-family: var(--body-text), sans-serif;
+	font-weight: var(--ibm-weight-medium);
+	font-variation-settings: 'wght' var(--ibm-weight-medium);
 }
 
 .contact-link:hover {
@@ -591,10 +630,12 @@ html.dark .nav-button:active {
 	background: transparent;
 	border: 2px solid currentColor;
 	padding: 1rem 2rem;
-	font-weight: 500;
+	font-weight: var(--ibm-weight-medium);
+	font-variation-settings: 'wght' var(--ibm-weight-medium);
 	letter-spacing: 0.02em;
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	cursor: pointer;
+	font-family: var(--body-text), sans-serif;
 }
 
 .minimal-submit-btn:hover:not(:disabled) {
@@ -629,9 +670,11 @@ html.dark .nav-button:active {
 .form-message {
 	border-radius: 8px;
 	padding: 1rem 1.5rem;
-	font-weight: 500;
+	font-weight: var(--ibm-weight-medium);
+	font-variation-settings: 'wght' var(--ibm-weight-medium);
 	border: 1px solid;
 	background-clip: padding-box;
+	font-family: var(--body-text), sans-serif;
 }
 
 .form-message.success {
@@ -684,6 +727,8 @@ html.dark .nav-button:active {
 	.contact-heading {
 		font-size: 2.5rem;
 		letter-spacing: 0.05em;
+		font-weight: var(--orbitron-weight-bold);
+		font-variation-settings: 'wght' var(--orbitron-weight-bold);
 	}
 
 	.minimal-submit-btn {
@@ -758,6 +803,8 @@ html.light .contact-wrapper {
 	width: 100%;
 	padding: 1rem 0;
 	padding-bottom: 0.5rem;
+	font-weight: var(--ibm-weight-normal);
+	font-variation-settings: 'wght' var(--ibm-weight-normal);
 }
 
 .form-field input:focus,
@@ -776,7 +823,8 @@ html.light .contact-wrapper {
 	left: 0;
 	bottom: 0.25rem;
 	font-size: 0.875rem;
-	font-weight: 500;
+	font-weight: var(--ibm-weight-medium);
+	font-variation-settings: 'wght' var(--ibm-weight-medium);
 	transition: color 0.3s ease;
 	pointer-events: none;
 }
@@ -790,9 +838,11 @@ button[type='submit'] {
 	background: transparent;
 	border: 2px solid currentColor;
 	padding: 1rem 2rem;
-	font-weight: 500;
+	font-weight: var(--ibm-weight-medium);
+	font-variation-settings: 'wght' var(--ibm-weight-medium);
 	transition: all 0.3s ease;
 	cursor: pointer;
+	font-family: var(--body-text), sans-serif;
 }
 
 button[type='submit']:hover:not(:disabled) {
@@ -832,4 +882,15 @@ button[type='submit']:disabled {
 		padding: 1.5rem;
 		border-radius: 4px;
 	}
+}
+
+/* Light Mode Specific for forms */
+html.light .form-field input,
+html.light .form-field textarea {
+	color: var(--arcade-black-600);
+}
+
+html.light .form-field input::placeholder,
+html.light .form-field textarea::placeholder {
+	color: rgba(43, 43, 43, 0.6);
 }

@@ -308,7 +308,7 @@
 			<NavBrand href="/">
 				<img src={logo} alt="Jo Pearson Logo" class="h-10 w-10 mr-[8px] pb-1 header-logo-pulse" />
 				<span
-					class="hidden lg:inline-block text-[16px] header-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[24.96px] mt-[5px]"
+					class="hidden lg:inline-block text-[16px] branding-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[24.96px] mt-[5px]"
 				>
 					Jo Pearson
 				</span>

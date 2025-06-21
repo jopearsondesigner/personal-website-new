@@ -226,7 +226,7 @@ DO NOT REMOVE THIS COMMENT -->
 	id="text-wrapper"
 	class="absolute inset-0 flex flex-col items-center justify-center z-0 p-2 mt-12 box-border"
 >
-	<div id="header" class="text-center mb-2 animate-transform" bind:this={header}>
+	<div id="header" class="pixelify-bold text-center mb-2 animate-transform" bind:this={header}>
 		Power-up Your Brand!
 	</div>
 
