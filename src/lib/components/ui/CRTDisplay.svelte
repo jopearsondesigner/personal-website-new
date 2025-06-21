@@ -86,7 +86,7 @@ DO NOT REMOVE THIS COMMENT -->
 		position: relative;
 		width: 100%;
 		border-radius: 20px;
-		padding: 3rem;
+		padding: 4rem;
 		overflow: hidden;
 		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 

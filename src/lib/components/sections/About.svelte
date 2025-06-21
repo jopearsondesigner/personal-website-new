@@ -6,6 +6,8 @@ DO NOT REMOVE THIS COMMENT -->
 	import { fade, fly } from 'svelte/transition';
 	import { backOut } from 'svelte/easing';
 	import CRTDisplay from '$lib/components/ui/CRTDisplay.svelte';
+	import LiquidGlassCTA from '$lib/components/ui/LiquidGlassCTA.svelte';
+
 	import SkillBar from '$lib/components/ui/SkillBar.svelte';
 
 	// Animation state
@@ -23,12 +25,10 @@ DO NOT REMOVE THIS COMMENT -->
 
 	// UVP bullet points based on psychometrics test
 	const uvpPoints = [
-		'Versatile designer with passion for innovation and problem-solving',
-		'Unique blend of creativity and technical expertise',
-		'Crafts captivating graphics, intuitive UX, and responsive websites',
-		'Thrives in dynamic startup environments',
-		'Adapts quickly and thinks outside the box',
-		'Delivers exceptional results that exceed expectations'
+		'Design and develop in one streamlined process—no costly handoffs or miscommunication',
+		'Turn vague ideas into polished products with minimal direction needed',
+		'Full-spectrum capabilities: graphics, UI/UX, branding, and front-end development',
+		'Startup-proven approach that scales to enterprise needs'
 	];
 
 	onMount(() => {
@@ -69,8 +69,8 @@ DO NOT REMOVE THIS COMMENT -->
 					<!-- Main UVP Content -->
 					<div class="uvp-content">
 						<h2 class="uvp-heading">
-							Empowering brands with <span class="uvp-heading-uppercase-fix">CREATIVE</span> design solutions
-							geared for success!
+							<span class="dark:text-[var(--arcade-bright-yellow-100)]">From concept to code</span
+							>&mdash;eliminating design handoffs for faster, seamless digital solutions
 						</h2>
 
 						<div class="uvp-points">
@@ -157,7 +157,7 @@ DO NOT REMOVE THIS COMMENT -->
 
 	.about-container {
 		width: 100%;
-		max-width: 1200px;
+		max-width: 1280px;
 		margin: 0 auto;
 		padding: 0 1rem;
 		display: flex;
@@ -184,7 +184,7 @@ DO NOT REMOVE THIS COMMENT -->
 
 	.uvp-heading {
 		font-family: var(--header-text), sans-serif;
-		font-size: clamp(2.5rem, 5vw, 3rem);
+		font-size: clamp(3.1rem, 5vw, 3rem);
 		font-weight: 700;
 		color: var(--about-heading-color);
 		margin-bottom: 2rem;
@@ -200,12 +200,13 @@ DO NOT REMOVE THIS COMMENT -->
 	.uvp-points {
 		display: flex;
 		flex-direction: column;
+		align-items: start; /* <-- vertically centers bullet + text */
 		gap: 1.25rem;
 	}
 
 	.uvp-point {
 		display: flex;
-		align-items: flex-start;
+		align-items: center;
 		gap: 1rem;
 		opacity: 0.95;
 		transition: opacity 0.3s ease;
@@ -220,7 +221,6 @@ DO NOT REMOVE THIS COMMENT -->
 		height: 6px;
 		background: var(--about-accent-color);
 		border-radius: 50%;
-		margin-top: 0.6rem;
 		flex-shrink: 0;
 		box-shadow:
 			0 0 8px var(--about-accent-glow),
@@ -312,13 +312,13 @@ DO NOT REMOVE THIS COMMENT -->
 		/* Dark Theme Colors */
 		--about-heading-color: var(--arcade-white-200);
 		--about-text-color: rgba(245, 245, 220, 0.92);
-		--about-accent-color: var(--arcade-neon-green-400);
+		--about-accent-color: var(--arcade-neon-green-200);
 		--about-accent-glow: rgba(119, 255, 161, 0.4);
-		--about-accent-glow-outer: rgba(119, 255, 161, 0.2);
+		--about-accent-glow-outer: rgba(199, 255, 219, 0.2);
 
 		/* Text Shadows */
-		--about-text-shadow: rgba(0, 0, 0, 0.3);
-		--about-text-shadow-subtle: rgba(0, 0, 0, 0.1);
+		--about-text-shadow: rgba(43, 43, 43, 0.3);
+		--about-text-shadow-subtle: rgba(43, 43, 43, 0.1);
 
 		/* Avatar Effects */
 		--about-avatar-filter: brightness(1.05) contrast(1.1) saturate(1.1);
@@ -333,8 +333,8 @@ DO NOT REMOVE THIS COMMENT -->
 		--about-accent-glow: rgba(0, 179, 90, 0.5);
 		--about-accent-glow-outer: rgba(0, 179, 90, 0.25);
 
-		--about-text-shadow: rgba(255, 255, 255, 0.8);
-		--about-text-shadow-subtle: rgba(255, 255, 255, 0.5);
+		--about-text-shadow: rgba(245, 245, 220, 0.8);
+		--about-text-shadow-subtle: rgba(245, 245, 220, 0.5);
 
 		--about-avatar-filter: brightness(1) contrast(1.05) saturate(1);
 		--about-avatar-filter-hover: brightness(1.05) contrast(1.1) saturate(1.1);

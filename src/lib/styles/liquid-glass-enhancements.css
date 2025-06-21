@@ -1,0 +1,461 @@
+/* DO NOT REMOVE THIS COMMENT
+/src/lib/styles/liquid-glass-enhancements.css
+Add this to your existing app.css or import separately
+DO NOT REMOVE THIS COMMENT */
+
+/* =============================================================================
+   LIQUID GLASS ENHANCEMENTS FOR ARCADE THEME
+   Apple Liquid Glass + Retro Arcade Integration
+   ============================================================================= */
+
+/* Enhanced Root Variables for Liquid Glass Integration */
+:root {
+	/* =================================================================
+	   LIQUID GLASS FOUNDATION COLORS
+	   ================================================================= */
+
+	/* Primary Liquid Glass - Arcade Neon Green Integration */
+	--liquid-glass-primary-base: rgba(39, 255, 153, 0.08);
+	--liquid-glass-primary-surface: rgba(39, 255, 153, 0.12);
+	--liquid-glass-primary-elevated: rgba(39, 255, 153, 0.16);
+	--liquid-glass-primary-border: rgba(39, 255, 153, 0.25);
+	--liquid-glass-primary-glow: rgba(39, 255, 153, 0.3);
+
+	/* Secondary Liquid Glass - Neutral Tones */
+	--liquid-glass-secondary-base: rgba(255, 255, 255, 0.06);
+	--liquid-glass-secondary-surface: rgba(255, 255, 255, 0.08);
+	--liquid-glass-secondary-elevated: rgba(255, 255, 255, 0.12);
+	--liquid-glass-secondary-border: rgba(255, 255, 255, 0.15);
+	--liquid-glass-secondary-glow: rgba(255, 255, 255, 0.2);
+
+	/* =================================================================
+	   OPTICAL PROPERTIES (APPLE LIQUID GLASS CORE)
+	   ================================================================= */
+
+	/* Backdrop Filters - Progressive Enhancement */
+	--liquid-glass-blur-subtle: blur(8px) saturate(150%);
+	--liquid-glass-blur-medium: blur(16px) saturate(180%);
+	--liquid-glass-blur-intense: blur(24px) saturate(200%);
+
+	/* Refractive Indices for Glass Simulation */
+	--liquid-glass-refraction-light: 0.08;
+	--liquid-glass-refraction-medium: 0.15;
+	--liquid-glass-refraction-strong: 0.25;
+
+	/* Specular Highlights */
+	--liquid-glass-specular-subtle: rgba(255, 255, 255, 0.1);
+	--liquid-glass-specular-medium: rgba(255, 255, 255, 0.2);
+	--liquid-glass-specular-intense: rgba(255, 255, 255, 0.4);
+
+	/* =================================================================
+	   DYNAMIC LIGHTING SYSTEM
+	   ================================================================= */
+
+	/* Ambient Light Response */
+	--liquid-glass-ambient-bright: rgba(255, 255, 255, 0.05);
+	--liquid-glass-ambient-dim: rgba(255, 255, 255, 0.02);
+	--liquid-glass-ambient-dark: rgba(255, 255, 255, 0.01);
+
+	/* Directional Light Simulation */
+	--liquid-glass-directional-top: linear-gradient(
+		180deg,
+		rgba(255, 255, 255, 0.1) 0%,
+		transparent 50%
+	);
+	--liquid-glass-directional-corner: linear-gradient(
+		135deg,
+		rgba(255, 255, 255, 0.15) 0%,
+		transparent 40%
+	);
+	--liquid-glass-directional-edge: linear-gradient(
+		90deg,
+		rgba(255, 255, 255, 0.08) 0%,
+		transparent 30%
+	);
+
+	/* =================================================================
+	   ARCADE-SPECIFIC GLASS MATERIALS
+	   ================================================================= */
+
+	/* Neon Glass - Primary Arcade Integration */
+	--liquid-glass-neon-green: rgba(39, 255, 153, 0.12);
+	--liquid-glass-neon-green-glow: 0 0 20px rgba(39, 255, 153, 0.25);
+	--liquid-glass-neon-green-pulse: 0 0 30px rgba(39, 255, 153, 0.4);
+
+	/* Electric Blue Glass */
+	--liquid-glass-electric-blue: rgba(30, 144, 255, 0.12);
+	--liquid-glass-electric-blue-glow: 0 0 20px rgba(30, 144, 255, 0.25);
+
+	/* Magenta Glass */
+	--liquid-glass-magenta: rgba(255, 0, 255, 0.12);
+	--liquid-glass-magenta-glow: 0 0 20px rgba(255, 0, 255, 0.25);
+
+	/* =================================================================
+	   SHADOW SYSTEMS (LAYERED DEPTH)
+	   ================================================================= */
+
+	/* Apple-Style Layered Shadows */
+	--liquid-glass-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 4px rgba(0, 0, 0, 0.02),
+		inset 0 1px 0 rgba(255, 255, 255, 0.1);
+
+	--liquid-glass-shadow-md: 0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04),
+		inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
+
+	--liquid-glass-shadow-lg: 0 16px 64px rgba(0, 0, 0, 0.12), 0 4px 16px rgba(0, 0, 0, 0.06),
+		inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.08);
+
+	/* Interactive Shadows with Arcade Glow */
+	--liquid-glass-shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.05),
+		0 0 20px var(--liquid-glass-neon-green-glow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+
+	--liquid-glass-shadow-active: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04),
+		0 0 8px var(--liquid-glass-neon-green-glow), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+
+	/* =================================================================
+	   LIQUID GLASS GRADIENTS
+	   ================================================================= */
+
+	/* Multi-stop Gradients for Glass Depth */
+	--liquid-glass-gradient-primary: linear-gradient(
+		135deg,
+		rgba(39, 255, 153, 0.15) 0%,
+		rgba(119, 255, 161, 0.12) 25%,
+		rgba(199, 255, 221, 0.08) 50%,
+		rgba(39, 255, 153, 0.05) 75%,
+		rgba(39, 255, 153, 0.02) 100%
+	);
+
+	--liquid-glass-gradient-secondary: linear-gradient(
+		135deg,
+		rgba(255, 255, 255, 0.12) 0%,
+		rgba(255, 255, 255, 0.08) 25%,
+		rgba(255, 255, 255, 0.05) 50%,
+		rgba(255, 255, 255, 0.03) 75%,
+		rgba(255, 255, 255, 0.01) 100%
+	);
+
+	/* Radial Gradients for Glass Curvature */
+	--liquid-glass-radial-center: radial-gradient(
+		circle at center,
+		rgba(255, 255, 255, 0.2) 0%,
+		rgba(255, 255, 255, 0.1) 40%,
+		transparent 70%
+	);
+
+	--liquid-glass-radial-corner: radial-gradient(
+		circle at 80% 20%,
+		rgba(255, 255, 255, 0.25) 0%,
+		rgba(255, 255, 255, 0.1) 30%,
+		transparent 60%
+	);
+
+	/* =================================================================
+	   ANIMATION TIMING & EASING
+	   ================================================================= */
+
+	/* Apple-Standard Easing Curves */
+	--liquid-glass-ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+	--liquid-glass-ease-in-out: cubic-bezier(0.4, 0, 0.6, 1);
+	--liquid-glass-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+	--liquid-glass-ease-smooth: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+	/* Timing for Different Interaction Types */
+	--liquid-glass-duration-instant: 0.1s;
+	--liquid-glass-duration-fast: 0.2s;
+	--liquid-glass-duration-medium: 0.3s;
+	--liquid-glass-duration-slow: 0.5s;
+	--liquid-glass-duration-entrance: 0.8s;
+
+	/* =================================================================
+	   RESPONSIVE BREAKPOINTS FOR GLASS EFFECTS
+	   ================================================================= */
+
+	/* Mobile Optimization Variables */
+	--liquid-glass-mobile-blur: blur(12px) saturate(160%);
+	--liquid-glass-mobile-opacity: 0.12;
+	--liquid-glass-mobile-shadow: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.03);
+
+	/* Tablet Optimization */
+	--liquid-glass-tablet-blur: blur(14px) saturate(170%);
+	--liquid-glass-tablet-opacity: 0.14;
+
+	/* Desktop Enhancement */
+	--liquid-glass-desktop-blur: blur(20px) saturate(200%);
+	--liquid-glass-desktop-opacity: 0.16;
+}
+
+/* =============================================================================
+   LIGHT THEME OVERRIDES FOR LIQUID GLASS
+   ============================================================================= */
+
+html.light {
+	/* Liquid Glass Foundation - Light Mode */
+	--liquid-glass-primary-base: rgba(0, 179, 90, 0.12);
+	--liquid-glass-primary-surface: rgba(0, 179, 90, 0.16);
+	--liquid-glass-primary-elevated: rgba(0, 179, 90, 0.2);
+	--liquid-glass-primary-border: rgba(0, 179, 90, 0.3);
+	--liquid-glass-primary-glow: rgba(0, 179, 90, 0.35);
+
+	/* Secondary Glass - Light Mode */
+	--liquid-glass-secondary-base: rgba(43, 43, 43, 0.06);
+	--liquid-glass-secondary-surface: rgba(43, 43, 43, 0.08);
+	--liquid-glass-secondary-elevated: rgba(43, 43, 43, 0.12);
+	--liquid-glass-secondary-border: rgba(43, 43, 43, 0.15);
+	--liquid-glass-secondary-glow: rgba(43, 43, 43, 0.2);
+
+	/* Adjusted Specular Highlights for Light Mode */
+	--liquid-glass-specular-subtle: rgba(255, 255, 255, 0.8);
+	--liquid-glass-specular-medium: rgba(255, 255, 255, 0.9);
+	--liquid-glass-specular-intense: rgba(255, 255, 255, 1);
+
+	/* Light Mode Gradients */
+	--liquid-glass-gradient-primary: linear-gradient(
+		135deg,
+		rgba(0, 179, 90, 0.18) 0%,
+		rgba(0, 179, 90, 0.14) 25%,
+		rgba(0, 179, 90, 0.1) 50%,
+		rgba(0, 179, 90, 0.06) 75%,
+		rgba(0, 179, 90, 0.03) 100%
+	);
+
+	/* Enhanced Shadows for Light Mode */
+	--liquid-glass-shadow-md: 0 8px 32px rgba(0, 0, 0, 0.04), 0 2px 8px rgba(0, 0, 0, 0.02),
+		inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(0, 179, 90, 0.1);
+
+	--liquid-glass-shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.03),
+		0 0 20px rgba(0, 179, 90, 0.3), inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+/* =============================================================================
+   UTILITY CLASSES FOR LIQUID GLASS INTEGRATION
+   ============================================================================= */
+
+/* Base Liquid Glass Material */
+.liquid-glass {
+	background: var(--liquid-glass-primary-base);
+	backdrop-filter: var(--liquid-glass-blur-medium);
+	-webkit-backdrop-filter: var(--liquid-glass-blur-medium);
+	border: 1px solid var(--liquid-glass-primary-border);
+	box-shadow: var(--liquid-glass-shadow-md);
+	border-radius: 1rem;
+	position: relative;
+	overflow: hidden;
+}
+
+/* Glass Variants */
+.liquid-glass--primary {
+	background: var(--liquid-glass-gradient-primary);
+}
+
+.liquid-glass--secondary {
+	background: var(--liquid-glass-gradient-secondary);
+	border-color: var(--liquid-glass-secondary-border);
+}
+
+/* Glass Elevation Levels */
+.liquid-glass--elevated {
+	background: var(--liquid-glass-primary-elevated);
+	box-shadow: var(--liquid-glass-shadow-lg);
+	transform: translateY(-2px);
+}
+
+.liquid-glass--floating {
+	box-shadow: var(--liquid-glass-shadow-hover);
+	transform: translateY(-4px) scale(1.02);
+}
+
+/* Specular Highlight Overlay */
+.liquid-glass::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 50%;
+	background: var(--liquid-glass-directional-top);
+	border-radius: inherit;
+	pointer-events: none;
+	opacity: 0.8;
+}
+
+/* Corner Highlight */
+.liquid-glass::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 30%;
+	height: 30%;
+	background: var(--liquid-glass-radial-corner);
+	border-radius: inherit;
+	pointer-events: none;
+	opacity: 0.6;
+}
+
+/* =============================================================================
+   ENHANCED CRT DISPLAY INTEGRATION
+   ============================================================================= */
+
+/* CRT Display with Liquid Glass Enhancement */
+.crt-display.liquid-glass-enhanced {
+	/* Blend liquid glass with existing CRT effects */
+	background: var(--liquid-glass-gradient-primary), var(--crt-bg-primary);
+	backdrop-filter: var(--liquid-glass-blur-medium), blur(12px);
+	-webkit-backdrop-filter: var(--liquid-glass-blur-medium), blur(12px);
+
+	/* Enhanced shadow system */
+	box-shadow: var(--liquid-glass-shadow-lg), var(--crt-shadow);
+
+	/* Additional glass layers */
+	position: relative;
+}
+
+.crt-display.liquid-glass-enhanced::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: var(--liquid-glass-radial-center);
+	border-radius: inherit;
+	pointer-events: none;
+	z-index: 1;
+}
+
+/* =============================================================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================================================= */
+
+/* Hardware Acceleration for Glass Effects */
+.liquid-glass,
+.liquid-glass::before,
+.liquid-glass::after {
+	transform: translateZ(0);
+	will-change: transform, opacity, backdrop-filter;
+	contain: layout style paint;
+}
+
+/* Optimized Transitions */
+.liquid-glass {
+	transition:
+		transform var(--liquid-glass-duration-medium) var(--liquid-glass-ease-out),
+		box-shadow var(--liquid-glass-duration-medium) var(--liquid-glass-ease-out),
+		background var(--liquid-glass-duration-fast) var(--liquid-glass-ease-out);
+}
+
+/* =============================================================================
+   RESPONSIVE OPTIMIZATIONS
+   ============================================================================= */
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+	:root {
+		--liquid-glass-blur-medium: var(--liquid-glass-mobile-blur);
+		--liquid-glass-shadow-md: var(--liquid-glass-mobile-shadow);
+	}
+
+	.liquid-glass {
+		backdrop-filter: var(--liquid-glass-mobile-blur);
+		-webkit-backdrop-filter: var(--liquid-glass-mobile-blur);
+	}
+
+	/* Reduce glass complexity on mobile for performance */
+	.liquid-glass::before,
+	.liquid-glass::after {
+		opacity: 0.5;
+	}
+}
+
+/* Tablet Optimizations */
+@media (min-width: 769px) and (max-width: 1024px) {
+	:root {
+		--liquid-glass-blur-medium: var(--liquid-glass-tablet-blur);
+	}
+}
+
+/* Desktop Enhancements */
+@media (min-width: 1025px) {
+	:root {
+		--liquid-glass-blur-medium: var(--liquid-glass-desktop-blur);
+	}
+
+	/* Enhanced glass effects on larger screens */
+	.liquid-glass:hover {
+		backdrop-filter: var(--liquid-glass-blur-intense);
+		-webkit-backdrop-filter: var(--liquid-glass-blur-intense);
+	}
+}
+
+/* =============================================================================
+   ACCESSIBILITY ENHANCEMENTS
+   ============================================================================= */
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+	.liquid-glass,
+	.liquid-glass::before,
+	.liquid-glass::after {
+		transition: none;
+		animation: none;
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+	}
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+	.liquid-glass {
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+		background: var(--arcade-black-600);
+		border: 2px solid var(--arcade-neon-green-500);
+	}
+
+	html.light .liquid-glass {
+		background: var(--arcade-white-200);
+		border-color: var(--arcade-black-600);
+	}
+}
+
+/* Print Styles */
+@media print {
+	.liquid-glass {
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+		background: transparent;
+		border: 1px solid currentColor;
+		box-shadow: none;
+	}
+
+	.liquid-glass::before,
+	.liquid-glass::after {
+		display: none;
+	}
+}
+
+/* =============================================================================
+   INTEGRATION HELPERS
+   ============================================================================= */
+
+/* Helper class for existing components to adopt liquid glass */
+.adopt-liquid-glass {
+	background: var(--liquid-glass-primary-base) !important;
+	backdrop-filter: var(--liquid-glass-blur-medium) !important;
+	-webkit-backdrop-filter: var(--liquid-glass-blur-medium) !important;
+	border: 1px solid var(--liquid-glass-primary-border) !important;
+	box-shadow: var(--liquid-glass-shadow-md) !important;
+}
+
+/* Smooth integration with existing arcade theme */
+.arcade-theme .liquid-glass {
+	/* Ensure compatibility with existing arcade styles */
+	color: inherit;
+	font-family: inherit;
+}
+
+/* Enhanced focus states for keyboard navigation */
+.liquid-glass:focus-visible {
+	outline: 2px solid var(--arcade-neon-green-500);
+	outline-offset: 2px;
+	box-shadow:
+		var(--liquid-glass-shadow-hover),
+		0 0 0 4px rgba(39, 255, 153, 0.2);
+}
