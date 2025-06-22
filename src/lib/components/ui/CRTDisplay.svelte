@@ -166,14 +166,15 @@ DO NOT REMOVE THIS COMMENT -->
 		display: inline-block;
 		background: var(--crt-label-bg);
 		color: var(--crt-label-text);
-		padding: 0.5rem 1rem;
-		border-radius: 8px;
-		font-family: var(--font-press-start), monospace;
-		font-size: 0.875rem;
-		letter-spacing: 0.5px;
+		padding: 0rem 0.75rem;
+		border-radius: 6px;
+		font-family: var(--font-pixelify), monospace;
+		font-variation-settings: 'wght' var(--pixelify-weight-bold);
+		font-size: 1.875rem;
+		letter-spacing: 0.75px;
 		border: 1px solid var(--crt-label-border);
 		box-shadow:
-			0 2px 4px rgba(0, 0, 0, 0.1),
+			0 2px 4px rgba(43, 43, 43, 0.1),
 			0 0 8px var(--crt-label-glow);
 
 		/* Subtle pulse animation */
@@ -372,8 +373,8 @@ DO NOT REMOVE THIS COMMENT -->
 
 		/* Label Colors */
 		--crt-label-bg: rgba(119, 255, 161, 0.12);
-		--crt-label-text: #77ffa1;
-		--crt-label-border: rgba(119, 255, 161, 0.25);
+		--crt-label-text: #e3ffee;
+		--crt-label-border: rgba(245, 245, 220, 0.6);
 		--crt-label-glow: rgba(119, 255, 161, 0.3);
 		--crt-label-glow-intense: rgba(119, 255, 161, 0.5);
 
@@ -405,10 +406,10 @@ DO NOT REMOVE THIS COMMENT -->
 		--crt-highlight: rgba(255, 255, 255, 0.9);
 		--crt-glow: rgba(0, 230, 112, 0.3);
 
-		--crt-label-bg: rgba(159, 255, 191, 0.18);
+		--crt-label-bg: rgba(43, 43, 43, 0.18);
 		--crt-label-text: #00b35a;
 		--crt-label-border: rgba(159, 255, 191, 0.3);
-		--crt-label-glow: rgba(0, 179, 90, 0.4);
+		--crt-label-glow: rgba(159, 255, 191, 0.4);
 		--crt-label-glow-intense: rgba(0, 179, 90, 0.6);
 
 		--crt-scanline-static: rgba(0, 0, 0, 0.025);

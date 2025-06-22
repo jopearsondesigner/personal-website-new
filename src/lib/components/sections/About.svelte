@@ -87,7 +87,7 @@ DO NOT REMOVE THIS COMMENT -->
 									class="uvp-point"
 								>
 									<div class="point-indicator"></div>
-									<span class="point-text">{point}</span>
+									<span class="point-text ibm-bold">{point}</span>
 								</div>
 							{/each}
 						</div>
@@ -222,10 +222,10 @@ DO NOT REMOVE THIS COMMENT -->
 
 	.uvp-heading {
 		font-family: var(--header-text), sans-serif;
-		font-size: clamp(3.1rem, 5vw, 3rem);
+		font-size: 5.7vmin;
 		font-weight: 700;
 		color: var(--about-heading-color);
-		margin-bottom: 2rem;
+		margin-bottom: 3rem;
 		line-height: 1.2;
 		letter-spacing: -0.02em;
 		text-shadow: 0 2px 4px var(--about-text-shadow);
@@ -312,12 +312,13 @@ DO NOT REMOVE THIS COMMENT -->
 		align-items: flex-end;
 		justify-content: center;
 		overflow: hidden;
+		transform: translateX(15px);
 	}
 
 	.avatar-image {
 		width: 100%;
-		height: 576px;
-		object-fit: cover;
+		height: 480px;
+		object-fit: contain;
 		object-position: bottom center;
 
 		/* Pixel art rendering */
