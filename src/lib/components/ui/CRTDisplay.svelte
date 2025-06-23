@@ -185,12 +185,12 @@ DO NOT REMOVE THIS COMMENT -->
 		0%,
 		100% {
 			box-shadow:
-				0 2px 4px rgba(0, 0, 0, 0.1),
+				0 2px 4px rgba(43, 43, 43, 0.1),
 				0 0 8px var(--crt-label-glow);
 		}
 		50% {
 			box-shadow:
-				0 2px 4px rgba(0, 0, 0, 0.1),
+				0 2px 4px rgba(43, 43, 43, 0.1),
 				0 0 12px var(--crt-label-glow-intense);
 		}
 	}
@@ -364,19 +364,19 @@ DO NOT REMOVE THIS COMMENT -->
 		--crt-border-secondary: rgba(255, 255, 255, 0.08);
 		--crt-border-glass: rgba(255, 255, 255, 0.15);
 
-		--crt-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
-		--crt-shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
-		--crt-shadow-inset: rgba(0, 0, 0, 0.1);
+		--crt-shadow: 0 8px 32px rgba(43, 43, 43, 0.4), 0 2px 8px rgba(43, 43, 43, 0.2);
+		--crt-shadow-hover: 0 12px 40px rgba(43, 43, 43, 0.5), 0 4px 12px rgba(43, 43, 43, 0.3);
+		--crt-shadow-inset: rgba(43, 43, 43, 0.1);
 
-		--crt-highlight: rgba(255, 255, 255, 0.08);
-		--crt-glow: rgba(119, 255, 161, 0.2);
+		--crt-highlight: rgba(43, 43, 43, 0.08);
+		--crt-glow: rgba(30, 144, 255, 0.2);
 
 		/* Label Colors */
-		--crt-label-bg: rgba(119, 255, 161, 0.12);
-		--crt-label-text: #e3ffee;
-		--crt-label-border: rgba(245, 245, 220, 0.6);
-		--crt-label-glow: rgba(119, 255, 161, 0.3);
-		--crt-label-glow-intense: rgba(119, 255, 161, 0.5);
+		--crt-label-bg: rgba(43, 43, 43, 0.12);
+		--crt-label-text: #cce7ff;
+		--crt-label-border: rgba(204, 231, 255, 0.6);
+		--crt-label-glow: rgba(30, 144, 255, 0.3);
+		--crt-label-glow-intense: rgba(30, 144, 255, 0.5);
 
 		/* Scanline Effects */
 		--crt-scanline-static: rgba(255, 255, 255, 0.03);
@@ -395,29 +395,29 @@ DO NOT REMOVE THIS COMMENT -->
 		--crt-bg-secondary: rgba(213, 213, 213, 0.88); /* --arcade-black-100 */
 		--crt-bg-glass: rgba(213, 213, 213, 0.85); /* --arcade-black-100 */
 
-		--crt-border: rgba(0, 0, 0, 0.08);
-		--crt-border-secondary: rgba(0, 0, 0, 0.05);
-		--crt-border-glass: rgba(0, 0, 0, 0.12);
+		--crt-border: rgba(43, 43, 43, 0.08);
+		--crt-border-secondary: rgba(43, 43, 43, 0.05);
+		--crt-border-glass: rgba(43, 43, 43, 0.12);
 
-		--crt-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
-		--crt-shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.1);
+		--crt-shadow: 0 8px 32px rgba(43, 43, 43, 0.12), 0 2px 8px rgba(43, 43, 43, 0.06);
+		--crt-shadow-hover: 0 12px 40px rgba(43, 43, 43, 0.18), 0 4px 12px rgba(43, 43, 43, 0.1);
 		--crt-shadow-inset: rgba(255, 255, 255, 0.8);
 
-		--crt-highlight: rgba(255, 255, 255, 0.9);
-		--crt-glow: rgba(0, 230, 112, 0.3);
+		--crt-highlight: rgba(245, 245, 220, 0.9);
+		--crt-glow: rgba(30, 144, 255, 0.2);
 
-		--crt-label-bg: rgba(43, 43, 43, 0.18);
-		--crt-label-text: #00b35a;
-		--crt-label-border: rgba(159, 255, 191, 0.3);
-		--crt-label-glow: rgba(159, 255, 191, 0.4);
-		--crt-label-glow-intense: rgba(0, 179, 90, 0.6);
+		--crt-label-bg: rgba(43, 43, 43, 0.66);
+		--crt-label-text: rgba(204, 231, 255, 1);
+		--crt-label-border: rgba(204, 231, 255, 1);
+		--crt-label-glow: rgba(30, 144, 255, 0.53);
+		--crt-label-glow-intense: rgba(30, 144, 255, 0.7);
 
-		--crt-scanline-static: rgba(0, 0, 0, 0.025);
+		--crt-scanline-static: rgba(43, 43, 43, 0.025);
 		--crt-scanline-moving: rgba(119, 255, 161, 0.08);
 		--crt-scanline-opacity: 0.6;
 		--crt-scanline-moving-opacity: 0.5;
 
-		--crt-flicker-color: rgba(0, 0, 0, 0.015);
+		--crt-flicker-color: rgba(43, 43, 43, 0.015);
 		--crt-flicker-intensity: 0.1;
 	}
 

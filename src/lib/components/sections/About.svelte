@@ -70,7 +70,7 @@ DO NOT REMOVE THIS COMMENT -->
 					<div class="uvp-content">
 						<h2 class="uvp-heading orbitron-bold">
 							<span
-								class="text-[var(--metallic-gold-800)] dark:text-[var(--arcade-bright-yellow-100)]"
+								class="text-[var(--metallic-gold-500)] dark:text-[var(--arcade-bright-yellow-100)]"
 								>From concept to code</span
 							>&mdash;eliminating design handoffs for faster, seamless digital solutions
 						</h2>
@@ -113,7 +113,7 @@ DO NOT REMOVE THIS COMMENT -->
 			<div in:fly={{ y: 50, duration: 800, delay: 1000, easing: backOut }} class="about-skills">
 				<CRTDisplay
 					variant="secondary"
-					headerLabel="TECH"
+					headerLabel="Tech"
 					scanlineIntensity="low"
 					glassEffect={true}
 					enableHover={true}
@@ -149,9 +149,9 @@ DO NOT REMOVE THIS COMMENT -->
 		/* Dark Theme Colors */
 		--about-heading-color: var(--arcade-white-200);
 		--about-text-color: rgba(245, 245, 220, 0.92);
-		--about-accent-color: var(--arcade-neon-green-200);
-		--about-accent-glow: rgba(119, 255, 161, 0.4);
-		--about-accent-glow-outer: rgba(199, 255, 219, 0.2);
+		--about-accent-color: var(--arcade-electric-blue-200);
+		--about-accent-glow: rgba(51, 159, 255, 0.4);
+		--about-accent-glow-outer: rgba(21, 107, 191, 0.2);
 
 		/* Text Shadows */
 		--about-text-shadow: rgba(43, 43, 43, 0.3);
@@ -164,11 +164,11 @@ DO NOT REMOVE THIS COMMENT -->
 
 	/* Light Theme Overrides */
 	:global(html.light) {
-		--about-heading-color: var(--arcade-black-700);
+		--about-heading-color: var(--arcade-black-400);
 		--about-text-color: var(--arcade-black-600);
-		--about-accent-color: var(--arcade-neon-green-700);
-		--about-accent-glow: rgba(0, 179, 90, 0.5);
-		--about-accent-glow-outer: rgba(0, 179, 90, 0.25);
+		--about-accent-color: var(--arcade-electric-blue-600);
+		--about-accent-glow: rgba(51, 159, 255, 0.4);
+		--about-accent-glow-outer: rgba(21, 107, 191, 0.2);
 
 		--about-text-shadow: rgba(245, 245, 220, 0.8);
 		--about-text-shadow-subtle: rgba(245, 245, 220, 0.5);
@@ -273,8 +273,8 @@ DO NOT REMOVE THIS COMMENT -->
 	}
 
 	.point-indicator {
-		width: 6px;
-		height: 6px;
+		width: 8px;
+		height: 8px;
 		background: var(--about-accent-color);
 		border-radius: 50%;
 		flex-shrink: 0;
@@ -298,7 +298,7 @@ DO NOT REMOVE THIS COMMENT -->
 
 	.point-text {
 		color: var(--about-text-color);
-		font-size: 1.575rem;
+		font-size: 1.675rem;
 		line-height: 1.5;
 		font-weight: 400;
 		text-shadow: 0 1px 2px var(--about-text-shadow-subtle);
