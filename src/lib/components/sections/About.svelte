@@ -109,32 +109,80 @@ DO NOT REMOVE THIS COMMENT -->
 				</CRTDisplay>
 			</div>
 
-			<!-- Technical Expertise Display Panel -->
-			<div in:fly={{ y: 50, duration: 800, delay: 1000, easing: backOut }} class="about-skills">
-				<CRTDisplay
-					variant="secondary"
-					headerLabel="Tech"
-					scanlineIntensity="low"
-					glassEffect={true}
-					enableHover={true}
-					className="skills-display"
+			<!-- Dual Column Layout: Expertise + Skills -->
+			<div class="about-dual-column">
+				<!-- Left Column: Expertise -->
+				<div
+					in:fly={{ x: -50, duration: 800, delay: 1000, easing: backOut }}
+					class="about-expertise"
 				>
-					<div class="skills-content">
-						<h3 class="skills-heading">Technical Expertise</h3>
-						<div class="skills-grid">
-							{#each skills as skill, i}
-								<SkillBar
-									name={skill.name}
-									level={skill.level}
-									delay={200 + i * 150}
-									variant="primary"
-									glowEffect={true}
-									showPercentage={true}
-								/>
-							{/each}
+					<div class="expertise-content">
+						<h3 class="expertise-heading orbitron-bold">
+							<span
+								class="text-[var(--metallic-gold-500)] dark:text-[var(--arcade-bright-yellow-100)]"
+							>
+								Design + Development
+							</span>
+							Synergy
+						</h3>
+
+						<div class="expertise-description ibm-regular">
+							<p>
+								Most teams struggle with the designer-developer handoff bottleneck. I eliminate that
+								entirely by owning both sides of the equation.
+							</p>
+
+							<p>
+								From initial wireframes to production deployment, I craft cohesive digital
+								experiences that maintain design integrity while leveraging cutting-edge development
+								practices.
+							</p>
+
+							<p class="expertise-highlight ibm-bold">
+								<span class="text-[var(--arcade-bright-green-300)]">Result:</span>
+								Faster delivery, zero translation errors, and solutions that push creative boundaries
+								while staying technically sound.
+							</p>
 						</div>
 					</div>
-				</CRTDisplay>
+				</div>
+
+				<!-- Right Column: Technical Skills (65% width) -->
+				<div
+					in:fly={{ y: 50, duration: 800, delay: 1200, easing: backOut }}
+					class="about-skills about-skills--reduced"
+				>
+					<CRTDisplay
+						variant="secondary"
+						headerLabel="Tech"
+						scanlineIntensity="low"
+						glassEffect={true}
+						enableHover={true}
+						className="skills-display"
+					>
+						<div class="skills-content">
+							<div class="skills-header">
+								<h4 class="skills-title orbitron-bold">Technical Proficiency</h4>
+								<p class="skills-subtitle ibm-regular">
+									Full-stack capabilities spanning design tools to deployment platforms
+								</p>
+							</div>
+
+							<div class="skills-grid">
+								{#each skills as skill, i}
+									<SkillBar
+										name={skill.name}
+										level={skill.level}
+										delay={400 + i * 150}
+										variant="primary"
+										glowEffect={true}
+										showPercentage={true}
+									/>
+								{/each}
+							</div>
+						</div>
+					</CRTDisplay>
+				</div>
 			</div>
 		{/if}
 	</div>
@@ -200,7 +248,7 @@ DO NOT REMOVE THIS COMMENT -->
 		padding: 0 1rem;
 		display: flex;
 		flex-direction: column;
-		gap: 3rem;
+		gap: 4rem;
 	}
 
 	/* UVP Section */
@@ -335,14 +383,100 @@ DO NOT REMOVE THIS COMMENT -->
 		filter: var(--about-avatar-filter-hover);
 	}
 
-	/* Skills Section */
+	/* =============================================================================
+	   Dual Column Layout - NEW
+	   ============================================================================= */
+
+	.about-dual-column {
+		display: grid;
+		grid-template-columns: 35% 65%;
+		gap: 3rem;
+		align-items: start;
+		width: 100%;
+	}
+
+	/* Expertise Section - NEW */
+	.about-expertise {
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-start;
+		height: 100%;
+	}
+
+	.expertise-content {
+		padding: 2rem 0;
+	}
+
+	.expertise-heading {
+		font-family: var(--header-text), sans-serif;
+		font-size: clamp(1.75rem, 3vw, 2.25rem);
+		line-height: 1.2;
+		margin-bottom: 1.5rem;
+		color: var(--about-heading-color);
+		font-weight: 700;
+		text-shadow: 0 2px 4px var(--about-text-shadow);
+	}
+
+	.expertise-description {
+		color: var(--about-text-color);
+		font-size: 1.125rem;
+		line-height: 1.7;
+		text-shadow: 0 1px 2px var(--about-text-shadow-subtle);
+	}
+
+	.expertise-description p {
+		margin-bottom: 1.25rem;
+	}
+
+	.expertise-description p:last-child {
+		margin-bottom: 0;
+	}
+
+	.expertise-highlight {
+		padding: 1rem;
+		background: rgba(var(--arcade-bright-green-300-rgb), 0.05);
+		border-left: 3px solid var(--arcade-bright-green-300);
+		border-radius: 0 8px 8px 0;
+		font-size: 1rem;
+		font-weight: 600;
+	}
+
+	/* Skills Section - MODIFIED */
 	.about-skills {
 		width: 100%;
+	}
+
+	.about-skills--reduced {
+		/* Additional styling for reduced width version */
+		max-width: 100%;
 	}
 
 	.skills-content {
 		position: relative;
 		z-index: 20;
+		padding: 0;
+		margin-top: 2rem;
+	}
+
+	.skills-header {
+		margin-bottom: 2rem;
+	}
+
+	.skills-title {
+		font-family: var(--header-text), sans-serif;
+		font-size: 1.5rem;
+		font-weight: 600;
+		color: var(--about-heading-color);
+		margin-bottom: 0.5rem;
+		text-shadow: 0 2px 4px var(--about-text-shadow);
+	}
+
+	.skills-subtitle {
+		color: var(--about-text-color);
+		font-size: 0.95rem;
+		line-height: 1.5;
+		opacity: 0.8;
+		text-shadow: 0 1px 2px var(--about-text-shadow-subtle);
 	}
 
 	.skills-heading {
@@ -365,6 +499,21 @@ DO NOT REMOVE THIS COMMENT -->
 	   Responsive Design
 	   ============================================================================= */
 
+	@media (max-width: 1024px) {
+		.about-dual-column {
+			grid-template-columns: 40% 60%;
+			gap: 2rem;
+		}
+
+		.expertise-heading {
+			font-size: clamp(1.5rem, 2.5vw, 1.875rem);
+		}
+
+		.expertise-description {
+			font-size: 1rem;
+		}
+	}
+
 	@media (max-width: 768px) {
 		.about-section {
 			padding: 2rem 0;
@@ -373,6 +522,38 @@ DO NOT REMOVE THIS COMMENT -->
 		.about-container {
 			padding: 0 0.5rem;
 			gap: 2rem;
+		}
+
+		.about-dual-column {
+			grid-template-columns: 1fr;
+			gap: 2rem;
+		}
+
+		.about-expertise {
+			order: 2;
+		}
+
+		.about-skills {
+			order: 1;
+		}
+
+		.expertise-content {
+			padding: 1.5rem 0;
+		}
+
+		.expertise-heading {
+			font-size: clamp(1.375rem, 4vw, 1.75rem);
+			margin-bottom: 1.25rem;
+		}
+
+		.expertise-description {
+			font-size: 0.95rem;
+			line-height: 1.6;
+		}
+
+		.expertise-highlight {
+			font-size: 0.9rem;
+			padding: 0.875rem;
 		}
 
 		.uvp-content {
@@ -391,6 +572,18 @@ DO NOT REMOVE THIS COMMENT -->
 
 		.skills-heading {
 			font-size: 1.5rem;
+		}
+
+		.skills-header {
+			margin-bottom: 1.5rem;
+		}
+
+		.skills-title {
+			font-size: 1.25rem;
+		}
+
+		.skills-subtitle {
+			font-size: 0.875rem;
 		}
 
 		/* Ensure avatar positioning works on mobile */
@@ -414,6 +607,10 @@ DO NOT REMOVE THIS COMMENT -->
 	@media (max-width: 480px) {
 		.about-container {
 			gap: 1.5rem;
+		}
+
+		.expertise-content {
+			padding: 1rem 0;
 		}
 
 		.uvp-content {
@@ -454,6 +651,11 @@ DO NOT REMOVE THIS COMMENT -->
 		.uvp-point {
 			transition: none;
 		}
+
+		.expertise-content,
+		.skills-content {
+			transition: none;
+		}
 	}
 
 	@media (prefers-contrast: high) {
@@ -462,12 +664,20 @@ DO NOT REMOVE THIS COMMENT -->
 		}
 
 		.uvp-heading,
-		.skills-heading {
+		.skills-heading,
+		.expertise-heading {
 			text-shadow: none;
 		}
 
-		.point-text {
+		.point-text,
+		.expertise-description,
+		.skills-subtitle {
 			text-shadow: none;
+		}
+
+		.expertise-highlight {
+			border-left-width: 4px;
+			background: rgba(var(--arcade-bright-green-300-rgb), 0.1);
 		}
 	}
 
@@ -483,7 +693,8 @@ DO NOT REMOVE THIS COMMENT -->
 	}
 
 	.uvp-content,
-	.skills-content {
+	.skills-content,
+	.expertise-content {
 		/* Optimize rendering */
 		contain: layout style;
 	}
