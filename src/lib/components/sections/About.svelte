@@ -389,7 +389,7 @@ DO NOT REMOVE THIS COMMENT -->
 
 	.about-dual-column {
 		display: grid;
-		grid-template-columns: 35% 65%;
+		grid-template-columns: 0.35fr 0.65fr;
 		gap: 3rem;
 		align-items: start;
 		width: 100%;
