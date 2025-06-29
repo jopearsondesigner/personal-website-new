@@ -1,5 +1,6 @@
-<!-- src/routes/+layout.svelte -->
-
+<!-- DO NOT REMOVE THIS COMMENT
+src/routes/+layout.svelte
+DO NOT REMOVE THIS COMMENT -->
 <script lang="ts">
 	import '$lib/styles/variables.css';
 	import '$lib/styles/app.css';
