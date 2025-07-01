@@ -1,7 +1,8 @@
-<!-- src/routes/+layout.svelte -->
+<!-- src/routes/+layout.svelte  -->
 
 <script lang="ts">
-	import '../app.css';
+	import '$lib/styles/variables.css';
+	import '$lib/styles/app.css';
 	import Navbar from '$lib/components/layout/Navbar.svelte';
 	import NavBrand from '$lib/components/layout/Navbrand.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
@@ -301,7 +302,7 @@
 			<NavBrand href="/">
 				<img src={logo} alt="Jo Pearson Logo" class="h-10 w-10 mr-[8px] pb-1 header-logo-pulse" />
 				<span
-					class="hidden lg:inline-block text-[16px] header-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[24.96px] mt-[5px]"
+					class="hidden lg:inline-block text-[16px] branding-text text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-300)] uppercase tracking-[24.96px] mt-[5px]"
 				>
 					Jo Pearson
 				</span>

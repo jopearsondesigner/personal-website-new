@@ -67,6 +67,18 @@ export default {
 					800: '#806F00',
 					900: '#4D4600'
 				},
+				metallicGold: {
+					50: '#f9f3e7',
+					100: '#f0e1c2',
+					200: '#e6cd96',
+					300: '#dbb96a',
+					400: '#cfa144',
+					500: '#B6862C', // base color
+					600: '#996d24',
+					700: '#7a561d',
+					800: '#5c4016',
+					900: '#3e2a0e'
+				},
 				arcadeNeonGreen: {
 					50: '#e3ffee',
 					100: '#c7ffdd',
@@ -108,9 +120,41 @@ export default {
 			},
 			fontFamily: {
 				arcade: ['"Press Start 2P"', 'sans-serif'],
-				body: ['Roboto', 'sans-serif'],
-				gruppo: ['Gruppo', 'sans-serif'],
-				roboto: ['Roboto', 'sans-serif']
+				body: ['IBM Plex Sans', 'sans-serif'],
+				gruppo: ['Gruppo', 'sans-serif'], // Now for branding only
+				header: ['Orbitron', 'sans-serif'], // New header font
+				ibmPlexMono: ['IBM Plex Sans', 'sans-serif'],
+				bungee: ['Bungee', 'cursive'],
+				orbitron: ['Orbitron', 'sans-serif'],
+				pixelify: ['Pixelify Sans', 'sans-serif']
+			},
+			fontWeight: {
+				// IBM Plex Sans variable weights (100-700)
+				'ibm-thin': '200',
+				'ibm-light': '300',
+				'ibm-normal': '400',
+				'ibm-medium': '500',
+				'ibm-semibold': '600',
+				'ibm-bold': '700',
+
+				// Orbitron variable weights (400-900)
+				'orbitron-light': '450',
+				'orbitron-normal': '550',
+				'orbitron-medium': '650',
+				'orbitron-semibold': '750',
+				'orbitron-bold': '850',
+				'orbitron-black': '900',
+
+				// Pixelify Sans variable weights (400-700)
+				'pixelify-normal': '400',
+				'pixelify-medium': '500',
+				'pixelify-semibold': '600',
+				'pixelify-bold': '700',
+
+				// Responsive variable weights
+				'light-medium': '350',
+				'medium-semibold': '550',
+				'bold-extra': '750'
 			},
 			fontSize: {
 				base: ['16px', '1.75'], // Body text size and line height
@@ -133,8 +177,57 @@ export default {
 				header: '0 6px 12px -4px rgba(0, 0, 0, 0.41)',
 				button: '0 4px #999',
 				buttonPressed: '0 2px #666'
+			},
+			// Custom utilities for variable fonts
+			fontVariationSettings: {
+				'orbitron-light': '"wght" 450',
+				'orbitron-normal': '"wght" 550',
+				'orbitron-medium': '"wght" 650',
+				'orbitron-semibold': '"wght" 750',
+				'orbitron-bold': '"wght" 850',
+				'orbitron-black': '"wght" 900',
+				'ibm-thin': '"wght" 200',
+				'ibm-light': '"wght" 300',
+				'ibm-normal': '"wght" 400',
+				'ibm-medium': '"wght" 500',
+				'ibm-semibold': '"wght" 600',
+				'ibm-bold': '"wght" 700'
 			}
 		}
 	},
-	plugins: []
+	plugins: [
+		// Custom plugin to add variable font utilities
+		function ({ addUtilities, theme }) {
+			const fontVariationSettings = theme('fontVariationSettings');
+			const fontVariationUtilities = Object.entries(fontVariationSettings).reduce(
+				(acc, [key, value]) => {
+					acc[`.font-variation-${key}`] = {
+						'font-variation-settings': value
+					};
+					return acc;
+				},
+				{}
+			);
+
+			addUtilities(fontVariationUtilities);
+
+			// Add responsive variable font utilities
+			addUtilities({
+				'.variable-font-smooth': {
+					'font-variation-settings': '"wght" var(--font-weight, 400)',
+					transition: 'font-variation-settings 0.3s ease'
+				},
+				'.orbitron-responsive': {
+					'font-family': 'Orbitron, sans-serif',
+					'font-weight': 'var(--orbitron-weight-normal)',
+					'font-variation-settings': '"wght" var(--orbitron-weight-normal)'
+				},
+				'.ibm-responsive': {
+					'font-family': 'IBM Plex Sans, sans-serif',
+					'font-weight': 'var(--ibm-weight-normal)',
+					'font-variation-settings': '"wght" var(--ibm-weight-normal)'
+				}
+			});
+		}
+	]
 };

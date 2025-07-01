@@ -1507,6 +1507,7 @@
 		letter-spacing: 0.2vmin;
 		line-height: 1.11;
 		font-weight: 700;
+		font-variation-settings: 'wght' 700;
 		color: var(--header-text-color);
 		text-shadow:
 			0 0 1vmin rgba(39, 255, 153, 0.8),
