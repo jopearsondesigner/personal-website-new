@@ -16,11 +16,11 @@ DO NOT REMOVE THIS COMMENT -->
 
 	// Configuration data
 	const skills = [
-		{ name: 'Frontend Development', level: 90 },
-		{ name: 'UI/UX Design', level: 85 },
-		{ name: 'SvelteKit', level: 80 },
-		{ name: 'CSS/Animation', level: 85 },
-		{ name: 'Responsive Design', level: 95 }
+		{ name: 'UI/UX Design', level: 99 },
+		{ name: 'Frontend Development', level: 99 },
+		{ name: 'Graphic Design', level: 99 },
+		{ name: 'Animation/Illustration', level: 99 },
+		{ name: 'Brand Identity', level: 99 }
 	];
 
 	// UVP bullet points based on psychometrics test
@@ -121,27 +121,28 @@ DO NOT REMOVE THIS COMMENT -->
 							<span
 								class="text-[var(--metallic-gold-500)] dark:text-[var(--arcade-bright-yellow-100)]"
 							>
-								Design + Development
+								Interface Alchemy
 							</span>
-							Synergy
+							Transformation Mastery
 						</h3>
 
 						<div class="expertise-description ibm-regular">
 							<p>
-								Most teams struggle with the designer-developer handoff bottleneck. I eliminate that
-								entirely by owning both sides of the equation.
+								Like alchemists who transformed base metals into gold, I transmute abstract business
+								goals into valuable digital experiences. The magic happens where creative vision
+								meets technical precision.
 							</p>
 
 							<p>
-								From initial wireframes to production deployment, I craft cohesive digital
-								experiences that maintain design integrity while leveraging cutting-edge development
-								practices.
+								Every project begins with raw materials: rough concepts, scattered requirements,
+								technical constraints. Through careful process and proven formulas, these elements
+								become polished digital products that drive measurable results.
 							</p>
 
 							<p class="expertise-highlight ibm-bold">
 								<span class="text-[var(--arcade-bright-green-300)]">Result:</span>
-								Faster delivery, zero translation errors, and solutions that push creative boundaries
-								while staying technically sound.
+								Digital gold—interfaces that not only look premium but perform like finely-tuned machines,
+								converting visitors into customers.
 							</p>
 						</div>
 					</div>
@@ -154,7 +155,7 @@ DO NOT REMOVE THIS COMMENT -->
 				>
 					<CRTDisplay
 						variant="secondary"
-						headerLabel="Tech"
+						headerLabel="Arsenal"
 						scanlineIntensity="low"
 						glassEffect={true}
 						enableHover={true}
@@ -162,9 +163,9 @@ DO NOT REMOVE THIS COMMENT -->
 					>
 						<div class="skills-content">
 							<div class="skills-header">
-								<h4 class="skills-title orbitron-bold">Technical Proficiency</h4>
+								<h4 class="skills-title orbitron-bold">Alchemical Arsenal</h4>
 								<p class="skills-subtitle ibm-regular">
-									Full-stack capabilities spanning design tools to deployment platforms
+									Master-level tools for transmuting concepts into digital gold
 								</p>
 							</div>
 
@@ -563,11 +564,20 @@ DO NOT REMOVE THIS COMMENT -->
 
 		.uvp-heading {
 			text-align: center;
-			margin-bottom: 1.5rem;
+			margin-bottom: 2rem;
+			font-size: clamp(2.5rem, 8vw, 4rem); /* Increased from default 5.7vmin */
 		}
 
 		.point-text {
-			font-size: 1.1rem;
+			font-size: 1.25rem;
+			line-height: 1.6;
+		}
+
+		.uvp-point:nth-child(1),
+		.uvp-point:nth-child(2),
+		.uvp-point:nth-child(3),
+		.uvp-point:nth-child(4) {
+			max-width: 100%; /* Override the curved layout constraints */
 		}
 
 		.skills-heading {
@@ -586,19 +596,18 @@ DO NOT REMOVE THIS COMMENT -->
 			font-size: 0.875rem;
 		}
 
-		/* Ensure avatar positioning works on mobile */
 		:global(.uvp-display .crt-display__avatar) {
 			position: absolute;
 			bottom: 0;
 			right: 50%;
 			transform: translateX(50%);
-			width: 280px;
-			height: 320px;
+			width: 360px;
+			height: 400px;
 		}
 
 		.avatar-image {
 			height: auto;
-			max-height: 320px;
+			max-height: 400px;
 			object-fit: contain;
 			min-height: auto;
 		}
@@ -607,6 +616,11 @@ DO NOT REMOVE THIS COMMENT -->
 	@media (max-width: 480px) {
 		.about-container {
 			gap: 1.5rem;
+		}
+
+		.uvp-heading {
+			font-size: clamp(2.25rem, 7vw, 3.5rem);
+			margin-bottom: 1.75rem;
 		}
 
 		.expertise-content {
@@ -622,16 +636,20 @@ DO NOT REMOVE THIS COMMENT -->
 		}
 
 		.point-text {
-			font-size: 1rem;
+			font-size: 1.125rem;
 		}
 
 		:global(.uvp-display .crt-display__avatar) {
-			width: 240px;
-			height: 280px;
+			width: 320px;
+			height: 360px;
 		}
 
 		.avatar-image {
-			max-height: 280px;
+			max-height: 360px;
+		}
+
+		.uvp-content {
+			margin-bottom: 360px;
 		}
 	}
 
