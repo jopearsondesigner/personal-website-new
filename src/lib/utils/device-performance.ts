@@ -1,7 +1,6 @@
-// src/lib/utils/device-performance.ts
+// src/lib/utils/device-performance.ts - OPTIMIZED FOR FAST STARTUP
 import { browser } from '$app/environment';
 import { writable, get } from 'svelte/store';
-import { fpsStore } from './frame-rate-controller';
 
 declare global {
 	interface Navigator {
@@ -9,173 +8,101 @@ declare global {
 	}
 }
 
-interface WebGLDebugInfo {
-	UNMASKED_RENDERER_WEBGL: number;
-}
-
-interface WebGLRenderingContextWithExtensions extends WebGLRenderingContext {
-	getExtension(name: string): any;
-	getParameter(pname: number): any;
-	getSupportedExtensions(): string[] | null;
-}
-
-interface CanvasRenderingContext2DWithExtensions extends CanvasRenderingContext2D {
-	getExtension(name: string): any;
-	getParameter(pname: number): any;
-	getSupportedExtensions(): string[] | null;
-}
-
-type RenderingContextWithExtensions =
-	| WebGLRenderingContextWithExtensions
-	| CanvasRenderingContext2DWithExtensions;
-
-interface NavigatorWithDeviceMemory extends Navigator {
-	deviceMemory?: number;
-}
-
 export interface DeviceCapabilities {
 	// Core performance tier
 	tier: 'high' | 'medium' | 'low';
-
+	
 	// General settings
 	maxStars: number;
 	effectsLevel: 'minimal' | 'reduced' | 'normal';
 	useHardwareAcceleration: boolean;
-
+	
 	// Animation settings
-	frameSkip: number; // Only render every Nth frame
-	updateInterval: number; // Ms between updates
-	animateInBackground: boolean; // Continue animations when tab not focused
-
+	frameSkip: number;
+	updateInterval: number;
+	animateInBackground: boolean;
+	
 	// Rendering settings
-	useCanvas: boolean; // Use canvas instead of DOM for stars
+	useCanvas: boolean;
 	useShadersIfAvailable: boolean;
-
+	
 	// Visual effects
 	enableBlur: boolean;
 	enableShadows: boolean;
 	enableReflections: boolean;
 	enableParallax: boolean;
 	enablePulse: boolean;
-
+	
 	// CRT effects
 	enableScanlines: boolean;
 	enablePhosphorDecay: boolean;
 	enableInterlace: boolean;
 	enableChromaticAberration: boolean;
-
-	// Detected device info
+	
+	// Device info
 	devicePixelRatio: number;
 	isMobile: boolean;
 	isIOS: boolean;
 	isAndroid: boolean;
 	isTablet: boolean;
 	isDesktop: boolean;
-
+	
 	// Memory and resources
 	estimatedRAM: 'low' | 'medium' | 'high';
 	gpuTier: 'low' | 'medium' | 'high';
-
-	// Priority flags for components
-	prioritizeMainContent: boolean; // Prioritize main content over effects
-	prioritizeInteractivity: boolean; // Prioritize interactive elements
-	useDeferredLoading: boolean; // Load non-essential content after main content
-
+	
+	// Priority flags
+	prioritizeMainContent: boolean;
+	prioritizeInteractivity: boolean;
+	useDeferredLoading: boolean;
+	
 	// Advanced detection
-	preferReducedMotion: boolean; // User prefers reduced motion
-	hasBatteryIssues: boolean; // Device has battery issues
-	hasGPUAcceleration: boolean; // Device has GPU acceleration
-
-	// iOS specific optimizations
-	optimizeForIOSSafari: boolean; // Special optimizations for iOS Safari
-	preventIOSOverscrollFreezing: boolean; // Prevent iOS overscroll freezing issue
-	useIOSCompatibleEffects: boolean; // Use iOS compatible effects only
-
-	// Object pooling settings and optimizations
-	useObjectPooling: boolean; // Whether to use object pooling
-	objectPoolSize: number; // Maximum size of the object pool
-	objectPoolMargin: number; // Extra capacity percentage (e.g., 0.2 = 20% extra)
+	preferReducedMotion: boolean;
+	hasBatteryIssues: boolean;
+	hasGPUAcceleration: boolean;
+	
+	// iOS specific
+	optimizeForIOSSafari: boolean;
+	preventIOSOverscrollFreezing: boolean;
+	useIOSCompatibleEffects: boolean;
+	
+	// Object pooling
+	useObjectPooling: boolean;
+	objectPoolSize: number;
+	objectPoolMargin: number;
 }
 
-export interface RenderingCapabilities {
-	quality: number;
-	useWebGL: boolean;
-	useOffscreenCanvas: boolean;
-	useWorker: boolean;
-	enableGlow: boolean;
-	enableTrails: boolean;
-	enableHighDPI: boolean;
-	enableDoubleBuffering: boolean;
-}
-
-export interface MemoryCapabilities {
-	maxStars: number;
-	maxTrailLength: number;
-	maxSectors: number;
-	useTypedArrays: boolean;
-	enableGarbageCollection: boolean;
-	enableMemoryMonitoring: boolean;
-}
-
-export interface PerformanceCapabilities {
-	targetFPS: number;
-	enableAdaptiveQuality: boolean;
-	enableFrameSkipping: boolean;
-	enablePerformanceMonitoring: boolean;
-	enableBrowserOptimizations: boolean;
-}
-
-// Object pool statistics interface for monitoring
-export interface ObjectPoolStats {
-	// Pool capacity
-	totalCapacity: number;
-	activeObjects: number;
-	utilizationRate: number; // 0-1 percentage of pool in use
-
-	// Performance metrics
-	objectsCreated: number;
-	objectsReused: number;
-	reuseRatio: number; // reused / (created + reused)
-
-	// Memory impact
-	estimatedMemorySaved: number; // in KB
-
-	// Pool identification
-	poolName: string;
-	poolType: string;
-}
-
-// Default high-end capability settings
-const highCapabilities: DeviceCapabilities = {
-	tier: 'high',
-	maxStars: 60,
-	effectsLevel: 'normal',
+// FAST DEFAULTS - Available immediately without detection
+const INSTANT_DEFAULTS: DeviceCapabilities = {
+	tier: 'medium', // Safe default
+	maxStars: 40,
+	effectsLevel: 'reduced',
 	useHardwareAcceleration: true,
-	frameSkip: 0,
-	updateInterval: 16, // ~60fps
+	frameSkip: 1,
+	updateInterval: 32,
 	animateInBackground: true,
 	useCanvas: true,
-	useShadersIfAvailable: true,
-	enableBlur: true,
-	enableShadows: true,
+	useShadersIfAvailable: false, // Conservative default
+	enableBlur: false, // Conservative for startup
+	enableShadows: false,
 	enableReflections: true,
-	enableParallax: true,
+	enableParallax: false, // Conservative for startup
 	enablePulse: true,
 	enableScanlines: true,
-	enablePhosphorDecay: true,
-	enableInterlace: true,
-	enableChromaticAberration: true,
+	enablePhosphorDecay: false, // Performance-intensive
+	enableInterlace: false,
+	enableChromaticAberration: false,
 	devicePixelRatio: 1,
 	isMobile: false,
 	isIOS: false,
 	isAndroid: false,
 	isTablet: false,
 	isDesktop: true,
-	estimatedRAM: 'high',
-	gpuTier: 'high',
-	prioritizeMainContent: false, // No need to prioritize on high-end
-	prioritizeInteractivity: false, // No need to prioritize on high-end
-	useDeferredLoading: false, // No need to defer on high-end
+	estimatedRAM: 'medium',
+	gpuTier: 'medium',
+	prioritizeMainContent: false,
+	prioritizeInteractivity: false,
+	useDeferredLoading: false,
 	preferReducedMotion: false,
 	hasBatteryIssues: false,
 	hasGPUAcceleration: true,
@@ -183,299 +110,205 @@ const highCapabilities: DeviceCapabilities = {
 	preventIOSOverscrollFreezing: false,
 	useIOSCompatibleEffects: false,
 	useObjectPooling: true,
-	objectPoolSize: 400, // 300 stars with room for more
-	objectPoolMargin: 0.2 // 20% extra capacity
-};
-
-// Default medium capability settings
-const mediumCapabilities: DeviceCapabilities = {
-	...highCapabilities,
-	tier: 'medium',
-	maxStars: 40,
-	effectsLevel: 'reduced',
-	frameSkip: 1, // Render every other frame
-	updateInterval: 32, // ~30fps
-	enableChromaticAberration: false,
-	enableInterlace: false,
-	enablePhosphorDecay: false,
-	estimatedRAM: 'medium',
-	gpuTier: 'medium',
-	prioritizeMainContent: true, // Prioritize main content on medium devices
-	prioritizeInteractivity: true, // Prioritize interactive elements on medium devices
-	useDeferredLoading: true, // Use deferred loading on medium devices
-	enableScanlines: false, // Disable complex effects
-	animateInBackground: false, // Don't animate in background to save resources
-	useObjectPooling: true,
-	objectPoolSize: 200, // Smaller pool for medium devices
-	objectPoolMargin: 0.3 // 30% extra capacity for more flexibility
-};
-
-// Default low capability settings
-const lowCapabilities: DeviceCapabilities = {
-	...mediumCapabilities,
-	tier: 'low',
-	maxStars: 20,
-	effectsLevel: 'minimal',
-	frameSkip: 2, // Render every third frame
-	updateInterval: 50, // ~20fps
-	animateInBackground: false,
-	enableBlur: false,
-	enableShadows: false,
-	enableReflections: false,
-	enableParallax: false,
-	enablePulse: false,
-	enableScanlines: false,
-	estimatedRAM: 'low',
-	gpuTier: 'low',
-	prioritizeMainContent: true, // Definitely prioritize main content on low-end devices
-	prioritizeInteractivity: true, // Definitely prioritize interactive elements on low-end devices
-	useDeferredLoading: true, // Definitely use deferred loading on low-end devices
-	hasGPUAcceleration: false, // Assume no GPU acceleration on low-end devices
-	useObjectPooling: true,
-	objectPoolSize: 100, // Even smaller pool for low-end devices
-	objectPoolMargin: 0.5 // 50% extra capacity to avoid creating new objects
-};
-
-// Special iOS optimized settings for iPhone and similar devices
-const iosOptimizedCapabilities: DeviceCapabilities = {
-	...mediumCapabilities,
-	tier: 'medium',
-	maxStars: 30,
-	frameSkip: 1,
-	useCanvas: true,
-	useShadersIfAvailable: false,
-	enableBlur: false,
-	enableChromaticAberration: false,
-	enableInterlace: false,
-	enableShadows: false,
-	optimizeForIOSSafari: true,
-	preventIOSOverscrollFreezing: true,
-	useIOSCompatibleEffects: true,
-	enableParallax: false,
-	useObjectPooling: true,
-	objectPoolSize: 150, // iOS-specific pool size
-	objectPoolMargin: 0.3 // 30% extra capacity
+	objectPoolSize: 200,
+	objectPoolMargin: 0.3
 };
 
 /**
- * Fast GPU acceleration check - avoids overhead of WebGL extension queries
+ * INSTANT device detection - synchronous, no blocking
+ * Uses basic browser APIs that are immediately available
  */
-function quickDetectGPUAcceleration(): boolean {
-	if (!browser) return true;
-
-	try {
-		const canvas = document.createElement('canvas');
-		return !!(canvas.getContext('webgl') || canvas.getContext('experimental-webgl'));
-	} catch (e) {
-		return false;
-	}
-}
-
-/**
- * Detect if user prefers reduced motion - simplified
- */
-function detectReducedMotion(): boolean {
-	if (!browser) return false;
-	return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-/**
- * Simple device detection with fewer API calls and UA checks
- */
-function getQuickCapabilitiesEstimate(): DeviceCapabilities {
-	if (!browser) {
-		return highCapabilities; // Default to high for SSR
-	}
-
-	// Core device characteristics that actually matter for performance
-	const pixelRatio = window.devicePixelRatio || 1;
-	const screenWidth = window.innerWidth;
-	const screenHeight = window.innerHeight;
+function getInstantCapabilities(): DeviceCapabilities {
+	if (!browser) return INSTANT_DEFAULTS;
+	
 	const ua = navigator.userAgent;
-
-	// Quick platform detection focusing on performance-impacting factors
-	const isIOS =
-		/iPad|iPhone|iPod/i.test(ua) ||
-		(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+	const screenWidth = window.innerWidth;
+	const pixelRatio = window.devicePixelRatio || 1;
+	
+	// Quick platform detection
+	const isIOS = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 	const isAndroid = /Android/i.test(ua);
 	const isMobile = isIOS || isAndroid || screenWidth < 768;
-	const isTablet = (isIOS || isAndroid) && Math.min(screenWidth, screenHeight) >= 768;
+	const isTablet = (isIOS || isAndroid) && Math.min(screenWidth, window.innerHeight) >= 768;
 	const isDesktop = !isMobile && !isTablet;
-
-	// Hardware detection
-	const concurrency = navigator.hardwareConcurrency || 2;
-	const memory = (navigator as NavigatorWithDeviceMemory).deviceMemory || 4;
-	const hasReducedMotion = detectReducedMotion();
-	const hasGPU = quickDetectGPUAcceleration();
-
-	// Quick tier determination based on available hardware and form factor
-	let tier: 'low' | 'medium' | 'high';
-
-	if (
-		hasReducedMotion ||
-		(isMobile && concurrency <= 4) ||
-		memory <= 2 ||
-		!hasGPU ||
-		(isIOS && /iPhone [5-8]|iPad [1-4]|iPod/.test(ua)) ||
-		(isAndroid && /Android [1-7]\./.test(ua))
-	) {
+	
+	// Quick performance estimation
+	const hasReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	const concurrency = navigator.hardwareConcurrency || 4;
+	
+	// Fast tier determination
+	let tier: 'low' | 'medium' | 'high' = 'medium';
+	
+	if (hasReducedMotion || (isMobile && concurrency <= 4)) {
 		tier = 'low';
-	} else if (isMobile || isTablet || concurrency <= 6 || memory <= 4 || pixelRatio < 2) {
-		tier = 'medium';
-	} else {
+	} else if (!isMobile && concurrency >= 8 && pixelRatio >= 2) {
 		tier = 'high';
 	}
-
-	// Start with appropriate base capabilities
-	let capabilities: DeviceCapabilities;
-	if (tier === 'low') {
-		capabilities = { ...lowCapabilities };
-	} else if (tier === 'medium') {
-		capabilities = { ...mediumCapabilities };
-	} else {
-		capabilities = { ...highCapabilities };
-	}
-
-	// Apply iOS-specific optimizations if needed
-	if (isIOS) {
-		// Special handling for iOS devices
-		capabilities = {
-			...capabilities,
-			...iosOptimizedCapabilities,
-			isIOS: true,
-			isMobile,
-			isTablet: isTablet,
-			isDesktop: isDesktop,
-			devicePixelRatio: pixelRatio,
-			// iOS Safari has known performance issues with certain effects
-			enableBlur: false,
-			enableShadows: false,
-			preventIOSOverscrollFreezing: true,
-			optimizeForIOSSafari: true,
-			useIOSCompatibleEffects: true
-		};
-
-		// Additional optimizations for older iOS devices
-		if (/(iPhone [5-8]|iPad [1-4]|iPod)/.test(ua)) {
-			capabilities.tier = 'low';
-			capabilities.maxStars = 15;
-			capabilities.frameSkip = 2;
-		}
-	}
-
-	// Apply Android-specific optimizations
-	if (isAndroid) {
-		capabilities.isAndroid = true;
-		capabilities.isMobile = isMobile;
-		capabilities.isTablet = isTablet;
-		capabilities.isDesktop = false;
-		capabilities.devicePixelRatio = pixelRatio;
-
-		// Less effects on Android by default
-		capabilities.enableInterlace = false;
-		capabilities.enableChromaticAberration = false;
-		capabilities.enablePhosphorDecay = false;
-
-		// Reduce effects on older Android versions
-		if (/Android [1-7]\./.test(ua)) {
-			capabilities.tier = 'low';
-			capabilities.maxStars = 15;
-			capabilities.frameSkip = 2;
-			capabilities.enableScanlines = false;
-			capabilities.enableBlur = false;
-			capabilities.enableShadows = false;
-		}
-	}
-
-	// Apply reduced motion preference
-	if (hasReducedMotion) {
-		capabilities.preferReducedMotion = true;
-		capabilities.enableParallax = false;
-		capabilities.enablePulse = false;
-		capabilities.effectsLevel = 'minimal';
-		capabilities.frameSkip = Math.max(1, capabilities.frameSkip);
-	}
-
-	// Return the optimized capabilities
+	
+	// Build instant capabilities
+	const capabilities: DeviceCapabilities = {
+		...INSTANT_DEFAULTS,
+		tier,
+		devicePixelRatio: pixelRatio,
+		isMobile,
+		isIOS,
+		isAndroid,
+		isTablet,
+		isDesktop,
+		preferReducedMotion: hasReducedMotion,
+		
+		// Adjust based on platform
+		maxStars: tier === 'low' ? 25 : tier === 'high' ? 60 : 40,
+		frameSkip: tier === 'low' ? 2 : tier === 'high' ? 0 : 1,
+		updateInterval: tier === 'low' ? 50 : tier === 'high' ? 16 : 32,
+		
+		// iOS-specific instant optimizations
+		optimizeForIOSSafari: isIOS,
+		preventIOSOverscrollFreezing: isIOS,
+		useIOSCompatibleEffects: isIOS,
+		enableBlur: !isIOS, // iOS Safari has blur issues
+		enableShadows: !isMobile, // Mobile devices struggle with shadows
+		enableParallax: !isMobile && !hasReducedMotion,
+		
+		// Object pooling based on tier
+		objectPoolSize: tier === 'low' ? 100 : tier === 'high' ? 300 : 200,
+		objectPoolMargin: tier === 'low' ? 0.5 : 0.3
+	};
+	
 	return capabilities;
 }
 
 /**
- * Simple lightweight benchmark for checking device processing power
+ * ENHANCED detection - runs asynchronously after initial render
+ * Provides more accurate detection and progressive enhancement
  */
-function runLightweightBenchmark(): number {
-	if (!browser) return 1.0;
-
-	const startTime = performance.now();
-
-	// Simple computation benchmark that doesn't block UI
-	let result = 0;
-	const iterations = 20000;
-	for (let i = 0; i < iterations; i++) {
-		result += Math.sin(i * 0.01);
+async function getEnhancedCapabilities(baseCapabilities: DeviceCapabilities): Promise<DeviceCapabilities> {
+	if (!browser) return baseCapabilities;
+	
+	let enhanced = { ...baseCapabilities };
+	
+	try {
+		// GPU detection
+		const hasWebGL = await checkWebGLSupport();
+		enhanced.hasGPUAcceleration = hasWebGL;
+		enhanced.useShadersIfAvailable = hasWebGL;
+		enhanced.gpuTier = hasWebGL ? 'medium' : 'low';
+		
+		// Memory detection
+		const memory = (navigator as any).deviceMemory;
+		if (memory) {
+			enhanced.estimatedRAM = memory <= 2 ? 'low' : memory >= 8 ? 'high' : 'medium';
+			
+			// Adjust settings based on memory
+			if (memory <= 2) {
+				enhanced.tier = 'low';
+				enhanced.maxStars = Math.min(enhanced.maxStars, 20);
+				enhanced.enableBlur = false;
+				enhanced.enableShadows = false;
+			} else if (memory >= 8) {
+				enhanced.tier = enhanced.tier === 'low' ? 'medium' : 'high';
+				enhanced.enableBlur = !enhanced.isIOS;
+				enhanced.enableShadows = !enhanced.isMobile;
+			}
+		}
+		
+		// Performance benchmark (lightweight)
+		const benchmarkScore = await runQuickBenchmark();
+		if (benchmarkScore < 0.4) {
+			enhanced.tier = 'low';
+			enhanced.frameSkip = Math.max(enhanced.frameSkip, 2);
+			enhanced.enableScanlines = false;
+		} else if (benchmarkScore > 0.8 && enhanced.tier !== 'low') {
+			enhanced.tier = 'high';
+			enhanced.frameSkip = Math.max(0, enhanced.frameSkip - 1);
+			enhanced.enablePhosphorDecay = true;
+			enhanced.enableInterlace = true;
+		}
+		
+		// Battery status
+		if ('getBattery' in navigator) {
+			try {
+				const battery = await (navigator as any).getBattery();
+				enhanced.hasBatteryIssues = !battery.charging && battery.level < 0.3;
+				
+				if (enhanced.hasBatteryIssues) {
+					enhanced.tier = 'low';
+					enhanced.frameSkip = Math.max(enhanced.frameSkip, 1);
+					enhanced.animateInBackground = false;
+				}
+			} catch (e) {
+				// Battery API not available
+			}
+		}
+		
+	} catch (error) {
+		console.warn('Enhanced capability detection failed:', error);
 	}
-
-	const endTime = performance.now();
-	const duration = endTime - startTime;
-
-	// Normalize score between 0-1 (higher is better)
-	const score = Math.max(0, Math.min(1, 1 - duration / 100));
-
-	return score;
+	
+	return enhanced;
 }
 
 /**
- * Optimized device capability detection with reduced overhead
+ * Quick WebGL support check
  */
-async function determineDeviceCapabilities(): Promise<DeviceCapabilities> {
-	if (!browser) {
-		return highCapabilities; // Default to high for SSR
-	}
-
-	// Quick initial detection based on simple heuristics
-	const quickCapabilities = getQuickCapabilitiesEstimate();
-
-	// Return quick results immediately for low-end devices or when reduced motion is preferred
-	if (quickCapabilities.tier === 'low' || quickCapabilities.preferReducedMotion) {
-		return quickCapabilities;
-	}
-
-	// For potentially higher capability devices, schedule benchmark for later
-	setTimeout(() => {
-		// Only run benchmark if page is visible
-		if (!document.hidden) {
-			const benchmarkScore = runLightweightBenchmark();
-
-			// Update capabilities based on benchmark score
-			if (benchmarkScore < 0.5) {
-				// Lower performance than initially detected
-				deviceCapabilities.update((caps) => ({
-					...caps,
-					tier: 'low',
-					frameSkip: Math.max(1, caps.frameSkip),
-					enableBlur: false,
-					enableShadows: false,
-					maxStars: Math.min(caps.maxStars, 25)
-				}));
-			} else if (benchmarkScore >= 0.8 && quickCapabilities.tier !== 'high') {
-				// Better performance than initially detected
-				deviceCapabilities.update((caps) => ({
-					...caps,
-					tier: 'medium', // Only upgrade to medium, not high
-					frameSkip: Math.min(caps.frameSkip, 1)
-				}));
-			}
+function checkWebGLSupport(): Promise<boolean> {
+	return new Promise((resolve) => {
+		try {
+			const canvas = document.createElement('canvas');
+			const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+			resolve(!!gl);
+		} catch (e) {
+			resolve(false);
 		}
-	}, 1000); // Delay benchmark to not impact initial load
-
-	return quickCapabilities;
+	});
 }
 
-// Create stores
-export const deviceCapabilities = writable<DeviceCapabilities>(highCapabilities);
-export const memoryUsageStore = writable<number>(0);
+/**
+ * Lightweight performance benchmark
+ */
+function runQuickBenchmark(): Promise<number> {
+	return new Promise((resolve) => {
+		const startTime = performance.now();
+		
+		// Simple computation test
+		let result = 0;
+		for (let i = 0; i < 10000; i++) {
+			result += Math.sin(i * 0.01) * Math.cos(i * 0.01);
+		}
+		
+		const endTime = performance.now();
+		const duration = endTime - startTime;
+		
+		// Normalize to 0-1 (lower duration = higher score)
+		const score = Math.max(0, Math.min(1, 1 - (duration / 50)));
+		resolve(score);
+	});
+}
 
-// Create object pool statistics store
+// STORES
+export const deviceCapabilities = writable<DeviceCapabilities>(INSTANT_DEFAULTS);
+export const memoryUsageStore = writable<number>(0);
+export const deviceTier = writable<'low' | 'medium' | 'high'>('medium');
+export const maxStars = writable<number>(40);
+export const targetFPS = writable<number>(60);
+export const performanceMode = writable<'low' | 'medium' | 'high'>('medium');
+export const starFieldMode = writable<'canvas' | 'dom'>('canvas');
+export const isAnimating = writable<boolean>(false);
+export const isLowPowerDevice = writable<boolean>(false);
+
+// Object pool statistics store
+export interface ObjectPoolStats {
+	totalCapacity: number;
+	activeObjects: number;
+	utilizationRate: number;
+	objectsCreated: number;
+	objectsReused: number;
+	reuseRatio: number;
+	estimatedMemorySaved: number;
+	poolName: string;
+	poolType: string;
+}
+
 export const objectPoolStatsStore = writable<ObjectPoolStats>({
 	totalCapacity: 0,
 	activeObjects: 0,
@@ -488,170 +321,116 @@ export const objectPoolStatsStore = writable<ObjectPoolStats>({
 	poolType: 'Star'
 });
 
-// Initialize capabilities
-function initializeCapabilities() {
+/**
+ * FAST INITIALIZATION - runs immediately, non-blocking
+ */
+export function initializeCapabilitiesSync(): DeviceCapabilities {
+	const capabilities = getInstantCapabilities();
+	
+	// Set stores immediately
+	deviceCapabilities.set(capabilities);
+	deviceTier.set(capabilities.tier);
+	maxStars.set(capabilities.maxStars);
+	targetFPS.set(capabilities.tier === 'low' ? 30 : 60);
+	performanceMode.set(capabilities.tier);
+	isLowPowerDevice.set(capabilities.tier === 'low');
+	
+	// Schedule enhanced detection for later
 	if (browser) {
-		// Start with fast detection immediately for better startup performance
-		determineDeviceCapabilities().then((detectedCapabilities) => {
-			deviceCapabilities.set(detectedCapabilities);
-		});
+		setTimeout(() => {
+			enhanceCapabilitiesAsync(capabilities);
+		}, 1000); // Run after initial render
+	}
+	
+	return capabilities;
+}
+
+/**
+ * ENHANCED DETECTION - runs asynchronously for progressive enhancement
+ */
+async function enhanceCapabilitiesAsync(baseCapabilities: DeviceCapabilities): Promise<void> {
+	try {
+		const enhanced = await getEnhancedCapabilities(baseCapabilities);
+		
+		// Update stores with enhanced capabilities
+		deviceCapabilities.set(enhanced);
+		deviceTier.set(enhanced.tier);
+		maxStars.set(enhanced.maxStars);
+		performanceMode.set(enhanced.tier);
+		isLowPowerDevice.set(enhanced.tier === 'low');
+		
+		console.log('🚀 Enhanced device capabilities applied:', enhanced.tier);
+	} catch (error) {
+		console.warn('Enhanced capability detection failed:', error);
 	}
 }
 
-// Optimized performance monitoring setup
-export function setupPerformanceMonitoring() {
-	if (!browser) return () => {};
-
-	let active = false;
-	let rafId: number | null = null;
-	let lastTime = 0;
-	let frameCount = 0;
-	let monitoringInterval: number | null = null;
-
-	const startMonitoring = () => {
-		if (active) return;
-		active = true;
-
-		// Initialize capabilities if not already done
-		initializeCapabilities();
-
-		// Use lower frequency monitoring interval for memory
-		monitoringInterval = window.setInterval(() => {
-			// Check memory usage periodically instead of every frame
-			if ('memory' in performance) {
-				try {
-					const memory = (performance as any).memory;
-					if (memory) {
-						const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
-						memoryUsageStore.set(Math.max(0, Math.min(1, memUsage)));
-					}
-				} catch (e) {
-					// Ignore memory API errors
-				}
-			}
-
-			// Reset frame counter periodically in case requestAnimationFrame stops
-			if (Date.now() - lastTime > 5000) {
-				frameCount = 0;
-				lastTime = Date.now();
-			}
-		}, 3000);
-	};
-
-	// Start monitoring in browser
-	if (browser) {
-		startMonitoring();
+/**
+ * Utility functions
+ */
+export function shouldEnableEffect(effectName: string): boolean {
+	const capabilities = get(deviceCapabilities);
+	
+	switch (effectName) {
+		case 'glow': return capabilities.enableBlur && capabilities.tier !== 'low';
+		case 'trails': return capabilities.enableBlur && capabilities.tier === 'high';
+		case 'blur': return capabilities.enableBlur;
+		case 'shadows': return capabilities.enableShadows;
+		case 'parallax': return capabilities.enableParallax;
+		default: return true;
 	}
+}
 
-	// Return cleanup function
-	return () => {
-		active = false;
-		if (rafId !== null) {
-			cancelAnimationFrame(rafId);
-			rafId = null;
-		}
-		if (monitoringInterval !== null) {
-			clearInterval(monitoringInterval);
-			monitoringInterval = null;
-		}
+export function getOptimalSettings(): {
+	maxStars: number;
+	enableGlow: boolean;
+	enableTrails: boolean;
+	enableBlur: boolean;
+	enableShadows: boolean;
+	enableParallax: boolean;
+} {
+	const capabilities = get(deviceCapabilities);
+	
+	return {
+		maxStars: capabilities.maxStars,
+		enableGlow: capabilities.enableBlur && capabilities.tier !== 'low',
+		enableTrails: capabilities.enableBlur && capabilities.tier === 'high',
+		enableBlur: capabilities.enableBlur,
+		enableShadows: capabilities.enableShadows,
+		enableParallax: capabilities.enableParallax
 	};
 }
 
-// Efficient update for object pool statistics
-export function updateObjectPoolStats(stats: Partial<ObjectPoolStats>) {
+export function getOptimalStarCount(requestedCount: number): number {
+	const capabilities = get(deviceCapabilities);
+	return Math.min(requestedCount, capabilities.maxStars);
+}
+
+export function updateObjectPoolStats(stats: Partial<ObjectPoolStats>): void {
 	if (!browser) return;
-
+	
 	objectPoolStatsStore.update((currentStats) => {
-		// Create new stats object with updated values
 		const newStats = { ...currentStats, ...stats };
-
-		// Calculate derived statistics if needed
-		if (
-			(stats.activeObjects !== undefined || stats.totalCapacity !== undefined) &&
-			newStats.totalCapacity > 0
-		) {
+		
+		// Calculate derived statistics
+		if (newStats.totalCapacity > 0) {
 			newStats.utilizationRate = newStats.activeObjects / newStats.totalCapacity;
 		}
-
-		// Update reuse ratio when relevant fields change
-		if (stats.objectsCreated !== undefined || stats.objectsReused !== undefined) {
-			const total = newStats.objectsCreated + newStats.objectsReused;
-			newStats.reuseRatio = total > 0 ? newStats.objectsReused / total : 0;
-		}
-
-		// Estimate memory savings if not provided but we have reuse data
+		
+		const total = newStats.objectsCreated + newStats.objectsReused;
+		newStats.reuseRatio = total > 0 ? newStats.objectsReused / total : 0;
+		
 		if (stats.objectsReused !== undefined && stats.estimatedMemorySaved === undefined) {
-			// Use a simple fixed object size estimate when specific size unknown
-			const objectSize = 240; // bytes
-			newStats.estimatedMemorySaved = (newStats.objectsReused * objectSize) / 1024; // in KB
+			const objectSize = 240; // bytes estimate
+			newStats.estimatedMemorySaved = (newStats.objectsReused * objectSize) / 1024; // KB
 		}
-
+		
 		return newStats;
 	});
 }
 
-// Setup visibility event listeners for performance optimization
-export function setupEventListeners() {
-	if (!browser) return () => {};
-
-	// Visibility change handler for performance
-	const visibilityChangeHandler = () => {
-		if (document.hidden) {
-			// Pause animations when tab not visible
-			deviceCapabilities.update((caps) => ({
-				...caps,
-				animateInBackground: false
-			}));
-		} else {
-			// Resume normal operations when tab is visible again
-			setTimeout(() => {
-				initializeCapabilities();
-			}, 300); // Short delay to let the browser stabilize
-		}
-	};
-
-	// Add event listener
-	document.addEventListener('visibilitychange', visibilityChangeHandler);
-
-	// Return cleanup function
-	return () => {
-		document.removeEventListener('visibilitychange', visibilityChangeHandler);
-	};
-}
-
-// Initialize capabilities on module load
+// AUTO-INITIALIZE on module load for immediate availability
 if (browser) {
-	initializeCapabilities();
+	// Initialize immediately with fast detection
+	initializeCapabilitiesSync();
 }
-
-/**
- * Quick GPU detection - simplified to reduce unnecessary calls
- */
-const checkGPUCapabilities = (): 'high' | 'medium' | 'low' => {
-	if (!browser) return 'medium';
-
-	try {
-		const canvas = document.createElement('canvas');
-		const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-
-		if (!gl) return 'low';
-
-		// Basic check for WebGL capabilities
-		const extensions = gl.getSupportedExtensions() || [];
-
-		// Check for some key extensions
-		if (
-			extensions.includes('WEBGL_compressed_texture_s3tc') &&
-			extensions.includes('OES_texture_float') &&
-			extensions.includes('ANGLE_instanced_arrays')
-		) {
-			return 'high';
-		} else if (gl.getParameter(gl.MAX_TEXTURE_SIZE) >= 4096) {
-			return 'medium';
-		}
-
-		return 'low';
-	} catch (e) {
-		return 'low';
-	}
-};
