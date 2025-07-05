@@ -1,0 +1,477 @@
+/* StarField CSS Performance Optimizations */
+/* File: src/lib/styles/starfield-optimizations.css */
+
+/* === HARDWARE ACCELERATION === */
+
+/* Force GPU acceleration for StarField containers */
+.starfield-wrapper,
+.canvas-star-container,
+.star-field-canvas {
+	transform: translateZ(0);
+	backface-visibility: hidden;
+	perspective: 1000px;
+	will-change: transform;
+}
+
+/* Optimize canvas rendering */
+.star-field-canvas {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+
+	/* Hardware acceleration */
+	transform: translate3d(0, 0, 0);
+
+	/* Prevent unnecessary repaints */
+	contain: layout style paint;
+
+	/* Optimize compositing */
+	isolation: isolate;
+}
+
+/* === FALLBACK STAR OPTIMIZATIONS === */
+
+/* High-performance DOM stars for fallback */
+.star {
+	position: absolute;
+	width: 2px;
+	height: 2px;
+	background: white;
+	border-radius: 50%;
+	pointer-events: none;
+
+	/* Hardware acceleration */
+	transform: translate3d(0, 0, 0);
+	will-change: transform, opacity;
+
+	/* Optimize painting */
+	contain: layout style;
+
+	/* Smooth antialiasing */
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* Star glow effect (high-end devices only) */
+.star.glow {
+	box-shadow:
+		0 0 4px currentColor,
+		0 0 8px currentColor,
+		0 0 12px currentColor;
+
+	/* Optimize filter performance */
+	filter: blur(0.5px);
+
+	/* Prevent filter recomputations */
+	contain: layout style paint;
+}
+
+/* Reduced motion star */
+.star.reduced-motion {
+	animation: none !important;
+	transition: none !important;
+	will-change: auto;
+}
+
+/* === DEVICE-SPECIFIC OPTIMIZATIONS === */
+
+/* Mobile optimizations */
+@media (max-width: 767px) {
+	.star-field-canvas {
+		/* Reduce quality on mobile */
+		image-rendering: pixelated;
+		image-rendering: -moz-crisp-edges;
+		image-rendering: crisp-edges;
+	}
+
+	.star {
+		/* Simpler stars on mobile */
+		border-radius: 0;
+		will-change: transform;
+	}
+
+	.star.glow {
+		/* Disable expensive effects on mobile */
+		box-shadow: none;
+		filter: none;
+	}
+}
+
+/* Tablet optimizations */
+@media (min-width: 768px) and (max-width: 1023px) {
+	.star-field-canvas {
+		/* Balanced quality for tablets */
+		image-rendering: auto;
+	}
+
+	.star.glow {
+		/* Reduced glow on tablets */
+		box-shadow:
+			0 0 2px currentColor,
+			0 0 4px currentColor;
+		filter: none;
+	}
+}
+
+/* Desktop optimizations */
+@media (min-width: 1024px) {
+	.star-field-canvas {
+		/* Full quality on desktop */
+		image-rendering: auto;
+	}
+
+	/* Enable advanced effects on desktop */
+	.star.glow {
+		box-shadow:
+			0 0 4px currentColor,
+			0 0 8px currentColor,
+			0 0 12px currentColor,
+			0 0 16px rgba(255, 255, 255, 0.3);
+	}
+}
+
+/* === BROWSER-SPECIFIC OPTIMIZATIONS === */
+
+/* Safari optimizations */
+@supports (-webkit-appearance: none) {
+	.star-field-canvas {
+		/* Optimize for WebKit */
+		-webkit-transform: translate3d(0, 0, 0);
+		-webkit-backface-visibility: hidden;
+	}
+
+	.star {
+		/* Reduce reflows in Safari */
+		-webkit-transform: translate3d(0, 0, 0);
+	}
+}
+
+/* Firefox optimizations */
+@supports (-moz-appearance: none) {
+	.star-field-canvas {
+		/* Optimize for Gecko */
+		-moz-transform: translate3d(0, 0, 0);
+		-moz-backface-visibility: hidden;
+	}
+}
+
+/* Chrome/Edge optimizations */
+@supports (not (-webkit-appearance: none)) and (not (-moz-appearance: none)) {
+	.star-field-canvas {
+		/* Optimize for Blink */
+		transform: translateZ(0);
+	}
+}
+
+/* === PERFORMANCE HINTS === */
+
+/* Container optimization classes */
+.hardware-accelerated {
+	transform: translateZ(0);
+	will-change: transform;
+	contain: layout style paint;
+}
+
+.gpu-optimized {
+	transform: translate3d(0, 0, 0);
+	backface-visibility: hidden;
+	perspective: 1000px;
+}
+
+.paint-contained {
+	contain: layout style paint;
+	isolation: isolate;
+}
+
+/* === DEVICE TIER SPECIFIC STYLES === */
+
+/* Low-end device optimizations */
+[data-device-tier='low'] .star-field-canvas {
+	/* Minimal quality for performance */
+	image-rendering: pixelated;
+	transform: none;
+	will-change: auto;
+}
+
+[data-device-tier='low'] .star {
+	/* Simple squares instead of circles */
+	border-radius: 0;
+	will-change: auto;
+}
+
+[data-device-tier='low'] .star.glow {
+	/* No effects on low-end devices */
+	box-shadow: none;
+	filter: none;
+}
+
+/* Medium-end device optimizations */
+[data-device-tier='medium'] .star-field-canvas {
+	/* Balanced quality */
+	image-rendering: auto;
+	transform: translateZ(0);
+}
+
+[data-device-tier='medium'] .star.glow {
+	/* Reduced glow for medium devices */
+	box-shadow: 0 0 3px currentColor;
+	filter: none;
+}
+
+/* High-end device optimizations */
+[data-device-tier='high'] .star-field-canvas {
+	/* Full quality and effects */
+	image-rendering: auto;
+	transform: translate3d(0, 0, 0);
+	filter: contrast(1.1) brightness(1.05);
+}
+
+[data-device-tier='high'] .star.glow {
+	/* Full glow effects */
+	box-shadow:
+		0 0 4px currentColor,
+		0 0 8px currentColor,
+		0 0 12px currentColor,
+		0 0 16px rgba(255, 255, 255, 0.2);
+	filter: blur(0.5px);
+}
+
+/* === REDUCED MOTION SUPPORT === */
+
+@media (prefers-reduced-motion: reduce) {
+	.star-field-canvas,
+	.star {
+		animation: none !important;
+		transition: none !important;
+		will-change: auto;
+		transform: none;
+	}
+
+	.star.glow {
+		/* Static glow for reduced motion */
+		box-shadow: 0 0 2px currentColor;
+		filter: none;
+	}
+}
+
+/* === DARK MODE OPTIMIZATIONS === */
+
+@media (prefers-color-scheme: dark) {
+	.star {
+		/* Better contrast in dark mode */
+		background: #ffffff;
+		box-shadow: 0 0 1px rgba(255, 255, 255, 0.5);
+	}
+
+	.star.glow {
+		box-shadow:
+			0 0 4px #ffffff,
+			0 0 8px rgba(255, 255, 255, 0.8),
+			0 0 12px rgba(255, 255, 255, 0.6);
+	}
+}
+
+@media (prefers-color-scheme: light) {
+	.star {
+		/* Subtle stars in light mode */
+		background: #333333;
+		box-shadow: 0 0 1px rgba(0, 0, 0, 0.3);
+	}
+
+	.star.glow {
+		box-shadow:
+			0 0 4px #666666,
+			0 0 8px rgba(0, 0, 0, 0.4),
+			0 0 12px rgba(0, 0, 0, 0.2);
+	}
+}
+
+/* === HIGH CONTRAST SUPPORT === */
+
+@media (prefers-contrast: high) {
+	.star {
+		background: currentColor;
+		opacity: 1 !important;
+	}
+
+	.star.glow {
+		box-shadow: 0 0 2px currentColor;
+		filter: none;
+	}
+}
+
+/* === PERFORMANCE MONITOR STYLES === */
+
+.performance-monitor {
+	/* Optimize performance monitor overlay */
+	contain: layout style paint;
+	will-change: transform;
+	backdrop-filter: blur(8px);
+
+	/* Prevent interference with main content */
+	pointer-events: auto;
+	user-select: text;
+}
+
+.performance-monitor canvas,
+.performance-monitor svg {
+	/* Optimize charts */
+	contain: layout style paint;
+	will-change: auto;
+}
+
+/* === ANIMATION OPTIMIZATIONS === */
+
+/* Smooth boost transitions */
+@keyframes star-boost {
+	from {
+		transform: scale(1) translateZ(0);
+	}
+	to {
+		transform: scale(1.1) translateZ(0);
+	}
+}
+
+.star-boost-active .star {
+	animation: star-boost 0.3s ease-out;
+	will-change: transform;
+}
+
+/* Star trail optimization */
+.star-trail {
+	position: absolute;
+	background: linear-gradient(90deg, transparent, currentColor, transparent);
+	opacity: 0.7;
+	mix-blend-mode: screen;
+
+	/* Hardware acceleration */
+	transform: translateZ(0);
+	will-change: transform, opacity;
+
+	/* Optimize blending */
+	contain: layout style;
+}
+
+/* === UTILITY CLASSES === */
+
+/* Performance optimization utilities */
+.no-gpu-acceleration {
+	transform: none !important;
+	will-change: auto !important;
+	backface-visibility: visible !important;
+}
+
+.force-gpu-acceleration {
+	transform: translate3d(0, 0, 0) !important;
+	will-change: transform !important;
+	backface-visibility: hidden !important;
+}
+
+.disable-effects {
+	filter: none !important;
+	box-shadow: none !important;
+	backdrop-filter: none !important;
+}
+
+.optimize-paint {
+	contain: layout style paint !important;
+	isolation: isolate !important;
+}
+
+/* === CRITICAL PERFORMANCE STYLES === */
+
+/* These styles should be inlined for critical rendering path */
+.starfield-critical {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+
+	/* Immediate hardware acceleration */
+	transform: translateZ(0);
+	contain: layout style paint;
+}
+
+/* === LOADING STATES === */
+
+.starfield-loading {
+	background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.9) 100%);
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	/* Optimize loading state */
+	contain: layout style paint;
+}
+
+.starfield-loading::after {
+	content: '';
+	width: 20px;
+	height: 20px;
+	border: 2px solid rgba(255, 255, 255, 0.3);
+	border-top: 2px solid white;
+	border-radius: 50%;
+	animation: spin 1s linear infinite;
+
+	/* Hardware acceleration for spinner */
+	transform: translateZ(0);
+	will-change: transform;
+}
+
+@keyframes spin {
+	0% {
+		transform: rotate(0deg) translateZ(0);
+	}
+	100% {
+		transform: rotate(360deg) translateZ(0);
+	}
+}
+
+/* === ERROR STATES === */
+
+.starfield-error {
+	background: rgba(139, 69, 19, 0.1);
+	border: 1px solid rgba(139, 69, 19, 0.3);
+	border-radius: 8px;
+	padding: 16px;
+	text-align: center;
+	color: #8b4513;
+
+	/* Optimize error display */
+	contain: layout style paint;
+}
+
+/* === DEBUGGING STYLES === */
+
+.starfield-debug {
+	border: 2px dashed rgba(255, 0, 0, 0.5);
+	position: relative;
+}
+
+.starfield-debug::before {
+	content: 'StarField Debug Mode';
+	position: absolute;
+	top: 0;
+	left: 0;
+	background: rgba(255, 0, 0, 0.8);
+	color: white;
+	padding: 4px 8px;
+	font-size: 12px;
+	font-family: monospace;
+	z-index: 1000;
+}
+
+/* === PRINT STYLES === */
+
+@media print {
+	.starfield-wrapper,
+	.star-field-canvas,
+	.star,
+	.performance-monitor {
+		display: none !important;
+	}
+}
