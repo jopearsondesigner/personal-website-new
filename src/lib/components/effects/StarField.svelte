@@ -1,21 +1,26 @@
-<!-- src/lib/components/effects/StarField.svelte -->
+<!-- src/lib/components/effects/StarField.svelte - ENHANCED WITH PROGRESSIVE FEATURES -->
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { browser } from '$app/environment';
 
-	// Props
+	// Props - Matching original inspiration with performance options
 	export let containerElement: HTMLElement | null = null;
 	export let autoStart = true;
 	export let starCount = 300;
 	export let enableBoost = true;
 	export let maxDepth = 32;
-	// FASTER MOVEMENT: Increased base and boost speeds
-	export let baseSpeed = 0.5; // Doubled from 0.25
-	export let boostSpeed = 4; // Doubled from 2
+	export let baseSpeed = 0.25; // Match original
+	export let boostSpeed = 2; // Match original
+	export let enableGlow = true;
+	export let enableTrails = true;
+	export let enableAdaptiveQuality = true;
+	export let enableHighDPI = true;
+	export let targetFPS = 60;
 
 	// Component state
 	let canvasElement: HTMLCanvasElement;
 	let ctx: CanvasRenderingContext2D | null = null;
+	let internalContainer: HTMLElement;
 	let stars: Array<{
 		x: number;
 		y: number;
@@ -27,29 +32,147 @@
 	let boosting = false;
 	let animationFrameId: number | null = null;
 	let speed = baseSpeed;
+	let quality = 1.0;
+	let currentFPS = 60;
+	let frameCount = 0;
+	let lastFrameTime = 0;
+	let fpsUpdateTime = 0;
+	let isReady = false;
+	let setupComplete = false;
 
-	// Star colors with glow
+	// Performance monitoring
+	let performanceMetrics = {
+		fps: 60,
+		frameTime: 16,
+		quality: 1.0,
+		activeStars: starCount,
+		droppedFrames: 0
+	};
+
+	// Enhanced visual settings
+	let devicePixelRatio = 1;
+	let canvasWidth = 0;
+	let canvasHeight = 0;
+
+	// Classic arcade star colors - choose your style!
+
+	// Option 1: Star Wars Arcade (1983) - Most iconic starfield
 	const starColors = [
-		'#0033ff', // Dim blue
-		'#4477ff',
-		'#6699ff',
-		'#88bbff',
-		'#aaddff',
-		'#ffffff' // Bright white
+		'#000080', // Deep blue (far)
+		'#0066ff', // Bright blue
+		'#00aaff', // Cyan blue
+		'#ffaa00', // Amber/orange
+		'#ffff00', // Bright yellow
+		'#ffffff' // Pure white (near)
 	];
 
-	// Initialize stars
+	// Option 2: Asteroids/Vector Style (1979) - Classic green monochrome
+	// const starColors = [
+	// 	'#004400', // Dark green (far)
+	// 	'#006600',
+	// 	'#00aa00', // Medium green
+	// 	'#00ff00', // Bright green
+	// 	'#88ff88', // Light green
+	// 	'#ffffff'  // White (near)
+	// ];
+
+	// Option 3: Galaga Style (1981) - Bright primary colors
+	// const starColors = [
+	// 	'#ff0000', // Red (far)
+	// 	'#ff8800', // Orange
+	// 	'#ffff00', // Yellow
+	// 	'#00ff00', // Green
+	// 	'#00ffff', // Cyan
+	// 	'#ffffff'  // White (near)
+	// ];
+
+	// Option 4: Tempest Style (1981) - Neon cyber colors
+	// const starColors = [
+	// 	'#ff00ff', // Magenta (far)
+	// 	'#8800ff', // Purple
+	// 	'#0088ff', // Blue
+	// 	'#00ffff', // Cyan
+	// 	'#88ffff', // Light cyan
+	// 	'#ffffff'  // White (near)
+	// ];
+
+	// Option 5: Defender Style (1981) - Warm to cool
+	// const starColors = [
+	// 	'#aa0000', // Dark red (far)
+	// 	'#ff4400', // Red-orange
+	// 	'#ff8800', // Orange
+	// 	'#ffaa00', // Yellow-orange
+	// 	'#ffff88', // Light yellow
+	// 	'#ffffff'  // White (near)
+	// ];
+
+	// Event dispatcher
+	const dispatch = createEventDispatcher<{
+		ready: void;
+		error: { message: string };
+		performanceChange: {
+			fps: number;
+			quality: number;
+			frameTime: number;
+			activeStars: number;
+		};
+	}>();
+
+	// ======================================================================
+	// REACTIVE STATEMENTS
+	// ======================================================================
+
+	// Watch for container element changes
+	$: if (containerElement && !setupComplete) {
+		setupStarField();
+	}
+
+	// ======================================================================
+	// FAST INITIALIZATION
+	// ======================================================================
+
+	/**
+	 * Setup the entire starfield when container is available
+	 */
+	function setupStarField() {
+		if (!browser || setupComplete) return;
+
+		const container = containerElement || internalContainer;
+		if (!container) return;
+
+		console.log('🚀 Setting up StarField...');
+
+		const success = setupCanvas(container);
+		if (success) {
+			initStars();
+			setupComplete = true;
+
+			if (autoStart) {
+				requestAnimationFrame(() => {
+					start();
+				});
+			}
+		}
+	}
+
+	/**
+	 * Initialize stars immediately - no async dependencies
+	 */
 	function initStars() {
 		stars = [];
 		for (let i = 0; i < starCount; i++) {
 			createStar();
 		}
+		console.log(`✨ Initialized ${stars.length} stars`);
 	}
 
+	/**
+	 * Create a single star - matches original inspiration
+	 */
 	function createStar() {
 		const star = {
-			x: Math.random() * canvasElement.width * 2 - canvasElement.width,
-			y: Math.random() * canvasElement.height * 2 - canvasElement.height,
+			x: Math.random() * canvasWidth * 2 - canvasWidth,
+			y: Math.random() * canvasHeight * 2 - canvasHeight,
 			z: Math.random() * maxDepth,
 			prevX: 0,
 			prevY: 0
@@ -57,81 +180,183 @@
 		stars.push(star);
 	}
 
-	// Setup canvas
-	function setupCanvas() {
-		if (!containerElement) return;
+	/**
+	 * Setup canvas with enhanced features
+	 */
+	function setupCanvas(container: HTMLElement): boolean {
+		try {
+			// Create canvas element
+			canvasElement = document.createElement('canvas');
+			canvasElement.id = 'starfield-enhanced';
+			canvasElement.style.position = 'absolute';
+			canvasElement.style.top = '0';
+			canvasElement.style.left = '0';
+			canvasElement.style.width = '100%';
+			canvasElement.style.height = '100%';
+			canvasElement.style.pointerEvents = 'none';
 
-		canvasElement = document.createElement('canvas');
-		canvasElement.id = 'starfield';
-		canvasElement.style.position = 'absolute';
-		canvasElement.style.top = '0';
-		canvasElement.style.left = '0';
-		canvasElement.style.width = '100%';
-		canvasElement.style.height = '100%';
-		containerElement.appendChild(canvasElement);
+			// Add hardware acceleration hints
+			canvasElement.style.transform = 'translateZ(0)';
+			canvasElement.style.backfaceVisibility = 'hidden';
 
-		ctx = canvasElement.getContext('2d');
-		resizeCanvas();
+			container.appendChild(canvasElement);
+
+			// Get context with optimized settings
+			ctx = canvasElement.getContext('2d', {
+				alpha: true,
+				willReadFrequently: false,
+				powerPreference: 'high-performance'
+			});
+
+			if (!ctx) {
+				throw new Error('Failed to get 2D rendering context');
+			}
+
+			// Setup canvas dimensions
+			resizeCanvas();
+
+			return true;
+		} catch (error) {
+			console.error('Canvas setup failed:', error);
+			dispatch('error', { message: `Canvas setup failed: ${error.message}` });
+			return false;
+		}
 	}
 
-	// Resize canvas
+	/**
+	 * Resize canvas with high DPI support
+	 */
 	function resizeCanvas() {
-		canvasElement.width = window.innerWidth;
-		canvasElement.height = window.innerHeight;
+		if (!canvasElement || !setupComplete) return;
+
+		const container = containerElement || internalContainer;
+		if (!container) return;
+
+		const rect = container.getBoundingClientRect();
+		canvasWidth = rect.width;
+		canvasHeight = rect.height;
+
+		// High DPI support
+		devicePixelRatio = enableHighDPI ? window.devicePixelRatio || 1 : 1;
+
+		// Set canvas size
+		canvasElement.width = canvasWidth * devicePixelRatio;
+		canvasElement.height = canvasHeight * devicePixelRatio;
+		canvasElement.style.width = `${canvasWidth}px`;
+		canvasElement.style.height = `${canvasHeight}px`;
+
+		// Scale context for high DPI
+		if (ctx) {
+			ctx.scale(devicePixelRatio, devicePixelRatio);
+		}
+
+		console.log(`📐 Canvas resized: ${canvasWidth}x${canvasHeight} (DPR: ${devicePixelRatio})`);
 	}
 
-	// Animation loop with enhanced effects
-	function animate() {
-		requestAnimationFrame(animate);
+	// ======================================================================
+	// ENHANCED ANIMATION LOOP
+	// ======================================================================
 
-		// LONGER TAILS: Reduced alpha for slower fade, creating longer trails
+	/**
+	 * Main animation loop with performance monitoring
+	 */
+	function animate(timestamp: number) {
+		if (!isRunning || !ctx) return;
+
+		// Request next frame immediately to maintain consistent timing
+		animationFrameId = requestAnimationFrame(animate);
+
+		// Calculate frame timing
+		const deltaTime = timestamp - lastFrameTime;
+		lastFrameTime = timestamp;
+
+		// Update FPS calculation
+		frameCount++;
+		if (timestamp - fpsUpdateTime >= 1000) {
+			currentFPS = frameCount;
+			frameCount = 0;
+			fpsUpdateTime = timestamp;
+
+			// Update performance metrics
+			performanceMetrics.fps = currentFPS;
+			performanceMetrics.frameTime = deltaTime;
+			performanceMetrics.activeStars = stars.length;
+
+			// Dispatch performance update
+			dispatch('performanceChange', performanceMetrics);
+
+			// Adaptive quality adjustment
+			if (enableAdaptiveQuality) {
+				adjustQuality();
+			}
+		}
+
+		// Clear canvas with semi-transparent overlay - matches original
 		ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-		ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+		ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-		const centerX = canvasElement.width / 2;
-		const centerY = canvasElement.height / 2;
+		// Render stars
+		renderStars();
 
-		for (let i = 0; i < stars.length; i++) {
+		// Gradually return to base speed when not boosting - matches original
+		if (!boosting && speed > baseSpeed) {
+			speed = Math.max(baseSpeed, speed * 0.98);
+		}
+	}
+
+	/**
+	 * Star rendering - matches original inspiration with performance optimizations
+	 */
+	function renderStars() {
+		if (!ctx) return;
+
+		const centerX = canvasWidth / 2;
+		const centerY = canvasHeight / 2;
+		const effectiveStarCount = Math.floor(starCount * quality);
+
+		for (let i = 0; i < Math.min(stars.length, effectiveStarCount); i++) {
 			const star = stars[i];
 
+			// Store previous position for trails
 			star.prevX = star.x;
 			star.prevY = star.y;
 
+			// Move star closer to viewer
 			star.z -= speed;
 
+			// If star passed the viewer, reset it to far distance
 			if (star.z <= 0) {
-				star.x = Math.random() * canvasElement.width * 2 - canvasElement.width;
-				star.y = Math.random() * canvasElement.height * 2 - canvasElement.height;
+				star.x = Math.random() * canvasWidth * 2 - canvasWidth;
+				star.y = Math.random() * canvasHeight * 2 - canvasHeight;
 				star.z = maxDepth;
 				star.prevX = star.x;
 				star.prevY = star.y;
 				continue;
 			}
 
+			// Project 3D position to 2D screen coordinates
 			const scale = maxDepth / star.z;
 			const x2d = (star.x - centerX) * scale + centerX;
 			const y2d = (star.y - centerY) * scale + centerY;
 
-			if (x2d < 0 || x2d >= canvasElement.width || y2d < 0 || y2d >= canvasElement.height) {
+			// Only draw stars on screen
+			if (x2d < 0 || x2d >= canvasWidth || y2d < 0 || y2d >= canvasHeight) {
 				continue;
 			}
 
-			// LARGER STARS: Increased size for more visibility
-			const size = (1 - star.z / maxDepth) * 4; // Changed from 3 to 4
+			// Star size based on depth - matches original
+			const size = (1 - star.z / maxDepth) * 3;
 
+			// Star color based on depth (closer = brighter) - matches original
 			const colorIndex = Math.floor((1 - star.z / maxDepth) * (starColors.length - 1));
 			const color = starColors[colorIndex];
 
-			// GLOW EFFECT: Add glow to stars
-			ctx.shadowColor = color;
-			ctx.shadowBlur = size * 3; // Glow radius
-
-			if (speed > baseSpeed * 1.5) {
+			// Draw star trail when moving fast - matches original
+			if (enableTrails && speed > baseSpeed * 1.5) {
 				const prevScale = maxDepth / (star.z + speed);
 				const prevX = (star.prevX - centerX) * prevScale + centerX;
 				const prevY = (star.prevY - centerY) * prevScale + centerY;
 
-				// ENHANCED TRAILS: Add glow to trails too
 				ctx.beginPath();
 				ctx.moveTo(prevX, prevY);
 				ctx.lineTo(x2d, y2d);
@@ -139,87 +364,125 @@
 				ctx.lineWidth = size;
 				ctx.stroke();
 			} else {
+				// Draw star as circle - matches original
 				ctx.beginPath();
 				ctx.arc(x2d, y2d, size, 0, Math.PI * 2);
 				ctx.fillStyle = color;
 				ctx.fill();
 			}
-
-			// Reset shadow for next star
-			ctx.shadowBlur = 0;
-		}
-
-		if (!boosting && speed > baseSpeed) {
-			speed = Math.max(baseSpeed, speed * 0.98);
 		}
 	}
 
-	// Event handlers
+	/**
+	 * Adaptive quality adjustment based on performance
+	 */
+	function adjustQuality() {
+		const targetFPSRatio = currentFPS / targetFPS;
+
+		if (targetFPSRatio < 0.8) {
+			// Performance is poor, reduce quality
+			quality = Math.max(0.3, quality - 0.1);
+			console.log(`📉 Reduced quality to ${quality.toFixed(1)} (FPS: ${currentFPS})`);
+		} else if (targetFPSRatio > 1.1 && quality < 1.0) {
+			// Performance is good, can increase quality
+			quality = Math.min(1.0, quality + 0.05);
+			console.log(`📈 Increased quality to ${quality.toFixed(1)} (FPS: ${currentFPS})`);
+		}
+
+		performanceMetrics.quality = quality;
+	}
+
+	// ======================================================================
+	// EVENT HANDLERS
+	// ======================================================================
+
+	/**
+	 * Handle keyboard input for boost
+	 */
 	function handleKeyDown(e: KeyboardEvent) {
-		if (e.code === 'Space') {
-			boosting = true;
-			speed = boostSpeed;
+		if (e.code === 'Space' && enableBoost) {
+			e.preventDefault();
+			boost();
 		}
 	}
 
 	function handleKeyUp(e: KeyboardEvent) {
-		if (e.code === 'Space') {
-			boosting = false;
+		if (e.code === 'Space' && enableBoost) {
+			e.preventDefault();
+			unboost();
 		}
 	}
 
-	function handleTouchStart() {
-		boosting = true;
-		speed = boostSpeed;
+	/**
+	 * Handle touch input for boost
+	 */
+	function handleTouchStart(e: TouchEvent) {
+		if (enableBoost) {
+			e.preventDefault();
+			boost();
+		}
 	}
 
-	function handleTouchEnd() {
-		boosting = false;
+	function handleTouchEnd(e: TouchEvent) {
+		if (enableBoost) {
+			e.preventDefault();
+			unboost();
+		}
 	}
 
-	// Start animation
+	// ======================================================================
+	// PUBLIC API
+	// ======================================================================
+
+	/**
+	 * Start the starfield animation
+	 */
 	export function start() {
-		if (isRunning) return;
+		if (isRunning || !setupComplete) return;
+
+		console.log('🚀 Starting StarField...');
+
 		isRunning = true;
-		animate();
-	}
+		speed = baseSpeed;
+		lastFrameTime = performance.now();
+		fpsUpdateTime = lastFrameTime;
 
-	// Public boost methods
-	export function boost() {
-		boosting = true;
-		speed = boostSpeed;
-	}
+		// Start animation loop
+		animationFrameId = requestAnimationFrame(animate);
 
-	export function unboost() {
-		boosting = false;
-	}
-
-	// Lifecycle
-	onMount(() => {
-		if (!browser) return;
-
-		if (containerElement) {
-			setupCanvas();
-			initStars();
-
-			if (enableBoost) {
-				window.addEventListener('keydown', handleKeyDown);
-				window.addEventListener('keyup', handleKeyUp);
-				window.addEventListener('touchstart', handleTouchStart);
-				window.addEventListener('touchend', handleTouchEnd);
-			}
-
-			window.addEventListener('resize', resizeCanvas);
-
-			if (autoStart) {
-				start();
-			}
+		// Setup event listeners
+		if (enableBoost) {
+			window.addEventListener('keydown', handleKeyDown);
+			window.addEventListener('keyup', handleKeyUp);
+			window.addEventListener('touchstart', handleTouchStart, { passive: false });
+			window.addEventListener('touchend', handleTouchEnd, { passive: false });
 		}
-	});
 
-	onDestroy(() => {
-		if (!browser) return;
+		// Mark as ready
+		if (!isReady) {
+			isReady = true;
+			dispatch('ready');
+		}
 
+		console.log('✅ StarField started');
+	}
+
+	/**
+	 * Stop the starfield animation
+	 */
+	export function stop() {
+		if (!isRunning) return;
+
+		console.log('⏹️ Stopping StarField...');
+
+		isRunning = false;
+
+		if (animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+			animationFrameId = null;
+		}
+
+		// Remove event listeners
 		if (enableBoost) {
 			window.removeEventListener('keydown', handleKeyDown);
 			window.removeEventListener('keyup', handleKeyUp);
@@ -227,19 +490,121 @@
 			window.removeEventListener('touchend', handleTouchEnd);
 		}
 
-		window.removeEventListener('resize', resizeCanvas);
+		console.log('⏹️ StarField stopped');
+	}
+
+	/**
+	 * Pause the starfield (keeps state)
+	 */
+	export function pause() {
+		if (!isRunning) return;
 
 		if (animationFrameId) {
 			cancelAnimationFrame(animationFrameId);
+			animationFrameId = null;
+		}
+	}
+
+	/**
+	 * Resume the starfield
+	 */
+	export function resume() {
+		if (!isRunning || animationFrameId) return;
+
+		lastFrameTime = performance.now();
+		animationFrameId = requestAnimationFrame(animate);
+	}
+
+	/**
+	 * Activate boost mode
+	 */
+	export function boost() {
+		boosting = true;
+		speed = boostSpeed;
+	}
+
+	/**
+	 * Deactivate boost mode - matches original gradual reduction
+	 */
+	export function unboost() {
+		boosting = false;
+		// The gradual speed reduction happens in the animation loop
+	}
+
+	/**
+	 * Set quality level (0.0 - 1.0)
+	 */
+	export function setQuality(newQuality: number) {
+		quality = Math.max(0.1, Math.min(1.0, newQuality));
+		performanceMetrics.quality = quality;
+		console.log(`🎚️ Quality set to ${quality.toFixed(1)}`);
+	}
+
+	/**
+	 * Get current performance metrics
+	 */
+	export function getPerformanceMetrics() {
+		return { ...performanceMetrics };
+	}
+
+	/**
+	 * Resize the starfield
+	 */
+	export function resize() {
+		resizeCanvas();
+	}
+
+	// ======================================================================
+	// LIFECYCLE
+	// ======================================================================
+
+	onMount(() => {
+		if (!browser) return;
+
+		// Try initial setup if container is already available
+		setupStarField();
+
+		// Setup resize observer
+		let resizeObserver: ResizeObserver | null = null;
+
+		if (window.ResizeObserver) {
+			resizeObserver = new ResizeObserver(() => {
+				resizeCanvas();
+			});
+
+			const container = containerElement || internalContainer;
+			if (container) {
+				resizeObserver.observe(container);
+			}
 		}
 
+		// Cleanup function
+		return () => {
+			if (resizeObserver) {
+				resizeObserver.disconnect();
+			}
+		};
+	});
+
+	onDestroy(() => {
+		if (!browser) return;
+
+		stop();
+
+		// Clean up canvas
 		if (canvasElement && canvasElement.parentNode) {
 			canvasElement.parentNode.removeChild(canvasElement);
 		}
+
+		// Clear references
+		ctx = null;
+		stars = [];
+		setupComplete = false;
 	});
 </script>
 
-<div class="starfield-wrapper w-full h-full">
+<!-- Wrapper for the canvas - serves as fallback container -->
+<div class="starfield-wrapper w-full h-full" bind:this={internalContainer}>
 	<slot></slot>
 </div>
 
@@ -250,5 +615,6 @@
 		height: 100%;
 		overflow: hidden;
 		display: block;
+		contain: layout style paint;
 	}
 </style>

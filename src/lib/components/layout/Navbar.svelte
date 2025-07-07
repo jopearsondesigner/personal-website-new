@@ -1,4 +1,4 @@
-<!-- src/components/Navbar.svelte -->
+<!-- src/components/layout/Navbar.svelte -->
 <script lang="ts">
 	import { setContext } from 'svelte';
 	import { writable } from 'svelte/store';

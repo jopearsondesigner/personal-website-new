@@ -1,8 +1,9 @@
+// src/lib/utils/device-capabilities.ts
 import { browser } from '$app/environment';
 import { writable, derived } from 'svelte/store';
 
 // Device capability interfaces
-interface DeviceCapabilities {
+export interface DeviceCapabilities {
 	isMobile: boolean;
 	isTablet: boolean;
 	isDesktop: boolean;
@@ -24,6 +25,9 @@ interface DeviceCapabilities {
 		dpr: number;
 	};
 	lastUpdated: number;
+	// Added for compatibility
+	tier: 'low' | 'medium' | 'high';
+	maxStars: number;
 }
 
 // Create a writable store for device capabilities
@@ -50,10 +54,16 @@ const createDeviceCapabilitiesStore = () => {
 			height: 1080,
 			dpr: 1
 		},
-		lastUpdated: Date.now()
+		lastUpdated: Date.now(),
+		// Added for compatibility
+		tier: 'medium',
+		maxStars: 40
 	};
 
 	const { subscribe, set, update } = writable<DeviceCapabilities>(initialCapabilities);
+
+	// Keep track of current capabilities for sync access
+	let currentCapabilities = initialCapabilities;
 
 	// Detect capabilities when in browser
 	function detectCapabilities() {
@@ -116,32 +126,52 @@ const createDeviceCapabilitiesStore = () => {
 				(isSafari && isMobile) ||
 				width * height * (window.devicePixelRatio || 1) > 2500000; // High res screens on mobile
 
-			update((current) => ({
-				...current,
-				isMobile,
-				isTablet,
-				isDesktop,
-				isLowPowerDevice,
-				supportsWebGL,
-				hasTouchScreen,
-				prefersReducedMotion,
-				browserInfo: {
-					name: isSafari ? 'safari' : isChrome ? 'chrome' : isFirefox ? 'firefox' : 'unknown',
-					isSafari,
-					isChrome,
-					isFirefox,
-					isWebView
-				},
-				cpuCores,
-				screenSize: {
-					width,
-					height,
-					dpr: window.devicePixelRatio || 1
-				},
-				lastUpdated: Date.now()
-			}));
+			// Determine performance tier
+			let tier: 'low' | 'medium' | 'high' = 'medium';
+			if (prefersReducedMotion || isLowPowerDevice || cpuCores <= 2) {
+				tier = 'low';
+			} else if (!isMobile && cpuCores >= 8 && supportsWebGL) {
+				tier = 'high';
+			}
+
+			// Set max stars based on tier
+			const maxStars = tier === 'low' ? 25 : tier === 'high' ? 60 : 40;
+
+			update((current) => {
+				const newCapabilities = {
+					...current,
+					isMobile,
+					isTablet,
+					isDesktop,
+					isLowPowerDevice,
+					supportsWebGL,
+					hasTouchScreen,
+					prefersReducedMotion,
+					browserInfo: {
+						name: isSafari ? 'safari' : isChrome ? 'chrome' : isFirefox ? 'firefox' : 'unknown',
+						isSafari,
+						isChrome,
+						isFirefox,
+						isWebView
+					},
+					cpuCores,
+					screenSize: {
+						width,
+						height,
+						dpr: window.devicePixelRatio || 1
+					},
+					lastUpdated: Date.now(),
+					tier,
+					maxStars
+				};
+
+				// Update local reference
+				currentCapabilities = newCapabilities;
+				return newCapabilities;
+			});
 
 			// Update document for CSS access
+			document.documentElement.setAttribute('data-device-tier', tier);
 			document.documentElement.setAttribute(
 				'data-device-type',
 				isLowPowerDevice ? 'low-power' : isMobile ? 'mobile' : isTablet ? 'tablet' : 'desktop'
@@ -209,7 +239,7 @@ const createDeviceCapabilitiesStore = () => {
 		getAnimationQuality: (isMobile?: boolean, isLowPower?: boolean) => {
 			if (!browser) return 1.0;
 
-			let { isMobile: detected, isLowPowerDevice, prefersReducedMotion } = get();
+			let { isMobile: detected, isLowPowerDevice, prefersReducedMotion } = currentCapabilities;
 
 			if (isMobile !== undefined) {
 				detected = isMobile;
@@ -259,3 +289,25 @@ export const animationQuality = derived(deviceCapabilities, ($capabilities) => {
 		return 1.0;
 	}
 });
+
+// Added missing exports for compatibility with Hero.svelte
+export const deviceTier = derived(deviceCapabilities, ($capabilities) => $capabilities.tier);
+export const maxStars = derived(deviceCapabilities, ($capabilities) => $capabilities.maxStars);
+export const performanceMode = derived(deviceCapabilities, ($capabilities) => $capabilities.tier);
+
+export function initializeCapabilitiesSync(): DeviceCapabilities | undefined {
+	if (!browser) return undefined;
+
+	deviceCapabilities.detectCapabilities();
+
+	// Return current capabilities synchronously
+	let currentCapabilities: DeviceCapabilities | undefined;
+
+	// Get current value using a synchronous subscribe/unsubscribe
+	const unsubscribe = deviceCapabilities.subscribe((value) => {
+		currentCapabilities = value;
+	});
+	unsubscribe();
+
+	return currentCapabilities;
+}

@@ -1,6 +1,4 @@
 // File: src/lib/stores/animation-store.ts
-import type { Star, AnimationState } from '$lib/types/animation';
-
 import { writable } from 'svelte/store';
 import { animations } from '$lib/utils/animation-utils';
 
@@ -43,7 +41,6 @@ function createAnimationStore() {
 				animationFrame: null,
 				glowAnimation: null
 			})),
-		// Add this new method
 		resetAnimationState: () =>
 			update((state) => ({
 				...state,
@@ -54,3 +51,6 @@ function createAnimationStore() {
 
 export const animationState = createAnimationStore();
 export const screenStore = writable('main');
+
+// ADD THIS - Missing isAnimating export
+export const isAnimating = writable<boolean>(false);

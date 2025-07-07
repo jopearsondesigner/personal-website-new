@@ -11,34 +11,34 @@ declare global {
 export interface DeviceCapabilities {
 	// Core performance tier
 	tier: 'high' | 'medium' | 'low';
-	
+
 	// General settings
 	maxStars: number;
 	effectsLevel: 'minimal' | 'reduced' | 'normal';
 	useHardwareAcceleration: boolean;
-	
+
 	// Animation settings
 	frameSkip: number;
 	updateInterval: number;
 	animateInBackground: boolean;
-	
+
 	// Rendering settings
 	useCanvas: boolean;
 	useShadersIfAvailable: boolean;
-	
+
 	// Visual effects
 	enableBlur: boolean;
 	enableShadows: boolean;
 	enableReflections: boolean;
 	enableParallax: boolean;
 	enablePulse: boolean;
-	
+
 	// CRT effects
 	enableScanlines: boolean;
 	enablePhosphorDecay: boolean;
 	enableInterlace: boolean;
 	enableChromaticAberration: boolean;
-	
+
 	// Device info
 	devicePixelRatio: number;
 	isMobile: boolean;
@@ -46,26 +46,26 @@ export interface DeviceCapabilities {
 	isAndroid: boolean;
 	isTablet: boolean;
 	isDesktop: boolean;
-	
+
 	// Memory and resources
 	estimatedRAM: 'low' | 'medium' | 'high';
 	gpuTier: 'low' | 'medium' | 'high';
-	
+
 	// Priority flags
 	prioritizeMainContent: boolean;
 	prioritizeInteractivity: boolean;
 	useDeferredLoading: boolean;
-	
+
 	// Advanced detection
 	preferReducedMotion: boolean;
 	hasBatteryIssues: boolean;
 	hasGPUAcceleration: boolean;
-	
+
 	// iOS specific
 	optimizeForIOSSafari: boolean;
 	preventIOSOverscrollFreezing: boolean;
 	useIOSCompatibleEffects: boolean;
-	
+
 	// Object pooling
 	useObjectPooling: boolean;
 	objectPoolSize: number;
@@ -120,31 +120,33 @@ const INSTANT_DEFAULTS: DeviceCapabilities = {
  */
 function getInstantCapabilities(): DeviceCapabilities {
 	if (!browser) return INSTANT_DEFAULTS;
-	
+
 	const ua = navigator.userAgent;
 	const screenWidth = window.innerWidth;
 	const pixelRatio = window.devicePixelRatio || 1;
-	
+
 	// Quick platform detection
-	const isIOS = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+	const isIOS =
+		/iPad|iPhone|iPod/i.test(ua) ||
+		(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 	const isAndroid = /Android/i.test(ua);
 	const isMobile = isIOS || isAndroid || screenWidth < 768;
 	const isTablet = (isIOS || isAndroid) && Math.min(screenWidth, window.innerHeight) >= 768;
 	const isDesktop = !isMobile && !isTablet;
-	
+
 	// Quick performance estimation
 	const hasReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 	const concurrency = navigator.hardwareConcurrency || 4;
-	
+
 	// Fast tier determination
 	let tier: 'low' | 'medium' | 'high' = 'medium';
-	
+
 	if (hasReducedMotion || (isMobile && concurrency <= 4)) {
 		tier = 'low';
 	} else if (!isMobile && concurrency >= 8 && pixelRatio >= 2) {
 		tier = 'high';
 	}
-	
+
 	// Build instant capabilities
 	const capabilities: DeviceCapabilities = {
 		...INSTANT_DEFAULTS,
@@ -156,12 +158,12 @@ function getInstantCapabilities(): DeviceCapabilities {
 		isTablet,
 		isDesktop,
 		preferReducedMotion: hasReducedMotion,
-		
+
 		// Adjust based on platform
 		maxStars: tier === 'low' ? 25 : tier === 'high' ? 60 : 40,
 		frameSkip: tier === 'low' ? 2 : tier === 'high' ? 0 : 1,
 		updateInterval: tier === 'low' ? 50 : tier === 'high' ? 16 : 32,
-		
+
 		// iOS-specific instant optimizations
 		optimizeForIOSSafari: isIOS,
 		preventIOSOverscrollFreezing: isIOS,
@@ -169,12 +171,12 @@ function getInstantCapabilities(): DeviceCapabilities {
 		enableBlur: !isIOS, // iOS Safari has blur issues
 		enableShadows: !isMobile, // Mobile devices struggle with shadows
 		enableParallax: !isMobile && !hasReducedMotion,
-		
+
 		// Object pooling based on tier
 		objectPoolSize: tier === 'low' ? 100 : tier === 'high' ? 300 : 200,
 		objectPoolMargin: tier === 'low' ? 0.5 : 0.3
 	};
-	
+
 	return capabilities;
 }
 
@@ -182,23 +184,25 @@ function getInstantCapabilities(): DeviceCapabilities {
  * ENHANCED detection - runs asynchronously after initial render
  * Provides more accurate detection and progressive enhancement
  */
-async function getEnhancedCapabilities(baseCapabilities: DeviceCapabilities): Promise<DeviceCapabilities> {
+async function getEnhancedCapabilities(
+	baseCapabilities: DeviceCapabilities
+): Promise<DeviceCapabilities> {
 	if (!browser) return baseCapabilities;
-	
+
 	let enhanced = { ...baseCapabilities };
-	
+
 	try {
 		// GPU detection
 		const hasWebGL = await checkWebGLSupport();
 		enhanced.hasGPUAcceleration = hasWebGL;
 		enhanced.useShadersIfAvailable = hasWebGL;
 		enhanced.gpuTier = hasWebGL ? 'medium' : 'low';
-		
+
 		// Memory detection
 		const memory = (navigator as any).deviceMemory;
 		if (memory) {
 			enhanced.estimatedRAM = memory <= 2 ? 'low' : memory >= 8 ? 'high' : 'medium';
-			
+
 			// Adjust settings based on memory
 			if (memory <= 2) {
 				enhanced.tier = 'low';
@@ -211,7 +215,7 @@ async function getEnhancedCapabilities(baseCapabilities: DeviceCapabilities): Pr
 				enhanced.enableShadows = !enhanced.isMobile;
 			}
 		}
-		
+
 		// Performance benchmark (lightweight)
 		const benchmarkScore = await runQuickBenchmark();
 		if (benchmarkScore < 0.4) {
@@ -224,13 +228,13 @@ async function getEnhancedCapabilities(baseCapabilities: DeviceCapabilities): Pr
 			enhanced.enablePhosphorDecay = true;
 			enhanced.enableInterlace = true;
 		}
-		
+
 		// Battery status
 		if ('getBattery' in navigator) {
 			try {
 				const battery = await (navigator as any).getBattery();
 				enhanced.hasBatteryIssues = !battery.charging && battery.level < 0.3;
-				
+
 				if (enhanced.hasBatteryIssues) {
 					enhanced.tier = 'low';
 					enhanced.frameSkip = Math.max(enhanced.frameSkip, 1);
@@ -240,11 +244,10 @@ async function getEnhancedCapabilities(baseCapabilities: DeviceCapabilities): Pr
 				// Battery API not available
 			}
 		}
-		
 	} catch (error) {
 		console.warn('Enhanced capability detection failed:', error);
 	}
-	
+
 	return enhanced;
 }
 
@@ -269,18 +272,18 @@ function checkWebGLSupport(): Promise<boolean> {
 function runQuickBenchmark(): Promise<number> {
 	return new Promise((resolve) => {
 		const startTime = performance.now();
-		
+
 		// Simple computation test
 		let result = 0;
 		for (let i = 0; i < 10000; i++) {
 			result += Math.sin(i * 0.01) * Math.cos(i * 0.01);
 		}
-		
+
 		const endTime = performance.now();
 		const duration = endTime - startTime;
-		
+
 		// Normalize to 0-1 (lower duration = higher score)
-		const score = Math.max(0, Math.min(1, 1 - (duration / 50)));
+		const score = Math.max(0, Math.min(1, 1 - duration / 50));
 		resolve(score);
 	});
 }
@@ -326,7 +329,7 @@ export const objectPoolStatsStore = writable<ObjectPoolStats>({
  */
 export function initializeCapabilitiesSync(): DeviceCapabilities {
 	const capabilities = getInstantCapabilities();
-	
+
 	// Set stores immediately
 	deviceCapabilities.set(capabilities);
 	deviceTier.set(capabilities.tier);
@@ -334,14 +337,14 @@ export function initializeCapabilitiesSync(): DeviceCapabilities {
 	targetFPS.set(capabilities.tier === 'low' ? 30 : 60);
 	performanceMode.set(capabilities.tier);
 	isLowPowerDevice.set(capabilities.tier === 'low');
-	
+
 	// Schedule enhanced detection for later
 	if (browser) {
 		setTimeout(() => {
 			enhanceCapabilitiesAsync(capabilities);
 		}, 1000); // Run after initial render
 	}
-	
+
 	return capabilities;
 }
 
@@ -351,14 +354,14 @@ export function initializeCapabilitiesSync(): DeviceCapabilities {
 async function enhanceCapabilitiesAsync(baseCapabilities: DeviceCapabilities): Promise<void> {
 	try {
 		const enhanced = await getEnhancedCapabilities(baseCapabilities);
-		
+
 		// Update stores with enhanced capabilities
 		deviceCapabilities.set(enhanced);
 		deviceTier.set(enhanced.tier);
 		maxStars.set(enhanced.maxStars);
 		performanceMode.set(enhanced.tier);
 		isLowPowerDevice.set(enhanced.tier === 'low');
-		
+
 		console.log('🚀 Enhanced device capabilities applied:', enhanced.tier);
 	} catch (error) {
 		console.warn('Enhanced capability detection failed:', error);
@@ -370,14 +373,20 @@ async function enhanceCapabilitiesAsync(baseCapabilities: DeviceCapabilities): P
  */
 export function shouldEnableEffect(effectName: string): boolean {
 	const capabilities = get(deviceCapabilities);
-	
+
 	switch (effectName) {
-		case 'glow': return capabilities.enableBlur && capabilities.tier !== 'low';
-		case 'trails': return capabilities.enableBlur && capabilities.tier === 'high';
-		case 'blur': return capabilities.enableBlur;
-		case 'shadows': return capabilities.enableShadows;
-		case 'parallax': return capabilities.enableParallax;
-		default: return true;
+		case 'glow':
+			return capabilities.enableBlur && capabilities.tier !== 'low';
+		case 'trails':
+			return capabilities.enableBlur && capabilities.tier === 'high';
+		case 'blur':
+			return capabilities.enableBlur;
+		case 'shadows':
+			return capabilities.enableShadows;
+		case 'parallax':
+			return capabilities.enableParallax;
+		default:
+			return true;
 	}
 }
 
@@ -390,7 +399,7 @@ export function getOptimalSettings(): {
 	enableParallax: boolean;
 } {
 	const capabilities = get(deviceCapabilities);
-	
+
 	return {
 		maxStars: capabilities.maxStars,
 		enableGlow: capabilities.enableBlur && capabilities.tier !== 'low',
@@ -408,25 +417,101 @@ export function getOptimalStarCount(requestedCount: number): number {
 
 export function updateObjectPoolStats(stats: Partial<ObjectPoolStats>): void {
 	if (!browser) return;
-	
+
 	objectPoolStatsStore.update((currentStats) => {
 		const newStats = { ...currentStats, ...stats };
-		
+
 		// Calculate derived statistics
 		if (newStats.totalCapacity > 0) {
 			newStats.utilizationRate = newStats.activeObjects / newStats.totalCapacity;
 		}
-		
+
 		const total = newStats.objectsCreated + newStats.objectsReused;
 		newStats.reuseRatio = total > 0 ? newStats.objectsReused / total : 0;
-		
+
 		if (stats.objectsReused !== undefined && stats.estimatedMemorySaved === undefined) {
 			const objectSize = 240; // bytes estimate
 			newStats.estimatedMemorySaved = (newStats.objectsReused * objectSize) / 1024; // KB
 		}
-		
+
 		return newStats;
 	});
+}
+
+/**
+ * Setup event listeners for performance optimization
+ */
+export function setupEventListeners(): () => void {
+	if (!browser) return () => {};
+
+	// Visibility change handler for performance
+	const visibilityChangeHandler = () => {
+		if (document.hidden) {
+			// Pause animations when tab not visible
+			deviceCapabilities.update((caps) => ({
+				...caps,
+				animateInBackground: false
+			}));
+		} else {
+			// Resume normal operations when tab is visible again
+			setTimeout(() => {
+				enhanceCapabilitiesAsync(get(deviceCapabilities));
+			}, 300);
+		}
+	};
+
+	// Add event listener
+	document.addEventListener('visibilitychange', visibilityChangeHandler);
+
+	// Return cleanup function
+	return () => {
+		document.removeEventListener('visibilitychange', visibilityChangeHandler);
+	};
+}
+
+/**
+ * Setup performance monitoring (maintained for compatibility)
+ */
+export function setupPerformanceMonitoring(): () => void {
+	if (!browser) return () => {};
+
+	let active = false;
+	let monitoringInterval: number | null = null;
+
+	const startMonitoring = () => {
+		if (active) return;
+		active = true;
+
+		// Use lower frequency monitoring interval for memory
+		monitoringInterval = window.setInterval(() => {
+			// Check memory usage periodically
+			if ('memory' in performance) {
+				try {
+					const memory = (performance as any).memory;
+					if (memory) {
+						const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
+						memoryUsageStore.set(Math.max(0, Math.min(1, memUsage)));
+					}
+				} catch (e) {
+					// Ignore memory API errors
+				}
+			}
+		}, 3000);
+	};
+
+	// Start monitoring in browser
+	if (browser) {
+		startMonitoring();
+	}
+
+	// Return cleanup function
+	return () => {
+		active = false;
+		if (monitoringInterval !== null) {
+			clearInterval(monitoringInterval);
+			monitoringInterval = null;
+		}
+	};
 }
 
 // AUTO-INITIALIZE on module load for immediate availability
