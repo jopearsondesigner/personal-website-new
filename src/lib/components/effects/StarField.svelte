@@ -1,7 +1,15 @@
-<!-- src/lib/components/effects/StarField.svelte - ENHANCED WITH PROGRESSIVE FEATURES -->
+<!-- src/lib/components/effects/StarField.svelte - ENHANCED WITH TOUCHMANAGER -->
 <script lang="ts">
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { browser } from '$app/environment';
+
+	// Import TouchManager for centralized touch handling
+	import {
+		TouchManager,
+		createBoostTouchHandler,
+		TOUCH_PRIORITIES
+	} from '$lib/utils/touch-manager';
+	import type { TouchHandler } from '$lib/utils/touch-manager';
 
 	// Props - Matching original inspiration with performance options
 	export let containerElement: HTMLElement | null = null;
@@ -40,6 +48,9 @@
 	let isReady = false;
 	let setupComplete = false;
 
+	// TouchManager integration
+	let boostTouchHandler: TouchHandler | null = null;
+
 	// Performance monitoring
 	let performanceMetrics = {
 		fps: 60,
@@ -65,46 +76,6 @@
 		'#ffff00', // Bright yellow
 		'#ffffff' // Pure white (near)
 	];
-
-	// Option 2: Asteroids/Vector Style (1979) - Classic green monochrome
-	// const starColors = [
-	// 	'#004400', // Dark green (far)
-	// 	'#006600',
-	// 	'#00aa00', // Medium green
-	// 	'#00ff00', // Bright green
-	// 	'#88ff88', // Light green
-	// 	'#ffffff'  // White (near)
-	// ];
-
-	// Option 3: Galaga Style (1981) - Bright primary colors
-	// const starColors = [
-	// 	'#ff0000', // Red (far)
-	// 	'#ff8800', // Orange
-	// 	'#ffff00', // Yellow
-	// 	'#00ff00', // Green
-	// 	'#00ffff', // Cyan
-	// 	'#ffffff'  // White (near)
-	// ];
-
-	// Option 4: Tempest Style (1981) - Neon cyber colors
-	// const starColors = [
-	// 	'#ff00ff', // Magenta (far)
-	// 	'#8800ff', // Purple
-	// 	'#0088ff', // Blue
-	// 	'#00ffff', // Cyan
-	// 	'#88ffff', // Light cyan
-	// 	'#ffffff'  // White (near)
-	// ];
-
-	// Option 5: Defender Style (1981) - Warm to cool
-	// const starColors = [
-	// 	'#aa0000', // Dark red (far)
-	// 	'#ff4400', // Red-orange
-	// 	'#ff8800', // Orange
-	// 	'#ffaa00', // Yellow-orange
-	// 	'#ffff88', // Light yellow
-	// 	'#ffffff'  // White (near)
-	// ];
 
 	// Event dispatcher
 	const dispatch = createEventDispatcher<{
@@ -145,6 +116,7 @@
 		const success = setupCanvas(container);
 		if (success) {
 			initStars();
+			setupTouchHandling();
 			setupComplete = true;
 
 			if (autoStart) {
@@ -220,6 +192,46 @@
 			console.error('Canvas setup failed:', error);
 			dispatch('error', { message: `Canvas setup failed: ${error.message}` });
 			return false;
+		}
+	}
+
+	/**
+	 * Setup TouchManager-based touch handling
+	 */
+	function setupTouchHandling() {
+		if (!enableBoost || !browser) return;
+
+		// Create boost touch handler using TouchManager
+		boostTouchHandler = createBoostTouchHandler(
+			() => {
+				console.log('👆 Touch boost activated');
+				boost();
+			},
+			() => {
+				console.log('👆 Touch boost deactivated');
+				unboost();
+			},
+			{
+				// Bind to the container for better touch area
+				element: containerElement || internalContainer,
+				requireLongPress: false // Immediate boost, like original
+			}
+		);
+
+		// Register with TouchManager
+		TouchManager.registerHandler(boostTouchHandler);
+
+		console.log('👆 Touch handling setup complete');
+	}
+
+	/**
+	 * Cleanup touch handling
+	 */
+	function cleanupTouchHandling() {
+		if (boostTouchHandler) {
+			TouchManager.unregisterHandler(boostTouchHandler.id);
+			boostTouchHandler = null;
+			console.log('👆 Touch handling cleaned up');
 		}
 	}
 
@@ -393,7 +405,7 @@
 	}
 
 	// ======================================================================
-	// EVENT HANDLERS
+	// EVENT HANDLERS (Updated to use TouchManager)
 	// ======================================================================
 
 	/**
@@ -413,22 +425,8 @@
 		}
 	}
 
-	/**
-	 * Handle touch input for boost
-	 */
-	function handleTouchStart(e: TouchEvent) {
-		if (enableBoost) {
-			e.preventDefault();
-			boost();
-		}
-	}
-
-	function handleTouchEnd(e: TouchEvent) {
-		if (enableBoost) {
-			e.preventDefault();
-			unboost();
-		}
-	}
+	// Touch handling is now managed by TouchManager
+	// No direct touch event listeners needed
 
 	// ======================================================================
 	// PUBLIC API
@@ -450,13 +448,13 @@
 		// Start animation loop
 		animationFrameId = requestAnimationFrame(animate);
 
-		// Setup event listeners
+		// Setup keyboard event listeners
 		if (enableBoost) {
 			window.addEventListener('keydown', handleKeyDown);
 			window.addEventListener('keyup', handleKeyUp);
-			window.addEventListener('touchstart', handleTouchStart, { passive: false });
-			window.addEventListener('touchend', handleTouchEnd, { passive: false });
 		}
+
+		// Touch events are handled by TouchManager, no need for manual setup
 
 		// Mark as ready
 		if (!isReady) {
@@ -482,13 +480,13 @@
 			animationFrameId = null;
 		}
 
-		// Remove event listeners
+		// Remove keyboard event listeners
 		if (enableBoost) {
 			window.removeEventListener('keydown', handleKeyDown);
 			window.removeEventListener('keyup', handleKeyUp);
-			window.removeEventListener('touchstart', handleTouchStart);
-			window.removeEventListener('touchend', handleTouchEnd);
 		}
+
+		// Touch events cleanup is handled by component destroy
 
 		console.log('⏹️ StarField stopped');
 	}
@@ -554,6 +552,20 @@
 		resizeCanvas();
 	}
 
+	/**
+	 * Get TouchManager instance for external boost control
+	 */
+	export function getTouchManager() {
+		return TouchManager;
+	}
+
+	/**
+	 * Check if boost is currently active (via touch or keyboard)
+	 */
+	export function isBoostActive(): boolean {
+		return boosting || (boostTouchHandler && TouchManager.isHandlerActive(boostTouchHandler.id));
+	}
+
 	// ======================================================================
 	// LIFECYCLE
 	// ======================================================================
@@ -590,6 +602,7 @@
 		if (!browser) return;
 
 		stop();
+		cleanupTouchHandling();
 
 		// Clean up canvas
 		if (canvasElement && canvasElement.parentNode) {

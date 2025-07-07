@@ -1,4 +1,4 @@
-<!-- src/lib/components/section/Hero.svelte - OPTIMIZED FOR FAST STARTUP -->
+<!-- src/lib/components/section/Hero.svelte - OPTIMIZED WITH TOUCHMANAGER -->
 <script lang="ts">
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { browser } from '$app/environment';
@@ -12,6 +12,17 @@
 	import BoostCue from '$lib/components/ui/BoostCue.svelte';
 	import ControlsPortal from '$lib/components/ui/ControlsPortal.svelte';
 	import GameControls from '$lib/components/game/GameControls.svelte';
+
+	// TOUCHMANAGER INTEGRATION - Centralized touch handling
+	import {
+		TouchManager,
+		createZoomPreventionHandler,
+		createUITouchHandler,
+		TOUCH_PRIORITIES,
+		isTouchSupported,
+		isMobileDevice
+	} from '$lib/utils/touch-manager';
+	import type { TouchHandler } from '$lib/utils/touch-manager';
 
 	// FAST STORES - Immediately available
 	import {
@@ -47,6 +58,10 @@
 	let starContainer: HTMLElement;
 	let currentScreen = 'main';
 	let hasError = false;
+
+	// TouchManager state
+	let touchHandlers: TouchHandler[] = [];
+	let zoomPreventionHandler: TouchHandler | null = null;
 
 	// StarField state - simplified
 	let starFieldComponent: StarField;
@@ -123,6 +138,9 @@
 
 		// Initialize glass effects
 		initializeGlassEffects();
+
+		// Setup TouchManager integration
+		setupTouchHandling();
 	}
 
 	/**
@@ -140,12 +158,62 @@
 			capabilities.isMobile ? 'mobile' : 'desktop'
 		);
 
+		// Enhanced mobile touch detection
+		if (isTouchSupported()) {
+			document.documentElement.setAttribute('data-touch-device', 'true');
+		}
+
+		if (isMobileDevice()) {
+			document.documentElement.setAttribute('data-mobile-device', 'true');
+		}
+
 		// iOS-specific optimizations
 		if (capabilities.isIOS && arcadeScreen) {
 			arcadeScreen.style.transform = 'translateZ(0)';
 			arcadeScreen.style.backfaceVisibility = 'hidden';
 			arcadeScreen.classList.add('ios-optimized');
 		}
+	}
+
+	/**
+	 * Setup TouchManager integration
+	 */
+	function setupTouchHandling() {
+		if (!browser || !isTouchSupported()) return;
+
+		console.log('👆 Setting up Hero touch handling...');
+
+		// Create zoom prevention handler for the arcade screen area
+		// This prevents pinch-to-zoom during gameplay and interactions
+		if (arcadeScreen) {
+			zoomPreventionHandler = createZoomPreventionHandler(arcadeScreen);
+			TouchManager.registerHandler(zoomPreventionHandler);
+			touchHandlers.push(zoomPreventionHandler);
+		}
+
+		// Enable zoom prevention globally for arcade experience
+		TouchManager.setZoomPrevention(true);
+
+		console.log('👆 Hero touch handling setup complete');
+	}
+
+	/**
+	 * Cleanup TouchManager integration
+	 */
+	function cleanupTouchHandling() {
+		if (!browser) return;
+
+		console.log('👆 Cleaning up Hero touch handling...');
+
+		// Unregister all touch handlers
+		touchHandlers.forEach((handler) => {
+			TouchManager.unregisterHandler(handler.id);
+		});
+
+		touchHandlers = [];
+		zoomPreventionHandler = null;
+
+		console.log('👆 Hero touch handling cleaned up');
 	}
 
 	/**
@@ -287,11 +355,41 @@
 			// Setup performance monitoring
 			setupPerformanceMonitoring();
 
+			// Setup advanced touch interactions
+			setupAdvancedTouchFeatures();
+
 			enhancedFeaturesLoaded = true;
 			console.log('✨ Enhanced features loaded');
 		} catch (error) {
 			console.warn('Failed to load enhanced features:', error);
 		}
+	}
+
+	/**
+	 * Setup advanced touch features
+	 */
+	function setupAdvancedTouchFeatures() {
+		if (!browser || capabilities.tier === 'low' || !isTouchSupported()) return;
+
+		// Add haptic feedback for boost (if supported)
+		if ('vibrate' in navigator && starFieldComponent) {
+			const originalBoost = starFieldComponent.boost.bind(starFieldComponent);
+			const originalUnboost = starFieldComponent.unboost.bind(starFieldComponent);
+
+			starFieldComponent.boost = () => {
+				originalBoost();
+				// Light haptic feedback for boost start
+				navigator.vibrate(50);
+			};
+
+			starFieldComponent.unboost = () => {
+				originalUnboost();
+				// Subtle haptic feedback for boost end
+				navigator.vibrate(25);
+			};
+		}
+
+		console.log('👆 Advanced touch features setup complete');
 	}
 
 	/**
@@ -464,6 +562,9 @@
 		// Stop animations
 		stopMainScreenAnimations();
 
+		// Clean up touch handling
+		cleanupTouchHandling();
+
 		// Clean up glitch manager
 		if (glitchManager?.cleanup) {
 			glitchManager.cleanup();
@@ -513,7 +614,7 @@
 				<!-- Main screen -->
 				<div
 					id="arcade-screen"
-					class="crt-screen hardware-accelerated relative glow rounded-[3vmin] overflow-hidden will-change-transform"
+					class="crt-screen hardware-accelerated relative glow rounded-[3vmin] overflow-hidden will-change-transform touch-screen"
 					bind:this={arcadeScreen}
 				>
 					<!-- CRT effects -->
@@ -535,7 +636,7 @@
 								class="canvas-star-container absolute inset-0 pointer-events-none rounded-[3vmin] hardware-accelerated"
 								bind:this={starContainer}
 							>
-								<!-- SIMPLIFIED STARFIELD - Single source of truth -->
+								<!-- ENHANCED STARFIELD WITH TOUCHMANAGER -->
 								<StarField
 									bind:this={starFieldComponent}
 									containerElement={starContainer}
@@ -621,7 +722,7 @@
 	{/if}
 </section>
 
-<!-- STYLES - Same as original but optimized for fast rendering -->
+<!-- STYLES - Enhanced with TouchManager optimizations -->
 <style lang="css">
 	/* Inherit all the existing styles from the original Hero.svelte */
 	/* The CSS remains the same - optimization is in the JavaScript logic */
@@ -634,6 +735,26 @@
 		perspective: 1000px;
 		will-change: transform, opacity;
 		contain: layout style paint;
+	}
+
+	/* Touch screen optimizations */
+	.touch-screen {
+		touch-action: pan-x pan-y; /* Allow panning but prevent zoom */
+		-webkit-touch-callout: none; /* Disable iOS callout */
+		-webkit-user-select: none; /* Disable text selection */
+		user-select: none;
+	}
+
+	/* Mobile touch device optimizations */
+	html[data-touch-device='true'] .arcade-screen-wrapper {
+		/* Prevent bounce scrolling on mobile */
+		-webkit-overflow-scrolling: touch;
+		overscroll-behavior: contain;
+	}
+
+	html[data-mobile-device='true'] .screen-glass-container {
+		/* Reduce glass effects on mobile for performance */
+		opacity: 0.8;
 	}
 
 	/* Optimize for reduced motion */
@@ -660,5 +781,12 @@
 	html[data-device-tier='low'] #scanline-overlay {
 		opacity: 0.3;
 		animation: none;
+	}
+
+	/* Touch-specific styles */
+	html[data-touch-device='true'] .hardware-accelerated {
+		/* Enhanced hardware acceleration for touch devices */
+		transform: translate3d(0, 0, 0);
+		-webkit-transform: translate3d(0, 0, 0);
 	}
 </style>
