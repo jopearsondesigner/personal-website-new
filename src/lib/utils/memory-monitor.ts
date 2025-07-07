@@ -1,4 +1,4 @@
-// src/lib/utils/memory-monitor.ts
+// src/lib/utils/enhanced-memory-monitor.ts
 import { browser } from '$app/environment';
 import { writable, get, type Writable } from 'svelte/store';
 import { deviceCapabilities } from './device-performance';
@@ -37,7 +37,7 @@ export const currentMemoryStore: Writable<MemorySnapshot | null> = writable(null
 export const memoryUsageStore: Writable<number> = writable(0);
 
 /**
- * Memory Monitor
+ * Enhanced Memory Monitor
  * Provides detailed memory tracking, leak detection, and garbage collection analysis
  */
 export class MemoryMonitor {
@@ -109,7 +109,7 @@ export class MemoryMonitor {
 			this.checkMemory();
 		}, this.checkInterval);
 
-		console.debug('Memory Monitor started');
+		console.debug('Enhanced Memory Monitor started');
 	}
 
 	/**
@@ -124,7 +124,7 @@ export class MemoryMonitor {
 		}
 
 		this.isMonitoring = false;
-		console.debug('Memory Monitor stopped');
+		console.debug('Enhanced Memory Monitor stopped');
 	}
 
 	/**

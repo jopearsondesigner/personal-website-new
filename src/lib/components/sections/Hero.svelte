@@ -1,10 +1,10 @@
-<!-- src/lib/components/section/Hero.svelte - OPTIMIZED WITH TOUCHMANAGER -->
+<!-- src/lib/components/section/Hero.svelte - FULL FEATURED WITH OPTIMIZED LOADING -->
 <script lang="ts">
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { browser } from '$app/environment';
 	import { gsap } from 'gsap';
 
-	// SIMPLIFIED IMPORTS - Only essential components
+	// CORE COMPONENTS - Essential imports
 	import ArcadeCtaButton from '$lib/components/ui/ArcadeCtaButton.svelte';
 	import ArcadeNavigation from '$lib/components/ui/ArcadeNavigation.svelte';
 	import GameScreen from '$lib/components/game/GameScreen.svelte';
@@ -13,7 +13,7 @@
 	import ControlsPortal from '$lib/components/ui/ControlsPortal.svelte';
 	import GameControls from '$lib/components/game/GameControls.svelte';
 
-	// TOUCHMANAGER INTEGRATION - Centralized touch handling
+	// TOUCHMANAGER INTEGRATION - Full feature preservation
 	import {
 		TouchManager,
 		createZoomPreventionHandler,
@@ -24,7 +24,7 @@
 	} from '$lib/utils/touch-manager';
 	import type { TouchHandler } from '$lib/utils/touch-manager';
 
-	// FAST STORES - Immediately available
+	// DEVICE CAPABILITIES - Fast + Enhanced detection
 	import {
 		deviceCapabilities,
 		deviceTier,
@@ -36,7 +36,7 @@
 	import { layoutStore } from '$lib/stores/store';
 	import { animationState, screenStore } from '$lib/stores/animation-store';
 
-	// OPTIONAL IMPORTS - Load asynchronously for progressive enhancement
+	// PERFORMANCE IMPORTS - Non-blocking loading
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
 	import { animations } from '$lib/utils/animation-utils';
 
@@ -44,13 +44,13 @@
 	import type { GameState } from '$lib/types/game';
 
 	// ======================================================================
-	// FAST INITIALIZATION STATE
+	// OPTIMIZED INITIALIZATION STATE
 	// ======================================================================
 
-	// Device detection - immediate, non-blocking
+	// IMMEDIATE device detection - synchronous for fast startup
 	let capabilities = initializeCapabilitiesSync();
 
-	// Component state - minimal for fast startup
+	// Component state - optimized for fast render
 	let currentTimeline: gsap.core.Timeline | null = null;
 	let header: HTMLElement;
 	let insertConcept: HTMLElement;
@@ -58,19 +58,27 @@
 	let starContainer: HTMLElement;
 	let currentScreen = 'main';
 	let hasError = false;
+	let isBaseInitialized = false;
+	let isFullyInitialized = false;
 
-	// TouchManager state
+	// TouchManager state - full preservation
 	let touchHandlers: TouchHandler[] = [];
 	let zoomPreventionHandler: TouchHandler | null = null;
+	let advancedTouchFeaturesSetup = false;
 
-	// StarField state - simplified
+	// StarField state - enhanced configuration
 	let starFieldComponent: StarField;
 	let starFieldConfig = {
-		starCount: capabilities.maxStars,
-		baseSpeed: capabilities.tier === 'low' ? 0.3 : 0.5,
-		boostSpeed: capabilities.tier === 'low' ? 2 : 4,
+		starCount: capabilities?.maxStars || 300,
+		baseSpeed: capabilities?.tier === 'low' ? 0.3 : 0.5,
+		boostSpeed: capabilities?.tier === 'low' ? 2 : 4,
 		enableBoost: true,
-		maxDepth: 32
+		maxDepth: 32,
+		enableGlow: capabilities?.tier !== 'low',
+		enableTrails: capabilities?.tier === 'high',
+		enableAdaptiveQuality: true,
+		enableHighDPI: capabilities?.tier !== 'low',
+		targetFPS: capabilities?.tier === 'low' ? 30 : 60
 	};
 
 	// Game state
@@ -83,22 +91,24 @@
 		starFieldError: { message: string };
 	}>();
 
-	// ======================================================================
-	// PROGRESSIVE ENHANCEMENT MANAGERS (loaded async)
-	// ======================================================================
-
+	// Progressive enhancement managers - preserved functionality
 	let glitchManager: InstanceType<typeof animations.GlitchManager> | null = null;
 	let enhancedFeaturesLoaded = false;
+	let performanceMonitoringSetup = false;
+	let advancedGlassCleanup: (() => void) | null = null;
 
 	// ======================================================================
-	// REACTIVE STATEMENTS - Simplified and fast
+	// REACTIVE STATEMENTS - Optimized but complete
 	// ======================================================================
 
 	// Update starfield config when device capabilities change
-	$: if ($deviceCapabilities && starFieldComponent) {
+	$: if ($deviceCapabilities && starFieldComponent && isBaseInitialized) {
 		starFieldConfig.starCount = $maxStars;
 		starFieldConfig.baseSpeed = $deviceTier === 'low' ? 0.3 : 0.5;
 		starFieldConfig.boostSpeed = $deviceTier === 'low' ? 2 : 4;
+		starFieldConfig.enableGlow = $deviceTier !== 'low';
+		starFieldConfig.enableTrails = $deviceTier === 'high';
+		starFieldConfig.enableHighDPI = $deviceTier !== 'low';
 	}
 
 	// Handle navbar height changes
@@ -106,9 +116,8 @@
 		document.documentElement.style.setProperty('--navbar-height', `${$layoutStore.navbarHeight}px`);
 	}
 
-	// Screen change handling
-	$: if (currentScreen === 'main' && starFieldComponent) {
-		// Start StarField when on main screen
+	// Screen change handling with optimization
+	$: if (currentScreen === 'main' && starFieldComponent && isBaseInitialized) {
 		requestAnimationFrame(() => {
 			if (starFieldComponent) {
 				starFieldComponent.start();
@@ -116,42 +125,57 @@
 			}
 		});
 	} else if (currentScreen !== 'main' && starFieldComponent) {
-		// Stop StarField when not on main screen
 		starFieldComponent.stop();
 		stopMainScreenAnimations();
 	}
 
 	// ======================================================================
-	// FAST STARTUP FUNCTIONS
+	// PHASE 1: FAST BASE INITIALIZATION (0-100ms)
 	// ======================================================================
 
 	/**
-	 * IMMEDIATE initialization - no async dependencies
+	 * IMMEDIATE base initialization - synchronous, essential only
 	 */
-	function initializeImmediately() {
-		// Set screen to main
+	function initializeBaseFast() {
+		if (!browser || isBaseInitialized) return;
+
+		console.log('⚡ Phase 1: Fast base initialization...');
+
+		// Set screen state immediately
 		currentScreen = 'main';
 		screenStore.set('main');
 
-		// Apply basic optimizations based on device tier
-		applyDeviceOptimizations();
+		// Apply immediate device optimizations
+		applyImmediateDeviceOptimizations();
 
-		// Initialize glass effects
-		initializeGlassEffects();
+		// Initialize basic glass effects
+		initializeBasicGlassEffects();
 
-		// Setup TouchManager integration
-		setupTouchHandling();
+		// Setup essential TouchManager features if needed
+		if (isTouchSupported()) {
+			setupEssentialTouchHandling();
+		}
+
+		// Mark base as initialized
+		isBaseInitialized = true;
+
+		console.log('✅ Phase 1: Base initialization complete');
+
+		// Schedule Phase 2 immediately but non-blocking
+		requestAnimationFrame(() => {
+			initializeEnhancedFeatures();
+		});
 	}
 
 	/**
-	 * Apply device optimizations immediately
+	 * Apply immediate device optimizations - no async operations
 	 */
-	function applyDeviceOptimizations() {
-		if (!browser) return;
+	function applyImmediateDeviceOptimizations() {
+		if (!browser || !capabilities) return;
 
 		const tier = capabilities.tier;
 
-		// Set data attributes for CSS targeting
+		// Set data attributes for immediate CSS targeting
 		document.documentElement.setAttribute('data-device-tier', tier);
 		document.documentElement.setAttribute(
 			'data-device-type',
@@ -167,24 +191,28 @@
 			document.documentElement.setAttribute('data-mobile-device', 'true');
 		}
 
-		// iOS-specific optimizations
-		if (capabilities.isIOS && arcadeScreen) {
+		// Browser-specific immediate optimizations
+		if (capabilities.browserInfo?.isSafari && arcadeScreen) {
 			arcadeScreen.style.transform = 'translateZ(0)';
 			arcadeScreen.style.backfaceVisibility = 'hidden';
-			arcadeScreen.classList.add('ios-optimized');
+			arcadeScreen.classList.add('safari-optimized');
+		}
+
+		// Low power device optimizations
+		if (capabilities.isLowPowerDevice) {
+			document.documentElement.setAttribute('data-low-power', 'true');
 		}
 	}
 
 	/**
-	 * Setup TouchManager integration
+	 * Setup essential TouchManager features - immediate, critical only
 	 */
-	function setupTouchHandling() {
+	function setupEssentialTouchHandling() {
 		if (!browser || !isTouchSupported()) return;
 
-		console.log('👆 Setting up Hero touch handling...');
+		console.log('👆 Setting up essential touch handling...');
 
-		// Create zoom prevention handler for the arcade screen area
-		// This prevents pinch-to-zoom during gameplay and interactions
+		// Create zoom prevention handler for arcade screen - essential for UX
 		if (arcadeScreen) {
 			zoomPreventionHandler = createZoomPreventionHandler(arcadeScreen);
 			TouchManager.registerHandler(zoomPreventionHandler);
@@ -194,16 +222,150 @@
 		// Enable zoom prevention globally for arcade experience
 		TouchManager.setZoomPrevention(true);
 
-		console.log('👆 Hero touch handling setup complete');
+		console.log('👆 Essential touch handling setup complete');
+	}
+
+	// ======================================================================
+	// PHASE 2: ENHANCED INITIALIZATION (100-500ms)
+	// ======================================================================
+
+	/**
+	 * Load enhanced features - comprehensive but non-blocking
+	 */
+	async function initializeEnhancedFeatures() {
+		if (enhancedFeaturesLoaded || !capabilities) return;
+
+		console.log('✨ Phase 2: Enhanced features loading...');
+
+		try {
+			// Load performance monitoring
+			await setupPerformanceMonitoring();
+
+			// Load advanced TouchManager features
+			await setupAdvancedTouchFeatures();
+
+			// Load glitch effects for medium/high tier devices
+			if (capabilities.tier !== 'low' && animations?.GlitchManager) {
+				glitchManager = new animations.GlitchManager();
+				if (header && glitchManager.start) {
+					glitchManager.start([header]);
+				}
+			}
+
+			// Setup advanced glass effects
+			advancedGlassCleanup = setupAdvancedGlassEffects();
+
+			enhancedFeaturesLoaded = true;
+			isFullyInitialized = true;
+
+			console.log('✅ Phase 2: Enhanced features loaded');
+		} catch (error) {
+			console.warn('Enhanced features failed to load:', error);
+			// Continue without enhanced features
+			isFullyInitialized = true;
+		}
 	}
 
 	/**
-	 * Cleanup TouchManager integration
+	 * Setup performance monitoring - non-blocking
+	 */
+	async function setupPerformanceMonitoring() {
+		if (performanceMonitoringSetup || !frameRateController || capabilities?.tier === 'low') return;
+
+		try {
+			frameRateController.setTargetFPS(capabilities.tier === 'high' ? 60 : 30);
+			frameRateController.setAdaptiveEnabled(true);
+			performanceMonitoringSetup = true;
+			console.log('📊 Performance monitoring setup complete');
+		} catch (error) {
+			console.warn('Performance monitoring setup failed:', error);
+		}
+	}
+
+	/**
+	 * Setup advanced TouchManager features - comprehensive mobile support
+	 */
+	async function setupAdvancedTouchFeatures() {
+		if (
+			advancedTouchFeaturesSetup ||
+			!browser ||
+			capabilities?.tier === 'low' ||
+			!isTouchSupported()
+		)
+			return;
+
+		console.log('👆 Setting up advanced touch features...');
+
+		// Add haptic feedback for boost (if supported) - preserved functionality
+		if ('vibrate' in navigator && starFieldComponent) {
+			const originalBoost = starFieldComponent.boost?.bind(starFieldComponent);
+			const originalUnboost = starFieldComponent.unboost?.bind(starFieldComponent);
+
+			if (originalBoost && originalUnboost) {
+				starFieldComponent.boost = () => {
+					originalBoost();
+					// Light haptic feedback for boost start
+					try {
+						navigator.vibrate(50);
+					} catch (e) {
+						// Ignore vibration errors
+					}
+				};
+
+				starFieldComponent.unboost = () => {
+					originalUnboost();
+					// Subtle haptic feedback for boost end
+					try {
+						navigator.vibrate(25);
+					} catch (e) {
+						// Ignore vibration errors
+					}
+				};
+			}
+		}
+
+		// Setup additional UI touch handlers if needed
+		setupUITouchHandlers();
+
+		advancedTouchFeaturesSetup = true;
+		console.log('👆 Advanced touch features setup complete');
+	}
+
+	/**
+	 * Setup UI-specific touch handlers
+	 */
+	function setupUITouchHandlers() {
+		if (!browser || !isTouchSupported()) return;
+
+		// Create UI touch handler for better responsiveness
+		const uiTouchHandler = createUITouchHandler(
+			document.body,
+			{
+				onTouchStart: (e) => {
+					// Enhanced touch start handling
+					document.body.classList.add('touching');
+				},
+				onTouchEnd: (e) => {
+					// Enhanced touch end handling
+					document.body.classList.remove('touching');
+				}
+			},
+			TOUCH_PRIORITIES.UI
+		);
+
+		if (uiTouchHandler) {
+			TouchManager.registerHandler(uiTouchHandler);
+			touchHandlers.push(uiTouchHandler);
+		}
+	}
+
+	/**
+	 * Cleanup TouchManager integration - comprehensive
 	 */
 	function cleanupTouchHandling() {
 		if (!browser) return;
 
-		console.log('👆 Cleaning up Hero touch handling...');
+		console.log('👆 Cleaning up touch handling...');
 
 		// Unregister all touch handlers
 		touchHandlers.forEach((handler) => {
@@ -213,18 +375,25 @@
 		touchHandlers = [];
 		zoomPreventionHandler = null;
 
-		console.log('👆 Hero touch handling cleaned up');
+		// Reset TouchManager state
+		TouchManager.setZoomPrevention(false);
+
+		console.log('👆 Touch handling cleaned up');
 	}
 
+	// ======================================================================
+	// ANIMATION FUNCTIONS - Preserved from original
+	// ======================================================================
+
 	/**
-	 * Start main screen animations immediately
+	 * Start main screen animations - optimized but complete
 	 */
 	function startMainScreenAnimations() {
 		if (!header || !insertConcept || !arcadeScreen) return;
 
 		const elements = { header, insertConcept, arcadeScreen };
 
-		// Create and start GSAP timeline immediately
+		// Create and start GSAP timeline
 		currentTimeline = createOptimizedTimeline(elements);
 		if (currentTimeline) {
 			currentTimeline.play();
@@ -236,7 +405,7 @@
 	}
 
 	/**
-	 * Stop main screen animations
+	 * Stop main screen animations - preserved functionality
 	 */
 	function stopMainScreenAnimations() {
 		if (currentTimeline) {
@@ -255,14 +424,15 @@
 	}
 
 	/**
-	 * Create optimized GSAP timeline - fast and lightweight
+	 * Create optimized GSAP timeline - enhanced from original
 	 */
 	function createOptimizedTimeline(elements: any): gsap.core.Timeline | null {
-		if (!browser) return null;
+		if (!browser || !capabilities) return null;
 
 		try {
 			const isMobile = capabilities.isMobile;
 			const isLowPerformance = capabilities.tier === 'low';
+			const prefersReducedMotion = capabilities.prefersReducedMotion;
 
 			const timeline = gsap.timeline({
 				paused: true,
@@ -273,8 +443,8 @@
 				}
 			});
 
-			if (isLowPerformance) {
-				// Simplified animations for low performance
+			if (isLowPerformance || prefersReducedMotion) {
+				// Simplified animations for low performance or accessibility
 				timeline.to(elements.insertConcept, {
 					duration: 1.5,
 					opacity: 0.3,
@@ -282,7 +452,7 @@
 					repeat: -1
 				});
 			} else {
-				// Standard animations
+				// Standard animations - preserved complexity
 				const animDuration = isMobile ? 0.15 : 0.1;
 				const animDistance = isMobile ? 1 : 2;
 				const opacityDuration = isMobile ? 1.5 : 1;
@@ -315,12 +485,12 @@
 	}
 
 	/**
-	 * Initialize glass effects immediately
+	 * Initialize glass effects - immediate basic setup
 	 */
-	function initializeGlassEffects() {
+	function initializeBasicGlassEffects() {
 		if (!browser) return;
 
-		// Set basic glass properties
+		// Set basic glass properties based on screen
 		if (currentScreen === 'game') {
 			document.documentElement.style.setProperty('--glass-reflectivity', '0.12');
 			document.documentElement.style.setProperty('--glass-dust-opacity', '0.02');
@@ -330,76 +500,14 @@
 		}
 	}
 
-	// ======================================================================
-	// PROGRESSIVE ENHANCEMENT (loads after initial render)
-	// ======================================================================
-
 	/**
-	 * Load enhanced features asynchronously
+	 * Setup advanced glass effects - preserved sophisticated interaction
 	 */
-	async function loadEnhancedFeatures() {
-		if (enhancedFeaturesLoaded || capabilities.tier === 'low') return;
-
-		try {
-			// Load glitch effects for medium/high tier devices
-			if (capabilities.tier !== 'low' && animations?.GlitchManager) {
-				glitchManager = new animations.GlitchManager();
-				if (header && glitchManager.start) {
-					glitchManager.start([header]);
-				}
-			}
-
-			// Setup advanced glass effects
-			setupAdvancedGlassEffects();
-
-			// Setup performance monitoring
-			setupPerformanceMonitoring();
-
-			// Setup advanced touch interactions
-			setupAdvancedTouchFeatures();
-
-			enhancedFeaturesLoaded = true;
-			console.log('✨ Enhanced features loaded');
-		} catch (error) {
-			console.warn('Failed to load enhanced features:', error);
-		}
-	}
-
-	/**
-	 * Setup advanced touch features
-	 */
-	function setupAdvancedTouchFeatures() {
-		if (!browser || capabilities.tier === 'low' || !isTouchSupported()) return;
-
-		// Add haptic feedback for boost (if supported)
-		if ('vibrate' in navigator && starFieldComponent) {
-			const originalBoost = starFieldComponent.boost.bind(starFieldComponent);
-			const originalUnboost = starFieldComponent.unboost.bind(starFieldComponent);
-
-			starFieldComponent.boost = () => {
-				originalBoost();
-				// Light haptic feedback for boost start
-				navigator.vibrate(50);
-			};
-
-			starFieldComponent.unboost = () => {
-				originalUnboost();
-				// Subtle haptic feedback for boost end
-				navigator.vibrate(25);
-			};
-		}
-
-		console.log('👆 Advanced touch features setup complete');
-	}
-
-	/**
-	 * Setup advanced glass effects with mouse interaction
-	 */
-	function setupAdvancedGlassEffects() {
-		if (!browser || capabilities.tier === 'low') return;
+	function setupAdvancedGlassEffects(): (() => void) | null {
+		if (!browser || !capabilities || capabilities.tier === 'low') return null;
 
 		const glassContainer = document.querySelector('.screen-glass-container');
-		if (!glassContainer) return;
+		if (!glassContainer) return null;
 
 		const handleMouseMove = (e: MouseEvent) => {
 			const rect = glassContainer.getBoundingClientRect();
@@ -409,7 +517,7 @@
 			const offsetX = (e.clientX - centerX) / (rect.width / 2);
 			const offsetY = (e.clientY - centerY) / (rect.height / 2);
 
-			const maxMove = 8;
+			const maxMove = capabilities.isMobile ? 4 : 8;
 			const moveX = offsetX * maxMove;
 			const moveY = offsetY * maxMove;
 
@@ -428,7 +536,7 @@
 			}
 		};
 
-		// Throttled mouse handler
+		// Throttled mouse handler - preserved optimization
 		let ticking = false;
 		const throttledHandler = (e: MouseEvent) => {
 			if (!ticking) {
@@ -442,28 +550,14 @@
 
 		document.addEventListener('mousemove', throttledHandler, { passive: true });
 
-		// Store cleanup function
+		// Return cleanup function
 		return () => {
 			document.removeEventListener('mousemove', throttledHandler);
 		};
 	}
 
-	/**
-	 * Setup performance monitoring
-	 */
-	function setupPerformanceMonitoring() {
-		if (!frameRateController || capabilities.tier === 'low') return;
-
-		try {
-			frameRateController.setTargetFPS(capabilities.tier === 'high' ? 60 : 30);
-			frameRateController.setAdaptiveEnabled(true);
-		} catch (error) {
-			console.warn('Performance monitoring setup failed:', error);
-		}
-	}
-
 	// ======================================================================
-	// EVENT HANDLERS
+	// EVENT HANDLERS - Preserved functionality
 	// ======================================================================
 
 	function handleScreenChange(event: CustomEvent) {
@@ -475,7 +569,7 @@
 
 		// Update glass effects for new screen
 		requestAnimationFrame(() => {
-			initializeGlassEffects();
+			initializeBasicGlassEffects();
 		});
 	}
 
@@ -483,10 +577,12 @@
 		console.log('✅ StarField ready');
 		dispatch('starFieldReady');
 
-		// Load enhanced features after StarField is ready
-		setTimeout(() => {
-			loadEnhancedFeatures();
-		}, 500);
+		// Trigger enhanced features loading if not already done
+		if (!enhancedFeaturesLoaded) {
+			setTimeout(() => {
+				initializeEnhancedFeatures();
+			}, 200);
+		}
 	}
 
 	function handleStarFieldError(event: CustomEvent<{ message: string }>) {
@@ -530,23 +626,25 @@
 	}
 
 	// ======================================================================
-	// LIFECYCLE - Optimized for fast startup
+	// LIFECYCLE - Optimized loading phases
 	// ======================================================================
 
 	onMount(() => {
 		if (!browser) return;
 
-		// IMMEDIATE initialization - no delays
-		initializeImmediately();
+		console.log('🚀 Hero component mounting...');
 
-		// Power-up sequence
+		// PHASE 1: Immediate base initialization (0-100ms)
+		initializeBaseFast();
+
+		// Power-up sequence for visual feedback
 		if (arcadeScreen) {
 			arcadeScreen.classList.add('power-sequence');
 		}
 
-		// Start animations immediately when elements are ready
+		// Start animations as soon as elements are ready
 		const checkElements = () => {
-			if (header && insertConcept && arcadeScreen) {
+			if (header && insertConcept && arcadeScreen && isBaseInitialized) {
 				startMainScreenAnimations();
 			} else {
 				requestAnimationFrame(checkElements);
@@ -554,20 +652,29 @@
 		};
 
 		requestAnimationFrame(checkElements);
+
+		console.log('✅ Hero component mounted with optimized loading');
 	});
 
 	onDestroy(() => {
 		if (!browser) return;
 
+		console.log('🧹 Cleaning up Hero component...');
+
 		// Stop animations
 		stopMainScreenAnimations();
 
-		// Clean up touch handling
+		// Clean up TouchManager integration
 		cleanupTouchHandling();
 
 		// Clean up glitch manager
 		if (glitchManager?.cleanup) {
 			glitchManager.cleanup();
+		}
+
+		// Clean up advanced glass effects
+		if (advancedGlassCleanup) {
+			advancedGlassCleanup();
 		}
 
 		// Clear DOM references
@@ -579,10 +686,12 @@
 
 		// Reset animation state
 		animationState.reset();
+
+		console.log('✅ Hero component cleanup complete');
 	});
 </script>
 
-<!-- TEMPLATE - Simplified structure for fast rendering -->
+<!-- TEMPLATE - Complete preservation with optimized structure -->
 <section
 	id="hero"
 	class="w-full relative overflow-hidden flex items-center justify-center hardware-accelerated"
@@ -636,7 +745,7 @@
 								class="canvas-star-container absolute inset-0 pointer-events-none rounded-[3vmin] hardware-accelerated"
 								bind:this={starContainer}
 							>
-								<!-- ENHANCED STARFIELD WITH TOUCHMANAGER -->
+								<!-- ENHANCED STARFIELD WITH FULL TOUCHMANAGER INTEGRATION -->
 								<StarField
 									bind:this={starFieldComponent}
 									containerElement={starContainer}
@@ -645,6 +754,11 @@
 									baseSpeed={starFieldConfig.baseSpeed}
 									boostSpeed={starFieldConfig.boostSpeed}
 									maxDepth={starFieldConfig.maxDepth}
+									enableGlow={starFieldConfig.enableGlow}
+									enableTrails={starFieldConfig.enableTrails}
+									enableAdaptiveQuality={starFieldConfig.enableAdaptiveQuality}
+									enableHighDPI={starFieldConfig.enableHighDPI}
+									targetFPS={starFieldConfig.targetFPS}
 									autoStart={true}
 									on:performanceChange={handlePerformanceChange}
 									on:ready={handleStarFieldReady}
@@ -686,7 +800,7 @@
 						<GameScreen on:stateChange={handleGameStateChange} />
 					{/if}
 
-					<!-- Glass Effects -->
+					<!-- Glass Effects - Complete preservation -->
 					<div class="screen-glass-container rounded-[3vmin] hardware-accelerated">
 						<div class="screen-glass-outer rounded-[3vmin]"></div>
 						<div class="screen-glass-inner rounded-[3vmin]"></div>
@@ -722,13 +836,13 @@
 	{/if}
 </section>
 
-<!-- STYLES - Enhanced with TouchManager optimizations -->
+<!-- STYLES - Enhanced with all optimizations preserved -->
 <style lang="css">
-	/* Inherit all the existing styles from the original Hero.svelte */
-	/* The CSS remains the same - optimization is in the JavaScript logic */
-	@import './Hero.styles.css'; /* Move styles to separate file if preferred */
+	@import './Hero.styles.css';
 
-	/* Additional optimizations for fast startup */
+	/* Additional optimizations and enhancements below */
+
+	/* Hardware acceleration for all key elements */
 	.hardware-accelerated {
 		transform: translateZ(0);
 		backface-visibility: hidden;
@@ -737,7 +851,7 @@
 		contain: layout style paint;
 	}
 
-	/* Touch screen optimizations */
+	/* Touch screen optimizations - preserved functionality */
 	.touch-screen {
 		touch-action: pan-x pan-y; /* Allow panning but prevent zoom */
 		-webkit-touch-callout: none; /* Disable iOS callout */
@@ -753,25 +867,36 @@
 	}
 
 	html[data-mobile-device='true'] .screen-glass-container {
-		/* Reduce glass effects on mobile for performance */
-		opacity: 0.8;
+		/* Optimize glass effects on mobile */
+		opacity: 0.9;
 	}
 
-	/* Optimize for reduced motion */
-	@media (prefers-reduced-motion: reduce) {
-		.animate-transform,
-		.animate-opacity {
-			animation: none !important;
-			transition: none !important;
+	/* Enhanced touching state for better mobile feedback */
+	body.touching .touch-screen {
+		transform: translateZ(1px); /* Subtle depth change on touch */
+	}
+
+	/* Power-up sequence animation - preserved timing */
+	.power-sequence {
+		animation: powerUpSequence 1.5s ease-out;
+	}
+
+	@keyframes powerUpSequence {
+		0% {
+			opacity: 0;
+			transform: scale(0.98);
+		}
+		50% {
+			opacity: 0.8;
+			transform: scale(1.01);
+		}
+		100% {
+			opacity: 1;
+			transform: scale(1);
 		}
 	}
 
-	/* Fast loading states */
-	.power-sequence {
-		animation: powerUpSequence 1.5s ease-out; /* Faster startup */
-	}
-
-	/* Low performance optimizations */
+	/* Device tier optimizations - preserved performance features */
 	html[data-device-tier='low'] .shadow-mask,
 	html[data-device-tier='low'] .interlace,
 	html[data-device-tier='low'] .phosphor-decay {
@@ -783,10 +908,66 @@
 		animation: none;
 	}
 
-	/* Touch-specific styles */
-	html[data-touch-device='true'] .hardware-accelerated {
-		/* Enhanced hardware acceleration for touch devices */
+	html[data-device-tier='low'] .glow-effect {
+		opacity: 0.5;
+	}
+
+	/* Safari-specific optimizations - enhanced */
+	.safari-optimized {
+		-webkit-transform: translate3d(0, 0, 0);
+		-webkit-backface-visibility: hidden;
+		-webkit-perspective: 1000px;
+	}
+
+	html[data-browser='safari'] .hardware-accelerated {
+		/* Additional Safari optimizations */
 		transform: translate3d(0, 0, 0);
 		-webkit-transform: translate3d(0, 0, 0);
+		-webkit-backface-visibility: hidden;
+	}
+
+	/* Low power device optimizations */
+	html[data-low-power='true'] .glow-effect,
+	html[data-low-power='true'] .screen-glass-specular {
+		opacity: 0.3;
+	}
+
+	html[data-low-power='true'] .phosphor-decay,
+	html[data-low-power='true'] .interlace {
+		display: none;
+	}
+
+	/* Accessibility - preserve reduced motion support */
+	@media (prefers-reduced-motion: reduce) {
+		.animate-transform,
+		.animate-opacity,
+		.power-sequence {
+			animation: none !important;
+			transition: none !important;
+		}
+
+		.glow-effect {
+			animation: none !important;
+		}
+	}
+
+	/* Enhanced touch feedback animations */
+	html[data-touch-device='true'] .hardware-accelerated {
+		/* Better hardware acceleration for touch devices */
+		transform: translate3d(0, 0, 0);
+		-webkit-transform: translate3d(0, 0, 0);
+	}
+
+	/* Animation optimizations based on performance tier */
+	html[data-device-tier='high'] .animate-transform {
+		animation-duration: 0.08s; /* Faster on high-end devices */
+	}
+
+	html[data-device-tier='medium'] .animate-transform {
+		animation-duration: 0.1s; /* Standard timing */
+	}
+
+	html[data-device-tier='low'] .animate-transform {
+		animation-duration: 0.15s; /* Slower on low-end devices */
 	}
 </style>
