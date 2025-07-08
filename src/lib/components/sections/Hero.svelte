@@ -1342,13 +1342,16 @@
 		--internal-reflection-opacity: 0.045;
 
 		/* Shadows & Effects */
-		--cabinet-shadow: 0 20px 40px rgba(0, 0, 0, 0.25), 0 5px 15px rgba(0, 0, 0, 0.15),
+		--cabinet-shadow:
+			0 20px 40px rgba(0, 0, 0, 0.25), 0 5px 15px rgba(0, 0, 0, 0.15),
 			inset 0 3px 8px rgba(0, 0, 0, 0.2);
 
-		--screen-shadow: 0 0 30px rgba(0, 0, 0, 0.8), inset 0 0 50px rgba(0, 0, 0, 0.9),
+		--screen-shadow:
+			0 0 30px rgba(0, 0, 0, 0.8), inset 0 0 50px rgba(0, 0, 0, 0.9),
 			inset 0 0 2px rgba(255, 255, 255, 0.3), inset 0 0 100px rgba(0, 0, 0, 0.7);
 
-		--bezel-shadow: inset 0 0 20px rgba(0, 0, 0, 0.9), 0 0 2px var(--glass-reflection),
+		--bezel-shadow:
+			inset 0 0 20px rgba(0, 0, 0, 0.9), 0 0 2px var(--glass-reflection),
 			0 0 15px rgba(39, 255, 153, 0.2);
 
 		--screen-curve: radial-gradient(
@@ -1457,7 +1460,8 @@
 	.screen-reflection {
 		position: absolute;
 		inset: 0;
-		background: var(--screen-curve),
+		background:
+			var(--screen-curve),
 			linear-gradient(
 				35deg,
 				transparent 0%,
@@ -1700,7 +1704,8 @@
        ========================================================================== */
 	/* Light Theme */
 	:global(html.light) #arcade-cabinet {
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, transparent 15%),
+		background:
+			linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, transparent 15%),
 			linear-gradient(
 				90deg,
 				rgba(160, 160, 160, 1) 0%,
@@ -1859,7 +1864,8 @@
 		position: absolute;
 		inset: 0;
 		border-radius: calc(var(--border-radius) + var(--bezel-thickness));
-		background: repeating-linear-gradient(
+		background:
+			repeating-linear-gradient(
 				45deg,
 				rgba(255, 255, 255, 0.03) 0px,
 				rgba(255, 255, 255, 0.03) 1px,

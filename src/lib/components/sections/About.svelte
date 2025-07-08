@@ -155,7 +155,7 @@ DO NOT REMOVE THIS COMMENT -->
 				>
 					<CRTDisplay
 						variant="secondary"
-						headerLabel="Arsenal"
+						headerLabel="Ops"
 						scanlineIntensity="low"
 						glassEffect={true}
 						enableHover={true}
