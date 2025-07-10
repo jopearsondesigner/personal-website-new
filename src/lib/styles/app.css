@@ -60,7 +60,8 @@ DO NOT REMOVE THIS COMMENT */
 /* HTML Base Styles */
 html {
 	@apply bg-[var(--dark-mode-bg)];
-	background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
+	background-image:
+		linear-gradient(135deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
 		linear-gradient(225deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
 		linear-gradient(45deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
 		linear-gradient(315deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%);
@@ -72,7 +73,8 @@ html {
 
 html.light {
 	@apply bg-[var(--light-mode-bg)];
-	background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
+	background-image:
+		linear-gradient(135deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
 		linear-gradient(225deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
 		linear-gradient(45deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
 		linear-gradient(315deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%);
@@ -246,7 +248,8 @@ html.light {
 /* Navbar Backgrounds */
 .navbar-background-dark {
 	@apply bg-[var(--dark-mode-bg)] overflow-hidden;
-	background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
+	background-image:
+		linear-gradient(135deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
 		linear-gradient(225deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
 		linear-gradient(45deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
 		linear-gradient(315deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%);
@@ -255,7 +258,8 @@ html.light {
 
 .navbar-background-light {
 	@apply bg-[var(--light-mode-bg)] overflow-hidden;
-	background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
+	background-image:
+		linear-gradient(135deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
 		linear-gradient(225deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
 		linear-gradient(45deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
 		linear-gradient(315deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%);
@@ -397,8 +401,11 @@ html.dark .nav-button:active {
 	isolation: isolate;
 }
 
-/* FIXED: Ensure space background is always rendered first and consistently */
+/* FIXED: Ensure space background always has black base before any gradient loads */
 :global(#space-background) {
+	/* FIXED: Always start with solid black background */
+	background-color: #000 !important;
+
 	/* Force browser to prioritize background rendering */
 	will-change: auto !important;
 	/* Ensure it's always painted */
@@ -450,6 +457,87 @@ html.dark .nav-button:active {
 	background-attachment: local;
 }
 
+/* FIXED: Enhanced space background persistence rules */
+:global(.space-background-persistent) {
+	/* FIXED: Force immediate black background before any gradients load */
+	background-color: #000 !important;
+
+	/* Force stable rendering during all scroll and navigation events */
+	transform: translateZ(0) !important;
+	backface-visibility: hidden !important;
+	-webkit-backface-visibility: hidden !important;
+
+	/* Remove any conflicting will-change properties */
+	will-change: auto !important;
+
+	/* Ensure consistent painting and visibility */
+	contain: layout style paint !important;
+	opacity: 1 !important;
+	visibility: visible !important;
+	display: block !important;
+
+	/* Prevent any transitions that could cause flicker */
+	transition: none !important;
+
+	/* Create isolation to prevent parent effects */
+	isolation: isolate !important;
+
+	/* Force consistent z-index */
+	z-index: 0 !important;
+
+	/* Enhanced background rendering stability */
+	background-attachment: local !important;
+	background-repeat: no-repeat !important;
+	background-size: cover !important;
+	background-position: center !important;
+
+	/* Prevent any mask or clip interference */
+	mask: none !important;
+	-webkit-mask: none !important;
+	clip-path: none !important;
+}
+
+/* FIXED: Fallback background that ensures there's always something visible */
+:global(.space-background-persistent::before) {
+	content: '';
+	position: absolute;
+	inset: 0;
+	/* FIXED: Always black background, never gradient */
+	background: #000 !important;
+	background-color: #000 !important;
+	z-index: -1;
+	opacity: 1;
+	border-radius: inherit;
+	/* This ensures there's always a black background even if star field fails */
+	pointer-events: none;
+	/* Force hardware acceleration for this fallback too */
+	transform: translateZ(-1px);
+	backface-visibility: hidden;
+	-webkit-backface-visibility: hidden;
+}
+
+/* FIXED: Extra security during scroll events */
+:global(.space-background-persistent.scrolling) {
+	/* Lock all properties during scroll to prevent any changes */
+	transform: translateZ(0) !important;
+	opacity: 1 !important;
+	visibility: visible !important;
+	display: block !important;
+	/* Disable any animations during scroll */
+	animation-play-state: paused !important;
+	transition: none !important;
+}
+
+/* FIXED: Override any theme switching that might affect space background */
+:global(html.light .space-background-persistent),
+:global(html.dark .space-background-persistent) {
+	/* Theme changes should not affect space background properties */
+	transform: translateZ(0) !important;
+	opacity: 1 !important;
+	visibility: visible !important;
+	background-attachment: local !important;
+}
+
 /* FIXED: Mobile-specific fixes for background persistence */
 @media (max-width: 768px) {
 	:global(#space-background) {
@@ -469,6 +557,24 @@ html.dark .nav-button:active {
 		background-repeat: no-repeat !important;
 		background-size: cover !important;
 		background-position: center !important;
+
+		/* Extra mobile-specific stability */
+		-webkit-transform: translateZ(0) !important;
+		transform: translateZ(0) !important;
+		-webkit-backface-visibility: hidden !important;
+		backface-visibility: hidden !important;
+
+		/* Prevent iOS scroll bounce interference */
+		-webkit-overflow-scrolling: auto !important;
+		overflow: visible !important;
+	}
+
+	/* FIXED: Disable problematic effects on mobile that could interfere */
+	:global(.space-background-persistent *) {
+		/* Prevent child elements from interfering with background stability */
+		transform: translateZ(0);
+		backface-visibility: hidden;
+		-webkit-backface-visibility: hidden;
 	}
 }
 
@@ -491,6 +597,46 @@ html.dark .nav-button:active {
 	will-change: auto !important;
 	/* Prevent any theme switching artifacts */
 	transition: none !important;
+}
+
+/* FIXED: Prevent any CSS animations from interfering with space background */
+:global(.space-background-persistent) *,
+:global(.space-background-persistent)::before,
+:global(.space-background-persistent)::after {
+	/* Disable any animations that might interfere */
+	animation-duration: 0s !important;
+	animation-delay: 0s !important;
+	transition-duration: 0s !important;
+	transition-delay: 0s !important;
+}
+
+/* FIXED: Star field specific stability */
+:global(.canvas-star-container) {
+	/* Ensure star field container doesn't interfere with background */
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	/* Stable rendering */
+	transform: translateZ(1px);
+	backface-visibility: hidden;
+	-webkit-backface-visibility: hidden;
+	/* Proper layering */
+	z-index: 1;
+}
+
+/* FIXED: Canvas element stability */
+:global(.star-field-canvas) {
+	/* Ensure canvas doesn't cause background issues */
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	/* Stable rendering */
+	transform: translateZ(0);
+	backface-visibility: hidden;
+	-webkit-backface-visibility: hidden;
 }
 
 /* =============================================================================

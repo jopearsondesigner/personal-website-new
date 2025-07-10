@@ -48,6 +48,7 @@
 		visibility?: EventListener;
 		touchStart?: EventListener;
 		glassEffects?: EventListener;
+		scroll?: EventListener;
 	} = {};
 
 	// Performance monitoring setup
@@ -58,6 +59,12 @@
 	let starFieldComponent: StarField;
 
 	let currentGameState: GameState = 'idle';
+
+	// FIXED: Add scroll state management to prevent unnecessary resets
+	let isScrolling = false;
+	let scrollTimeout: number | null = null;
+	let spaceBackgroundInitialized = false;
+	let lastVisibilityState = true;
 
 	// Reactive statements with performance optimizations
 	$: stars = $animationState.stars;
@@ -101,9 +108,9 @@
 		);
 	}
 
-	// Optimized screen management with debouncing
+	// FIXED: Optimized screen management with scroll protection and immediate background
 	$: {
-		if (currentScreen === 'main' && browser) {
+		if (currentScreen === 'main' && browser && !isScrolling) {
 			const elements = {
 				header,
 				insertConcept,
@@ -111,56 +118,145 @@
 			};
 
 			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-				// We need to reset animation state AND check if we need to reinitialize the star field
-				animationState.resetAnimationState();
+				// FIXED: Ensure black background is IMMEDIATELY visible before any other operations
+				ensureImmediateBlackBackground();
 
-				// If we're using the StarField component, start/restart it
-				if (starFieldComponent && starContainer) {
-					starFieldComponent.start();
-				}
-				// If the star field manager exists but was stopped, we should restart it
-				else if (canvasStarFieldManager) {
-					// First check if the canvas still exists - it might have been removed when switching screens
-					const canvasExists = starContainer && starContainer.querySelector('.star-field-canvas');
-
-					if (!canvasExists) {
-						// Canvas was removed, we need to re-create it
-						canvasStarFieldManager.setContainer(starContainer);
-					}
-
-					// Start the star field animation
-					canvasStarFieldManager.start();
-				}
-				// Initialize canvas star field manager if it doesn't exist
-				else if (starContainer) {
-					// Get device-appropriate star count
-					const capabilities = get(deviceCapabilities);
-					const starCount =
-						capabilities.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
-
-					// Create a new canvas star field manager
-					canvasStarFieldManager = new CanvasStarFieldManager(animationState, starCount);
-
-					// Set the container for the canvas
-					canvasStarFieldManager.setContainer(starContainer);
-
-					// Configure features based on device capabilities
-					canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice);
-					canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
+				// FIXED: Only reset animation state if we haven't initialized the space background
+				if (!spaceBackgroundInitialized) {
+					animationState.resetAnimationState();
+					spaceBackgroundInitialized = true;
 				}
 
-				// Use requestAnimationFrame instead of Promise.resolve().then for better performance
+				// FIXED: Initialize space background once and keep it persistent
+				initializePersistentSpaceBackground();
+
+				// FIXED: Use a more conservative approach to starting animations
 				requestAnimationFrame(() => {
-					// Make sure we start the stars if not using the StarField component
-					if (!starFieldComponent && canvasStarFieldManager) {
-						canvasStarFieldManager.start();
+					if (currentScreen === 'main' && !isScrolling) {
+						startAnimations(elements);
 					}
-					startAnimations(elements);
 				});
 			}
 		} else if (currentScreen !== 'main') {
-			stopAnimations();
+			// FIXED: Only stop animations when truly switching screens, not during scroll
+			if (!isScrolling) {
+				stopAnimations();
+			}
 		}
+	}
+
+	// FIXED: New function to ensure immediate black background coverage
+	function ensureImmediateBlackBackground() {
+		if (!spaceBackground) return;
+
+		// Force immediate black background before any other operations
+		spaceBackground.style.background =
+			'radial-gradient(circle at center, #000 20%, #001c4d 80%, #000000)';
+		spaceBackground.style.backgroundColor = '#000';
+		spaceBackground.style.opacity = '1';
+		spaceBackground.style.visibility = 'visible';
+		spaceBackground.style.display = 'block';
+
+		// Force immediate paint to prevent any gradient flash
+		spaceBackground.offsetHeight; // Trigger reflow immediately
+	}
+
+	// FIXED: New function to initialize persistent space background
+	function initializePersistentSpaceBackground() {
+		if (!starContainer || spaceBackgroundInitialized) return;
+
+		// Ensure immediate black background coverage first
+		ensureImmediateBlackBackground();
+
+		// Create persistent space background
+		ensureSpaceBackgroundExists();
+
+		// If we're using the StarField component, start/restart it
+		if (starFieldComponent && starContainer) {
+			starFieldComponent.start();
+		}
+		// If the star field manager exists but was stopped, we should restart it
+		else if (canvasStarFieldManager) {
+			// First check if the canvas still exists - it might have been removed when switching screens
+			const canvasExists = starContainer && starContainer.querySelector('.star-field-canvas');
+
+			if (!canvasExists) {
+				// Canvas was removed, we need to re-create it
+				canvasStarFieldManager.setContainer(starContainer);
+			}
+
+			// Start the star field animation
+			canvasStarFieldManager.start();
+		}
+		// Initialize canvas star field manager if it doesn't exist
+		else if (starContainer) {
+			// Get device-appropriate star count
+			const capabilities = get(deviceCapabilities);
+			const starCount =
+				capabilities.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
+
+			// Create a new canvas star field manager
+			canvasStarFieldManager = new CanvasStarFieldManager(animationState, starCount);
+
+			// Set the container for the canvas
+			canvasStarFieldManager.setContainer(starContainer);
+
+			// Configure features based on device capabilities
+			canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice);
+			canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
+		}
+	}
+
+	// FIXED: New function to ensure space background element exists and is stable
+	function ensureSpaceBackgroundExists() {
+		if (!spaceBackground || !starContainer) return;
+
+		// FIXED: Force immediate black background first
+		spaceBackground.style.background =
+			'radial-gradient(circle at center, #000 20%, #001c4d 80%, #000000)';
+		spaceBackground.style.backgroundColor = '#000';
+
+		// Force space background to be visible and stable
+		spaceBackground.style.opacity = '1';
+		spaceBackground.style.visibility = 'visible';
+		spaceBackground.style.display = 'block';
+		spaceBackground.style.transform = 'translateZ(0)';
+		spaceBackground.style.backfaceVisibility = 'hidden';
+		spaceBackground.style.willChange = 'auto'; // FIXED: Remove aggressive will-change
+
+		// Add persistent background class
+		spaceBackground.classList.add('space-background-persistent');
+
+		// Force immediate paint to prevent any flashing
+		spaceBackground.offsetHeight; // Trigger reflow
+	}
+
+	// FIXED: Add scroll event handler to prevent background resets during scroll
+	function handleScroll() {
+		if (!browser) return;
+
+		isScrolling = true;
+
+		// FIXED: Ensure black background is maintained during scroll
+		if (spaceBackground && currentScreen === 'main') {
+			ensureImmediateBlackBackground();
+		}
+
+		// Clear existing timeout
+		if (scrollTimeout) {
+			clearTimeout(scrollTimeout);
+		}
+
+		// Debounce scroll end detection
+		scrollTimeout = window.setTimeout(() => {
+			isScrolling = false;
+
+			// FIXED: Ensure space background is still intact after scroll with immediate black background
+			if (currentScreen === 'main') {
+				ensureImmediateBlackBackground();
+				ensureSpaceBackgroundExists();
+			}
+		}, 150);
 	}
 
 	function initializeGlassEffects() {
@@ -194,6 +290,9 @@
 		// Don't do anything if screen hasn't changed
 		if (newScreen === prevScreen) return;
 
+		// FIXED: Prevent screen changes during scroll to avoid background flicker
+		if (isScrolling) return;
+
 		// Update the screen state
 		screenStore.set(newScreen);
 		currentScreen = newScreen;
@@ -202,8 +301,8 @@
 		const performTransition = () => {
 			// Stop current animations only if needed
 			if (prevScreen === 'main' && newScreen !== 'main') {
-				// We're leaving the main screen, stop animations
-				stopAnimations();
+				// We're leaving the main screen, stop animations but preserve space background
+				stopAnimations(false); // FIXED: Pass parameter to preserve background
 
 				// Keep glass effects active even when switching screens
 				const glassContainer = document.querySelector('.screen-glass-container');
@@ -221,6 +320,7 @@
 				}
 			} else if (newScreen === 'main' && prevScreen !== 'main') {
 				// We're returning to main screen, restart animations
+				spaceBackgroundInitialized = false; // Allow reinit
 
 				// Add glass transition effect when returning to main screen
 				const glassContainer = document.querySelector('.screen-glass-container');
@@ -373,7 +473,7 @@
 		}
 	}
 
-	// Animation control functions
+	// FIXED: Modified animation control functions to preserve space background
 	function startAnimations(elements: {
 		header: HTMLElement;
 		insertConcept: HTMLElement;
@@ -382,7 +482,7 @@
 		try {
 			const state = get(animationState);
 			if (state && state.isAnimating) {
-				stopAnimations(); // Stop existing animations first
+				stopAnimations(false); // Stop existing animations first but preserve background
 			}
 
 			// Get the current quality setting from frameRateController
@@ -390,6 +490,9 @@
 				frameRateController && typeof frameRateController.getCurrentQuality === 'function'
 					? frameRateController.getCurrentQuality()
 					: 1.0;
+
+			// FIXED: Ensure space background is always present before starting other animations
+			ensureSpaceBackgroundExists();
 
 			// Start StarField component if available with quality adaptation
 			if (starFieldComponent) {
@@ -607,15 +710,20 @@
 		}
 	}
 
-	function stopAnimations() {
+	// FIXED: Modified stopAnimations to optionally preserve space background
+	function stopAnimations(clearBackground = true) {
 		if (!browser) return;
 
 		// Stop StarField component if available
 		if (starFieldComponent && typeof starFieldComponent.stop === 'function') {
 			starFieldComponent.stop();
 		}
-		// Stop canvas star field
-		else if (canvasStarFieldManager && typeof canvasStarFieldManager.stop === 'function') {
+		// Stop canvas star field only if we're clearing background
+		else if (
+			canvasStarFieldManager &&
+			typeof canvasStarFieldManager.stop === 'function' &&
+			clearBackground
+		) {
 			canvasStarFieldManager.stop();
 		}
 
@@ -668,12 +776,21 @@
 			}
 		}
 
-		// Don't reset animation state entirely, just update isAnimating
-		if (typeof animationState.update === 'function') {
-			animationState.update((state) => ({
-				...state,
-				isAnimating: false
-			}));
+		// FIXED: Don't reset animation state entirely if preserving background
+		if (clearBackground) {
+			// Reset animation state completely
+			if (typeof animationState.reset === 'function') {
+				animationState.reset();
+			}
+			spaceBackgroundInitialized = false;
+		} else {
+			// Just update isAnimating flag
+			if (typeof animationState.update === 'function') {
+				animationState.update((state) => ({
+					...state,
+					isAnimating: false
+				}));
+			}
 		}
 	}
 
@@ -817,12 +934,14 @@
 		if (currentScreen === 'main') {
 			const elements = { header, insertConcept, arcadeScreen };
 			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-				// Reset animation state flags only
-				if (typeof animationState.resetAnimationState === 'function') {
-					animationState.resetAnimationState();
-				} else if (typeof animationState.reset === 'function') {
-					// Fallback to reset if resetAnimationState isn't available
-					animationState.reset();
+				// FIXED: Only reset animation state if not already initialized
+				if (!spaceBackgroundInitialized) {
+					if (typeof animationState.resetAnimationState === 'function') {
+						animationState.resetAnimationState();
+					} else if (typeof animationState.reset === 'function') {
+						// Fallback to reset if resetAnimationState isn't available
+						animationState.reset();
+					}
 				}
 
 				// Start animations with the validated elements
@@ -847,7 +966,14 @@
 			}
 		}, 100);
 
+		// FIXED: Modified visibility handler to preserve space background
 		const visibilityHandler = () => {
+			const isVisible = !document.hidden;
+
+			// Track visibility changes to prevent unnecessary resets
+			if (lastVisibilityState === isVisible) return;
+			lastVisibilityState = isVisible;
+
 			if (document.hidden) {
 				// Pause animations when tab is not visible
 				if (canvasStarFieldManager) {
@@ -873,7 +999,9 @@
 					frameRateController.setAdaptiveEnabled(false);
 				}
 			} else {
-				// Resume animations when tab is visible again
+				// FIXED: Resume animations when tab is visible again while preserving background
+				ensureSpaceBackgroundExists(); // Ensure background is intact
+
 				if (canvasStarFieldManager) {
 					if (typeof canvasStarFieldManager.resume === 'function') {
 						canvasStarFieldManager.resume();
@@ -901,7 +1029,11 @@
 
 		const orientationChangeHandler = () => {
 			// Detect new device capabilities after orientation change
-			setTimeout(detectDeviceCapabilities, 300);
+			setTimeout(() => {
+				detectDeviceCapabilities();
+				// FIXED: Ensure space background persists through orientation changes
+				ensureSpaceBackgroundExists();
+			}, 300);
 		};
 
 		// Create touch event handler for mobile
@@ -932,6 +1064,8 @@
 		if (typeof window !== 'undefined') {
 			window.addEventListener('resize', optimizedResizeCheck, passiveOptions);
 			window.addEventListener('orientationchange', orientationChangeHandler, passiveOptions);
+			// FIXED: Add scroll event listener
+			window.addEventListener('scroll', handleScroll, passiveOptions);
 		}
 
 		if (typeof document !== 'undefined') {
@@ -949,7 +1083,8 @@
 			resize: optimizedResizeCheck as EventListener,
 			orientationChange: orientationChangeHandler as EventListener,
 			visibility: visibilityHandler as EventListener,
-			touchStart: touchStartHandler as EventListener
+			touchStart: touchStartHandler as EventListener,
+			scroll: handleScroll as EventListener
 		};
 	}
 
@@ -1038,6 +1173,11 @@
 
 		// Initial setup - use RAF for first render timing
 		const initialRaf = requestAnimationFrame(() => {
+			// FIXED: Ensure immediate black background on initial load
+			if (spaceBackground) {
+				ensureImmediateBlackBackground();
+			}
+
 			// Apply power-up sequence effect
 			if (arcadeScreen) {
 				arcadeScreen.classList.add('power-sequence');
@@ -1045,6 +1185,9 @@
 
 			// Check orientation initially
 			handleOrientation();
+
+			// FIXED: Initialize space background immediately
+			ensureSpaceBackgroundExists();
 
 			// Delayed start of animations (helps with initial render)
 			if (isMobileDevice) {
@@ -1064,7 +1207,8 @@
 		if (!browser) return;
 
 		// Get handlers
-		const { resize, orientationChange, visibility, touchStart, glassEffects } = eventHandlers || {};
+		const { resize, orientationChange, visibility, touchStart, glassEffects, scroll } =
+			eventHandlers || {};
 
 		// Cleanup all animations and managers
 		stopAnimations();
@@ -1114,11 +1258,18 @@
 			orientationTimeout = null;
 		}
 
+		// FIXED: Clear scroll timeout
+		if (scrollTimeout) {
+			clearTimeout(scrollTimeout);
+			scrollTimeout = null;
+		}
+
 		// Remove event listeners with the same handlers that were added
 		if (resize) window.removeEventListener('resize', resize);
 		if (orientationChange) window.removeEventListener('orientationchange', orientationChange);
 		if (visibility) document.removeEventListener('visibilitychange', visibility);
 		if (glassEffects) document.removeEventListener('mousemove', glassEffects);
+		if (scroll) window.removeEventListener('scroll', scroll);
 
 		// Remove any other event listeners that might have been added
 		if (arcadeScreen && touchStart) {
@@ -1150,6 +1301,10 @@
 			gsap.ticker.remove(() => {}); // Pass an empty function instead of null
 			gsap.globalTimeline.clear();
 		}
+
+		// Reset state flags
+		spaceBackgroundInitialized = false;
+		isScrolling = false;
 	});
 
 	// Handle boost state
@@ -1219,7 +1374,7 @@
 					{#if currentScreen === 'main'}
 						<div
 							id="space-background"
-							class="absolute inset-0 overflow-hidden pointer-events-none rounded-[3vmin] hardware-accelerated"
+							class="absolute inset-0 overflow-hidden pointer-events-none rounded-[3vmin] hardware-accelerated space-background-persistent"
 							bind:this={spaceBackground}
 						>
 							<div
@@ -1433,9 +1588,70 @@
 		z-index: 0;
 		aspect-ratio: 4/3;
 		box-shadow: var(--screen-shadow);
-		background: linear-gradient(145deg, #111 0%, #444 100%);
+		/* FIXED: Always black background first, then add gradient */
+		background-color: #000;
+		background-image: linear-gradient(145deg, #111 0%, #444 100%);
 		transform-style: preserve-3d;
 		overflow: hidden;
+	}
+
+	/* ==========================================================================
+       FIXED: Enhanced Space Background Stability
+       ========================================================================== */
+
+	/* FIXED: Persistent space background with enhanced stability */
+	.space-background-persistent {
+		/* Force hardware acceleration and stable rendering */
+		transform: translateZ(0) !important;
+		backface-visibility: hidden !important;
+		-webkit-backface-visibility: hidden !important;
+
+		/* Prevent any will-change conflicts */
+		will-change: auto !important;
+
+		/* Ensure consistent painting */
+		contain: layout style paint !important;
+
+		/* Force visibility and opacity */
+		opacity: 1 !important;
+		visibility: visible !important;
+
+		/* Prevent any transition interference */
+		transition: none !important;
+
+		/* Create isolation to prevent parent effects */
+		isolation: isolate !important;
+
+		/* Force consistent z-index */
+		z-index: 0 !important;
+
+		/* Enhanced background rendering */
+		background-attachment: local !important;
+		background-repeat: no-repeat !important;
+		background-size: cover !important;
+		background-position: center !important;
+	}
+
+	/* FIXED: Fallback background that always renders */
+	.space-background-persistent::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(circle at center, #000 20%, #001c4d 70%, #000000 100%);
+		z-index: -1;
+		opacity: 1;
+		border-radius: inherit;
+		/* This ensures there's always a background even if star field fails */
+		pointer-events: none;
+	}
+
+	/* FIXED: Extra safety net for persistent space background during scroll */
+	#space-background.space-background-persistent {
+		/* Override any conflicting styles during scroll events */
+		transform: translateZ(0) !important;
+		opacity: 1 !important;
+		visibility: visible !important;
+		display: block !important;
 	}
 
 	/* ==========================================================================
@@ -1784,7 +2000,9 @@
 		--misconvergence-offset: 0.5px;
 		position: relative;
 		overflow: hidden;
-		background: #000;
+		/* FIXED: Always black background for CRT screen */
+		background-color: #000;
+		background-image: linear-gradient(145deg, #000 0%, #111 100%);
 		border-radius: var(--border-radius);
 		overflow: hidden;
 	}
@@ -2016,7 +2234,9 @@
 	#space-background {
 		position: absolute;
 		inset: 0;
-		background: radial-gradient(circle at center, #000 20%, #001c4d 80%, #000000);
+		/* FIXED: Always start with solid black, then add gradient */
+		background-color: #000;
+		background-image: radial-gradient(circle at center, #000 20%, #001c4d 80%, #000000);
 		border-radius: var(--border-radius);
 		overflow: hidden;
 		z-index: 0;

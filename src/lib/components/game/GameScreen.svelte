@@ -484,7 +484,8 @@
 	.pixel-decoration {
 		width: 100%;
 		height: 40px;
-		background-image: linear-gradient(45deg, var(--arcade-neon-green-100) 25%, transparent 25%),
+		background-image:
+			linear-gradient(45deg, var(--arcade-neon-green-100) 25%, transparent 25%),
 			linear-gradient(-45deg, var(--arcade-neon-green-100) 25%, transparent 25%);
 		background-size: 10px 10px;
 		opacity: 0.1;
@@ -563,7 +564,8 @@
 	}
 
 	:global(html.light) .pixel-decoration {
-		background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.2) 25%, transparent 25%),
+		background-image:
+			linear-gradient(45deg, rgba(255, 255, 255, 0.2) 25%, transparent 25%),
 			linear-gradient(-45deg, rgba(255, 255, 255, 0.2) 25%, transparent 25%);
 		opacity: 0.3;
 	}
