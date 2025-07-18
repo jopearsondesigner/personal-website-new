@@ -25,10 +25,17 @@ DO NOT REMOVE THIS COMMENT -->
 
 	// UVP bullet points based on psychometrics test
 	const uvpPoints = [
-		'Turn vague ideas into polished products with minimal direction needed',
-		'Full-spectrum capabilities: graphics, UI/UX, branding, and front-end development',
-		'Quality-first handcrafted solutions that stand out from AI/template approaches',
-		'Startup-proven approach that scales to enterprise needs'
+		'Transform abstract business goals into 
+  profitable digital experiences with 
+  minimal direction needed',
+		'Full-spectrum capabilities: 
+  graphics, UI/UX, branding, and 
+  front-end development',
+		'Quality-first handcrafted solutions 
+  that deliver measurable results, not 
+  just aesthetic appeal',
+		'Startup-proven approach that 
+  scales to enterprise needs'
 	];
 
 	onMount(() => {
@@ -121,16 +128,18 @@ DO NOT REMOVE THIS COMMENT -->
 							<span
 								class="text-[var(--metallic-gold-500)] dark:text-[var(--arcade-bright-yellow-100)]"
 							>
-								Interface Alchemy
+								The Unified Development Approach
 							</span>
-							Transformation Mastery
+							Eliminating Traditional Project Bottlenecks
 						</h3>
 
 						<div class="expertise-description ibm-regular">
 							<p>
-								Like alchemists who transformed base metals into gold, I transmute abstract business
-								goals into valuable digital experiences. The magic happens where creative vision
-								meets technical precision.
+								Most digital projects fail due to the disconnect between 
+design vision and development reality. My integrated 
+approach eliminates these friction points by maintaining 
+consistent ownership throughout the entire process—from 
+initial concept through final deployment.
 							</p>
 
 							<p>
