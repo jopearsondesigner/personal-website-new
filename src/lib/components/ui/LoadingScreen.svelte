@@ -25,7 +25,7 @@
 				class="mt-4 h-0.5 w-32 overflow-hidden rounded-full bg-[var(--arcade-white-200)] dark:bg-[var(--arcade-black-700)]"
 			>
 				<div
-					class="h-full w-full animate-progress bg-[var(--arcade-neon-green-200)] transition-transform duration-300"
+					class="h-full w-full animate-progress bg-[var(--teal-100)] transition-transform duration-300"
 				></div>
 			</div>
 		</div>

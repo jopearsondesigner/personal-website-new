@@ -88,7 +88,7 @@
 				const logoWidth = logoWrapper.offsetWidth;
 
 				// Base position calculation for portrait mode
-				let offsetPosition = viewportWidth * 0.37 - logoWidth / 2;
+				let offsetPosition = viewportWidth * 0.39 - logoWidth / 2;
 
 				// Adjust position for landscape mode
 				if (isLandscape) {
@@ -356,7 +356,8 @@
 	@media (min-width: 1024px) {
 		.navbar-background-dark {
 			background-color: var(--dark-mode-bg);
-			background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
+			background-image:
+				linear-gradient(135deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
 				linear-gradient(225deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
 				linear-gradient(45deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%),
 				linear-gradient(315deg, rgba(255, 255, 255, 0.05) 25%, transparent 25%);
@@ -365,7 +366,8 @@
 
 		.navbar-background-light {
 			background-color: var(--light-mode-bg);
-			background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
+			background-image:
+				linear-gradient(135deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
 				linear-gradient(225deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
 				linear-gradient(45deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%),
 				linear-gradient(315deg, rgba(255, 255, 255, 0.3) 25%, transparent 25%);

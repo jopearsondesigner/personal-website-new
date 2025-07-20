@@ -299,7 +299,7 @@
 			class="fixed inset-y-0 right-0 z-[10000] w-full max-w-xs
 			bg-[var(--light-mode-bg)] dark:bg-[var(--dark-mode-bg)]
 			shadow-xl flex flex-col overflow-y-auto
-			transform will-change-transform"
+			transform will-change-transform border-l border-arcadeBlack-300 dark:border-arcadeBlack-500"
 			style="position: fixed; top: 0; bottom: 0; right: 0; height: 100vh; max-height: 100vh; width: 100%; max-width: 20rem;"
 			transition:fly={{ x: 300, duration: 300, easing: cubicInOut }}
 		>
