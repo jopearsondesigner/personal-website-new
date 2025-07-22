@@ -154,24 +154,38 @@ class StarPoolBridge {
 	private handleStatsUpdate(data: WorkerStats): void {
 		if (!data) return;
 
-		// Debug logging
 		if (this.debugMode) {
 			console.debug(
-				`StarPoolBridge: Received stats - Created: ${data.created}, Reused: ${data.reused}`
+				`StarPoolBridge: Received real pool stats - Created: ${data.created}, Reused: ${data.reused}, Active: ${data.active}, Total: ${data.total}`
 			);
 		}
 
-		// Validate data to prevent NaN or undefined values
-		const created = typeof data.created === 'number' && !isNaN(data.created) ? data.created : 0;
-		const reused = typeof data.reused === 'number' && !isNaN(data.reused) ? data.reused : 0;
-		const active = typeof data.active === 'number' && !isNaN(data.active) ? data.active : undefined;
-		const total = typeof data.total === 'number' && !isNaN(data.total) ? data.total : undefined;
+		// Validate data before processing
+		const created =
+			typeof data.created === 'number' && !isNaN(data.created) && data.created >= 0
+				? data.created
+				: 0;
+		const reused =
+			typeof data.reused === 'number' && !isNaN(data.reused) && data.reused >= 0 ? data.reused : 0;
+		const active =
+			typeof data.active === 'number' && !isNaN(data.active) && data.active >= 0
+				? data.active
+				: undefined;
+		const total =
+			typeof data.total === 'number' && !isNaN(data.total) && data.total >= 0
+				? data.total
+				: undefined;
 
-		// Accumulate stats from worker
-		this.workerStatsBuffer.created += created;
-		this.workerStatsBuffer.reused += reused;
+		// Only process actual changes, not cumulative totals
+		if (created > 0) {
+			this.workerStatsBuffer.created += created;
+		}
 
-		// Update active/total counts if provided
+		if (reused > 0) {
+			this.workerStatsBuffer.reused += reused;
+		}
+
+		// Update current state
 		if (active !== undefined) {
 			this.workerStatsBuffer.active = active;
 		}
@@ -180,7 +194,7 @@ class StarPoolBridge {
 			this.workerStatsBuffer.total = total;
 		}
 
-		// Only flush if we have pending stats and exceed threshold
+		// Flush immediately if we have significant updates
 		if (this.workerStatsBuffer.created + this.workerStatsBuffer.reused >= this.updateThreshold) {
 			this.flushStatsBuffer();
 		}

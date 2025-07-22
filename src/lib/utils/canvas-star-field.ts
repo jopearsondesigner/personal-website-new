@@ -50,7 +50,7 @@ export class CanvasStarFieldManager {
 	private offscreenCanvas: HTMLCanvasElement | null = null;
 	private offscreenCtx: CanvasRenderingContext2D | null = null;
 	private resizeObserver: ResizeObserver | null = null;
-	private changedStarIndices: number[] | null = [];
+	private changedStarIndices: number[] = [];
 	private requestFrameFn: (callback: FrameRequestCallback) => number = requestAnimationFrame;
 	private cancelFrameFn: (handle: number) => void = cancelAnimationFrame;
 	private lastFrameDuration = 16;
@@ -79,6 +79,10 @@ export class CanvasStarFieldManager {
 	private starRenderer: StarRenderer | null = null;
 	private cleanupInProgress = false;
 	private renderCallback: (() => void) | null = null;
+
+	// Added for pool stats tracking
+	private lastCreatedCount = 0;
+	private lastReusedCount = 0;
 
 	constructor(store: any, count = 300) {
 		this.store = store;
@@ -179,11 +183,8 @@ export class CanvasStarFieldManager {
 			// Handle messages from worker with performance tracking
 			this.worker.onmessage = (event) => {
 				const { type, data } = event.data;
-
-				// Count messages for performance monitoring
 				workerMessageCount++;
 
-				// Log performance metrics periodically
 				const now = performance.now();
 				if (now - lastPerformanceLog > performanceLogInterval) {
 					console.debug(
@@ -193,91 +194,140 @@ export class CanvasStarFieldManager {
 					lastPerformanceLog = now;
 				}
 
-				// Record processing time if provided
 				if (data && data.processingTime) {
 					this.lastWorkerProcessingTime = data.processingTime;
 				}
 
-				// Store the frame processing time for adaptive updates
 				this.lastFrameDuration = performance.now() - this.lastFrameStartTime;
 				this.lastFrameStartTime = performance.now();
 
 				switch (type) {
-					case 'initialized':
-					case 'reset':
-					case 'frameUpdate':
-					case 'starCountChanged': {
-						// Store the received TypedArray
-						this.starData = data.starData;
-
-						// Update store if needed
-						if (this.store) {
-							this.store.update((state) => ({
-								...state,
-								starData: this.starData
-							}));
-						}
-
-						// Update pool statistics
-						if (data.config) {
-							// Update active object count (all stars are active in initialized state)
-							starPoolBridge.updateActiveCount(data.config.starCount, data.config.starCount);
-						}
-
-						// Immediately request next frame for frame updates
-						if (type === 'frameUpdate' && this.isRunning && !this.isPaused) {
-							// Schedule next frame with a slight delay to prevent overwhelming
-							// the browser with worker messages
-							this.scheduleNextFrameRequest();
-						}
-						break;
-					}
-
-					case 'partialFrameUpdate': {
-						// Apply partial updates to existing star data
-						if (data.changedIndices && data.changedStarData) {
-							// If we have no existing data yet, create it
-							if (!this.starData) {
-								this.starData = new Float32Array(this.starCount * STAR_DATA_ELEMENTS);
+					case 'initialized': {
+						if (data.success) {
+							// Update pool stats from worker
+							if (data.poolStats) {
+								starPoolBridge.updateActiveCount(data.poolStats.active, data.poolStats.total);
+								starPoolBridge.recordCreated(data.poolStats.created);
+								starPoolBridge.recordReused(data.poolStats.reused);
 							}
 
-							// Update star data with partial update
-							this.applyPartialStarData(data.changedIndices, data.changedStarData);
-
-							// Update store if needed
 							if (this.store) {
 								this.store.update((state) => ({
 									...state,
-									starData: this.starData
+									isAnimating: false // Will be set to true when animation starts
 								}));
 							}
 						}
+						break;
+					}
 
-						// Schedule next frame with optimized timing
-						if (this.isRunning && !this.isPaused) {
-							this.scheduleNextFrameRequest();
+					case 'frameUpdate': {
+						if (data.success) {
+							// Update real pool statistics
+							if (data.poolStats) {
+								starPoolBridge.updateActiveCount(data.poolStats.active, data.poolStats.total);
+
+								// Only record new created/reused objects since last update
+								if (data.poolStats.created > this.lastCreatedCount) {
+									starPoolBridge.recordCreated(data.poolStats.created - this.lastCreatedCount);
+									this.lastCreatedCount = data.poolStats.created;
+								}
+
+								if (data.poolStats.reused > this.lastReusedCount) {
+									starPoolBridge.recordReused(data.poolStats.reused - this.lastReusedCount);
+									this.lastReusedCount = data.poolStats.reused;
+								}
+							}
+
+							// Update performance metrics
+							if (data.metrics) {
+								this.lastWorkerProcessingTime = data.metrics.renderTime + data.metrics.updateTime;
+							}
+
+							if (this.isRunning && !this.isPaused) {
+								this.scheduleNextFrameRequest();
+							}
 						}
 						break;
 					}
 
-					case 'noChanges': {
-						// Even with no changes, we need to schedule the next frame request
-						if (this.isRunning && !this.isPaused) {
-							this.scheduleNextFrameRequest();
-						}
-						break;
-					}
-
-					case 'statsUpdate': {
-						// Forward stats to the bridge
-						if (data && (data.created > 0 || data.reused > 0)) {
-							if (data.created) starPoolBridge.recordCreated(data.created);
-							if (data.reused) starPoolBridge.recordReused(data.reused);
-						}
-						break;
-					}
 					case 'poolStatsUpdated': {
-						// Force sync of stats to ensure UI updates
+						starPoolBridge.forceSyncStats();
+						break;
+					}
+				}
+			};
+			this.worker.onmessage = (event) => {
+				const { type, data } = event.data;
+				workerMessageCount++;
+
+				const now = performance.now();
+				if (now - lastPerformanceLog > performanceLogInterval) {
+					console.debug(
+						`Worker communication: ${workerMessageCount} messages in ${Math.round((now - lastPerformanceLog) / 1000)}s`
+					);
+					workerMessageCount = 0;
+					lastPerformanceLog = now;
+				}
+
+				if (data && data.processingTime) {
+					this.lastWorkerProcessingTime = data.processingTime;
+				}
+
+				this.lastFrameDuration = performance.now() - this.lastFrameStartTime;
+				this.lastFrameStartTime = performance.now();
+
+				switch (type) {
+					case 'initialized': {
+						if (data.success) {
+							// Update pool stats from worker
+							if (data.poolStats) {
+								starPoolBridge.updateActiveCount(data.poolStats.active, data.poolStats.total);
+								starPoolBridge.recordCreated(data.poolStats.created);
+								starPoolBridge.recordReused(data.poolStats.reused);
+							}
+
+							if (this.store) {
+								this.store.update((state) => ({
+									...state,
+									isAnimating: false // Will be set to true when animation starts
+								}));
+							}
+						}
+						break;
+					}
+
+					case 'frameUpdate': {
+						if (data.success) {
+							// Update real pool statistics
+							if (data.poolStats) {
+								starPoolBridge.updateActiveCount(data.poolStats.active, data.poolStats.total);
+
+								// Only record new created/reused objects since last update
+								if (data.poolStats.created > this.lastCreatedCount) {
+									starPoolBridge.recordCreated(data.poolStats.created - this.lastCreatedCount);
+									this.lastCreatedCount = data.poolStats.created;
+								}
+
+								if (data.poolStats.reused > this.lastReusedCount) {
+									starPoolBridge.recordReused(data.poolStats.reused - this.lastReusedCount);
+									this.lastReusedCount = data.poolStats.reused;
+								}
+							}
+
+							// Update performance metrics
+							if (data.metrics) {
+								this.lastWorkerProcessingTime = data.metrics.renderTime + data.metrics.updateTime;
+							}
+
+							if (this.isRunning && !this.isPaused) {
+								this.scheduleNextFrameRequest();
+							}
+						}
+						break;
+					}
+
+					case 'poolStatsUpdated': {
 						starPoolBridge.forceSyncStats();
 						break;
 					}
@@ -339,7 +389,6 @@ export class CanvasStarFieldManager {
 	private setupCanvas() {
 		if (!this.container) return;
 
-		// Create main canvas
 		if (!this.canvas) {
 			this.canvas = document.createElement('canvas');
 			this.canvas.className = 'star-field-canvas';
@@ -349,36 +398,27 @@ export class CanvasStarFieldManager {
 			this.canvas.style.width = '100%';
 			this.canvas.style.height = '100%';
 			this.canvas.style.pointerEvents = 'none';
-			this.container.appendChild(this.canvas);
-
-			// Add GPU acceleration hints
+			// FIXED: Add proper z-index to ensure visibility
+			this.canvas.style.zIndex = '2';
 			this.canvas.style.transform = 'translateZ(0)';
 			this.canvas.style.backfaceVisibility = 'hidden';
+
+			this.container.appendChild(this.canvas);
 		}
 
-		// Create off-screen buffer for double buffering
 		this.offscreenCanvas = document.createElement('canvas');
 		this.offscreenCtx = this.offscreenCanvas.getContext('2d', {
 			alpha: true,
-			willReadFrequently: false // Performance hint
-		});
-
-		// Get main canvas context
-		this.ctx = this.canvas.getContext('2d', {
-			alpha: true,
 			willReadFrequently: false
 		});
+		this.ctx = this.canvas.getContext('2d', { alpha: true, willReadFrequently: false });
 
-		// Add high performance context attributes
 		if (this.ctx) {
-			// Tell browser we don't need preserveDrawingBuffer
 			(this.ctx as any).getContextAttributes = function () {
 				return { preserveDrawingBuffer: false };
 			};
 		}
 
-		// Initialize the optimized star renderer
-		// Determine render mode based on device characteristics
 		const isMobileDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 		const renderMode =
 			this.devicePixelRatio > 1
@@ -393,7 +433,7 @@ export class CanvasStarFieldManager {
 			this.containerHeight,
 			this.maxDepth,
 			this.starColors,
-			true, // enableGlow
+			true,
 			renderMode,
 			this.devicePixelRatio
 		);
@@ -648,7 +688,7 @@ export class CanvasStarFieldManager {
 								}
 							: null,
 						changedIndices: this.changedStarIndices,
-						changedStarData: this.createPartialStarData(this.changedStarIndices)
+						changedStarData: this.createPartialStarData(this.changedStarIndices ?? [])
 					}
 				});
 			} else {
@@ -763,7 +803,7 @@ export class CanvasStarFieldManager {
 			};
 
 			// Project and cull star
-			const star = this.starRenderer.projectStar(starProps);
+			const star = (this.starRenderer as any).projectStar(starProps);
 			if (star) {
 				projectedStars.push(star);
 			}
@@ -963,8 +1003,10 @@ export class CanvasStarFieldManager {
 
 			// Give worker a small window to process cleanup message before terminating
 			setTimeout(() => {
-				this.worker.terminate();
-				this.worker = null;
+				if (this.worker) {
+					this.worker.terminate();
+					this.worker = null;
+				}
 			}, 50);
 		}
 
@@ -1025,7 +1067,7 @@ export class CanvasStarFieldManager {
 		this.dimensionsChanged = false;
 		this.isRunning = false;
 		this.isPaused = false;
-		this.changedStarIndices = null;
+		this.changedStarIndices = [];
 		this.lastWorkerUpdateTime = 0;
 
 		// 12. Suggest garbage collection (this won't force it, just hints)

@@ -1,10 +1,31 @@
-// src/lib/workers/star-field-worker.ts
+// src/workers/star-field-worker.ts
 
-// Constants for TypedArray structure
-const STAR_DATA_ELEMENTS = 6; // x, y, z, prevX, prevY, inUse
-const FLOAT32_BYTES = 4;
+import { StarPool } from '$lib/utils/star-pool';
+import type { StarPoolObject } from '$lib/utils/star-pool';
 
-// Configuration interface
+// Worker-compatible star object interface
+interface WorkerStar extends StarPoolObject {
+	x: number;
+	y: number;
+	z: number;
+	prevX: number;
+	prevY: number;
+	velocity: {
+		x: number;
+		y: number;
+		z: number;
+	};
+	size: number;
+	color: string;
+	alpha: number;
+	brightness: number;
+	age: number;
+	maxAge: number;
+	isVisible: boolean;
+	isDirty: boolean;
+	batchGroup: number;
+}
+
 interface StarFieldConfig {
 	starCount: number;
 	maxDepth: number;
@@ -15,7 +36,14 @@ interface StarFieldConfig {
 	containerHeight: number;
 }
 
-// Global state
+interface WorkerStats {
+	created: number;
+	reused: number;
+	active: number;
+	total: number;
+}
+
+// Configuration
 let config: StarFieldConfig = {
 	starCount: 300,
 	maxDepth: 32,
@@ -26,566 +54,594 @@ let config: StarFieldConfig = {
 	containerHeight: 600
 };
 
+// Star pool instance
+let starPool: StarPool<WorkerStar> | null = null;
+let activeStars: Map<number, WorkerStar> = new Map();
+let nextStarId = 0;
+
+// Performance tracking
+let lastUpdateTime = 0;
+let frameCounter = 0;
+let isRunning = false;
+
 // Statistics tracking
-let statsObjectsCreated = 0;
-let statsObjectsReused = 0;
-let lastStatsReport = 0;
-const statsReportInterval = 250; // More frequent reporting (250ms)
-let statsInterval: number | null = null; // Added for cleanup handler
-
-// TypedArray for efficiently storing and transferring star data
-// Format: [x1, y1, z1, prevX1, prevY1, inUse1, x2, y2, z2, prevX2, prevY2, inUse2, ...]
-let starData: Float32Array;
-
-/**
- * Optimization: Enhanced change detection with significance tracking
- * Benefit: Enables more efficient partial updates
- */
-let changedStarIndices: number[] = [];
-let significantChanges = false;
-
-/**
- * Optimization: Batch statistics reporting
- * Benefit: Reduces message passing overhead
- */
-let batchedStats = {
+let statsBuffer = {
 	created: 0,
 	reused: 0,
 	lastReportTime: 0
 };
 
-/**
- * Initialize the star field with given configuration using TypedArrays
- */
-function initializeStars(
-	count: number,
-	width: number,
-	height: number,
-	depth: number
-): Float32Array {
-	const startTime = performance.now();
+// Star colors for worker calculations
+const STAR_COLORS = ['#0033ff', '#4477ff', '#6699ff', '#88bbff', '#aaddff', '#ffffff'];
 
-	// Create a new Float32Array to hold all star data
-	// Each star has 6 values: x, y, z, prevX, prevY, inUse
-	const dataSize = count * STAR_DATA_ELEMENTS;
-	const newStarData = new Float32Array(dataSize);
+// Factory function for creating new star objects
+function createStarFactory(): () => WorkerStar {
+	return () => {
+		const star: WorkerStar = {
+			// StarPoolObject properties
+			inUse: false,
+			poolIndex: undefined,
+			lastAccessTime: 0,
 
-	// Track object creation - increment by actual count
-	statsObjectsCreated += count;
-	batchedStats.created += count;
-
-	// Initialize stars with random positions
-	// Using a more optimized loop without unnecessary calculations per iteration
-	for (let i = 0, baseIndex = 0; i < count; i++, baseIndex += STAR_DATA_ELEMENTS) {
-		// Set random position - precalculate range values
-		const randomX = Math.random() * width * 2 - width;
-		const randomY = Math.random() * height * 2 - height;
-		const randomZ = Math.random() * depth;
-
-		// Set current position
-		newStarData[baseIndex] = randomX; // x
-		newStarData[baseIndex + 1] = randomY; // y
-		newStarData[baseIndex + 2] = randomZ; // z
-
-		// Set previous position (same as current initially)
-		newStarData[baseIndex + 3] = randomX; // prevX
-		newStarData[baseIndex + 4] = randomY; // prevY
-
-		// Set inUse flag (1.0 = true, 0.0 = false)
-		newStarData[baseIndex + 5] = 1.0; // inUse
-	}
-
-	// Force stats report after initialization
-	reportStats(true);
-
-	// Report initialization time
-	const initTime = performance.now() - startTime;
-	console.debug(`Star field initialized ${count} stars in ${initTime.toFixed(2)}ms`);
-
-	return newStarData;
-}
-
-/**
- * Reset a star to a new position
- */
-function resetStar(index: number, width: number, height: number, depth: number): void {
-	const baseIndex = index * STAR_DATA_ELEMENTS;
-
-	// Track object reuse - increment by one for each reset
-	statsObjectsReused++;
-	batchedStats.reused++;
-
-	// Set new random position
-	starData[baseIndex] = Math.random() * width * 2 - width; // x
-	starData[baseIndex + 1] = Math.random() * height * 2 - height; // y
-	starData[baseIndex + 2] = depth; // z
-
-	// Set previous position
-	starData[baseIndex + 3] = starData[baseIndex]; // prevX
-	starData[baseIndex + 4] = starData[baseIndex + 1]; // prevY
-}
-
-/**
- * Report statistics to main thread
- */
-function reportStats(force: boolean = false): void {
-	const now = performance.now();
-
-	// Only report at intervals or when forced
-	if (!force && now - batchedStats.lastReportTime < statsReportInterval) {
-		// Just accumulate stats
-		return;
-	}
-
-	// Only send non-zero stats or if forced
-	if (batchedStats.created > 0 || batchedStats.reused > 0 || force) {
-		// Clone the stats before sending
-		const statsToReport = {
-			created: batchedStats.created,
-			reused: batchedStats.reused
+			// WorkerStar properties
+			x: 0,
+			y: 0,
+			z: 0,
+			prevX: 0,
+			prevY: 0,
+			velocity: { x: 0, y: 0, z: 0 },
+			size: 1,
+			color: STAR_COLORS[0],
+			alpha: 1,
+			brightness: 1,
+			age: 0,
+			maxAge: 10000,
+			isVisible: false,
+			isDirty: false,
+			batchGroup: 0
 		};
+
+		// Track creation for statistics
+		statsBuffer.created++;
+
+		return star;
+	};
+}
+
+// Reset function for star objects
+function resetStar(star: WorkerStar): void {
+	star.x = 0;
+	star.y = 0;
+	star.z = 0;
+	star.prevX = 0;
+	star.prevY = 0;
+	star.velocity.x = 0;
+	star.velocity.y = 0;
+	star.velocity.z = 0;
+	star.size = 1;
+	star.color = STAR_COLORS[0];
+	star.alpha = 1;
+	star.brightness = 1;
+	star.age = 0;
+	star.maxAge = 10000;
+	star.isVisible = false;
+	star.isDirty = false;
+	star.batchGroup = 0;
+	star.inUse = false;
+
+	// Track reuse for statistics
+	statsBuffer.reused++;
+}
+
+// Initialize star pool
+function initializeStarPool(capacity: number): void {
+	if (starPool) {
+		starPool.destroy();
+	}
+
+	starPool = new StarPool<WorkerStar>(capacity, createStarFactory(), resetStar, {
+		preAllocate: true,
+		hibernationThreshold: 30000,
+		statsReportThreshold: 10
+	});
+
+	console.log(`Star pool initialized with capacity: ${capacity}`);
+}
+
+// Create a star at specific position
+function createStarAt(x: number, y: number, z: number): WorkerStar | null {
+	if (!starPool) return null;
+
+	const star = starPool.get();
+	if (!star) return null;
+
+	// Initialize star properties
+	star.x = x;
+	star.y = y;
+	star.z = z;
+	star.prevX = x;
+	star.prevY = y;
+
+	// Calculate properties based on depth
+	const depthRatio = 1 - z / config.maxDepth;
+	star.size = depthRatio * 3;
+
+	// Select color based on depth
+	const colorIndex = Math.floor(depthRatio * (STAR_COLORS.length - 1));
+	star.color = STAR_COLORS[colorIndex];
+
+	star.brightness = depthRatio;
+	star.alpha = Math.max(0.3, depthRatio);
+	star.batchGroup = Math.floor(star.size);
+
+	// Set random age and max age
+	star.age = 0;
+	star.maxAge = 5000 + Math.random() * 10000;
+
+	// Set initial velocity
+	star.velocity.z = -config.baseSpeed;
+
+	star.isVisible = true;
+	star.isDirty = true;
+
+	// Add to active stars tracking
+	const starId = nextStarId++;
+	activeStars.set(starId, star);
+
+	return star;
+}
+
+// Populate initial star field
+function populateStarField(starCount: number): void {
+	if (!starPool) return;
+
+	// Clear existing stars
+	for (const [starId, star] of activeStars.entries()) {
+		starPool.release(star);
+	}
+	activeStars.clear();
+
+	const halfWidth = config.containerWidth / 2;
+	const halfHeight = config.containerHeight / 2;
+
+	for (let i = 0; i < starCount; i++) {
+		const x = Math.random() * config.containerWidth * 2 - halfWidth;
+		const y = Math.random() * config.containerHeight * 2 - halfHeight;
+		const z = Math.random() * config.maxDepth;
+
+		createStarAt(x, y, z);
+	}
+
+	console.log(`Populated star field with ${activeStars.size} stars`);
+}
+
+// Update stars position and properties
+function updateStars(deltaTime: number): void {
+	if (!starPool) return;
+
+	const timeScale = deltaTime / 16.67; // Normalize to 60fps
+	const starsToRemove: number[] = [];
+
+	for (const [starId, star] of activeStars.entries()) {
+		// Store previous position
+		star.prevX = star.x;
+		star.prevY = star.y;
+
+		// Update position
+		star.z -= config.speed * timeScale;
+		star.age += deltaTime;
+
+		// Check if star needs to be recycled
+		if (star.z <= 0 || star.age > star.maxAge) {
+			starsToRemove.push(starId);
+			continue;
+		}
+
+		// Calculate visibility and screen position
+		const scale = config.maxDepth / star.z;
+		const screenX = (star.x - config.containerWidth / 2) * scale + config.containerWidth / 2;
+		const screenY = (star.y - config.containerHeight / 2) * scale + config.containerHeight / 2;
+
+		// Check visibility with margin
+		const margin = 50;
+		star.isVisible =
+			screenX >= -margin &&
+			screenX <= config.containerWidth + margin &&
+			screenY >= -margin &&
+			screenY <= config.containerHeight + margin;
+
+		// Update visual properties based on depth
+		const depthRatio = 1 - star.z / config.maxDepth;
+		star.size = depthRatio * 3;
+		star.alpha = Math.max(0.3, depthRatio);
+		star.brightness = depthRatio;
+
+		// Update color based on depth
+		const colorIndex = Math.floor(depthRatio * (STAR_COLORS.length - 1));
+		star.color = STAR_COLORS[colorIndex];
+
+		// Mark as dirty if moved significantly
+		const movement = Math.abs(star.x - star.prevX) + Math.abs(star.y - star.prevY);
+		star.isDirty = movement > 0.5;
+
+		// Update batch group for rendering optimization
+		star.batchGroup = Math.floor(star.size);
+	}
+
+	// Remove and recycle expired stars
+	for (const starId of starsToRemove) {
+		const star = activeStars.get(starId);
+		if (star) {
+			starPool.release(star);
+			activeStars.delete(starId);
+		}
+	}
+
+	// Maintain target star count
+	maintainStarCount();
+}
+
+// Maintain target number of stars
+function maintainStarCount(): void {
+	const targetCount = config.starCount;
+	const currentCount = activeStars.size;
+
+	if (currentCount < targetCount) {
+		const starsNeeded = targetCount - currentCount;
+		const halfWidth = config.containerWidth / 2;
+		const halfHeight = config.containerHeight / 2;
+
+		for (let i = 0; i < starsNeeded; i++) {
+			const x = Math.random() * config.containerWidth * 2 - halfWidth;
+			const y = Math.random() * config.containerHeight * 2 - halfHeight;
+			const z = config.maxDepth * (0.8 + Math.random() * 0.2); // Spawn in back
+
+			createStarAt(x, y, z);
+		}
+	}
+}
+
+// Convert stars to transferable data for main thread
+function getTransferableStarData(): any[] {
+	const starData: any[] = [];
+
+	for (const star of activeStars.values()) {
+		if (!star.isVisible) continue;
+
+		// Calculate screen position for main thread rendering
+		const scale = config.maxDepth / star.z;
+		const x2d = (star.x - config.containerWidth / 2) * scale + config.containerWidth / 2;
+		const y2d = (star.y - config.containerHeight / 2) * scale + config.containerHeight / 2;
+
+		// Calculate previous screen position for trails
+		const prevScale = config.maxDepth / (star.z + config.speed);
+		const prevX2d =
+			(star.prevX - config.containerWidth / 2) * prevScale + config.containerWidth / 2;
+		const prevY2d =
+			(star.prevY - config.containerHeight / 2) * prevScale + config.containerHeight / 2;
+
+		starData.push({
+			x2d,
+			y2d,
+			prevX2d,
+			prevY2d,
+			size: star.size,
+			color: star.color,
+			alpha: star.alpha,
+			brightness: star.brightness,
+			z: star.z,
+			batchGroup: star.batchGroup
+		});
+	}
+
+	return starData;
+}
+
+// Get current pool statistics
+function getPoolStats(): WorkerStats {
+	if (!starPool) {
+		return { created: 0, reused: 0, active: 0, total: 0 };
+	}
+
+	const poolStats = starPool.getStats();
+
+	return {
+		created: poolStats.created,
+		reused: poolStats.reused,
+		active: activeStars.size,
+		total: poolStats.total
+	};
+}
+
+// Report statistics to main thread
+function reportStats(): void {
+	const now = performance.now();
+	const timeSinceLastReport = now - statsBuffer.lastReportTime;
+
+	if (timeSinceLastReport >= 250) {
+		// Report every 250ms
+		const poolStats = getPoolStats();
 
 		self.postMessage({
 			type: 'statsUpdate',
-			data: statsToReport
+			data: {
+				created: statsBuffer.created,
+				reused: statsBuffer.reused,
+				active: poolStats.active,
+				total: poolStats.total,
+				utilizationRate: poolStats.total > 0 ? poolStats.active / poolStats.total : 0,
+				reuseRatio:
+					poolStats.created + poolStats.reused > 0
+						? poolStats.reused / (poolStats.created + poolStats.reused)
+						: 0
+			}
 		});
 
-		// Reset accumulated stats
-		batchedStats.created = 0;
-		batchedStats.reused = 0;
-		batchedStats.lastReportTime = now;
+		// Reset incremental counters
+		statsBuffer.created = 0;
+		statsBuffer.reused = 0;
+		statsBuffer.lastReportTime = now;
 	}
 }
 
-/**
- * Update star positions based on time delta
- */
-function updateStars(deltaTime: number): void {
-	const { containerWidth, containerHeight, maxDepth, speed } = config;
-
-	// Clear previous change tracking
-	changedStarIndices = [];
-	significantChanges = false;
-
-	// Calculate time-based movement scale
-	const timeScale = deltaTime / 16.7; // Normalized to 60fps
-
-	// Threshold for considering a star's movement "significant"
-	const movementThreshold = 0.1;
-
-	// Update each star position
-	for (let i = 0; i < config.starCount; i++) {
-		const baseIndex = i * STAR_DATA_ELEMENTS;
-
-		// Skip stars that are not in use
-		if (starData[baseIndex + 5] < 0.5) continue;
-
-		// Store previous position for trails
-		const prevX = starData[baseIndex];
-		const prevY = starData[baseIndex + 1];
-		const prevZ = starData[baseIndex + 2];
-
-		starData[baseIndex + 3] = prevX; // prevX = x
-		starData[baseIndex + 4] = prevY; // prevY = y
-
-		// Move star closer to viewer with time-based movement
-		starData[baseIndex + 2] -= speed * timeScale; // z -= speed
-
-		// If star passed the viewer, reset it to far distance
-		if (starData[baseIndex + 2] <= 0) {
-			resetStar(i, containerWidth, containerHeight, maxDepth);
-			// Track this change
-			changedStarIndices.push(i);
-			significantChanges = true; // Reset is always significant
-		} else if (Math.abs(starData[baseIndex + 2] - prevZ) > movementThreshold) {
-			// Also track stars that moved significantly
-			changedStarIndices.push(i);
-		}
-	}
-
-	// Report stats if we had changes
-	if (significantChanges) {
-		// Force report if we had any resets to ensure they're captured
-		reportStats(true);
-	} else if (changedStarIndices.length > 0) {
-		reportStats(false);
-	}
-}
-
-/**
- * Get array of indices for stars that have changed
- */
-function getChangedStarIndices(): number[] {
-	return changedStarIndices;
-}
-
-/**
- * Extract partial star data for only the changed stars
- */
-function extractPartialStarData(indices: number[]): Float32Array {
-	// If more than 40% of stars changed, just send the whole array
-	// This avoids the overhead of extracting too many individual stars
-	if (indices.length > config.starCount * 0.4) {
-		return starData;
-	}
-
-	const partialData = new Float32Array(indices.length * STAR_DATA_ELEMENTS);
-
-	for (let i = 0; i < indices.length; i++) {
-		const starIndex = indices[i];
-		const sourceBaseIndex = starIndex * STAR_DATA_ELEMENTS;
-		const destBaseIndex = i * STAR_DATA_ELEMENTS;
-
-		// Copy all elements for this star
-		for (let j = 0; j < STAR_DATA_ELEMENTS; j++) {
-			partialData[destBaseIndex + j] = starData[sourceBaseIndex + j];
-		}
-	}
-
-	return partialData;
-}
-
-/**
- * Update only specific stars in the star data
- */
-function updatePartialStarData(indices: number[], partialData: Float32Array): void {
-	for (let i = 0; i < indices.length; i++) {
-		const starIndex = indices[i];
-		const destBaseIndex = starIndex * STAR_DATA_ELEMENTS;
-		const sourceBaseIndex = i * STAR_DATA_ELEMENTS;
-
-		// Copy all elements for this star
-		for (let j = 0; j < STAR_DATA_ELEMENTS; j++) {
-			starData[destBaseIndex + j] = partialData[sourceBaseIndex + j];
-		}
-	}
-}
-
-/**
- * Set boost mode for the stars
- */
+// Set boost mode
 function setBoost(boosting: boolean): void {
 	config.speed = boosting ? config.boostSpeed : config.baseSpeed;
+
+	// Update velocity for all active stars
+	for (const star of activeStars.values()) {
+		star.velocity.z = -config.speed;
+	}
 }
 
-/**
- * Enhanced cleanup with better memory management
- */
-function performCleanup() {
-	// 1. Nullify large TypedArrays
-	if (starData) {
-		// Create a tiny replacement to release memory
-		starData = new Float32Array(1);
-	}
+// Animation loop
+function animate(): void {
+	if (!isRunning) return;
 
-	// 2. Clear any timers or intervals
-	if (statsInterval) {
-		clearInterval(statsInterval);
-		statsInterval = null;
-	}
+	const now = performance.now();
+	const deltaTime = now - lastUpdateTime;
+	lastUpdateTime = now;
 
-	// 3. Reset all counters and accumulators
-	statsObjectsCreated = 0;
-	statsObjectsReused = 0;
-	lastStatsReport = 0;
-	batchedStats = {
-		created: 0,
-		reused: 0,
-		lastReportTime: 0
-	};
-	changedStarIndices = [];
+	// Update stars
+	updateStars(deltaTime);
 
-	// 4. Null out config reference
-	config = {
-		starCount: 0,
-		maxDepth: 0,
-		speed: 0,
-		baseSpeed: 0,
-		boostSpeed: 0,
-		containerWidth: 0,
-		containerHeight: 0
-	};
+	// Get star data for rendering
+	const starData = getTransferableStarData();
 
-	// 5. Tell the browser to optimize garbage collection
-	if (typeof globalThis.gc !== 'undefined') {
-		try {
-			(globalThis as any).gc();
-		} catch (e) {
-			// GC not available, ignore
+	// Send frame data to main thread
+	self.postMessage({
+		type: 'frameUpdate',
+		data: {
+			stars: starData,
+			frameTime: deltaTime,
+			starCount: activeStars.size,
+			config: config
 		}
-	}
+	});
 
-	// 6. Report completion
-	return { success: true };
+	// Report statistics periodically
+	reportStats();
+
+	// Continue animation
+	setTimeout(animate, 16); // ~60fps
 }
 
-/**
- * Process incoming messages
- */
+// Cleanup function
+function cleanup(): void {
+	isRunning = false;
+
+	if (starPool) {
+		// Release all active stars
+		for (const star of activeStars.values()) {
+			starPool.release(star);
+		}
+		activeStars.clear();
+
+		// Destroy pool
+		starPool.destroy();
+		starPool = null;
+	}
+
+	// Reset counters
+	nextStarId = 0;
+	frameCounter = 0;
+	statsBuffer = { created: 0, reused: 0, lastReportTime: 0 };
+
+	console.log('Worker cleanup completed');
+}
+
+// Message handler
 self.onmessage = function (e: MessageEvent) {
 	const { type, data } = e.data;
 
 	switch (type) {
 		case 'init': {
-			// Initialize with new configuration
+			console.log('Initializing star field worker with StarPool');
+
+			// Update configuration
 			config = { ...config, ...data.config };
 
-			// Initialize star data
-			starData = initializeStars(
-				config.starCount,
-				config.containerWidth,
-				config.containerHeight,
-				config.maxDepth
-			);
+			// Initialize star pool
+			initializeStarPool(config.starCount * 2); // Double capacity for flexibility
 
-			// Send back the initialized stars using transferable objects
-			self.postMessage(
-				{
+			if (starPool) {
+				// Populate initial star field
+				populateStarField(config.starCount);
+
+				self.postMessage({
 					type: 'initialized',
 					data: {
-						starData,
-						config
+						success: true,
+						config: config,
+						poolStats: getPoolStats()
 					}
-				},
-				[starData.buffer]
-			);
+				});
+			} else {
+				self.postMessage({
+					type: 'initialized',
+					data: {
+						success: false,
+						error: 'Failed to initialize star pool'
+					}
+				});
+			}
 			break;
 		}
 
-		case 'requestStats': {
-			// Force immediate stats report
-			reportStats(true);
+		case 'startAnimation': {
+			if (!isRunning && starPool) {
+				isRunning = true;
+				lastUpdateTime = performance.now();
+				animate();
+
+				console.log('Animation started');
+			}
 			break;
 		}
 
-		case 'updatePoolStats': {
-			// Acknowledge receipt of pool stats
-			self.postMessage({
-				type: 'poolStatsUpdated',
-				data: {
-					success: true
-				}
-			});
+		case 'stopAnimation': {
+			isRunning = false;
+			console.log('Animation stopped');
 			break;
 		}
 
 		case 'requestFrame': {
-			// Timestamp start of processing for performance monitoring
-			const processingStart = performance.now();
+			if (starPool && !isRunning) {
+				// Manual frame update
+				const deltaTime = data.deltaTime || 16.67;
+				updateStars(deltaTime);
 
-			// Receive the star data back from the main thread
-			if (data.starData) {
-				starData = data.starData;
-			}
+				const starData = getTransferableStarData();
 
-			// Update star positions
-			updateStars(data.deltaTime);
-
-			// If dimensions changed, update container size
-			if (data.dimensions) {
-				config.containerWidth = data.dimensions.width;
-				config.containerHeight = data.dimensions.height;
-			}
-
-			// Gradually return to base speed when not boosting
-			if (config.speed > config.baseSpeed) {
-				config.speed = Math.max(config.baseSpeed, config.speed * 0.98);
-			}
-
-			// Add processing time to monitor performance
-			const processingTime = performance.now() - processingStart;
-
-			// Send back updated stars using transferable objects
-			self.postMessage(
-				{
+				self.postMessage({
 					type: 'frameUpdate',
 					data: {
-						starData,
-						config,
-						processingTime,
-						isFullUpdate: true
-					}
-				},
-				[starData.buffer]
-			);
-
-			break;
-		}
-
-		case 'requestPartialFrame': {
-			// Timestamp start of processing for performance monitoring
-			const processingStart = performance.now();
-
-			// Handle partial updates for changed stars only
-			if (data.changedIndices && data.changedStarData) {
-				// Check if we received the full array or just partial data
-				const isFullUpdate = data.changedStarData.length === starData.length;
-
-				if (isFullUpdate) {
-					// Fast path: direct assignment if full data
-					starData = data.changedStarData;
-				} else {
-					// Update only the changed star data
-					updatePartialStarData(data.changedIndices, data.changedStarData);
-				}
-			}
-
-			// Update star positions
-			updateStars(data.deltaTime);
-
-			// If dimensions changed, update container size
-			if (data.dimensions) {
-				config.containerWidth = data.dimensions.width;
-				config.containerHeight = data.dimensions.height;
-			}
-
-			// Gradually return to base speed when not boosting
-			if (config.speed > config.baseSpeed) {
-				config.speed = Math.max(config.baseSpeed, config.speed * 0.98);
-			}
-
-			// Get the updated changed indices
-			const changedIndices = getChangedStarIndices();
-			const extractedData = extractPartialStarData(changedIndices);
-			const isFullData = extractedData.length === starData.length;
-
-			// Add processing time to monitor performance
-			const processingTime = performance.now() - processingStart;
-
-			// Adapt to send either partial or full update based on what's more efficient
-			if (changedIndices.length > 0) {
-				if (isFullData) {
-					// Full data transfer is more efficient when many stars change
-					self.postMessage(
-						{
-							type: 'frameUpdate',
-							data: {
-								starData: extractedData,
-								config,
-								processingTime,
-								isFullUpdate: true
-							}
-						},
-						[extractedData.buffer]
-					);
-				} else {
-					// Partial update when only a few stars changed
-					self.postMessage(
-						{
-							type: 'partialFrameUpdate',
-							data: {
-								changedIndices: changedIndices,
-								changedStarData: extractedData,
-								config,
-								processingTime,
-								isFullUpdate: false
-							}
-						},
-						[extractedData.buffer]
-					);
-				}
-			} else {
-				// If no changes, just send a no-change signal
-				self.postMessage({
-					type: 'noChanges',
-					data: {
-						config,
-						processingTime
+						stars: starData,
+						frameTime: deltaTime,
+						starCount: activeStars.size,
+						config: config
 					}
 				});
-			}
 
+				reportStats();
+			}
 			break;
 		}
 
 		case 'setBoost': {
-			// Update boost state
 			setBoost(data.boosting);
 			break;
 		}
 
 		case 'setDimensions': {
-			// Update container dimensions
 			config.containerWidth = data.width;
 			config.containerHeight = data.height;
+
+			console.log(`Dimensions updated: ${data.width}x${data.height}`);
 			break;
 		}
 
 		case 'updateConfig': {
-			// Update any configuration properties
 			const oldStarCount = config.starCount;
 			config = { ...config, ...data.config };
 
-			// If star count changed, reinitialize stars
+			// Handle star count changes
 			if (data.config.starCount && data.config.starCount !== oldStarCount) {
-				starData = initializeStars(
-					config.starCount,
-					config.containerWidth,
-					config.containerHeight,
-					config.maxDepth
-				);
+				if (starPool) {
+					// Resize pool if needed
+					const newCapacity = Math.max(config.starCount * 2, oldStarCount);
+					starPool.resize(newCapacity);
 
-				// Send back the updated star data
-				self.postMessage(
-					{
-						type: 'starCountChanged',
-						data: {
-							starData,
-							config
+					// Adjust active star count
+					if (config.starCount > activeStars.size) {
+						populateStarField(config.starCount);
+					} else if (config.starCount < activeStars.size) {
+						// Remove excess stars
+						const starsToRemove = Array.from(activeStars.keys()).slice(config.starCount);
+						for (const starId of starsToRemove) {
+							const star = activeStars.get(starId);
+							if (star) {
+								starPool.release(star);
+								activeStars.delete(starId);
+							}
 						}
-					},
-					[starData.buffer]
-				);
-			}
-			break;
-		}
-
-		case 'reset': {
-			// Reinitialize the stars
-			starData = initializeStars(
-				config.starCount,
-				config.containerWidth,
-				config.containerHeight,
-				config.maxDepth
-			);
-
-			// Send back the reset stars
-			self.postMessage(
-				{
-					type: 'reset',
-					data: {
-						starData,
-						config
 					}
-				},
-				[starData.buffer]
-			);
+				}
 
-			break;
-		}
+				console.log(`Star count updated: ${oldStarCount} -> ${config.starCount}`);
+			}
 
-		case 'adaptToDevice': {
-			// Handle device-specific adaptations
 			self.postMessage({
-				type: 'deviceAdapted',
+				type: 'configUpdated',
 				data: {
-					success: true
+					config: config,
+					poolStats: getPoolStats()
 				}
 			});
 			break;
 		}
 
-		case 'cleanup': {
-			// Perform worker cleanup
-			const result = performCleanup();
+		case 'getStats': {
+			self.postMessage({
+				type: 'statsUpdate',
+				data: getPoolStats()
+			});
+			break;
+		}
 
-			// Send acknowledgement before termination
+		case 'reset': {
+			if (starPool) {
+				// Release all stars and repopulate
+				for (const star of activeStars.values()) {
+					starPool.release(star);
+				}
+				activeStars.clear();
+
+				populateStarField(config.starCount);
+
+				self.postMessage({
+					type: 'reset',
+					data: {
+						success: true,
+						poolStats: getPoolStats()
+					}
+				});
+
+				console.log('Star field reset completed');
+			}
+			break;
+		}
+
+		case 'cleanup': {
+			cleanup();
+
 			self.postMessage({
 				type: 'cleanupComplete',
-				data: result
+				data: { success: true }
 			});
+			break;
+		}
 
+		default: {
+			console.warn(`Unknown message type: ${type}`);
 			break;
 		}
 	}
 };
+
+// Handle worker errors
+self.onerror = function (error) {
+	console.error('Star field worker error:', error);
+
+	self.postMessage({
+		type: 'error',
+		data: {
+			message: error.message,
+			filename: error.filename,
+			lineno: error.lineno
+		}
+	});
+};
+
+// Initialize on worker load
+console.log('Star field worker loaded with StarPool integration');

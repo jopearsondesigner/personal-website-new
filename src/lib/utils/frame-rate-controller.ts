@@ -51,6 +51,20 @@ class FrameRateController {
 
 	constructor() {
 		if (browser) {
+			// FIXED: Add safety checks for browser APIs before using them
+			this.safeInitialize();
+		}
+	}
+
+	/**
+	 * Safe initialization that only runs in browser context
+	 */
+	private safeInitialize() {
+		if (!browser || typeof window === 'undefined' || typeof document === 'undefined') {
+			return;
+		}
+
+		try {
 			// Check for battery status to enable additional optimizations
 			this.checkBatteryStatus();
 
@@ -65,6 +79,10 @@ class FrameRateController {
 
 			// Listen for device power changes
 			this.setupPowerModeListeners();
+		} catch (error) {
+			if (this.debugMode) {
+				console.error('Error during FrameRateController initialization:', error);
+			}
 		}
 	}
 
@@ -72,10 +90,23 @@ class FrameRateController {
 	 * Setup RAF loop for monitoring FPS - simplified to reduce overhead
 	 */
 	private setupMonitoring() {
-		if (this.isMonitoring || !browser) return;
+		if (
+			this.isMonitoring ||
+			!browser ||
+			typeof window === 'undefined' ||
+			typeof document === 'undefined'
+		) {
+			return;
+		}
+
 		this.isMonitoring = true;
 
 		const monitorLoop = () => {
+			// FIXED: Add safety check for document
+			if (!browser || typeof document === 'undefined') {
+				return;
+			}
+
 			// Skip processing when document is hidden to save resources
 			if (!document.hidden) {
 				const now = performance.now();
@@ -93,20 +124,32 @@ class FrameRateController {
 				this.lastFrameTime = now;
 			}
 
-			// Use requestIdleCallback when available for less critical task
-			if ('requestIdleCallback' in window) {
-				(window as any).requestIdleCallback(
-					() => {
+			// FIXED: Add safety check for window before using requestIdleCallback
+			if (browser && typeof window !== 'undefined') {
+				// Use requestIdleCallback when available for less critical task
+				if ('requestIdleCallback' in window) {
+					try {
+						(window as any).requestIdleCallback(
+							() => {
+								if (browser && typeof window !== 'undefined') {
+									this.monitoringRAFId = requestAnimationFrame(monitorLoop);
+								}
+							},
+							{ timeout: 1000 / 30 }
+						); // Ensure we run at least at 30fps
+					} catch (error) {
+						// Fallback to regular RAF if requestIdleCallback fails
 						this.monitoringRAFId = requestAnimationFrame(monitorLoop);
-					},
-					{ timeout: 1000 / 30 }
-				); // Ensure we run at least at 30fps
-			} else {
-				this.monitoringRAFId = requestAnimationFrame(monitorLoop);
+					}
+				} else {
+					this.monitoringRAFId = requestAnimationFrame(monitorLoop);
+				}
 			}
 		};
 
-		this.monitoringRAFId = requestAnimationFrame(monitorLoop);
+		if (browser && typeof window !== 'undefined') {
+			this.monitoringRAFId = requestAnimationFrame(monitorLoop);
+		}
 	}
 
 	/**
@@ -189,16 +232,22 @@ class FrameRateController {
 	 * Handle visibility change to conserve resources when tab not visible
 	 */
 	private handleVisibilityChange = () => {
-		if (!browser) return;
+		if (!browser || typeof document === 'undefined') return;
 
-		if (document.hidden) {
-			this.stopMonitoring();
-		} else {
-			// Reset measurements when becoming visible again
-			this.lastFrameTime = 0;
-			this.lastMeasurementTime = 0;
-			this.frameCount = 0;
-			this.setupMonitoring();
+		try {
+			if (document.hidden) {
+				this.stopMonitoring();
+			} else {
+				// Reset measurements when becoming visible again
+				this.lastFrameTime = 0;
+				this.lastMeasurementTime = 0;
+				this.frameCount = 0;
+				this.setupMonitoring();
+			}
+		} catch (error) {
+			if (this.debugMode) {
+				console.error('Error in handleVisibilityChange:', error);
+			}
 		}
 	};
 
@@ -208,59 +257,81 @@ class FrameRateController {
 	private handleOrientationChange = () => {
 		if (!browser) return;
 
-		// Reset measurements on orientation change
-		setTimeout(() => {
-			this.lastFrameTime = 0;
-			this.lastMeasurementTime = 0;
-			this.frameCount = 0;
-		}, 300); // Shorter delay than before
+		try {
+			// Reset measurements on orientation change
+			setTimeout(() => {
+				this.lastFrameTime = 0;
+				this.lastMeasurementTime = 0;
+				this.frameCount = 0;
+			}, 300); // Shorter delay than before
+		} catch (error) {
+			if (this.debugMode) {
+				console.error('Error in handleOrientationChange:', error);
+			}
+		}
 	};
 
 	/**
 	 * Stop the monitoring RAF loop
 	 */
 	private stopMonitoring() {
-		if (!this.isMonitoring || !this.monitoringRAFId || !browser) return;
+		if (!this.isMonitoring || !this.monitoringRAFId || !browser || typeof window === 'undefined') {
+			return;
+		}
 
-		cancelAnimationFrame(this.monitoringRAFId);
-		this.monitoringRAFId = null;
-		this.isMonitoring = false;
+		try {
+			cancelAnimationFrame(this.monitoringRAFId);
+			this.monitoringRAFId = null;
+			this.isMonitoring = false;
+		} catch (error) {
+			if (this.debugMode) {
+				console.error('Error stopping monitoring:', error);
+			}
+		}
 	}
 
 	/**
 	 * Setup memory monitoring - simplified to reduce overhead
 	 */
 	private setupMemoryMonitoring() {
-		if (!browser || !('performance' in window)) return;
+		if (!browser || typeof window === 'undefined' || !('performance' in window)) {
+			return;
+		}
 
-		// Check if memory API is available
-		const hasMemoryAPI = 'memory' in (performance as any);
+		try {
+			// Check if memory API is available
+			const hasMemoryAPI = 'memory' in (performance as any);
 
-		if (!hasMemoryAPI) return; // Don't set up interval if not available
+			if (!hasMemoryAPI) return; // Don't set up interval if not available
 
-		this.memoryCheckInterval = setInterval(() => {
-			try {
-				const memory = (performance as any).memory;
-				if (memory && memory.jsHeapSizeLimit > 0) {
-					const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
+			this.memoryCheckInterval = setInterval(() => {
+				try {
+					const memory = (performance as any).memory;
+					if (memory && memory.jsHeapSizeLimit > 0) {
+						const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
 
-					// Apply smoothing to avoid jumps
-					this.lastMemoryUsage = this.lastMemoryUsage * 0.7 + memUsage * 0.3;
+						// Apply smoothing to avoid jumps
+						this.lastMemoryUsage = this.lastMemoryUsage * 0.7 + memUsage * 0.3;
 
-					// Store memory usage in shared store with validation
-					memoryUsageStore.set(Math.max(0, Math.min(1, this.lastMemoryUsage)));
+						// Store memory usage in shared store with validation
+						memoryUsageStore.set(Math.max(0, Math.min(1, this.lastMemoryUsage)));
 
-					// If memory usage is high, trigger garbage collection hint
-					if (this.lastMemoryUsage > 0.7) {
-						this.forceGarbageCollectionHint();
+						// If memory usage is high, trigger garbage collection hint
+						if (this.lastMemoryUsage > 0.7) {
+							this.forceGarbageCollectionHint();
+						}
+					}
+				} catch (e) {
+					if (this.debugMode) {
+						console.error('Error accessing memory metrics:', e);
 					}
 				}
-			} catch (e) {
-				if (this.debugMode) {
-					console.error('Error accessing memory metrics:', e);
-				}
+			}, 5000); // Lower frequency to reduce overhead (every 5s instead of 2s)
+		} catch (error) {
+			if (this.debugMode) {
+				console.error('Error setting up memory monitoring:', error);
 			}
-		}, 5000); // Lower frequency to reduce overhead (every 5s instead of 2s)
+		}
 	}
 
 	/**
@@ -268,24 +339,30 @@ class FrameRateController {
 	 * Note: This doesn't directly trigger GC but helps hint the browser
 	 */
 	private forceGarbageCollectionHint() {
-		if (!browser) return;
+		if (!browser || typeof window === 'undefined') return;
 
-		// Hint to browser to garbage collect
-		if ((window as any).gc) {
-			try {
-				(window as any).gc();
-			} catch (e) {
-				// GC not available or not permitted
+		try {
+			// Hint to browser to garbage collect
+			if ((window as any).gc) {
+				try {
+					(window as any).gc();
+				} catch (e) {
+					// GC not available or not permitted
+				}
 			}
-		}
 
-		// Alternative approach to hint GC
-		if (this.qualityTrend.length > 0) {
-			const temp = this.qualityTrend;
-			this.qualityTrend = [];
-			setTimeout(() => {
-				this.qualityTrend = temp.slice(-5);
-			}, 0);
+			// Alternative approach to hint GC
+			if (this.qualityTrend.length > 0) {
+				const temp = this.qualityTrend;
+				this.qualityTrend = [];
+				setTimeout(() => {
+					this.qualityTrend = temp.slice(-5);
+				}, 0);
+			}
+		} catch (error) {
+			if (this.debugMode) {
+				console.error('Error in forceGarbageCollectionHint:', error);
+			}
 		}
 	}
 
@@ -293,7 +370,9 @@ class FrameRateController {
 	 * Check battery status for additional optimizations
 	 */
 	private async checkBatteryStatus(): Promise<void> {
-		if (!browser || !('getBattery' in navigator)) return;
+		if (!browser || typeof navigator === 'undefined' || !('getBattery' in navigator)) {
+			return;
+		}
 
 		try {
 			// @ts-ignore - Battery API
@@ -334,6 +413,9 @@ class FrameRateController {
 			battery.addEventListener('levelchange', () => this.checkBatteryStatus());
 		} catch (e) {
 			// Battery API not available
+			if (this.debugMode) {
+				console.error('Battery API error:', e);
+			}
 		}
 	}
 
@@ -341,56 +423,64 @@ class FrameRateController {
 	 * Setup listeners for device power mode changes
 	 */
 	private setupPowerModeListeners(): void {
-		if (!browser) return;
+		if (!browser || typeof navigator === 'undefined' || typeof window === 'undefined') {
+			return;
+		}
 
-		// Listen for Data Saver mode
-		if ('connection' in navigator) {
-			const connection = (navigator as any).connection;
-			if (connection) {
-				const connectionChangeHandler = () => {
-					if (connection.saveData) {
-						// Data saver mode is enabled - use low power settings
-						deviceCapabilities.update((caps) => ({
-							...caps,
-							tier: 'low',
-							frameSkip: Math.max(2, caps.frameSkip),
-							enableShadows: false,
-							enableBlur: false,
-							enableGlow: false,
-							useCanvas: true, // Canvas is typically more efficient
-							maxStars: Math.min(caps.maxStars, 30)
-						}));
+		try {
+			// Listen for Data Saver mode
+			if ('connection' in navigator) {
+				const connection = (navigator as any).connection;
+				if (connection) {
+					const connectionChangeHandler = () => {
+						if (connection.saveData) {
+							// Data saver mode is enabled - use low power settings
+							deviceCapabilities.update((caps) => ({
+								...caps,
+								tier: 'low',
+								frameSkip: Math.max(2, caps.frameSkip),
+								enableShadows: false,
+								enableBlur: false,
+								enableGlow: false,
+								useCanvas: true, // Canvas is typically more efficient
+								maxStars: Math.min(caps.maxStars, 30)
+							}));
 
-						this.setQualityOverride(0.4);
-					}
-				};
+							this.setQualityOverride(0.4);
+						}
+					};
 
-				connection.addEventListener('change', connectionChangeHandler);
+					connection.addEventListener('change', connectionChangeHandler);
 
-				// Initial check
-				connectionChangeHandler();
+					// Initial check
+					connectionChangeHandler();
+				}
 			}
-		}
 
-		// Respond to device theme preference for potential power saving
-		const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-		if (darkModeMediaQuery.matches) {
-			// Dark mode might indicate user preference for battery saving
-			this.setQualityOverride(Math.min(this.currentQuality, 0.9));
-		}
+			// Respond to device theme preference for potential power saving
+			const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+			if (darkModeMediaQuery.matches) {
+				// Dark mode might indicate user preference for battery saving
+				this.setQualityOverride(Math.min(this.currentQuality, 0.9));
+			}
 
-		// Detect reduced motion preference
-		const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-		if (reducedMotionQuery.matches) {
-			// User prefers reduced motion - likely wants battery saving too
-			deviceCapabilities.update((caps) => ({
-				...caps,
-				enableParallax: false,
-				enablePulse: false,
-				frameSkip: Math.max(1, caps.frameSkip)
-			}));
+			// Detect reduced motion preference
+			const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+			if (reducedMotionQuery.matches) {
+				// User prefers reduced motion - likely wants battery saving too
+				deviceCapabilities.update((caps) => ({
+					...caps,
+					enableParallax: false,
+					enablePulse: false,
+					frameSkip: Math.max(1, caps.frameSkip)
+				}));
 
-			this.setQualityOverride(Math.min(this.currentQuality, 0.7));
+				this.setQualityOverride(Math.min(this.currentQuality, 0.7));
+			}
+		} catch (error) {
+			if (this.debugMode) {
+				console.error('Error setting up power mode listeners:', error);
+			}
 		}
 	}
 
@@ -398,47 +488,61 @@ class FrameRateController {
 	 * Improved frame skipping logic with better adaptation to device performance
 	 */
 	public shouldRenderFrame(): boolean {
-		if (!browser) return true;
-
-		// Always skip if document is hidden (we're not animating anyway)
-		if (document.hidden) {
-			return false;
-		}
-
-		// Count frames for FPS calculation
-		this.frameCount++;
-
-		const now = performance.now();
-		const elapsed = now - this.lastFrameTime;
-
-		// Always render first frame after initialization
-		if (this.lastFrameTime === 0) {
-			this.lastFrameTime = now;
+		if (!browser || typeof window === 'undefined' || typeof document === 'undefined') {
 			return true;
 		}
 
-		// Always render if enough time has passed to maintain minimum responsiveness
-		const minFrameInterval = 1000 / 30; // Minimum 30fps equivalent
-		if (elapsed > minFrameInterval) {
-			this.lastFrameTime = now;
-			this.skippedFrames = 0;
-			return true;
-		}
+		try {
+			// Always skip if document is hidden (we're not animating anyway)
+			if (document.hidden) {
+				return false;
+			}
 
-		// Adaptive frame skipping based on device capabilities and current quality
-		const capabilities = get(deviceCapabilities);
+			// Count frames for FPS calculation
+			this.frameCount++;
 
-		// Dynamic skip rate based on current quality and device tier
-		const baseSkipRate = capabilities.frameSkip;
-		const qualityFactor = Math.max(0, 2 - this.currentQuality * 2); // 0 at quality 1.0, 2 at quality 0
+			const now = performance.now();
+			const elapsed = now - this.lastFrameTime;
 
-		// Determine skip rate
-		const skipRate = Math.min(3, Math.floor(baseSkipRate + qualityFactor));
+			// Always render first frame after initialization
+			if (this.lastFrameTime === 0) {
+				this.lastFrameTime = now;
+				return true;
+			}
 
-		// Use aggressive frame skipping for low FPS situations
-		if (this.currentFPS < this.targetFPS * 0.7) {
-			// In low FPS scenarios, skip more frames
-			if (this.skippedFrames >= skipRate) {
+			// Always render if enough time has passed to maintain minimum responsiveness
+			const minFrameInterval = 1000 / 30; // Minimum 30fps equivalent
+			if (elapsed > minFrameInterval) {
+				this.lastFrameTime = now;
+				this.skippedFrames = 0;
+				return true;
+			}
+
+			// Adaptive frame skipping based on device capabilities and current quality
+			const capabilities = get(deviceCapabilities);
+
+			// Dynamic skip rate based on current quality and device tier
+			const baseSkipRate = capabilities.frameSkip;
+			const qualityFactor = Math.max(0, 2 - this.currentQuality * 2); // 0 at quality 1.0, 2 at quality 0
+
+			// Determine skip rate
+			const skipRate = Math.min(3, Math.floor(baseSkipRate + qualityFactor));
+
+			// Use aggressive frame skipping for low FPS situations
+			if (this.currentFPS < this.targetFPS * 0.7) {
+				// In low FPS scenarios, skip more frames
+				if (this.skippedFrames >= skipRate) {
+					this.lastFrameTime = now;
+					this.skippedFrames = 0;
+					return true;
+				} else {
+					this.skippedFrames++;
+					return false;
+				}
+			}
+
+			// More conservative frame skipping for higher FPS
+			if (this.skippedFrames >= Math.max(0, skipRate - 1)) {
 				this.lastFrameTime = now;
 				this.skippedFrames = 0;
 				return true;
@@ -446,16 +550,12 @@ class FrameRateController {
 				this.skippedFrames++;
 				return false;
 			}
-		}
-
-		// More conservative frame skipping for higher FPS
-		if (this.skippedFrames >= Math.max(0, skipRate - 1)) {
-			this.lastFrameTime = now;
-			this.skippedFrames = 0;
+		} catch (error) {
+			if (this.debugMode) {
+				console.error('Error in shouldRenderFrame:', error);
+			}
+			// Default to true on error
 			return true;
-		} else {
-			this.skippedFrames++;
-			return false;
 		}
 	}
 
@@ -592,19 +692,29 @@ class FrameRateController {
 	public cleanup() {
 		if (!browser) return;
 
-		this.stopMonitoring();
-		this.qualitySubscribers = [];
-		this.fpsSubscribers = [];
+		try {
+			this.stopMonitoring();
+			this.qualitySubscribers = [];
+			this.fpsSubscribers = [];
 
-		// Clear memory monitoring interval
-		if (this.memoryCheckInterval) {
-			clearInterval(this.memoryCheckInterval);
-			this.memoryCheckInterval = null;
+			// Clear memory monitoring interval
+			if (this.memoryCheckInterval) {
+				clearInterval(this.memoryCheckInterval);
+				this.memoryCheckInterval = null;
+			}
+
+			// Remove event listeners - with safety checks
+			if (typeof document !== 'undefined') {
+				document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+			}
+			if (typeof window !== 'undefined') {
+				window.removeEventListener('orientationchange', this.handleOrientationChange);
+			}
+		} catch (error) {
+			if (this.debugMode) {
+				console.error('Error during cleanup:', error);
+			}
 		}
-
-		// Remove event listeners
-		document.removeEventListener('visibilitychange', this.handleVisibilityChange);
-		window.removeEventListener('orientationchange', this.handleOrientationChange);
 	}
 }
 
@@ -612,6 +722,8 @@ class FrameRateController {
 export const frameRateController = new FrameRateController();
 
 // Subscribe to FPS updates to update the store
-frameRateController.subscribeFPS((fps) => {
-	fpsStore.set(fps);
-});
+if (browser) {
+	frameRateController.subscribeFPS((fps) => {
+		fpsStore.set(fps);
+	});
+}
