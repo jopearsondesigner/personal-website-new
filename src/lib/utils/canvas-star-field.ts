@@ -739,42 +739,51 @@ export class CanvasStarFieldManager {
 	animate = (timestamp: number) => {
 		if (!browser || !this.isRunning || !this.ctx || !this.canvas || this.isPaused) return;
 
-		// Request next animation frame
 		this.animationFrameId = this.requestFrameFn(this.animate);
-
-		// Calculate delta time
 		const deltaTime = timestamp - this.lastTime;
 		this.lastTime = timestamp;
 
-		// Render to offscreen canvas first if double buffering is enabled
-		if (this.offscreenCtx && this.offscreenCanvas) {
-			// VISUAL FIX: Restore exact motion blur from reference
-			this.offscreenCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-			this.offscreenCtx.fillRect(0, 0, this.containerWidth, this.containerHeight);
+		// ADD: Explicit canvas clearing
+		this.ctx.clearRect(0, 0, this.containerWidth, this.containerHeight);
 
-			// Render stars to offscreen canvas if we have data
-			if (this.starData) {
-				this.renderStars(this.offscreenCtx);
-			}
+		if (this.usePoolingIntegration && this.starPoolIntegration) {
+			console.log('🎨 Rendering with pooling integration');
 
-			// Clear main canvas
-			this.ctx.clearRect(0, 0, this.containerWidth, this.containerHeight);
-
-			// Copy from offscreen to main canvas
-			this.ctx.drawImage(this.offscreenCanvas, 0, 0);
-		} else {
-			// Original direct rendering if offscreen canvas isn't available
-			// VISUAL FIX: Restore exact motion blur from reference
+			// ADD: Black background for visibility
 			this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
 			this.ctx.fillRect(0, 0, this.containerWidth, this.containerHeight);
 
-			// Render stars if we have data
-			if (this.starData) {
+			if (this.offscreenCtx && this.offscreenCanvas) {
+				this.offscreenCtx.clearRect(0, 0, this.containerWidth, this.containerHeight);
+				this.offscreenCtx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+				this.offscreenCtx.fillRect(0, 0, this.containerWidth, this.containerHeight);
+
+				this.starPoolIntegration.renderStars();
+				this.ctx.drawImage(this.offscreenCanvas, 0, 0);
+			} else {
+				this.starPoolIntegration.renderStars();
+			}
+		} else {
+			console.log('🔄 Using fallback worker system');
+
+			// ADD: Fallback rendering when worker fails
+			this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+			this.ctx.fillRect(0, 0, this.containerWidth, this.containerHeight);
+
+			// ADD: Simple test rendering if no stars
+			if (!this.starData || this.starData.length === 0) {
+				// Render test dots to verify canvas is working
+				this.ctx.fillStyle = '#ffffff';
+				for (let i = 0; i < 10; i++) {
+					const x = Math.random() * this.containerWidth;
+					const y = Math.random() * this.containerHeight;
+					this.ctx.fillRect(x, y, 2, 2);
+				}
+			} else if (this.starData) {
 				this.renderStars(this.ctx);
 			}
 		}
 
-		// Request next frame from worker at appropriate intervals
 		this.requestNextFrame();
 	};
 

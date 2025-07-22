@@ -35,6 +35,15 @@ interface StarFieldConfig {
 	containerWidth: number;
 	containerHeight: number;
 }
+interface WorkerConfig {
+	starCount: number;
+	maxDepth: number;
+	speed: number;
+	baseSpeed: number;
+	boostSpeed: number;
+	containerWidth: number;
+	containerHeight: number;
+}
 
 interface WorkerStats {
 	created: number;

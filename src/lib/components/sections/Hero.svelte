@@ -123,7 +123,6 @@
 		);
 	}
 
-	// FIXED: Define the function using const to ensure it's available when reactive statements run
 	const initializePersistentSpaceBackground = async (): Promise<void> => {
 		if (!starContainer || spaceBackgroundInitialized) return;
 
@@ -232,6 +231,8 @@
 					canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
 				}
 
+				canvasStarFieldManager.enablePoolingIntegration(true);
+
 				// Start the animation
 				canvasStarFieldManager.start();
 				starSystemInitialized = true;
@@ -240,57 +241,7 @@
 				console.error('Failed to create CanvasStarFieldManager:', error);
 			}
 		}
-
-		// Final fallback: Create basic CSS stars if everything else fails
-		if (!starSystemInitialized) {
-			console.warn('All star systems failed, creating basic CSS fallback');
-			createBasicCSSStars();
-		}
 	};
-
-	function createBasicCSSStars() {
-		if (!starContainer) return;
-
-		// Remove any existing stars
-		const existingStars = starContainer.querySelectorAll('.fallback-star');
-		existingStars.forEach((star) => star.remove());
-
-		const starCount = isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60;
-
-		for (let i = 0; i < starCount; i++) {
-			const star = document.createElement('div');
-			star.className = 'fallback-star';
-			star.style.cssText = `
-            position: absolute;
-            width: ${Math.random() * 3 + 1}px;
-            height: ${Math.random() * 3 + 1}px;
-            background: white;
-            border-radius: 50%;
-            left: ${Math.random() * 100}%;
-            top: ${Math.random() * 100}%;
-            opacity: ${Math.random() * 0.8 + 0.2};
-            animation: twinkle ${Math.random() * 3 + 2}s infinite alternate;
-            pointer-events: none;
-            z-index: 2;
-        `;
-			starContainer.appendChild(star);
-		}
-
-		// Add CSS animation if not exists
-		if (!document.querySelector('#fallback-star-styles')) {
-			const style = document.createElement('style');
-			style.id = 'fallback-star-styles';
-			style.textContent = `
-            @keyframes twinkle {
-                0% { opacity: 0.2; }
-                100% { opacity: 1; }
-            }
-        `;
-			document.head.appendChild(style);
-		}
-
-		console.log(`Created ${starCount} basic CSS stars as fallback`);
-	}
 
 	// FIXED: New function to ensure immediate black background coverage
 	function ensureImmediateBlackBackground() {
@@ -491,87 +442,6 @@
 			clearTimeout(orientationTimeout);
 		}
 		orientationTimeout = window.setTimeout(handleOrientation, 150);
-	}
-
-	// Timeline creation helper optimized for performance
-	function createOptimizedTimeline(elements: any) {
-		if (!browser) return null;
-
-		try {
-			const isMobile = window.innerWidth < 768;
-			const isLowPerformance = isLowPerformanceDevice;
-
-			// Get current quality level from frameRateController
-			const qualityLevel = frameRateController.getCurrentQuality();
-
-			// Clear any existing timelines
-			if (currentTimeline) {
-				currentTimeline.kill();
-			}
-
-			// When in lower performance mode, use simpler animations
-			if (isLowPerformance || qualityLevel < 0.6) {
-				// Create simpler timeline
-				const timeline = gsap.timeline({
-					paused: true,
-					repeat: -1,
-					defaults: {
-						ease: 'power1.inOut',
-						duration: 1.5,
-						overwrite: true // Changed from 'auto' to 'true' for better performance
-					}
-				});
-
-				// Use a single, simple animation for low-performance devices
-				timeline.to(elements.insertConcept, {
-					opacity: 0.3,
-					yoyo: true,
-					repeat: 1
-				});
-
-				return timeline;
-			}
-
-			// Standard timeline with device-appropriate settings
-			const timeline = gsap.timeline({
-				paused: true,
-				defaults: {
-					ease: 'power1.inOut',
-					immediateRender: false,
-					overwrite: true // Changed from 'auto' to 'true' for better performance
-				}
-			});
-
-			// Adapt animation parameters for mobile
-			const animDuration = isMobile ? 0.15 : 0.1; // Slower on mobile
-			const animDistance = isMobile ? 1 : 2; // Less movement on mobile
-			const opacityDuration = isMobile ? 1.5 : 1; // Slower fade on mobile
-
-			// Use a single timeline.to call with multiple targets
-			timeline
-				.to([elements.header, elements.insertConcept], {
-					duration: animDuration,
-					y: `+=${animDistance}`,
-					repeat: -1,
-					yoyo: true
-				})
-				.to(
-					elements.insertConcept,
-					{
-						duration: opacityDuration,
-						opacity: 0,
-						repeat: -1,
-						yoyo: true,
-						ease: 'none'
-					},
-					0
-				);
-
-			return timeline;
-		} catch (error) {
-			console.error('Failed to create GSAP timeline:', error);
-			return null;
-		}
 	}
 
 	// FIXED: Modified animation control functions to preserve space background
