@@ -2,6 +2,9 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
+	import { StarPool, type StarPoolObject } from '$lib/utils/star-pool';
+	import { starPoolBridge } from '$lib/utils/star-pool-bridge';
+	import { starPoolTracker } from '$lib/utils/pool-stats-tracker';
 
 	// Props
 	export let containerElement: HTMLElement | null = null;
@@ -13,20 +16,31 @@
 	export let baseSpeed = 0.5; // Doubled from 0.25
 	export let boostSpeed = 4; // Doubled from 2
 
-	// Component state
-	let canvasElement: HTMLCanvasElement;
-	let ctx: CanvasRenderingContext2D | null = null;
-	let stars: Array<{
+	// Pooled Star Interface
+	interface PooledStar extends StarPoolObject {
 		x: number;
 		y: number;
 		z: number;
 		prevX: number;
 		prevY: number;
-	}> = [];
+		size: number;
+		color: string;
+		alpha: number;
+		age: number;
+		maxAge: number;
+		isDirty: boolean;
+	}
+
+	// Component state
+	let canvasElement: HTMLCanvasElement;
+	let ctx: CanvasRenderingContext2D | null = null;
+	let starPool: StarPool<PooledStar>;
+	let activeStars: PooledStar[] = [];
 	let isRunning = false;
 	let boosting = false;
 	let animationFrameId: number | null = null;
 	let speed = baseSpeed;
+	let poolInitialized = false;
 
 	// Star colors with glow
 	const starColors = [
@@ -38,23 +52,102 @@
 		'#ffffff' // Bright white
 	];
 
-	// Initialize stars
-	function initStars() {
-		stars = [];
-		for (let i = 0; i < starCount; i++) {
-			createStar();
+	// Pool Configuration
+	const POOL_CAPACITY = Math.max(starCount * 2, 400); // 2x capacity for efficiency
+	const POOL_PREALLOC = true;
+
+	// Star Factory Function
+	function createPooledStar(): PooledStar {
+		return {
+			inUse: false,
+			x: 0,
+			y: 0,
+			z: 0,
+			prevX: 0,
+			prevY: 0,
+			size: 0,
+			color: '#ffffff',
+			alpha: 1,
+			age: 0,
+			maxAge: 1000,
+			isDirty: false
+		};
+	}
+
+	// Star Reset Function
+	function resetPooledStar(star: PooledStar): void {
+		if (!canvasElement) return;
+
+		star.x = Math.random() * canvasElement.width * 2 - canvasElement.width;
+		star.y = Math.random() * canvasElement.height * 2 - canvasElement.height;
+		star.z = Math.random() * maxDepth;
+		star.prevX = star.x;
+		star.prevY = star.y;
+		star.size = 0;
+		star.color = starColors[Math.floor(Math.random() * starColors.length)];
+		star.alpha = 1;
+		star.age = 0;
+		star.maxAge = 1000 + Math.random() * 2000;
+		star.isDirty = false;
+	}
+
+	// Initialize star pool
+	function initStarPool() {
+		try {
+			if (poolInitialized) {
+				return;
+			}
+
+			starPool = new StarPool<PooledStar>(POOL_CAPACITY, createPooledStar, resetPooledStar, {
+				preAllocate: POOL_PREALLOC,
+				hibernationThreshold: 30000,
+				statsReportThreshold: 10
+			});
+
+			// Initialize active stars from pool
+			activeStars = [];
+			for (let i = 0; i < starCount; i++) {
+				const star = starPool.get();
+				resetPooledStar(star);
+				activeStars.push(star);
+			}
+
+			poolInitialized = true;
+
+			// Report initial pool state
+			starPoolBridge.updateActiveCount(activeStars.length, POOL_CAPACITY);
+			starPoolTracker.recordObjectCreated(starCount);
+
+			console.log(
+				`StarField: Pool initialized with ${starCount} active stars, ${POOL_CAPACITY} total capacity`
+			);
+		} catch (error) {
+			console.error(
+				'StarField: Failed to initialize object pool, falling back to simple array:',
+				error
+			);
+			// Fallback to simple initialization if pool fails
+			initStarsSimple();
 		}
 	}
 
-	function createStar() {
-		const star = {
-			x: Math.random() * canvasElement.width * 2 - canvasElement.width,
-			y: Math.random() * canvasElement.height * 2 - canvasElement.height,
-			z: Math.random() * maxDepth,
-			prevX: 0,
-			prevY: 0
-		};
-		stars.push(star);
+	// Fallback simple initialization (backup)
+	function initStarsSimple() {
+		activeStars = [];
+		for (let i = 0; i < starCount; i++) {
+			activeStars.push(createSimpleStar());
+		}
+	}
+
+	function createSimpleStar(): PooledStar {
+		if (!canvasElement) {
+			return createPooledStar();
+		}
+
+		const star = createPooledStar();
+		star.inUse = true;
+		resetPooledStar(star);
+		return star;
 	}
 
 	// Setup canvas
@@ -76,13 +169,48 @@
 
 	// Resize canvas
 	function resizeCanvas() {
+		if (!canvasElement) return;
 		canvasElement.width = window.innerWidth;
 		canvasElement.height = window.innerHeight;
 	}
 
-	// Animation loop with enhanced effects
+	// Get or create star from pool
+	function getPooledStar(): PooledStar {
+		if (!poolInitialized || !starPool) {
+			return createSimpleStar();
+		}
+
+		try {
+			const star = starPool.get();
+			resetPooledStar(star);
+			starPoolBridge.recordReused(1);
+			return star;
+		} catch (error) {
+			console.warn('StarField: Pool get failed, creating simple star:', error);
+			return createSimpleStar();
+		}
+	}
+
+	// Release star back to pool
+	function releasePooledStar(star: PooledStar) {
+		if (!poolInitialized || !starPool) {
+			return;
+		}
+
+		try {
+			starPool.release(star);
+		} catch (error) {
+			console.warn('StarField: Pool release failed:', error);
+		}
+	}
+
+	// Animation loop with enhanced effects and object pooling
 	function animate() {
-		requestAnimationFrame(animate);
+		if (!isRunning) return;
+
+		animationFrameId = requestAnimationFrame(animate);
+
+		if (!ctx || !canvasElement) return;
 
 		// LONGER TAILS: Reduced alpha for slower fade, creating longer trails
 		ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
@@ -91,20 +219,31 @@
 		const centerX = canvasElement.width / 2;
 		const centerY = canvasElement.height / 2;
 
-		for (let i = 0; i < stars.length; i++) {
-			const star = stars[i];
+		// Track active/inactive count for pool reporting
+		let activeCount = 0;
+
+		for (let i = 0; i < activeStars.length; i++) {
+			const star = activeStars[i];
+			if (!star) continue;
+
+			activeCount++;
 
 			star.prevX = star.x;
 			star.prevY = star.y;
 
 			star.z -= speed;
+			star.age++;
 
+			// Check if star needs to be recycled
 			if (star.z <= 0) {
-				star.x = Math.random() * canvasElement.width * 2 - canvasElement.width;
-				star.y = Math.random() * canvasElement.height * 2 - canvasElement.height;
-				star.z = maxDepth;
-				star.prevX = star.x;
-				star.prevY = star.y;
+				// Release current star back to pool and get a new one
+				if (poolInitialized) {
+					releasePooledStar(star);
+					activeStars[i] = getPooledStar();
+				} else {
+					// Fallback: reset in place
+					resetPooledStar(star);
+				}
 				continue;
 			}
 
@@ -118,9 +257,11 @@
 
 			// LARGER STARS: Increased size for more visibility
 			const size = (1 - star.z / maxDepth) * 4; // Changed from 3 to 4
+			star.size = size;
 
 			const colorIndex = Math.floor((1 - star.z / maxDepth) * (starColors.length - 1));
 			const color = starColors[colorIndex];
+			star.color = color;
 
 			// GLOW EFFECT: Add glow to stars
 			ctx.shadowColor = color;
@@ -149,6 +290,12 @@
 			ctx.shadowBlur = 0;
 		}
 
+		// Update pool statistics periodically
+		if (poolInitialized && Math.random() < 0.01) {
+			// 1% chance per frame
+			starPoolBridge.updateActiveCount(activeCount, POOL_CAPACITY);
+		}
+
 		if (!boosting && speed > baseSpeed) {
 			speed = Math.max(baseSpeed, speed * 0.98);
 		}
@@ -157,6 +304,7 @@
 	// Event handlers
 	function handleKeyDown(e: KeyboardEvent) {
 		if (e.code === 'Space') {
+			e.preventDefault();
 			boosting = true;
 			speed = boostSpeed;
 		}
@@ -164,6 +312,7 @@
 
 	function handleKeyUp(e: KeyboardEvent) {
 		if (e.code === 'Space') {
+			e.preventDefault();
 			boosting = false;
 		}
 	}
@@ -184,6 +333,15 @@
 		animate();
 	}
 
+	// Stop animation
+	export function stop() {
+		isRunning = false;
+		if (animationFrameId) {
+			cancelAnimationFrame(animationFrameId);
+			animationFrameId = null;
+		}
+	}
+
 	// Public boost methods
 	export function boost() {
 		boosting = true;
@@ -194,32 +352,70 @@
 		boosting = false;
 	}
 
+	// Get pool statistics (for debugging)
+	export function getPoolStats() {
+		if (!poolInitialized || !starPool) {
+			return {
+				active: activeStars.length,
+				total: activeStars.length,
+				usage: 1,
+				created: activeStars.length,
+				reused: 0,
+				reuseRatio: 0,
+				poolInitialized: false
+			};
+		}
+
+		return {
+			...starPool.getStats(),
+			poolInitialized: true
+		};
+	}
+
+	// Log pool statistics
+	export function logPoolStats() {
+		const stats = getPoolStats();
+		console.log('StarField Pool Stats:', stats);
+
+		if (poolInitialized && starPool) {
+			starPool.logPoolStats();
+		}
+	}
+
 	// Lifecycle
 	onMount(() => {
 		if (!browser) return;
 
 		if (containerElement) {
 			setupCanvas();
-			initStars();
 
-			if (enableBoost) {
-				window.addEventListener('keydown', handleKeyDown);
-				window.addEventListener('keyup', handleKeyUp);
-				window.addEventListener('touchstart', handleTouchStart);
-				window.addEventListener('touchend', handleTouchEnd);
-			}
+			// Initialize pool after canvas is ready
+			setTimeout(() => {
+				initStarPool();
 
-			window.addEventListener('resize', resizeCanvas);
+				if (enableBoost) {
+					window.addEventListener('keydown', handleKeyDown);
+					window.addEventListener('keyup', handleKeyUp);
+					window.addEventListener('touchstart', handleTouchStart);
+					window.addEventListener('touchend', handleTouchEnd);
+				}
 
-			if (autoStart) {
-				start();
-			}
+				window.addEventListener('resize', resizeCanvas);
+
+				if (autoStart) {
+					start();
+				}
+			}, 0);
 		}
 	});
 
 	onDestroy(() => {
 		if (!browser) return;
 
+		// Stop animation
+		stop();
+
+		// Clean up event listeners
 		if (enableBoost) {
 			window.removeEventListener('keydown', handleKeyDown);
 			window.removeEventListener('keyup', handleKeyUp);
@@ -229,10 +425,34 @@
 
 		window.removeEventListener('resize', resizeCanvas);
 
-		if (animationFrameId) {
-			cancelAnimationFrame(animationFrameId);
+		// Clean up pool and release all stars
+		if (poolInitialized && starPool) {
+			try {
+				// Release all active stars back to pool
+				for (const star of activeStars) {
+					if (star && star.inUse) {
+						starPool.release(star);
+					}
+				}
+
+				// Clean up pool
+				starPool.releaseAll();
+				starPool.destroy();
+
+				// Final stats report
+				starPoolBridge.forceSyncStats();
+
+				console.log('StarField: Pool cleanup complete');
+			} catch (error) {
+				console.warn('StarField: Error during pool cleanup:', error);
+			}
 		}
 
+		// Clear references
+		activeStars = [];
+		poolInitialized = false;
+
+		// Remove canvas
 		if (canvasElement && canvasElement.parentNode) {
 			canvasElement.parentNode.removeChild(canvasElement);
 		}

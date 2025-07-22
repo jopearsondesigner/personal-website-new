@@ -1455,11 +1455,11 @@
 								{/if}
 
 								<!-- Fallback stars - only render if needed -->
-								{#if $animationState.stars && $animationState.stars.length > 0 && !starFieldComponent && !canvasStarFieldManager}
+								<!-- {#if $animationState.stars && $animationState.stars.length > 0 && !starFieldComponent && !canvasStarFieldManager}
 									{#each $animationState.stars as star (star.id)}
 										<div class="star absolute" style={star.style}></div>
 									{/each}
-								{/if}
+								{/if} -->
 							</div>
 						</div>
 
