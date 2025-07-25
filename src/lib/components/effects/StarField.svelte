@@ -80,7 +80,7 @@
 
 		star.x = Math.random() * canvasElement.width * 2 - canvasElement.width;
 		star.y = Math.random() * canvasElement.height * 2 - canvasElement.height;
-		star.z = Math.random() * maxDepth;
+		star.z = maxDepth; // ✅ FIX: Always start at far end
 		star.prevX = star.x;
 		star.prevY = star.y;
 		star.size = 0;
@@ -236,14 +236,17 @@
 
 			// Check if star needs to be recycled
 			if (star.z <= 0) {
-				// Release current star back to pool and get a new one
+				// Reset star to far end instead of getting new one
 				if (poolInitialized) {
-					releasePooledStar(star);
-					activeStars[i] = getPooledStar();
+					// Don't release/get new star, just reset current one
+					resetPooledStar(star);
+					// Update pool stats for reuse
+					starPoolBridge.recordReused(1);
 				} else {
 					// Fallback: reset in place
 					resetPooledStar(star);
 				}
+				// Skip rendering this frame to avoid flash
 				continue;
 			}
 
