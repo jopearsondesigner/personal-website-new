@@ -17,4 +17,49 @@ declare global {
 	}
 }
 
+// ✅ COMPLETE Svelte type declarations
+declare module '*.svelte' {
+	import type { ComponentType, SvelteComponent } from 'svelte';
+	const component: ComponentType<SvelteComponent>;
+	export default component;
+}
+
+// ✅ COMPLETE svelteHTML namespace (this fixes the error)
+declare namespace svelteHTML {
+	interface HTMLAttributes<T> {
+		[key: string]: any;
+		class?: string;
+		style?: string;
+		id?: string;
+		role?: string;
+		tabindex?: number | string;
+		'aria-label'?: string;
+		'aria-labelledby'?: string;
+		'aria-describedby'?: string;
+		'data-control'?: string;
+	}
+
+	interface IntrinsicElements {
+		[elemName: string]: any;
+	}
+}
+
+// ✅ Global svelteHTML declaration
+declare global {
+	namespace svelteHTML {
+		interface HTMLAttributes<T> {
+			[key: string]: any;
+			class?: string;
+			style?: string;
+			id?: string;
+			role?: string;
+			tabindex?: number | string;
+			'aria-label'?: string;
+			'aria-labelledby'?: string;
+			'aria-describedby'?: string;
+			'data-control'?: string;
+		}
+	}
+}
+
 export {};

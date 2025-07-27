@@ -1,16 +1,6 @@
 <!-- src/lib/components/section/Hero.svelte -->
 <!--
 Integrated Star Field Effects:
-- Mouse wheel: Change speed/color
-- Space bar: Boost speed (hold)
-- 1, 2, 3 keys: Switch between star effects
-- Version 1: Classic streaking stars
-- Version 2: 3D zoom effect
-- Version 3: Warp speed effect
--->
-<!-- src/lib/components/section/Hero.svelte -->
-<!--
-Integrated Star Field Effects:
 - Hover zones: Control speed and effects with mouse hover
 - Space bar: Boost speed (hold)
 - Arrow keys: Control speed up/down
@@ -39,6 +29,8 @@ Integrated Star Field Effects:
 	import { createThrottledRAF } from '$lib/utils/animation-helpers';
 	import BoostCue from '$lib/components/ui/BoostCue.svelte';
 	import type { GameState } from '$lib/types/game';
+	import StarfieldControlHints from '$lib/components/ui/StarfieldControlHints.svelte';
+	import MobileStarfieldControls from '$lib/components/ui/MobileStarfieldControls.svelte';
 
 	// Device detection state
 	let isMobileDevice = false;
@@ -1753,38 +1745,7 @@ Integrated Star Field Effects:
 
 							<!-- ✅ NEW: Desktop hover control hints -->
 							{#if !isMobileDevice}
-								<!-- Hover control hints -->
-								<div class="starfield-hints" class:visible={spaceBackgroundInitialized}>
-									<!-- Speed Control Hint -->
-									<div class="control-hint speed-hint">
-										<div class="hint-arrow speed-arrow"></div>
-										<div class="hint-text">
-											<span class="hint-title">Speed Control</span>
-											<span class="hint-description">Hover & move mouse vertically</span>
-											<span class="hint-keys">Or use ↑↓ arrow keys</span>
-										</div>
-									</div>
-
-									<!-- Effects Control Hint -->
-									<div class="control-hint effects-hint">
-										<div class="hint-arrow effects-arrow"></div>
-										<div class="hint-text">
-											<span class="hint-title">Star Effects</span>
-											<span class="hint-description">Hover & click to cycle</span>
-											<span class="hint-keys">Or press 1, 2, 3 keys</span>
-										</div>
-									</div>
-
-									<!-- Boost Control Hint -->
-									<div class="control-hint boost-hint">
-										<div class="hint-arrow boost-arrow"></div>
-										<div class="hint-text">
-											<span class="hint-title">Turbo Boost</span>
-											<span class="hint-description">Hover for speed boost</span>
-											<span class="hint-keys">Or hold Spacebar</span>
-										</div>
-									</div>
-								</div>
+								<StarfieldControlHints visible={spaceBackgroundInitialized} />
 							{/if}
 						</div>
 
@@ -1838,82 +1799,15 @@ Integrated Star Field Effects:
 		</div>
 	</div>
 
-	<!-- ✅ NEW: Mobile controls (shown only on mobile) -->
 	{#if isMobileDevice && currentScreen === 'main'}
-		<div class="mobile-starfield-controls">
-			<div class="controls-header">
-				<span class="controls-title">✦ Starfield Controls</span>
-				<button
-					class="boost-button"
-					class:active={boosting}
-					on:click={() =>
-						handleMobileControlChange({ type: 'boostToggle', detail: { active: !boosting } })}
-					aria-label="Toggle turbo boost"
-				>
-					{boosting ? '🚀' : '⚡'}
-				</button>
-			</div>
-
-			<div class="controls-content">
-				<!-- Speed Control -->
-				<div class="control-group">
-					<label for="speed-slider" class="control-label">
-						Speed: {starSpeedMultiplier.toFixed(1)}x
-					</label>
-					<input
-						id="speed-slider"
-						type="range"
-						min="0.1"
-						max="3.0"
-						step="0.1"
-						bind:value={starSpeedMultiplier}
-						on:input={(e) =>
-							handleMobileControlChange({
-								type: 'speedChange',
-								detail: { speed: parseFloat(e.target.value) }
-							})}
-						class="speed-slider"
-					/>
-				</div>
-
-				<!-- Effect Selection -->
-				<div class="control-group">
-					<span class="control-label">Effects:</span>
-					<div class="effect-buttons">
-						<button
-							class="effect-button"
-							class:active={starEffect === 'version1'}
-							on:click={() =>
-								handleMobileControlChange({ type: 'effectChange', detail: { effect: 'version1' } })}
-							aria-label="Switch to Streaks effect"
-						>
-							<span class="effect-icon">✦</span>
-							<span class="effect-name">Streaks</span>
-						</button>
-						<button
-							class="effect-button"
-							class:active={starEffect === 'version2'}
-							on:click={() =>
-								handleMobileControlChange({ type: 'effectChange', detail: { effect: 'version2' } })}
-							aria-label="Switch to Zoom effect"
-						>
-							<span class="effect-icon">◉</span>
-							<span class="effect-name">Zoom</span>
-						</button>
-						<button
-							class="effect-button"
-							class:active={starEffect === 'version3'}
-							on:click={() =>
-								handleMobileControlChange({ type: 'effectChange', detail: { effect: 'version3' } })}
-							aria-label="Switch to Warp effect"
-						>
-							<span class="effect-icon">⟫</span>
-							<span class="effect-name">Warp</span>
-						</button>
-					</div>
-				</div>
-			</div>
-		</div>
+		<MobileStarfieldControls
+			{starSpeedMultiplier}
+			{starEffect}
+			{boosting}
+			on:speedChange={handleMobileControlChange}
+			on:effectChange={handleMobileControlChange}
+			on:boostToggle={handleMobileControlChange}
+		/>
 	{/if}
 
 	{#if currentScreen === 'game'}
