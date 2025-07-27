@@ -8,6 +8,18 @@ Integrated Star Field Effects:
 - Version 2: 3D zoom effect
 - Version 3: Warp speed effect
 -->
+<!-- src/lib/components/section/Hero.svelte -->
+<!--
+Integrated Star Field Effects:
+- Hover zones: Control speed and effects with mouse hover
+- Space bar: Boost speed (hold)
+- Arrow keys: Control speed up/down
+- 1, 2, 3 keys: Switch between star effects
+- Version 1: Classic streaking stars
+- Version 2: 3D zoom effect
+- Version 3: Warp speed effect
+- Mobile: Touch controls panel
+-->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
@@ -51,9 +63,9 @@ Integrated Star Field Effects:
 		touchStart?: EventListener;
 		glassEffects?: EventListener;
 		scroll?: EventListener;
-		wheel?: EventListener;
 		keydown?: EventListener;
 		keyup?: EventListener;
+		interactiveControls?: Function;
 	} = {};
 
 	// Performance monitoring setup
@@ -350,6 +362,231 @@ Integrated Star Field Effects:
 	function stopStarAnimation() {
 		if (starAnimationId) {
 			cancelAnimationFrame(starAnimationId);
+		}
+	}
+
+	// ✅ NEW: Hover-based control zones for starfield interaction
+	function setupHoverControls() {
+		if (!browser || !spaceBackground) return;
+
+		// Create control zones (invisible overlays)
+		const controlZones = {
+			speed: null as HTMLElement | null,
+			effects: null as HTMLElement | null,
+			boost: null as HTMLElement | null
+		};
+
+		// Create speed control zone (left edge)
+		const speedZone = document.createElement('div');
+		speedZone.className = 'starfield-control-zone speed-zone';
+		speedZone.setAttribute('data-control', 'speed');
+		speedZone.setAttribute('aria-label', 'Hover to control starfield speed');
+		speedZone.setAttribute('tabindex', '0');
+		speedZone.style.cssText = `
+			position: absolute;
+			left: 0;
+			top: 25%;
+			width: 80px;
+			height: 50%;
+			z-index: 10;
+			cursor: ns-resize;
+			background: linear-gradient(to right, rgba(39, 255, 153, 0.1), transparent);
+			opacity: 0;
+			transition: opacity 0.3s ease;
+			border-radius: 0 8px 8px 0;
+		`;
+
+		// Create effects control zone (right edge)
+		const effectsZone = document.createElement('div');
+		effectsZone.className = 'starfield-control-zone effects-zone';
+		effectsZone.setAttribute('data-control', 'effects');
+		effectsZone.setAttribute('aria-label', 'Hover to cycle starfield effects');
+		effectsZone.setAttribute('tabindex', '0');
+		effectsZone.style.cssText = `
+			position: absolute;
+			right: 0;
+			top: 25%;
+			width: 80px;
+			height: 50%;
+			z-index: 10;
+			cursor: pointer;
+			background: linear-gradient(to left, rgba(255, 39, 153, 0.1), transparent);
+			opacity: 0;
+			transition: opacity 0.3s ease;
+			border-radius: 8px 0 0 8px;
+		`;
+
+		// Create boost zone (bottom center)
+		const boostZone = document.createElement('div');
+		boostZone.className = 'starfield-control-zone boost-zone';
+		boostZone.setAttribute('data-control', 'boost');
+		boostZone.setAttribute('aria-label', 'Hover to boost starfield speed');
+		boostZone.setAttribute('tabindex', '0');
+		boostZone.style.cssText = `
+			position: absolute;
+			bottom: 10%;
+			left: 50%;
+			transform: translateX(-50%);
+			width: 120px;
+			height: 60px;
+			z-index: 10;
+			cursor: pointer;
+			background: radial-gradient(ellipse, rgba(255, 255, 39, 0.1), transparent);
+			opacity: 0;
+			transition: opacity 0.3s ease;
+			border-radius: 30px;
+		`;
+
+		// Add zones to space background
+		spaceBackground.appendChild(speedZone);
+		spaceBackground.appendChild(effectsZone);
+		spaceBackground.appendChild(boostZone);
+
+		controlZones.speed = speedZone;
+		controlZones.effects = effectsZone;
+		controlZones.boost = boostZone;
+
+		// Speed control logic
+		const handleSpeedControl = (e: MouseEvent) => {
+			const rect = speedZone.getBoundingClientRect();
+			const relativeY = (e.clientY - rect.top) / rect.height;
+
+			// Convert position to speed multiplier (top = fast, bottom = slow)
+			const newSpeed = 0.2 + (1 - relativeY) * 2.8; // Range: 0.2 to 3.0
+			starSpeedMultiplier = Math.max(0.1, Math.min(5, newSpeed));
+
+			// Visual feedback
+			speedZone.style.background = `linear-gradient(to right,
+				rgba(39, 255, 153, ${0.2 + relativeY * 0.3}), transparent)`;
+		};
+
+		// Effects cycling logic
+		let effectIndex = 0;
+		const effects = ['version1', 'version2', 'version3'];
+		const handleEffectCycle = () => {
+			effectIndex = (effectIndex + 1) % effects.length;
+			startStarEffect(effects[effectIndex]);
+
+			// Visual feedback
+			effectsZone.style.background = `linear-gradient(to left,
+				rgba(255, 39, 153, 0.4), transparent)`;
+			setTimeout(() => {
+				effectsZone.style.background = `linear-gradient(to left,
+					rgba(255, 39, 153, 0.1), transparent)`;
+			}, 200);
+		};
+
+		// Boost logic
+		let isBoostActive = false;
+
+		const handleBoostStart = () => {
+			if (!isBoostActive) {
+				isBoostActive = true;
+				starSpeedMultiplier *= 3;
+				boosting = true;
+				boostZone.style.background = `radial-gradient(ellipse,
+					rgba(255, 255, 39, 0.4), transparent)`;
+			}
+		};
+
+		const handleBoostEnd = () => {
+			if (isBoostActive) {
+				isBoostActive = false;
+				starSpeedMultiplier /= 3;
+				boosting = false;
+				boostZone.style.background = `radial-gradient(ellipse,
+					rgba(255, 255, 39, 0.1), transparent)`;
+			}
+		};
+
+		// Add event listeners
+		speedZone.addEventListener('mouseenter', () => {
+			speedZone.style.opacity = '1';
+		});
+
+		speedZone.addEventListener('mouseleave', () => {
+			speedZone.style.opacity = '0';
+			speedZone.style.background = `linear-gradient(to right,
+				rgba(39, 255, 153, 0.1), transparent)`;
+		});
+
+		speedZone.addEventListener('mousemove', handleSpeedControl);
+
+		effectsZone.addEventListener('mouseenter', () => {
+			effectsZone.style.opacity = '1';
+		});
+
+		effectsZone.addEventListener('mouseleave', () => {
+			effectsZone.style.opacity = '0';
+		});
+
+		effectsZone.addEventListener('click', handleEffectCycle);
+		effectsZone.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				handleEffectCycle();
+			}
+		});
+
+		boostZone.addEventListener('mouseenter', () => {
+			boostZone.style.opacity = '1';
+			handleBoostStart();
+		});
+
+		boostZone.addEventListener('mouseleave', () => {
+			boostZone.style.opacity = '0';
+			handleBoostEnd();
+		});
+
+		boostZone.addEventListener('focus', () => {
+			boostZone.style.opacity = '1';
+		});
+
+		boostZone.addEventListener('blur', () => {
+			boostZone.style.opacity = '0';
+		});
+
+		// Store references for cleanup
+		return {
+			speedZone,
+			effectsZone,
+			boostZone,
+			cleanup: () => {
+				speedZone.remove();
+				effectsZone.remove();
+				boostZone.remove();
+			}
+		};
+	}
+
+	// ✅ NEW: Initialize interactive controls
+	function initializeInteractiveControls() {
+		if (!isMobileDevice) {
+			return setupHoverControls();
+		}
+		return null;
+	}
+
+	// ✅ NEW: Handle mobile control changes
+	function handleMobileControlChange(event: CustomEvent) {
+		const { detail } = event;
+
+		switch (event.type) {
+			case 'speedChange':
+				starSpeedMultiplier = detail.speed;
+				break;
+			case 'effectChange':
+				startStarEffect(detail.effect);
+				break;
+			case 'boostToggle':
+				if (detail.active) {
+					starSpeedMultiplier *= 3;
+					boosting = true;
+				} else {
+					starSpeedMultiplier /= 3;
+					boosting = false;
+				}
+				break;
 		}
 	}
 
@@ -905,50 +1142,14 @@ Integrated Star Field Effects:
 			resizeStarCanvas();
 		}, 100);
 
-		// Mouse wheel control for star effects
-		const wheelHandler = (event: WheelEvent) => {
-			if (currentScreen !== 'main') return;
-
-			event.preventDefault();
-
-			if (starEffect === 'version1') {
-				// Change color and speed for version 1
-				if (starCtx) {
-					starCtx.strokeStyle =
-						'rgb(' +
-						Math.random() * 255 +
-						', ' +
-						Math.random() * 255 +
-						', ' +
-						Math.random() * 255 +
-						')';
-				}
-				if (event.deltaY < 0) {
-					starSpeed *= 1.1;
-				} else {
-					starSpeed *= 0.9;
-				}
-				if (starSpeed < 0.01) starSpeed = 0.01;
-				else if (starSpeed > 0.1) starSpeed = 0.1;
-			} else {
-				// Change speed for other versions
-				if (event.deltaY < 0) {
-					starSpeedMultiplier *= 1.1;
-				} else {
-					starSpeedMultiplier *= 0.9;
-				}
-				if (starSpeedMultiplier < 0.1) starSpeedMultiplier = 0.1;
-				else if (starSpeedMultiplier > 5) starSpeedMultiplier = 5;
-			}
-		};
-
-		// Keyboard controls for star effects
+		// ✅ ENHANCED: Keyboard controls for star effects (now with arrow keys for speed)
 		const keyDownHandler = (e: KeyboardEvent) => {
 			if (currentScreen !== 'main') return;
 
 			if (e.code === 'Space') {
 				e.preventDefault();
 				starSpeedMultiplier *= 3; // Boost
+				boosting = true;
 			} else if (e.code === 'Digit1') {
 				e.preventDefault();
 				startStarEffect('version1');
@@ -958,6 +1159,12 @@ Integrated Star Field Effects:
 			} else if (e.code === 'Digit3') {
 				e.preventDefault();
 				startStarEffect('version3');
+			} else if (e.code === 'ArrowUp') {
+				e.preventDefault();
+				starSpeedMultiplier = Math.min(5, starSpeedMultiplier * 1.2);
+			} else if (e.code === 'ArrowDown') {
+				e.preventDefault();
+				starSpeedMultiplier = Math.max(0.1, starSpeedMultiplier * 0.8);
 			}
 		};
 
@@ -967,6 +1174,7 @@ Integrated Star Field Effects:
 			if (e.code === 'Space') {
 				e.preventDefault();
 				starSpeedMultiplier /= 3; // Un-boost
+				boosting = false;
 			}
 		};
 
@@ -1042,10 +1250,8 @@ Integrated Star Field Effects:
 			window.addEventListener('orientationchange', orientationChangeHandler, passiveOptions);
 			// FIXED: Add scroll event listener
 			window.addEventListener('scroll', handleScroll, passiveOptions);
-			// Add wheel and keyboard controls for star effects
-			window.addEventListener('wheel', wheelHandler, { passive: false });
-			window.addEventListener('keydown', keyDownHandler, passiveOptions);
-			window.addEventListener('keyup', keyUpHandler, passiveOptions);
+			window.addEventListener('keydown', keyDownHandler, nonPassiveOptions);
+			window.addEventListener('keyup', keyUpHandler, nonPassiveOptions);
 		}
 
 		if (typeof document !== 'undefined') {
@@ -1058,14 +1264,24 @@ Integrated Star Field Effects:
 			document.addEventListener('touchmove', () => {}, { passive: true });
 		}
 
+		// ✅ NEW: Initialize interactive controls for desktop
+		if (!isMobileDevice) {
+			const interactiveControlsCleanup = initializeInteractiveControls();
+
+			// Store cleanup function
+			if (interactiveControlsCleanup) {
+				eventHandlers.interactiveControls = interactiveControlsCleanup.cleanup;
+			}
+		}
+
 		// Store handlers for cleanup
 		eventHandlers = {
+			...eventHandlers,
 			resize: optimizedResizeCheck as EventListener,
 			orientationChange: orientationChangeHandler as EventListener,
 			visibility: visibilityHandler as EventListener,
 			touchStart: touchStartHandler as EventListener,
 			scroll: handleScroll as EventListener,
-			wheel: wheelHandler as EventListener,
 			keydown: keyDownHandler as EventListener,
 			keyup: keyUpHandler as EventListener
 		};
@@ -1105,9 +1321,11 @@ Integrated Star Field Effects:
 		if (active) {
 			frameRateController.setQualityOverride(0.9);
 			starSpeedMultiplier *= 3; // Boost star speed
+			boosting = true;
 		} else {
 			frameRateController.setAdaptiveEnabled(true);
 			starSpeedMultiplier /= 3; // Reset star speed
+			boosting = false;
 		}
 	}
 
@@ -1376,9 +1594,9 @@ Integrated Star Field Effects:
 			touchStart,
 			glassEffects,
 			scroll,
-			wheel,
 			keydown,
-			keyup
+			keyup,
+			interactiveControls
 		} = eventHandlers || {};
 
 		// Cleanup all animations and managers
@@ -1435,9 +1653,13 @@ Integrated Star Field Effects:
 		if (visibility) document.removeEventListener('visibilitychange', visibility);
 		if (glassEffects) document.removeEventListener('mousemove', glassEffects);
 		if (scroll) window.removeEventListener('scroll', scroll);
-		if (wheel) window.removeEventListener('wheel', wheel);
 		if (keydown) window.removeEventListener('keydown', keydown);
 		if (keyup) window.removeEventListener('keyup', keyup);
+
+		// ✅ NEW: Cleanup interactive controls
+		if (interactiveControls) {
+			interactiveControls();
+		}
 
 		// Remove any other event listeners that might have been added
 		if (arcadeScreen && touchStart) {
@@ -1528,6 +1750,42 @@ Integrated Star Field Effects:
 								class="absolute inset-0 w-full h-full pointer-events-none rounded-[3vmin]"
 								style="z-index: 2;"
 							></canvas>
+
+							<!-- ✅ NEW: Desktop hover control hints -->
+							{#if !isMobileDevice}
+								<!-- Hover control hints -->
+								<div class="starfield-hints" class:visible={spaceBackgroundInitialized}>
+									<!-- Speed Control Hint -->
+									<div class="control-hint speed-hint">
+										<div class="hint-arrow speed-arrow"></div>
+										<div class="hint-text">
+											<span class="hint-title">Speed Control</span>
+											<span class="hint-description">Hover & move mouse vertically</span>
+											<span class="hint-keys">Or use ↑↓ arrow keys</span>
+										</div>
+									</div>
+
+									<!-- Effects Control Hint -->
+									<div class="control-hint effects-hint">
+										<div class="hint-arrow effects-arrow"></div>
+										<div class="hint-text">
+											<span class="hint-title">Star Effects</span>
+											<span class="hint-description">Hover & click to cycle</span>
+											<span class="hint-keys">Or press 1, 2, 3 keys</span>
+										</div>
+									</div>
+
+									<!-- Boost Control Hint -->
+									<div class="control-hint boost-hint">
+										<div class="hint-arrow boost-arrow"></div>
+										<div class="hint-text">
+											<span class="hint-title">Turbo Boost</span>
+											<span class="hint-description">Hover for speed boost</span>
+											<span class="hint-keys">Or hold Spacebar</span>
+										</div>
+									</div>
+								</div>
+							{/if}
 						</div>
 
 						<!-- Content wrapper -->
@@ -1579,6 +1837,84 @@ Integrated Star Field Effects:
 			</div>
 		</div>
 	</div>
+
+	<!-- ✅ NEW: Mobile controls (shown only on mobile) -->
+	{#if isMobileDevice && currentScreen === 'main'}
+		<div class="mobile-starfield-controls">
+			<div class="controls-header">
+				<span class="controls-title">✦ Starfield Controls</span>
+				<button
+					class="boost-button"
+					class:active={boosting}
+					on:click={() =>
+						handleMobileControlChange({ type: 'boostToggle', detail: { active: !boosting } })}
+					aria-label="Toggle turbo boost"
+				>
+					{boosting ? '🚀' : '⚡'}
+				</button>
+			</div>
+
+			<div class="controls-content">
+				<!-- Speed Control -->
+				<div class="control-group">
+					<label for="speed-slider" class="control-label">
+						Speed: {starSpeedMultiplier.toFixed(1)}x
+					</label>
+					<input
+						id="speed-slider"
+						type="range"
+						min="0.1"
+						max="3.0"
+						step="0.1"
+						bind:value={starSpeedMultiplier}
+						on:input={(e) =>
+							handleMobileControlChange({
+								type: 'speedChange',
+								detail: { speed: parseFloat(e.target.value) }
+							})}
+						class="speed-slider"
+					/>
+				</div>
+
+				<!-- Effect Selection -->
+				<div class="control-group">
+					<span class="control-label">Effects:</span>
+					<div class="effect-buttons">
+						<button
+							class="effect-button"
+							class:active={starEffect === 'version1'}
+							on:click={() =>
+								handleMobileControlChange({ type: 'effectChange', detail: { effect: 'version1' } })}
+							aria-label="Switch to Streaks effect"
+						>
+							<span class="effect-icon">✦</span>
+							<span class="effect-name">Streaks</span>
+						</button>
+						<button
+							class="effect-button"
+							class:active={starEffect === 'version2'}
+							on:click={() =>
+								handleMobileControlChange({ type: 'effectChange', detail: { effect: 'version2' } })}
+							aria-label="Switch to Zoom effect"
+						>
+							<span class="effect-icon">◉</span>
+							<span class="effect-name">Zoom</span>
+						</button>
+						<button
+							class="effect-button"
+							class:active={starEffect === 'version3'}
+							on:click={() =>
+								handleMobileControlChange({ type: 'effectChange', detail: { effect: 'version3' } })}
+							aria-label="Switch to Warp effect"
+						>
+							<span class="effect-icon">⟫</span>
+							<span class="effect-name">Warp</span>
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	{#if currentScreen === 'game'}
 		<ControlsPortal>
@@ -1786,6 +2122,358 @@ Integrated Star Field Effects:
 		opacity: 1 !important;
 		visibility: visible !important;
 		display: block !important;
+	}
+
+	/* ==========================================================================
+       ✅ NEW: Starfield Control Hints
+       ========================================================================== */
+	.starfield-hints {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		z-index: 15;
+		opacity: 0;
+		transition: opacity 0.5s ease-in-out;
+	}
+
+	.starfield-hints.visible {
+		opacity: 1;
+		animation: showHints 2s ease-in-out 3s forwards;
+	}
+
+	.control-hint {
+		position: absolute;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		pointer-events: none;
+		animation: hintPulse 3s ease-in-out infinite;
+	}
+
+	.speed-hint {
+		left: 100px;
+		top: 40%;
+		flex-direction: row;
+	}
+
+	.effects-hint {
+		right: 100px;
+		top: 40%;
+		flex-direction: row-reverse;
+	}
+
+	.boost-hint {
+		bottom: 20%;
+		left: 50%;
+		transform: translateX(-50%);
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.hint-arrow {
+		width: 24px;
+		height: 24px;
+		border: 2px solid rgba(39, 255, 153, 0.8);
+		position: relative;
+	}
+
+	.speed-arrow {
+		border-left: none;
+		border-top: none;
+		transform: rotate(-45deg);
+		border-radius: 0 4px 0 0;
+	}
+
+	.effects-arrow {
+		border-right: none;
+		border-top: none;
+		transform: rotate(45deg);
+		border-radius: 0 0 0 4px;
+	}
+
+	.boost-arrow {
+		border-top: none;
+		border-left: none;
+		border-right: none;
+		border-bottom: 2px solid rgba(255, 255, 39, 0.8);
+		transform: rotate(45deg);
+		border-radius: 0 0 4px 0;
+	}
+
+	.hint-text {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		background: rgba(0, 0, 0, 0.8);
+		padding: 12px 16px;
+		border-radius: 8px;
+		border: 1px solid rgba(39, 255, 153, 0.3);
+		backdrop-filter: blur(8px);
+		max-width: 200px;
+	}
+
+	.boost-hint .hint-text {
+		border-color: rgba(255, 255, 39, 0.3);
+		text-align: center;
+	}
+
+	.effects-hint .hint-text {
+		border-color: rgba(255, 39, 153, 0.3);
+		text-align: right;
+	}
+
+	.hint-title {
+		font-family: 'Press Start 2P', monospace;
+		font-size: 11px;
+		color: rgba(39, 255, 153, 1);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.effects-hint .hint-title {
+		color: rgba(255, 39, 153, 1);
+	}
+
+	.boost-hint .hint-title {
+		color: rgba(255, 255, 39, 1);
+	}
+
+	.hint-description {
+		font-family: 'Pixelify Sans', sans-serif;
+		font-size: 13px;
+		color: rgba(255, 255, 255, 0.9);
+		font-weight: 400;
+	}
+
+	.hint-keys {
+		font-family: 'Press Start 2P', monospace;
+		font-size: 9px;
+		color: rgba(255, 255, 255, 0.6);
+		margin-top: 4px;
+	}
+
+	@keyframes showHints {
+		0% {
+			opacity: 0;
+		}
+		100% {
+			opacity: 1;
+		}
+	}
+
+	@keyframes hintPulse {
+		0%,
+		100% {
+			opacity: 0.7;
+			transform: scale(1);
+		}
+		50% {
+			opacity: 1;
+			transform: scale(1.02);
+		}
+	}
+
+	/* ==========================================================================
+       ✅ NEW: Mobile Starfield Controls
+       ========================================================================== */
+	.mobile-starfield-controls {
+		position: fixed;
+		bottom: 20px;
+		left: 50%;
+		transform: translateX(-50%);
+		background: rgba(0, 0, 0, 0.9);
+		border: 1px solid rgba(39, 255, 153, 0.3);
+		border-radius: 16px;
+		padding: 16px;
+		z-index: 30;
+		backdrop-filter: blur(12px);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+		min-width: 280px;
+		max-width: 90vw;
+	}
+
+	.controls-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 12px;
+		padding-bottom: 8px;
+		border-bottom: 1px solid rgba(39, 255, 153, 0.2);
+	}
+
+	.controls-title {
+		font-family: 'Press Start 2P', monospace;
+		font-size: 10px;
+		color: rgba(39, 255, 153, 1);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.boost-button {
+		background: none;
+		border: 2px solid rgba(255, 255, 39, 0.6);
+		border-radius: 8px;
+		padding: 8px 12px;
+		font-size: 16px;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		color: rgba(255, 255, 39, 0.8);
+	}
+
+	.boost-button:hover,
+	.boost-button.active {
+		background: rgba(255, 255, 39, 0.2);
+		border-color: rgba(255, 255, 39, 1);
+		transform: scale(1.05);
+	}
+
+	.controls-content {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.control-group {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.control-label {
+		font-family: 'Pixelify Sans', sans-serif;
+		font-size: 12px;
+		color: rgba(255, 255, 255, 0.9);
+		font-weight: 500;
+	}
+
+	.speed-slider {
+		appearance: none;
+		width: 100%;
+		height: 6px;
+		border-radius: 3px;
+		background: rgba(255, 255, 255, 0.2);
+		outline: none;
+		cursor: pointer;
+	}
+
+	.speed-slider::-webkit-slider-thumb {
+		appearance: none;
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		background: rgba(39, 255, 153, 1);
+		cursor: pointer;
+		box-shadow: 0 0 8px rgba(39, 255, 153, 0.5);
+		transition: all 0.2s ease;
+	}
+
+	.speed-slider::-webkit-slider-thumb:hover {
+		transform: scale(1.1);
+		box-shadow: 0 0 12px rgba(39, 255, 153, 0.8);
+	}
+
+	.speed-slider::-moz-range-thumb {
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		background: rgba(39, 255, 153, 1);
+		cursor: pointer;
+		border: none;
+		box-shadow: 0 0 8px rgba(39, 255, 153, 0.5);
+	}
+
+	.effect-buttons {
+		display: flex;
+		gap: 8px;
+		justify-content: space-between;
+	}
+
+	.effect-button {
+		flex: 1;
+		background: none;
+		border: 2px solid rgba(255, 39, 153, 0.4);
+		border-radius: 12px;
+		padding: 12px 8px;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
+		min-height: 60px;
+	}
+
+	.effect-button:hover {
+		border-color: rgba(255, 39, 153, 0.8);
+		background: rgba(255, 39, 153, 0.1);
+		transform: translateY(-2px);
+	}
+
+	.effect-button.active {
+		border-color: rgba(255, 39, 153, 1);
+		background: rgba(255, 39, 153, 0.2);
+		box-shadow: 0 0 12px rgba(255, 39, 153, 0.4);
+	}
+
+	.effect-icon {
+		font-size: 18px;
+		color: rgba(255, 39, 153, 1);
+	}
+
+	.effect-name {
+		font-family: 'Press Start 2P', monospace;
+		font-size: 8px;
+		color: rgba(255, 255, 255, 0.8);
+		text-transform: uppercase;
+		letter-spacing: 0.3px;
+	}
+
+	/* ==========================================================================
+       ✅ NEW: Starfield Control Zones (for hover interactions)
+       ========================================================================== */
+	.starfield-control-zone {
+		/* Ensure control zones are accessible */
+		outline: none;
+		transition: all 0.3s ease;
+	}
+
+	.starfield-control-zone:focus-visible {
+		outline: 2px solid rgba(39, 255, 153, 0.8);
+		outline-offset: 2px;
+	}
+
+	/* ==========================================================================
+       ✅ NEW: Keyboard Navigation Instructions
+       ========================================================================== */
+	@media (min-width: 769px) {
+		#hero::before {
+			content: 'Controls: Hover edges for effects • Arrow keys for speed • Space to boost • 1,2,3 for effects';
+			position: absolute;
+			bottom: 10px;
+			left: 50%;
+			transform: translateX(-50%);
+			font-family: 'Press Start 2P', monospace;
+			font-size: 8px;
+			color: rgba(255, 255, 255, 0.4);
+			text-align: center;
+			z-index: 100;
+			pointer-events: none;
+			opacity: 0;
+			animation: showInstructions 2s ease-in-out 3s forwards;
+			max-width: 80%;
+			line-height: 1.4;
+		}
+	}
+
+	@keyframes showInstructions {
+		0% {
+			opacity: 0;
+			transform: translateX(-50%) translateY(10px);
+		}
+		100% {
+			opacity: 1;
+			transform: translateX(-50%) translateY(0);
+		}
 	}
 
 	/* ==========================================================================
@@ -2111,6 +2799,28 @@ Integrated Star Field Effects:
 
 		#insert-concept {
 			will-change: opacity;
+		}
+
+		/* Hide hints on mobile since hover doesn't work */
+		.starfield-hints {
+			display: none !important;
+		}
+
+		/* Hide desktop instructions on mobile */
+		#hero::before {
+			display: none !important;
+		}
+
+		/* Hide on desktop where hover controls work better */
+		.mobile-starfield-controls {
+			display: block;
+		}
+	}
+
+	@media (min-width: 769px) {
+		/* Hide mobile controls on desktop */
+		.mobile-starfield-controls {
+			display: none;
 		}
 	}
 
@@ -2813,171 +3523,34 @@ Integrated Star Field Effects:
 			/* Don't use view transitions on mobile */
 			view-transition-name: none;
 		}
+
+		/* Adjust for very small screens */
+		.mobile-starfield-controls {
+			min-width: 260px;
+			padding: 12px;
+		}
+
+		.effect-buttons {
+			flex-wrap: wrap;
+		}
+
+		.effect-button {
+			min-width: 70px;
+		}
 	}
 
-	/* ==========================================================================
-      Mobile Light Mode Optimizations
-      ========================================================================== */
-	@media (max-width: 768px) {
-		/* Soften glitch effects for mobile light mode */
-		:global(html.light) #header::before {
-			animation-duration: 6s;
-			opacity: 0.3;
-			background: linear-gradient(
-				90deg,
-				transparent 0%,
-				rgba(39, 255, 153, 0.1) 15%,
-				transparent 25%
-			);
+	@media (max-width: 320px) {
+		.mobile-starfield-controls {
+			min-width: 260px;
+			padding: 12px;
 		}
 
-		/* Smoother scanline effect */
-		:global(html.light) #scanline-overlay {
-			opacity: 0.2;
-			background-size: 100% 4px;
-			animation-duration: 0.3s;
+		.effect-buttons {
+			flex-wrap: wrap;
 		}
 
-		/* Reduce power-up sequence intensity for light mode */
-		:global(html.light) .power-sequence {
-			animation-duration: 2s;
-		}
-
-		@keyframes mobileLightPowerUp {
-			0% {
-				filter: brightness(0.8) blur(1px);
-				transform: scale(0.99);
-			}
-			100% {
-				filter: brightness(1) blur(0);
-				transform: scale(1);
-			}
-		}
-
-		:global(html.light) .power-sequence {
-			animation-name: mobileLightPowerUp;
-		}
-
-		/* Mobile Light Mode Cabinet Styles */
-		:global(html.light) #arcade-cabinet {
-			background: linear-gradient(
-				180deg,
-				var(--light-cabinet-primary) 0%,
-				var(--light-cabinet-secondary) 100%
-			);
-			box-shadow:
-				0 10px 20px rgba(0, 0, 0, 0.08),
-				0 5px 15px rgba(0, 0, 0, 0.04),
-				inset 0 1px 2px var(--light-highlight);
-			border-radius: var(--light-cabinet-border-radius);
-		}
-
-		:global(html.light) .cabinet-plastic {
-			background: linear-gradient(
-				180deg,
-				var(--light-cabinet-secondary) 0%,
-				var(--light-cabinet-tertiary) 100%
-			);
-			box-shadow:
-				inset 0 5px 15px rgba(0, 0, 0, 0.02),
-				inset -3px 0 8px rgba(0, 0, 0, 0.01),
-				inset 3px 0 8px rgba(0, 0, 0, 0.01),
-				inset 0 -3px 8px rgba(0, 0, 0, 0.02);
-			border-radius: var(--light-cabinet-border-radius);
-			border: 1px solid var(--light-cabinet-border-color);
-		}
-
-		:global(html.light) .cabinet-background {
-			background: linear-gradient(
-				45deg,
-				rgba(240, 240, 240, 0.2) 0%,
-				rgba(250, 250, 250, 0.2) 50%,
-				rgba(240, 240, 240, 0.2) 100%
-			);
-			opacity: 0.6;
-			mix-blend-mode: overlay;
-		}
-
-		:global(html.light) .cabinet-wear {
-			background: repeating-linear-gradient(
-				45deg,
-				transparent 0px,
-				transparent 5px,
-				rgba(0, 0, 0, var(--light-cabinet-texture-opacity)) 5px,
-				rgba(0, 0, 0, var(--light-cabinet-texture-opacity)) 6px
-			);
-			opacity: 0.2;
-			mix-blend-mode: soft-light;
-		}
-
-		:global(html.light) .screen-bezel {
-			background: linear-gradient(
-				to bottom,
-				var(--light-bezel-gradient-start) 0%,
-				var(--light-bezel-gradient-end) 100%
-			);
-			box-shadow:
-				inset 0 1px 3px rgba(0, 0, 0, 0.08),
-				0 0 1px rgba(255, 255, 255, 0.9),
-				0 2px 4px rgba(0, 0, 0, 0.03);
-			border-radius: calc(var(--border-radius) + 4px);
-		}
-
-		/* Enhanced mobile t-molding with subtler effect */
-		:global(html.light) .t-molding::before {
-			opacity: 0.2;
-			background: linear-gradient(
-				90deg,
-				var(--light-cabinet-accent) 0%,
-				rgba(0, 150, 255, 0.2) 50%,
-				var(--light-cabinet-accent) 100%
-			);
-			filter: blur(3px);
-		}
-
-		:global(html.light) .t-molding::after {
-			opacity: 0.15;
-			box-shadow:
-				inset 0 0 6px rgba(255, 255, 255, 0.3),
-				0 0 8px var(--light-cabinet-accent);
-		}
-
-		/* Refined corner accents for mobile light mode */
-		:global(html.light) .corner-accent {
-			opacity: 0.3;
-			background: radial-gradient(
-				circle at center,
-				rgba(255, 255, 255, 0.7),
-				rgba(255, 255, 255, 0.05) 70%,
-				transparent 100%
-			);
-			filter: blur(1px);
-		}
-
-		/* Softer light spill for mobile light mode */
-		:global(html.light) .light-spill {
-			background: radial-gradient(circle at 50% 50%, var(--light-cabinet-accent), transparent 70%);
-			opacity: 0.06;
-			filter: blur(15px);
-		}
-
-		/* Subtler control panel light in mobile light mode */
-		:global(html.light) .control-panel-light {
-			opacity: 0.15;
-			background: linear-gradient(to bottom, var(--light-cabinet-accent), transparent);
-		}
-
-		/* Adjust arcade-screen-wrapper margin for mobile */
-		:global(html.light) .arcade-screen-wrapper {
-			margin-top: calc(-0.8 * var(--navbar-height, 64px));
-		}
-
-		/* Ensure proper border-radius on light mode elements */
-		:global(html.light) .cabinet-plastic,
-		:global(html.light) .arcade-screen-wrapper,
-		:global(html.light) .screen-bezel {
-			overflow: hidden;
-			border-radius: var(--light-cabinet-border-radius);
+		.effect-button {
+			min-width: 70px;
 		}
 	}
 
@@ -3017,6 +3590,37 @@ Integrated Star Field Effects:
 	.ios-optimized #scanline-overlay {
 		opacity: 0.5;
 		background-size: 100% 6px;
+	}
+
+	/* ==========================================================================
+      ✅ NEW: Accessibility & Reduced Motion
+      ========================================================================== */
+	/* Respect user preferences for reduced motion */
+	@media (prefers-reduced-motion: reduce) {
+		.control-hint,
+		.boost-button,
+		.effect-button {
+			animation: none;
+			transition: none;
+		}
+
+		.starfield-hints {
+			transition: none;
+		}
+
+		#hero::before {
+			animation: none;
+			opacity: 1;
+		}
+
+		.boost-button:hover,
+		.boost-button.active {
+			transform: none;
+		}
+
+		.effect-button:hover {
+			transform: none;
+		}
 	}
 
 	/* ==========================================================================
