@@ -15,7 +15,7 @@ DO NOT REMOVE THIS COMMENT */
 @import './variables.css';
 
 /* =============================================================================
-   MEDIA QUERY VARIABLE OVERRIDES
+   MEDIA QUERY VARIABLE OVERRIDES (from original)
    ============================================================================= */
 
 @media (max-width: 768px) {
@@ -85,6 +85,7 @@ html.light {
    PORTAL SYSTEM
    ============================================================================= */
 
+/* Add this to your global CSS */
 #controls-portal {
 	position: fixed;
 	top: 0;
@@ -92,7 +93,7 @@ html.light {
 	width: 100%;
 	height: 100%;
 	pointer-events: none;
-	z-index: 9999;
+	z-index: 9999; /* Higher than any other z-index in your app */
 }
 
 #controls-portal .controls-container {
@@ -100,15 +101,29 @@ html.light {
 	bottom: 0;
 	left: 0;
 	width: 100%;
-	pointer-events: auto;
+	pointer-events: auto; /* Make the controls interactive */
 	background: var(--controls-background);
 	border-top: 1px solid var(--neon-color-dim);
 }
 
+/* Hide portal contents on larger screens if needed */
 @media (min-width: 1024px) {
+	/* lg breakpoint in Tailwind */
 	#controls-portal .controls-container {
 		display: none;
 	}
+}
+
+/* =============================================================================
+   CABINET STYLES
+   ============================================================================= */
+
+/* Cabinet Styles */
+.light-theme-cabinet {
+	--cabinet-depth: 1.5vmin;
+	--screen-recess: 1.2vmin;
+	--bezel-thickness: 0.6vmin;
+	--screen-glow-opacity: 0.3;
 }
 
 /* =============================================================================
@@ -372,12 +387,79 @@ html.dark .nav-button:active {
 }
 
 /* =============================================================================
-   SPACE BACKGROUND PERSISTENCE - Essential for Hero component
+   FIXED: Additional CSS rules to prevent bright gradient bleed-through
    ============================================================================= */
 
-/* Enhanced space background persistence rules */
+/* FIXED: Ensure GameScreen doesn't bleed through during transitions */
+:global(.screen-content-layer) {
+	/* Create proper stacking context for game content */
+	position: relative;
+	z-index: 5;
+	/* Ensure content is properly contained */
+	contain: layout style paint;
+	/* Prevent any background bleed-through */
+	isolation: isolate;
+}
+
+/* FIXED: Ensure space background always has black base before any gradient loads */
+:global(#space-background) {
+	/* FIXED: Always start with solid black background */
+	background-color: #000 !important;
+
+	/* Force browser to prioritize background rendering */
+	will-change: auto !important;
+	/* Ensure it's always painted */
+	contain: layout style paint !important;
+	/* Create proper stacking context */
+	isolation: isolate !important;
+	/* Ensure visibility during all transitions */
+	opacity: 1 !important;
+	visibility: visible !important;
+	/* Prevent any flickering */
+	backface-visibility: hidden;
+	-webkit-backface-visibility: hidden;
+	/* Force hardware acceleration for smooth transitions */
+	transform: translateZ(0);
+	-webkit-transform: translateZ(0);
+}
+
+/* FIXED: Ensure the bright GameScreen gradient is properly contained */
+:global(#game-screen) {
+	/* Prevent background from bleeding through during transitions */
+	contain: layout style paint;
+	/* Create proper stacking context */
+	isolation: isolate;
+	/* Ensure it's properly layered above space background */
+	position: relative;
+	z-index: 2;
+}
+
+/* FIXED: Additional safety net for persistent space background */
+:global(.space-background-persistent::after) {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: radial-gradient(circle at center, #000 20%, #001c4d 70%, #000000 100%);
+	z-index: -2;
+	opacity: 1;
+	border-radius: inherit;
+	/* This acts as a backup if the main background fails to render */
+}
+
+/* FIXED: Transition safety for scroll events */
+:global(.arcade-screen-container) {
+	/* Ensure consistent rendering during scroll transitions */
+	transform: translateZ(0);
+	backface-visibility: hidden;
+	/* Prevent any background switching during animations */
+	will-change: auto;
+	/* Force consistent background rendering */
+	background-attachment: local;
+}
+
+/* FIXED: Enhanced space background persistence rules */
 :global(.space-background-persistent) {
-	/* Force immediate black background before any gradients load */
+	/* FIXED: Force immediate black background before any gradients load */
 	background-color: #000 !important;
 
 	/* Force stable rendering during all scroll and navigation events */
@@ -408,65 +490,171 @@ html.dark .nav-button:active {
 	background-repeat: no-repeat !important;
 	background-size: cover !important;
 	background-position: center !important;
+
+	/* Prevent any mask or clip interference */
+	mask: none !important;
+	-webkit-mask: none !important;
+	clip-path: none !important;
 }
 
-/* Fallback background that ensures there's always something visible */
+/* FIXED: Fallback background that ensures there's always something visible */
 :global(.space-background-persistent::before) {
 	content: '';
 	position: absolute;
 	inset: 0;
+	/* FIXED: Always black background, never gradient */
 	background: #000 !important;
 	background-color: #000 !important;
 	z-index: -1;
 	opacity: 1;
 	border-radius: inherit;
+	/* This ensures there's always a black background even if star field fails */
 	pointer-events: none;
+	/* Force hardware acceleration for this fallback too */
 	transform: translateZ(-1px);
 	backface-visibility: hidden;
 	-webkit-backface-visibility: hidden;
 }
 
-/* Mobile-specific fixes for background persistence */
+/* FIXED: Extra security during scroll events */
+:global(.space-background-persistent.scrolling) {
+	/* Lock all properties during scroll to prevent any changes */
+	transform: translateZ(0) !important;
+	opacity: 1 !important;
+	visibility: visible !important;
+	display: block !important;
+	/* Disable any animations during scroll */
+	animation-play-state: paused !important;
+	transition: none !important;
+}
+
+/* FIXED: Override any theme switching that might affect space background */
+:global(html.light .space-background-persistent),
+:global(html.dark .space-background-persistent) {
+	/* Theme changes should not affect space background properties */
+	transform: translateZ(0) !important;
+	opacity: 1 !important;
+	visibility: visible !important;
+	background-attachment: local !important;
+}
+
+/* FIXED: Mobile-specific fixes for background persistence */
 @media (max-width: 768px) {
 	:global(#space-background) {
+		/* Extra stability on mobile devices */
 		-webkit-transform: translateZ(0) !important;
 		transform: translateZ(0) !important;
 		-webkit-backface-visibility: hidden !important;
 		backface-visibility: hidden !important;
+		/* Prevent any iOS-specific rendering issues */
 		-webkit-perspective: 1000px;
 		perspective: 1000px;
 	}
 
 	:global(.space-background-persistent) {
+		/* Force consistent background on mobile */
 		background-attachment: local !important;
 		background-repeat: no-repeat !important;
 		background-size: cover !important;
 		background-position: center !important;
+
+		/* Extra mobile-specific stability */
 		-webkit-transform: translateZ(0) !important;
 		transform: translateZ(0) !important;
 		-webkit-backface-visibility: hidden !important;
 		backface-visibility: hidden !important;
+
+		/* Prevent iOS scroll bounce interference */
 		-webkit-overflow-scrolling: auto !important;
 		overflow: visible !important;
 	}
+
+	/* FIXED: Disable problematic effects on mobile that could interfere */
+	:global(.space-background-persistent *) {
+		/* Prevent child elements from interfering with background stability */
+		transform: translateZ(0);
+		backface-visibility: hidden;
+		-webkit-backface-visibility: hidden;
+	}
+}
+
+/* FIXED: Intersection Observer transition safety */
+@media (prefers-reduced-motion: no-preference) {
+	:global(#space-background) {
+		/* Smooth transitions that don't cause background flickering */
+		transition:
+			opacity 0.1s ease-out,
+			visibility 0.1s ease-out;
+	}
+}
+
+/* FIXED: Force background priority in all stacking contexts */
+:global(.hero-section #space-background),
+:global([id='hero'] #space-background) {
+	/* Ensure space background is always the base layer */
+	z-index: 0 !important;
+	/* Force rendering priority */
+	will-change: auto !important;
+	/* Prevent any theme switching artifacts */
+	transition: none !important;
+}
+
+/* FIXED: Prevent any CSS animations from interfering with space background */
+:global(.space-background-persistent) *,
+:global(.space-background-persistent)::before,
+:global(.space-background-persistent)::after {
+	/* Disable any animations that might interfere */
+	animation-duration: 0s !important;
+	animation-delay: 0s !important;
+	transition-duration: 0s !important;
+	transition-delay: 0s !important;
+}
+
+/* FIXED: Star field specific stability */
+:global(.canvas-star-container) {
+	/* Ensure star field container doesn't interfere with background */
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	/* Stable rendering */
+	transform: translateZ(1px);
+	backface-visibility: hidden;
+	-webkit-backface-visibility: hidden;
+	/* Proper layering */
+	z-index: 1;
+}
+
+/* FIXED: Canvas element stability */
+:global(.star-field-canvas) {
+	/* Ensure canvas doesn't cause background issues */
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+	/* Stable rendering */
+	transform: translateZ(0);
+	backface-visibility: hidden;
+	-webkit-backface-visibility: hidden;
 }
 
 /* =============================================================================
-   CONTACT SECTION STYLES
+   MINIMALIST CONTACT SECTION ENHANCEMENTS
    ============================================================================= */
 
 /* Contact Section Layout */
 .contact-section {
-	--contact-max-width: 72rem;
-	--contact-grid-gap: 5rem;
-	--contact-vertical-spacing: 4rem;
+	--contact-max-width: 72rem; /* 1152px */
+	--contact-grid-gap: 5rem; /* 80px */
+	--contact-vertical-spacing: 4rem; /* 64px */
 	--contact-form-focus-offset: -2px;
 }
 
 @media (max-width: 1024px) {
 	.contact-section {
-		--contact-grid-gap: 3rem;
-		--contact-vertical-spacing: 3rem;
+		--contact-grid-gap: 3rem; /* 48px */
+		--contact-vertical-spacing: 3rem; /* 48px */
 	}
 }
 
@@ -497,6 +685,236 @@ html.dark .nav-button:active {
 	font-family: var(--body-text), sans-serif;
 }
 
+/* Minimalist Form Styling */
+.minimal-form-field {
+	position: relative;
+}
+
+.minimal-form-field input,
+.minimal-form-field textarea {
+	font-family: inherit;
+	font-size: 1rem;
+	line-height: 1.5;
+	background: transparent;
+	border: none;
+	border-bottom: 2px solid var(--field-border-color, rgba(171, 171, 171, 0.3));
+	outline: none;
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	width: 100%;
+	padding: 0.75rem 0;
+	font-weight: var(--ibm-weight-normal);
+	font-variation-settings: 'wght' var(--ibm-weight-normal);
+}
+
+.minimal-form-field input:focus,
+.minimal-form-field textarea:focus {
+	border-bottom-color: var(--arcade-neon-green-500);
+	transform: translateY(-1px);
+	box-shadow: 0 2px 0 0 var(--arcade-neon-green-500);
+}
+
+.minimal-form-field input.error,
+.minimal-form-field textarea.error {
+	border-bottom-color: var(--arcade-red-500);
+}
+
+/* Label Animations */
+.minimal-form-field label {
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	cursor: text;
+	font-weight: var(--ibm-weight-medium);
+	font-variation-settings: 'wght' var(--ibm-weight-medium);
+}
+
+/* Contact Links */
+.contact-link {
+	display: inline-flex;
+	align-items: center;
+	text-decoration: none;
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	position: relative;
+	font-family: var(--body-text), sans-serif;
+	font-weight: var(--ibm-weight-medium);
+	font-variation-settings: 'wght' var(--ibm-weight-medium);
+}
+
+.contact-link:hover {
+	transform: translateX(4px);
+}
+
+.contact-link::after {
+	content: '';
+	position: absolute;
+	bottom: -2px;
+	left: 0;
+	width: 0;
+	height: 1px;
+	background-color: var(--arcade-neon-green-500);
+	transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.contact-link:hover::after {
+	width: 100%;
+}
+
+/* Social Icons */
+.social-icon {
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	border-radius: 50%;
+	padding: 0.5rem;
+}
+
+.social-icon:hover {
+	transform: translateY(-2px);
+	background-color: rgba(39, 255, 153, 0.1);
+}
+
+/* Submit Button Enhancements */
+.minimal-submit-btn {
+	position: relative;
+	overflow: hidden;
+	background: transparent;
+	border: 2px solid currentColor;
+	padding: 1rem 2rem;
+	font-weight: var(--ibm-weight-medium);
+	font-variation-settings: 'wght' var(--ibm-weight-medium);
+	letter-spacing: 0.02em;
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	cursor: pointer;
+	font-family: var(--body-text), sans-serif;
+}
+
+.minimal-submit-btn:hover:not(:disabled) {
+	border-color: var(--arcade-neon-green-500);
+	color: var(--arcade-neon-green-500);
+	transform: translateY(-1px);
+	box-shadow: 0 4px 12px rgba(39, 255, 153, 0.15);
+}
+
+.minimal-submit-btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+	transform: none;
+}
+
+/* Subtle Loading Animation */
+.btn-loading-overlay {
+	position: absolute;
+	top: 0;
+	left: -100%;
+	width: 100%;
+	height: 100%;
+	background: linear-gradient(90deg, transparent 0%, rgba(39, 255, 153, 0.1) 50%, transparent 100%);
+	transition: left 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-loading .btn-loading-overlay {
+	left: 100%;
+}
+
+/* Message States */
+.form-message {
+	border-radius: 8px;
+	padding: 1rem 1.5rem;
+	font-weight: var(--ibm-weight-medium);
+	font-variation-settings: 'wght' var(--ibm-weight-medium);
+	border: 1px solid;
+	background-clip: padding-box;
+	font-family: var(--body-text), sans-serif;
+}
+
+.form-message.success {
+	border-color: rgba(39, 255, 153, 0.3);
+	background-color: rgba(39, 255, 153, 0.05);
+	color: var(--arcade-neon-green-500);
+}
+
+.form-message.error {
+	border-color: rgba(255, 69, 0, 0.3);
+	background-color: rgba(255, 69, 0, 0.05);
+	color: var(--arcade-red-500);
+}
+
+/* Arcade Elements - Subtle */
+.arcade-accent-line {
+	width: 3rem;
+	height: 1px;
+	background: linear-gradient(
+		90deg,
+		transparent 0%,
+		var(--arcade-neon-green-500) 50%,
+		transparent 100%
+	);
+	animation: pulse-glow 3s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+	0%,
+	100% {
+		opacity: 0.6;
+		transform: scaleX(1);
+	}
+	50% {
+		opacity: 1;
+		transform: scaleX(1.1);
+	}
+}
+
+.terminal-text {
+	font-family: 'Courier New', Monaco, monospace;
+	font-size: 0.75rem;
+	color: var(--arcade-neon-green-500);
+	opacity: 0.7;
+	letter-spacing: 0.05em;
+}
+
+/* Responsive Enhancements */
+@media (max-width: 768px) {
+	.contact-heading {
+		font-size: 2.5rem;
+		letter-spacing: 0.05em;
+		font-weight: var(--orbitron-weight-bold);
+		font-variation-settings: 'wght' var(--orbitron-weight-bold);
+	}
+
+	.minimal-submit-btn {
+		width: 100%;
+		padding: 1.25rem 2rem;
+	}
+
+	.contact-section {
+		--contact-vertical-spacing: 2rem;
+	}
+}
+
+/* Dark Mode Specific */
+@media (prefers-color-scheme: dark) {
+	.minimal-form-field input,
+	.minimal-form-field textarea {
+		color: var(--arcade-white-200);
+	}
+
+	.minimal-form-field input::placeholder,
+	.minimal-form-field textarea::placeholder {
+		color: rgba(245, 245, 220, 0.6);
+	}
+}
+
+/* Light Mode Specific */
+html.light .minimal-form-field input,
+html.light .minimal-form-field textarea {
+	color: var(--arcade-black-600);
+}
+
+html.light .minimal-form-field input::placeholder,
+html.light .minimal-form-field textarea::placeholder {
+	color: rgba(43, 43, 43, 0.6);
+}
+
+/* =============================================================================
+   ULTRA MINIMALIST CONTACT SECTION
+   ============================================================================= */
+
 /* Contact Container Wrapper */
 .contact-wrapper {
 	background-color: var(--arcade-black-600);
@@ -504,15 +922,20 @@ html.dark .nav-button:active {
 	border-radius: 8px;
 }
 
+/* Light theme background */
 html.light .contact-wrapper {
 	background-color: var(--arcade-black-100);
 }
 
-/* Form Fields */
-.form-field {
-	position: relative;
+/* Typography */
+.contact-heading {
+	letter-spacing: 0.1em;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
+/* Form Fields */
 .form-field input,
 .form-field textarea {
 	font-family: inherit;
@@ -556,7 +979,7 @@ html.light .contact-wrapper {
 	color: var(--arcade-neon-green-500);
 }
 
-/* Submit Button */
+/* Button */
 button[type='submit'] {
 	background: transparent;
 	border: 2px solid currentColor;
@@ -576,60 +999,6 @@ button[type='submit']:hover:not(:disabled) {
 button[type='submit']:disabled {
 	opacity: 0.6;
 	cursor: not-allowed;
-}
-
-/* Contact Links */
-.contact-link {
-	display: inline-flex;
-	align-items: center;
-	text-decoration: none;
-	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-	position: relative;
-	font-family: var(--body-text), sans-serif;
-	font-weight: var(--ibm-weight-medium);
-	font-variation-settings: 'wght' var(--ibm-weight-medium);
-}
-
-.contact-link:hover {
-	transform: translateX(4px);
-}
-
-.contact-link::after {
-	content: '';
-	position: absolute;
-	bottom: -2px;
-	left: 0;
-	width: 0;
-	height: 1px;
-	background-color: var(--arcade-neon-green-500);
-	transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.contact-link:hover::after {
-	width: 100%;
-}
-
-/* Message States */
-.form-message {
-	border-radius: 8px;
-	padding: 1rem 1.5rem;
-	font-weight: var(--ibm-weight-medium);
-	font-variation-settings: 'wght' var(--ibm-weight-medium);
-	border: 1px solid;
-	background-clip: padding-box;
-	font-family: var(--body-text), sans-serif;
-}
-
-.form-message.success {
-	border-color: rgba(39, 255, 153, 0.3);
-	background-color: rgba(39, 255, 153, 0.05);
-	color: var(--arcade-neon-green-500);
-}
-
-.form-message.error {
-	border-color: rgba(255, 69, 0, 0.3);
-	background-color: rgba(255, 69, 0, 0.05);
-	color: var(--arcade-red-500);
 }
 
 /* Responsive */

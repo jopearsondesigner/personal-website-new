@@ -1,15 +1,4 @@
 <!-- src/lib/components/section/Hero.svelte -->
-<!--
-Integrated Star Field Effects:
-- Hover zones: Control speed and effects with mouse hover
-- Space bar: Boost speed (hold)
-- Arrow keys: Control speed up/down
-- 1, 2, 3 keys: Switch between star effects
-- Version 1: Classic streaking stars
-- Version 2: 3D zoom effect
-- Version 3: Warp speed effect
-- Mobile: Touch controls panel
--->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
@@ -19,18 +8,20 @@ Integrated Star Field Effects:
 	import ArcadeNavigation from '$lib/components/ui/ArcadeNavigation.svelte';
 	import GameScreen from '$lib/components/game/GameScreen.svelte';
 	import { animations } from '$lib/utils/animation-utils';
+	import type { Star } from '$lib/utils/animation-utils';
 	import { animationState, screenStore } from '$lib/stores/animation-store';
 	import { layoutStore } from '$lib/stores/store';
 	import ControlsPortal from '$lib/components/ui/ControlsPortal.svelte';
 	import GameControls from '$lib/components/game/GameControls.svelte';
 	import { deviceCapabilities, setupPerformanceMonitoring } from '$lib/utils/device-performance';
+	import { CanvasStarFieldManager } from '$lib/utils/canvas-star-field';
 	import { MemoryMonitor } from '$lib/utils/memory-monitor';
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
 	import { createThrottledRAF } from '$lib/utils/animation-helpers';
+	import StarField from '$lib/components/effects/StarField.svelte';
 	import BoostCue from '$lib/components/ui/BoostCue.svelte';
 	import type { GameState } from '$lib/types/game';
-	import StarfieldControlHints from '$lib/components/ui/StarfieldControlHints.svelte';
-	import MobileStarfieldControls from '$lib/components/ui/MobileStarfieldControls.svelte';
+	import { StarPoolIntegration } from '$lib/utils/star-pool-integration';
 
 	// Device detection state
 	let isMobileDevice = false;
@@ -41,8 +32,12 @@ Integrated Star Field Effects:
 	let header: HTMLElement;
 	let insertConcept: HTMLElement;
 	let arcadeScreen: HTMLElement;
+	let starContainer: HTMLElement;
 	let spaceBackground: HTMLElement;
 	let currentScreen = 'main';
+	let stars: Star[] = [];
+	let starFieldManager: InstanceType<typeof animations.StarFieldManager>;
+	let canvasStarFieldManager: CanvasStarFieldManager | null = null;
 	let glitchManager: InstanceType<typeof animations.GlitchManager>;
 	let resizeObserver: ResizeObserver | null = null;
 	let orientationTimeout: number | null = null;
@@ -55,14 +50,14 @@ Integrated Star Field Effects:
 		touchStart?: EventListener;
 		glassEffects?: EventListener;
 		scroll?: EventListener;
-		keydown?: EventListener;
-		keyup?: EventListener;
-		interactiveControls?: Function;
 	} = {};
 
 	// Performance monitoring setup
 	let perfMonitor: ReturnType<typeof setupPerformanceMonitoring> | null = null;
 	let frameRateUnsubscribe: Function | null = null;
+
+	// StarField component reference
+	let starFieldComponent: StarField | null = null;
 
 	let currentGameState: GameState = 'idle';
 
@@ -77,168 +72,15 @@ Integrated Star Field Effects:
 
 	let hasMounted = false;
 
-	// Star field canvas and animation variables
-	let starCanvas: HTMLCanvasElement;
-	let starCtx: CanvasRenderingContext2D;
-	let starAnimationId: number;
-	let starEffect = 'version1'; // default effect
-	let starSpeed = 0.04;
-	let starSpeedMultiplier = 1;
-	let stars: any[] = [];
-	const numberOfStars = 600; // Optimized for performance
+	// Add a flag to track if the star field is ready
+	let starFieldReady = false;
 
-	// Star field classes
-	class StarV1 {
-		x: number;
-		y: number;
-		px: number;
-		py: number;
-		z: number;
+	// Add reactive statement to track when StarField is ready
+	$: starFieldReady =
+		hasMounted && starFieldComponent !== null && typeof starFieldComponent?.start === 'function';
 
-		constructor() {
-			this.x = Math.random() * starCanvas.width - starCanvas.width / 2;
-			this.y = Math.random() * starCanvas.height - starCanvas.height / 2;
-			this.px = this.x;
-			this.py = this.y;
-			this.z = Math.random() * 4;
-		}
-
-		update() {
-			this.px = this.x;
-			this.py = this.y;
-			this.z += starSpeed * starSpeedMultiplier;
-			this.x += this.x * (starSpeed * 0.2) * this.z;
-			this.y += this.y * (starSpeed * 0.2) * this.z;
-
-			if (
-				this.x > starCanvas.width / 2 + 50 ||
-				this.x < -starCanvas.width / 2 - 50 ||
-				this.y > starCanvas.height / 2 + 50 ||
-				this.y < -starCanvas.height / 2 - 50
-			) {
-				this.x = Math.random() * starCanvas.width - starCanvas.width / 2;
-				this.y = Math.random() * starCanvas.height - starCanvas.height / 2;
-				this.px = this.x;
-				this.py = this.y;
-				this.z = 0;
-			}
-		}
-
-		show() {
-			starCtx.lineWidth = this.z;
-			starCtx.beginPath();
-			starCtx.moveTo(this.x, this.y);
-			starCtx.lineTo(this.px, this.py);
-			starCtx.stroke();
-		}
-	}
-
-	class StarV2 {
-		x: number;
-		y: number;
-		counter: number;
-		radiusMax: number;
-		speed: number;
-		starX: number;
-		starY: number;
-		radius: number;
-
-		constructor() {
-			this.x = this.getRandomInt(-starCanvas.width / 2, starCanvas.width / 2);
-			this.y = this.getRandomInt(-starCanvas.height / 2, starCanvas.height / 2);
-			this.counter = this.getRandomInt(1, starCanvas.width);
-			this.radiusMax = 1 + Math.random() * 8;
-			this.speed = this.getRandomInt(1, 4);
-		}
-
-		getRandomInt(min: number, max: number) {
-			return Math.floor(Math.random() * (max - min + 1)) + min;
-		}
-
-		remap(value: number, istart: number, istop: number, ostart: number, ostop: number) {
-			return ostart + (ostop - ostart) * ((value - istart) / (istop - istart));
-		}
-
-		update() {
-			this.counter -= this.speed * starSpeedMultiplier;
-
-			if (this.counter < 1) {
-				this.counter = starCanvas.width;
-				this.x = this.getRandomInt(-starCanvas.width / 2, starCanvas.width / 2);
-				this.y = this.getRandomInt(-starCanvas.height / 2, starCanvas.height / 2);
-				this.radiusMax = this.getRandomInt(1, 8);
-				this.speed = this.getRandomInt(1, 4);
-			}
-
-			let xRatio = this.x / this.counter;
-			let yRatio = this.y / this.counter;
-			this.starX = this.remap(xRatio, 0, 1, 0, starCanvas.width);
-			this.starY = this.remap(yRatio, 0, 1, 0, starCanvas.height);
-			this.radius = this.remap(this.counter, 0, starCanvas.width, this.radiusMax, 0);
-		}
-
-		show() {
-			starCtx.beginPath();
-			starCtx.arc(this.starX, this.starY, this.radius, 0, Math.PI * 2, false);
-			starCtx.closePath();
-			starCtx.fillStyle = '#FFF';
-			starCtx.fill();
-		}
-	}
-
-	class StarV3 {
-		x: number;
-		y: number;
-		z: number;
-		prevX: number;
-		prevY: number;
-
-		constructor() {
-			this.x = Math.random() * starCanvas.width;
-			this.y = Math.random() * starCanvas.height;
-			this.z = Math.random() * 1000;
-			this.prevX = this.x;
-			this.prevY = this.y;
-		}
-
-		update() {
-			this.prevX = this.x;
-			this.prevY = this.y;
-
-			this.z -= 15 * starSpeedMultiplier;
-
-			if (this.z <= 0) {
-				this.z = 1000;
-				this.x = Math.random() * starCanvas.width;
-				this.y = Math.random() * starCanvas.height;
-				this.prevX = this.x;
-				this.prevY = this.y;
-			}
-
-			let scale = 1000 / this.z;
-			this.x = (this.x - starCanvas.width / 2) * scale + starCanvas.width / 2;
-			this.y = (this.y - starCanvas.height / 2) * scale + starCanvas.height / 2;
-		}
-
-		show() {
-			let size = (1 - this.z / 1000) * 2;
-			let opacity = 1 - this.z / 1000;
-
-			// Draw trail
-			starCtx.strokeStyle = `rgba(255,255,255,${opacity})`;
-			starCtx.lineWidth = size;
-			starCtx.beginPath();
-			starCtx.moveTo(this.prevX, this.prevY);
-			starCtx.lineTo(this.x, this.y);
-			starCtx.stroke();
-
-			// Draw star
-			starCtx.fillStyle = `rgba(255,255,255,${opacity})`;
-			starCtx.beginPath();
-			starCtx.arc(this.x, this.y, size, 0, Math.PI * 2);
-			starCtx.fill();
-		}
-	}
+	// Reactive statements with performance optimizations
+	$: stars = $animationState.stars as import('$lib/types/animation').Star[];
 
 	// Use the frameRateController for efficient CSS updates
 	$: if (browser && $layoutStore?.navbarHeight !== undefined) {
@@ -256,6 +98,8 @@ Integrated Star Field Effects:
 			);
 		}
 	}
+
+	// FIXED: Move all function declarations to the top before any reactive statements
 
 	// Device detection function optimized with memoization
 	function detectDeviceCapabilities() {
@@ -279,307 +123,164 @@ Integrated Star Field Effects:
 		);
 	}
 
-	// Star field functions
-	function resizeStarCanvas() {
-		if (!starCanvas || !spaceBackground) return;
+	const initializePersistentSpaceBackground = async (): Promise<void> => {
+		if (!starContainer || spaceBackgroundInitialized) return;
 
-		const rect = spaceBackground.getBoundingClientRect();
-		starCanvas.width = rect.width;
-		starCanvas.height = rect.height;
+		// Ensure immediate black background coverage first
+		ensureImmediateBlackBackground();
 
-		// Reinitialize stars after resize
-		initStars();
-	}
+		// Create persistent space background
+		ensureSpaceBackgroundExists();
 
-	function initStars() {
-		if (!starCanvas) return;
+		// FIXED: Get current quality from frameRateController
+		const currentQuality =
+			frameRateController && typeof frameRateController.getCurrentQuality === 'function'
+				? frameRateController.getCurrentQuality()
+				: 1.0;
 
-		stars = [];
-		for (let i = 0; i < numberOfStars; i++) {
-			switch (starEffect) {
-				case 'version1':
-					stars.push(new StarV1());
-					break;
-				case 'version2':
-					stars.push(new StarV2());
-					break;
-				case 'version3':
-					stars.push(new StarV3());
-					break;
-			}
-		}
-	}
+		// FIXED: Improved component selection with proper fallbacks
+		let starSystemInitialized = false;
 
-	function animateStars() {
-		if (!starCtx || !starCanvas) return;
+		// Priority 1: Try StarField component (if available and ready)
+		if (starFieldReady && starFieldComponent && starContainer) {
+			try {
+				// Get current quality from frameRateController
+				const currentQuality = frameRateController?.getCurrentQuality?.() ?? 1.0;
 
-		// Clear canvas with fade effect
-		starCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-		starCtx.fillRect(0, 0, starCanvas.width, starCanvas.height);
-
-		// Set stroke style for streaking effects
-		if (starEffect === 'version1') {
-			starCtx.strokeStyle = 'rgb(255, 255, 255)';
-			starCtx.save();
-			starCtx.translate(starCanvas.width / 2, starCanvas.height / 2);
-		} else if (starEffect === 'version2') {
-			starCtx.save();
-			starCtx.translate(starCanvas.width / 2, starCanvas.height / 2);
-		}
-
-		// Update and draw stars
-		for (let star of stars) {
-			star.update();
-			star.show();
-		}
-
-		// Reset translation
-		if (starEffect === 'version1' || starEffect === 'version2') {
-			starCtx.restore();
-		}
-
-		starAnimationId = requestAnimationFrame(animateStars);
-	}
-
-	function startStarEffect(effectName: string) {
-		if (starAnimationId) {
-			cancelAnimationFrame(starAnimationId);
-		}
-
-		starEffect = effectName;
-		initStars();
-		animateStars();
-	}
-
-	function stopStarAnimation() {
-		if (starAnimationId) {
-			cancelAnimationFrame(starAnimationId);
-		}
-	}
-
-	// ✅ NEW: Hover-based control zones for starfield interaction
-	function setupHoverControls() {
-		if (!browser || !spaceBackground) return;
-
-		// Create control zones (invisible overlays)
-		const controlZones = {
-			speed: null as HTMLElement | null,
-			effects: null as HTMLElement | null,
-			boost: null as HTMLElement | null
-		};
-
-		// Create speed control zone (left edge)
-		const speedZone = document.createElement('div');
-		speedZone.className = 'starfield-control-zone speed-zone';
-		speedZone.setAttribute('data-control', 'speed');
-		speedZone.setAttribute('aria-label', 'Hover to control starfield speed');
-		speedZone.setAttribute('tabindex', '0');
-		speedZone.style.cssText = `
-			position: absolute;
-			left: 0;
-			top: 25%;
-			width: 80px;
-			height: 50%;
-			z-index: 10;
-			cursor: ns-resize;
-			background: linear-gradient(to right, rgba(39, 255, 153, 0.1), transparent);
-			opacity: 0;
-			transition: opacity 0.3s ease;
-			border-radius: 0 8px 8px 0;
-		`;
-
-		// Create effects control zone (right edge)
-		const effectsZone = document.createElement('div');
-		effectsZone.className = 'starfield-control-zone effects-zone';
-		effectsZone.setAttribute('data-control', 'effects');
-		effectsZone.setAttribute('aria-label', 'Hover to cycle starfield effects');
-		effectsZone.setAttribute('tabindex', '0');
-		effectsZone.style.cssText = `
-			position: absolute;
-			right: 0;
-			top: 25%;
-			width: 80px;
-			height: 50%;
-			z-index: 10;
-			cursor: pointer;
-			background: linear-gradient(to left, rgba(255, 39, 153, 0.1), transparent);
-			opacity: 0;
-			transition: opacity 0.3s ease;
-			border-radius: 8px 0 0 8px;
-		`;
-
-		// Create boost zone (bottom center)
-		const boostZone = document.createElement('div');
-		boostZone.className = 'starfield-control-zone boost-zone';
-		boostZone.setAttribute('data-control', 'boost');
-		boostZone.setAttribute('aria-label', 'Hover to boost starfield speed');
-		boostZone.setAttribute('tabindex', '0');
-		boostZone.style.cssText = `
-			position: absolute;
-			bottom: 10%;
-			left: 50%;
-			transform: translateX(-50%);
-			width: 120px;
-			height: 60px;
-			z-index: 10;
-			cursor: pointer;
-			background: radial-gradient(ellipse, rgba(255, 255, 39, 0.1), transparent);
-			opacity: 0;
-			transition: opacity 0.3s ease;
-			border-radius: 30px;
-		`;
-
-		// Add zones to space background
-		spaceBackground.appendChild(speedZone);
-		spaceBackground.appendChild(effectsZone);
-		spaceBackground.appendChild(boostZone);
-
-		controlZones.speed = speedZone;
-		controlZones.effects = effectsZone;
-		controlZones.boost = boostZone;
-
-		// Speed control logic
-		const handleSpeedControl = (e: MouseEvent) => {
-			const rect = speedZone.getBoundingClientRect();
-			const relativeY = (e.clientY - rect.top) / rect.height;
-
-			// Convert position to speed multiplier (top = fast, bottom = slow)
-			const newSpeed = 0.2 + (1 - relativeY) * 2.8; // Range: 0.2 to 3.0
-			starSpeedMultiplier = Math.max(0.1, Math.min(5, newSpeed));
-
-			// Visual feedback
-			speedZone.style.background = `linear-gradient(to right,
-				rgba(39, 255, 153, ${0.2 + relativeY * 0.3}), transparent)`;
-		};
-
-		// Effects cycling logic
-		let effectIndex = 0;
-		const effects = ['version1', 'version2', 'version3'];
-		const handleEffectCycle = () => {
-			effectIndex = (effectIndex + 1) % effects.length;
-			startStarEffect(effects[effectIndex]);
-
-			// Visual feedback
-			effectsZone.style.background = `linear-gradient(to left,
-				rgba(255, 39, 153, 0.4), transparent)`;
-			setTimeout(() => {
-				effectsZone.style.background = `linear-gradient(to left,
-					rgba(255, 39, 153, 0.1), transparent)`;
-			}, 200);
-		};
-
-		// Boost logic
-		let isBoostActive = false;
-
-		const handleBoostStart = () => {
-			if (!isBoostActive) {
-				isBoostActive = true;
-				starSpeedMultiplier *= 3;
-				boosting = true;
-				boostZone.style.background = `radial-gradient(ellipse,
-					rgba(255, 255, 39, 0.4), transparent)`;
-			}
-		};
-
-		const handleBoostEnd = () => {
-			if (isBoostActive) {
-				isBoostActive = false;
-				starSpeedMultiplier /= 3;
-				boosting = false;
-				boostZone.style.background = `radial-gradient(ellipse,
-					rgba(255, 255, 39, 0.1), transparent)`;
-			}
-		};
-
-		// Add event listeners
-		speedZone.addEventListener('mouseenter', () => {
-			speedZone.style.opacity = '1';
-		});
-
-		speedZone.addEventListener('mouseleave', () => {
-			speedZone.style.opacity = '0';
-			speedZone.style.background = `linear-gradient(to right,
-				rgba(39, 255, 153, 0.1), transparent)`;
-		});
-
-		speedZone.addEventListener('mousemove', handleSpeedControl);
-
-		effectsZone.addEventListener('mouseenter', () => {
-			effectsZone.style.opacity = '1';
-		});
-
-		effectsZone.addEventListener('mouseleave', () => {
-			effectsZone.style.opacity = '0';
-		});
-
-		effectsZone.addEventListener('click', handleEffectCycle);
-		effectsZone.addEventListener('keydown', (e) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				handleEffectCycle();
-			}
-		});
-
-		boostZone.addEventListener('mouseenter', () => {
-			boostZone.style.opacity = '1';
-			handleBoostStart();
-		});
-
-		boostZone.addEventListener('mouseleave', () => {
-			boostZone.style.opacity = '0';
-			handleBoostEnd();
-		});
-
-		boostZone.addEventListener('focus', () => {
-			boostZone.style.opacity = '1';
-		});
-
-		boostZone.addEventListener('blur', () => {
-			boostZone.style.opacity = '0';
-		});
-
-		// Store references for cleanup
-		return {
-			speedZone,
-			effectsZone,
-			boostZone,
-			cleanup: () => {
-				speedZone.remove();
-				effectsZone.remove();
-				boostZone.remove();
-			}
-		};
-	}
-
-	// ✅ NEW: Initialize interactive controls
-	function initializeInteractiveControls() {
-		if (!isMobileDevice) {
-			return setupHoverControls();
-		}
-		return null;
-	}
-
-	// ✅ NEW: Handle mobile control changes
-	function handleMobileControlChange(event: CustomEvent) {
-		const { detail } = event;
-
-		switch (event.type) {
-			case 'speedChange':
-				starSpeedMultiplier = detail.speed;
-				break;
-			case 'effectChange':
-				startStarEffect(detail.effect);
-				break;
-			case 'boostToggle':
-				if (detail.active) {
-					starSpeedMultiplier *= 3;
-					boosting = true;
-				} else {
-					starSpeedMultiplier /= 3;
-					boosting = false;
+				// Apply quality adaptive settings
+				if (currentQuality < 0.7) {
+					if ('enableGlow' in starFieldComponent) {
+						starFieldComponent.enableGlow = false;
+					}
 				}
-				break;
+
+				// Apply quality-based star count adjustments
+				const capabilities = get(deviceCapabilities);
+				const baseCount = capabilities?.maxStars || 60;
+				const adjustedCount = Math.max(20, Math.round(baseCount * currentQuality));
+
+				// Only update if significantly different and starCount property exists
+				if (
+					'starCount' in starFieldComponent &&
+					Math.abs(starFieldComponent.starCount - adjustedCount) > 5
+				) {
+					starFieldComponent.starCount = adjustedCount;
+				}
+
+				// Start the StarField component
+				if (typeof starFieldComponent.start === 'function') {
+					starFieldComponent.start();
+					starSystemInitialized = true;
+					console.log('✅ Using StarField component');
+				}
+			} catch (error) {
+				console.warn('StarField component failed to start:', error);
+			}
 		}
+
+		// Priority 2: Try existing CanvasStarFieldManager
+		if (!starSystemInitialized && canvasStarFieldManager) {
+			try {
+				// Check if canvas still exists
+				const canvasExists = starContainer.querySelector('.star-field-canvas');
+
+				if (!canvasExists) {
+					// Re-create canvas
+					canvasStarFieldManager.setContainer(starContainer);
+				}
+
+				canvasStarFieldManager.start();
+				starSystemInitialized = true;
+				console.log('✅ Using existing CanvasStarFieldManager');
+			} catch (error) {
+				console.warn('Existing CanvasStarFieldManager failed:', error);
+				// Clean up failed manager
+				canvasStarFieldManager = null;
+			}
+		}
+
+		// Priority 3: Create new CanvasStarFieldManager
+		if (!starSystemInitialized && starContainer) {
+			try {
+				// Get device-appropriate star count
+				const capabilities = get(deviceCapabilities);
+				const starCount =
+					capabilities?.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
+
+				// Create new CanvasStarFieldManager
+				canvasStarFieldManager = new CanvasStarFieldManager(animationState, starCount);
+
+				// Configure speeds
+				if (typeof canvasStarFieldManager.setBaseSpeed === 'function') {
+					canvasStarFieldManager.setBaseSpeed(0.25);
+				}
+
+				if (typeof canvasStarFieldManager.setBoostSpeed === 'function') {
+					canvasStarFieldManager.setBoostSpeed(2);
+				}
+
+				// Set container and configure features
+				canvasStarFieldManager.setContainer(starContainer);
+
+				// Configure features based on device capabilities
+				if (typeof canvasStarFieldManager.setUseWorker === 'function') {
+					canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice);
+				}
+
+				if (typeof canvasStarFieldManager.setUseContainerParallax === 'function') {
+					canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
+				}
+
+				canvasStarFieldManager.enablePoolingIntegration(true);
+
+				// Start the animation
+				canvasStarFieldManager.start();
+				starSystemInitialized = true;
+				console.log('✅ Created new CanvasStarFieldManager');
+			} catch (error) {
+				console.error('Failed to create CanvasStarFieldManager:', error);
+			}
+		}
+	};
+
+	// FIXED: New function to ensure immediate black background coverage
+	function ensureImmediateBlackBackground() {
+		if (!spaceBackground) return;
+
+		// Force immediate black background before any other operations
+		spaceBackground.style.background =
+			'radial-gradient(circle at center, #000 20%, #001c4d 80%, #000000)';
+		spaceBackground.style.backgroundColor = '#000';
+		spaceBackground.style.opacity = '1';
+		spaceBackground.style.visibility = 'visible';
+		spaceBackground.style.display = 'block';
+
+		// Force immediate paint to prevent any gradient flash
+		spaceBackground.offsetHeight; // Trigger reflow immediately
+	}
+
+	// FIXED: New function to ensure space background element exists and is stable
+	function ensureSpaceBackgroundExists() {
+		if (!spaceBackground || !starContainer) return;
+
+		// FIXED: Force immediate black background first
+		spaceBackground.style.background =
+			'radial-gradient(circle at center, #000 20%, #001c4d 80%, #000000)';
+		spaceBackground.style.backgroundColor = '#000';
+
+		// Force space background to be visible and stable
+		spaceBackground.style.opacity = '1';
+		spaceBackground.style.visibility = 'visible';
+		spaceBackground.style.display = 'block';
+		spaceBackground.style.transform = 'translateZ(0)';
+		spaceBackground.style.backfaceVisibility = 'hidden';
+		spaceBackground.style.willChange = 'auto'; // FIXED: Remove aggressive will-change
+
+		// Add persistent background class
+		spaceBackground.classList.add('space-background-persistent');
+
+		// Force immediate paint to prevent any flashing
+		spaceBackground.offsetHeight; // Trigger reflow
 	}
 
 	// FIXED: Add scroll event handler to prevent background resets during scroll
@@ -608,46 +309,6 @@ Integrated Star Field Effects:
 				ensureSpaceBackgroundExists();
 			}
 		}, 150);
-	}
-
-	// FIXED: New function to ensure immediate black background coverage
-	function ensureImmediateBlackBackground() {
-		if (!spaceBackground) return;
-
-		// Force immediate black background before any other operations
-		spaceBackground.style.background =
-			'radial-gradient(circle at center, #000 20%, #001c4d 80%, #000000)';
-		spaceBackground.style.backgroundColor = '#000';
-		spaceBackground.style.opacity = '1';
-		spaceBackground.style.visibility = 'visible';
-		spaceBackground.style.display = 'block';
-
-		// Force immediate paint to prevent any gradient flash
-		spaceBackground.offsetHeight; // Trigger reflow immediately
-	}
-
-	// FIXED: New function to ensure space background element exists and is stable
-	function ensureSpaceBackgroundExists() {
-		if (!spaceBackground) return;
-
-		// FIXED: Force immediate black background first
-		spaceBackground.style.background =
-			'radial-gradient(circle at center, #000 20%, #001c4d 80%, #000000)';
-		spaceBackground.style.backgroundColor = '#000';
-
-		// Force space background to be visible and stable
-		spaceBackground.style.opacity = '1';
-		spaceBackground.style.visibility = 'visible';
-		spaceBackground.style.display = 'block';
-		spaceBackground.style.transform = 'translateZ(0)';
-		spaceBackground.style.backfaceVisibility = 'hidden';
-		spaceBackground.style.willChange = 'auto'; // FIXED: Remove aggressive will-change
-
-		// Add persistent background class
-		spaceBackground.classList.add('space-background-persistent');
-
-		// Force immediate paint to prevent any flashing
-		spaceBackground.offsetHeight; // Trigger reflow
 	}
 
 	function initializeGlassEffects() {
@@ -694,7 +355,6 @@ Integrated Star Field Effects:
 			if (prevScreen === 'main' && newScreen !== 'main') {
 				// We're leaving the main screen, stop animations but preserve space background
 				stopAnimations(false); // FIXED: Pass parameter to preserve background
-				stopStarAnimation();
 
 				// Keep glass effects active even when switching screens
 				const glassContainer = document.querySelector('.screen-glass-container');
@@ -713,11 +373,6 @@ Integrated Star Field Effects:
 			} else if (newScreen === 'main' && prevScreen !== 'main') {
 				// We're returning to main screen, restart animations
 				spaceBackgroundInitialized = false; // Allow reinit
-
-				// Restart star animation
-				if (starCanvas && starCtx) {
-					startStarEffect(starEffect);
-				}
 
 				// Add glass transition effect when returning to main screen
 				const glassContainer = document.querySelector('.screen-glass-container');
@@ -810,9 +465,99 @@ Integrated Star Field Effects:
 			// FIXED: Ensure space background is always present before starting other animations
 			ensureSpaceBackgroundExists();
 
-			// Start star animation
-			if (starCanvas && starCtx) {
-				startStarEffect(starEffect);
+			// Start StarField component if available with quality adaptation
+			if (starFieldComponent) {
+				// Apply quality adaptive settings
+				if (currentQuality < 0.7) {
+					if ('enableGlow' in starFieldComponent) {
+						starFieldComponent.enableGlow = false;
+					}
+				}
+
+				if (typeof starFieldComponent.start === 'function') {
+					starFieldComponent.start();
+				}
+			}
+			// Start canvas star field if it exists and StarField component isn't used
+			else if (canvasStarFieldManager) {
+				// Get device-appropriate settings from capabilities
+				const capabilities = get(deviceCapabilities);
+
+				// Apply device capability adaptations if available
+				if (
+					capabilities &&
+					typeof canvasStarFieldManager.adaptToDeviceCapabilities === 'function'
+				) {
+					canvasStarFieldManager.adaptToDeviceCapabilities(capabilities);
+				}
+
+				// Apply quality-based adaptations
+				if (currentQuality < 0.7) {
+					// Reduce effects for better performance
+					const reducedStarCount = Math.floor((capabilities?.maxStars || 60) * currentQuality);
+
+					if (typeof canvasStarFieldManager.setStarCount === 'function') {
+						canvasStarFieldManager.setStarCount(Math.max(20, reducedStarCount));
+					}
+
+					if ('enableGlow' in canvasStarFieldManager) {
+						canvasStarFieldManager.enableGlow = false;
+					}
+				}
+
+				if (typeof canvasStarFieldManager.start === 'function') {
+					canvasStarFieldManager.start();
+				}
+			}
+			// Initialize canvas star field manager if it doesn't exist
+			else if (starContainer && !starFieldComponent) {
+				// Get device-appropriate star count adjusted for quality
+				const capabilities = get(deviceCapabilities);
+				const baseStarCount =
+					capabilities?.maxStars || (isLowPerformanceDevice ? 20 : isMobileDevice ? 40 : 60);
+				const qualityAdjustedStarCount = Math.max(20, Math.floor(baseStarCount * currentQuality));
+
+				// Create a new canvas star field manager
+				if (typeof animations === 'object' && animations.CanvasStarFieldManager) {
+					canvasStarFieldManager = new CanvasStarFieldManager(
+						animationState,
+						qualityAdjustedStarCount
+					);
+
+					if (typeof canvasStarFieldManager.setBaseSpeed === 'function') {
+						canvasStarFieldManager.setBaseSpeed(0.25);
+					}
+
+					if (typeof canvasStarFieldManager.setBoostSpeed === 'function') {
+						canvasStarFieldManager.setBoostSpeed(2);
+					}
+
+					// Set the container for the canvas
+					if (typeof canvasStarFieldManager.setContainer === 'function') {
+						canvasStarFieldManager.setContainer(starContainer);
+					}
+
+					// Configure features based on device capabilities and quality
+					if (typeof canvasStarFieldManager.setUseWorker === 'function') {
+						canvasStarFieldManager.setUseWorker(!isLowPerformanceDevice && currentQuality > 0.5);
+					}
+
+					if (typeof canvasStarFieldManager.setUseContainerParallax === 'function') {
+						canvasStarFieldManager.setUseContainerParallax(
+							!isLowPerformanceDevice && currentQuality > 0.8
+						);
+					}
+
+					// Apply quality-based adaptations
+					if (currentQuality < 0.7 && 'enableGlow' in canvasStarFieldManager) {
+						canvasStarFieldManager.enableGlow = false;
+					}
+
+					// Start the animation
+					if (typeof canvasStarFieldManager.start === 'function') {
+						canvasStarFieldManager.start();
+					}
+				}
 			}
 
 			// Initialize glitch manager with enhanced settings - only if quality allows
@@ -848,6 +593,12 @@ Integrated Star Field Effects:
 					memoryMonitor
 						.onMemoryPressure(() => {
 							// onWarning callback
+							if (canvasStarFieldManager) {
+								canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
+							}
+							if (starFieldComponent && 'enableGlow' in starFieldComponent) {
+								starFieldComponent.enableGlow = false;
+							}
 							if (
 								frameRateController &&
 								typeof frameRateController.setQualityOverride === 'function'
@@ -856,7 +607,25 @@ Integrated Star Field Effects:
 							}
 						})
 						.onLeakSuspected(() => {
-							// onCritical callback - reduce effects
+							// onCritical callback - reduce star count and effects
+							if (canvasStarFieldManager) {
+								canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
+								// starCount is private, so we use a fallback value (TODO: use a public getter if available)
+								const fallbackStarCount = 60;
+								canvasStarFieldManager.setStarCount(Math.floor(fallbackStarCount * 0.6)); // Reduce by 40%
+								canvasStarFieldManager.setUseContainerParallax(false);
+							}
+							if (starFieldComponent) {
+								const capabilities = get(deviceCapabilities);
+								const currentCount = capabilities?.maxStars || 60;
+								const reducedCount = Math.floor(currentCount * 0.6);
+								if ('starCount' in starFieldComponent) {
+									starFieldComponent.starCount = reducedCount;
+								}
+								if ('enableGlow' in starFieldComponent) {
+									starFieldComponent.enableGlow = false;
+								}
+							}
 							if (
 								frameRateController &&
 								typeof frameRateController.setQualityOverride === 'function'
@@ -905,9 +674,17 @@ Integrated Star Field Effects:
 	function stopAnimations(clearBackground = true) {
 		if (!browser) return;
 
-		// Stop star animation only if we're clearing background
-		if (clearBackground) {
-			stopStarAnimation();
+		// Stop StarField component if available
+		if (starFieldReady && starFieldComponent && typeof starFieldComponent.stop === 'function') {
+			starFieldComponent.stop();
+		}
+		// Stop canvas star field only if we're clearing background
+		else if (
+			canvasStarFieldManager &&
+			typeof canvasStarFieldManager.stop === 'function' &&
+			clearBackground
+		) {
+			canvasStarFieldManager.stop();
 		}
 
 		// Stop glitch manager
@@ -1048,6 +825,13 @@ Integrated Star Field Effects:
 				arcadeScreen.style.webkitBackfaceVisibility = 'hidden';
 				arcadeScreen.classList.add('ios-optimized');
 			}
+
+			// Apply fixes to the star container
+			if (starContainer) {
+				starContainer.style.transform = 'translateZ(0)';
+				starContainer.style.backfaceVisibility = 'hidden';
+				starContainer.style.webkitBackfaceVisibility = 'hidden';
+			}
 		}
 
 		// Add glass dynamics
@@ -1059,7 +843,7 @@ Integrated Star Field Effects:
 		}
 	}
 
-	// FIXED: Updated memory monitoring initialization to use correct MemoryMonitor API
+	// FIXED: Updated memory monitoring initialization to use correct MemoryMonitor API and CanvasStarFieldManager API
 	function initializeMemoryMonitoring() {
 		if (!memoryMonitor && browser && 'performance' in window && 'memory' in (performance as any)) {
 			try {
@@ -1075,11 +859,34 @@ Integrated Star Field Effects:
 				memoryMonitor
 					.onMemoryPressure(() => {
 						// onWarning callback - reduce effects
+						if (canvasStarFieldManager) {
+							canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
+						}
+						if (starFieldComponent) {
+							starFieldComponent.enableGlow = false;
+						}
+
 						// Reduce quality through frameRateController
 						frameRateController.setQualityOverride(0.7);
 					})
 					.onLeakSuspected(() => {
-						// onCritical callback - reduce effects
+						// onCritical callback - reduce star count and effects
+						if (canvasStarFieldManager) {
+							canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
+							canvasStarFieldManager.setStarCount(
+								Math.floor(canvasStarFieldManager.starCount * 0.6)
+							); // Reduce by 40%
+							canvasStarFieldManager.setUseContainerParallax(false);
+						}
+						if (starFieldComponent) {
+							// Reduce the star count in the StarField component
+							const capabilities = get(deviceCapabilities);
+							const currentCount = capabilities.maxStars || 60;
+							const reducedCount = Math.floor(currentCount * 0.6);
+							starFieldComponent.starCount = reducedCount;
+							starFieldComponent.enableGlow = false;
+						}
+
 						// Significantly reduce quality through frameRateController
 						frameRateController.setQualityOverride(0.5);
 
@@ -1130,45 +937,11 @@ Integrated Star Field Effects:
 			detectDeviceCapabilities();
 			debouncedOrientationCheck();
 
-			// Resize star canvas
-			resizeStarCanvas();
+			// Notify canvas manager of resize if it exists
+			if (canvasStarFieldManager && typeof canvasStarFieldManager.resizeCanvas === 'function') {
+				canvasStarFieldManager.resizeCanvas();
+			}
 		}, 100);
-
-		// ✅ ENHANCED: Keyboard controls for star effects (now with arrow keys for speed)
-		const keyDownHandler = (e: KeyboardEvent) => {
-			if (currentScreen !== 'main') return;
-
-			if (e.code === 'Space') {
-				e.preventDefault();
-				starSpeedMultiplier *= 3; // Boost
-				boosting = true;
-			} else if (e.code === 'Digit1') {
-				e.preventDefault();
-				startStarEffect('version1');
-			} else if (e.code === 'Digit2') {
-				e.preventDefault();
-				startStarEffect('version2');
-			} else if (e.code === 'Digit3') {
-				e.preventDefault();
-				startStarEffect('version3');
-			} else if (e.code === 'ArrowUp') {
-				e.preventDefault();
-				starSpeedMultiplier = Math.min(5, starSpeedMultiplier * 1.2);
-			} else if (e.code === 'ArrowDown') {
-				e.preventDefault();
-				starSpeedMultiplier = Math.max(0.1, starSpeedMultiplier * 0.8);
-			}
-		};
-
-		const keyUpHandler = (e: KeyboardEvent) => {
-			if (currentScreen !== 'main') return;
-
-			if (e.code === 'Space') {
-				e.preventDefault();
-				starSpeedMultiplier /= 3; // Un-boost
-				boosting = false;
-			}
-		};
 
 		// FIXED: Modified visibility handler to preserve space background
 		const visibilityHandler = () => {
@@ -1180,7 +953,18 @@ Integrated Star Field Effects:
 
 			if (document.hidden) {
 				// Pause animations when tab is not visible
-				stopStarAnimation();
+				if (canvasStarFieldManager && typeof canvasStarFieldManager.stop === 'function') {
+					canvasStarFieldManager.stop();
+				}
+
+				if (starFieldComponent) {
+					if (typeof starFieldComponent.pause === 'function') {
+						starFieldComponent.pause();
+					} else if (typeof starFieldComponent.stop === 'function') {
+						// Fallback to stop if pause isn't available
+						starFieldComponent.stop();
+					}
+				}
 
 				// Pause frame rate controller
 				if (frameRateController && typeof frameRateController.setAdaptiveEnabled === 'function') {
@@ -1190,9 +974,17 @@ Integrated Star Field Effects:
 				// Resume animations when tab is visible again while preserving background
 				ensureSpaceBackgroundExists(); // Ensure background is intact
 
-				// Resume star animation
-				if (starCanvas && starCtx) {
-					startStarEffect(starEffect);
+				if (canvasStarFieldManager && typeof canvasStarFieldManager.start === 'function') {
+					canvasStarFieldManager.start();
+				}
+
+				if (starFieldComponent) {
+					if (typeof starFieldComponent.resume === 'function') {
+						starFieldComponent.resume();
+					} else if (typeof starFieldComponent.start === 'function') {
+						// Fallback to start if resume isn't available
+						starFieldComponent.start();
+					}
 				}
 
 				// Resume frame rate controller
@@ -1208,7 +1000,6 @@ Integrated Star Field Effects:
 				detectDeviceCapabilities();
 				// FIXED: Ensure space background persists through orientation changes
 				ensureSpaceBackgroundExists();
-				resizeStarCanvas();
 			}, 300);
 		};
 
@@ -1242,8 +1033,6 @@ Integrated Star Field Effects:
 			window.addEventListener('orientationchange', orientationChangeHandler, passiveOptions);
 			// FIXED: Add scroll event listener
 			window.addEventListener('scroll', handleScroll, passiveOptions);
-			window.addEventListener('keydown', keyDownHandler, nonPassiveOptions);
-			window.addEventListener('keyup', keyUpHandler, nonPassiveOptions);
 		}
 
 		if (typeof document !== 'undefined') {
@@ -1256,26 +1045,13 @@ Integrated Star Field Effects:
 			document.addEventListener('touchmove', () => {}, { passive: true });
 		}
 
-		// ✅ NEW: Initialize interactive controls for desktop
-		if (!isMobileDevice) {
-			const interactiveControlsCleanup = initializeInteractiveControls();
-
-			// Store cleanup function
-			if (interactiveControlsCleanup) {
-				eventHandlers.interactiveControls = interactiveControlsCleanup.cleanup;
-			}
-		}
-
 		// Store handlers for cleanup
 		eventHandlers = {
-			...eventHandlers,
 			resize: optimizedResizeCheck as EventListener,
 			orientationChange: orientationChangeHandler as EventListener,
 			visibility: visibilityHandler as EventListener,
 			touchStart: touchStartHandler as EventListener,
-			scroll: handleScroll as EventListener,
-			keydown: keyDownHandler as EventListener,
-			keyup: keyUpHandler as EventListener
+			scroll: handleScroll as EventListener
 		};
 	}
 
@@ -1299,8 +1075,45 @@ Integrated Star Field Effects:
 		frameRateUnsubscribe = frameRateController.subscribeQuality((quality) => {
 			// Update animations based on quality level
 			try {
-				// Adjust star animation speed based on quality
-				starSpeedMultiplier = Math.max(0.5, quality);
+				if (canvasStarFieldManager) {
+					// Adapt star field based on quality
+					const capabilities = get(deviceCapabilities);
+					const baseCount = capabilities.maxStars || 60;
+					const adjustedCount = Math.max(20, Math.round(baseCount * quality));
+
+					// Use optional chaining to safely access methods
+					const currentCount = canvasStarFieldManager?.getStarCount?.() ?? 0;
+					if (
+						typeof canvasStarFieldManager.setStarCount === 'function' &&
+						Math.abs(currentCount - adjustedCount) > 5
+					) {
+						canvasStarFieldManager.setStarCount(adjustedCount);
+					}
+
+					// Safely set properties
+					if ('enableGlow' in canvasStarFieldManager) {
+						canvasStarFieldManager.enableGlow = quality > 0.7;
+					}
+
+					if (typeof canvasStarFieldManager.setUseContainerParallax === 'function') {
+						canvasStarFieldManager.setUseContainerParallax(
+							quality > 0.8 && !isLowPerformanceDevice
+						);
+					}
+				}
+
+				if (starFieldComponent) {
+					// Adapt StarField component based on quality
+					starFieldComponent.enableGlow = quality > 0.7;
+					const capabilities = get(deviceCapabilities);
+					const baseCount = capabilities.maxStars || 60;
+					const adjustedCount = Math.max(20, Math.round(baseCount * quality));
+
+					// Only update if significantly different
+					if (Math.abs(starFieldComponent.starCount - adjustedCount) > 5) {
+						starFieldComponent.starCount = adjustedCount;
+					}
+				}
 			} catch (error) {
 				console.warn('Error in quality adjustment callback:', error);
 			}
@@ -1312,151 +1125,51 @@ Integrated Star Field Effects:
 		// Update frameRateController's quality if boosting
 		if (active) {
 			frameRateController.setQualityOverride(0.9);
-			starSpeedMultiplier *= 3; // Boost star speed
-			boosting = true;
 		} else {
 			frameRateController.setAdaptiveEnabled(true);
-			starSpeedMultiplier /= 3; // Reset star speed
-			boosting = false;
-		}
-	}
-
-	// Create optimized GSAP timeline with performance considerations
-	function createOptimizedTimeline(elements: {
-		header: HTMLElement;
-		insertConcept: HTMLElement;
-		arcadeScreen: HTMLElement;
-	}) {
-		// Early return if elements aren't ready
-		if (!elements.header || !elements.insertConcept || !elements.arcadeScreen) {
-			console.warn('Timeline elements not ready');
-			return null;
 		}
 
-		try {
-			// Create timeline with optimized settings
-			const timeline = gsap.timeline({
-				paused: true,
-				defaults: {
-					duration: 0.8,
-					ease: 'power2.out'
+		// Handle boost for all available systems
+		let boostApplied = false;
+
+		// Try StarField component first
+		if (starFieldReady && starFieldComponent) {
+			try {
+				if (active) {
+					if (typeof starFieldComponent.boost === 'function') {
+						starFieldComponent.boost();
+					}
+				} else {
+					if (typeof starFieldComponent.unboost === 'function') {
+						starFieldComponent.unboost();
+					}
 				}
-			});
-
-			// Get current device capabilities for animation adaptation
-			const capabilities = get(deviceCapabilities);
-			const shouldUseReducedAnimations = isLowPerformanceDevice || capabilities?.reduceMotion;
-
-			if (shouldUseReducedAnimations) {
-				// Simplified animations for low-performance devices
-				timeline
-					.set(elements.header, { opacity: 1, y: 0 })
-					.set(elements.insertConcept, { opacity: 1 }, '-=0.3');
-			} else {
-				// Full animation sequence for capable devices
-				timeline
-					.fromTo(
-						elements.header,
-						{
-							opacity: 0,
-							y: 60,
-							scale: 0.9,
-							filter: 'blur(2px)'
-						},
-						{
-							opacity: 1,
-							y: 0,
-							scale: 1,
-							filter: 'blur(0px)',
-							duration: 1.2,
-							ease: 'back.out(1.7)'
-						}
-					)
-					.fromTo(
-						elements.insertConcept,
-						{
-							opacity: 0,
-							y: 30
-						},
-						{
-							opacity: 1,
-							y: 0,
-							duration: 0.8,
-							ease: 'power2.out'
-						},
-						'-=0.6'
-					)
-					.fromTo(
-						elements.arcadeScreen,
-						{
-							filter: 'brightness(0.7) contrast(0.8)'
-						},
-						{
-							filter: 'brightness(1) contrast(1)',
-							duration: 0.5,
-							ease: 'power1.out'
-						},
-						'-=0.4'
-					);
-
-				// Add subtle glow animation to header
-				timeline.to(
-					elements.header,
-					{
-						textShadow:
-							'0 0 1.2vmin rgba(39, 255, 153, 0.9), 0 0 2.5vmin rgba(39, 255, 153, 0.8), 0 0 4vmin rgba(39, 255, 153, 0.7)',
-						duration: 0.3,
-						ease: 'power2.inOut'
-					},
-					'-=0.2'
-				);
+				boostApplied = true;
+				console.log('Boost applied to StarField component');
+			} catch (error) {
+				console.warn('StarField boost failed:', error);
 			}
+		}
 
-			return timeline;
-		} catch (error) {
-			console.error('Failed to create timeline:', error);
-			return null;
+		// Try CanvasStarFieldManager if StarField didn't work
+		if (
+			!boostApplied &&
+			canvasStarFieldManager &&
+			typeof canvasStarFieldManager.setBoostMode === 'function'
+		) {
+			try {
+				canvasStarFieldManager.setBoostMode(active);
+				boostApplied = true;
+				console.log('Boost applied to CanvasStarFieldManager');
+			} catch (error) {
+				console.warn('CanvasStarFieldManager boost failed:', error);
+			}
+		}
+
+		if (!boostApplied) {
+			console.warn('No star system available for boost');
 		}
 	}
-
-	// Enhanced initialization function for persistent space background
-	const initializePersistentSpaceBackground = async (): Promise<void> => {
-		if (!spaceBackground || spaceBackgroundInitialized) return;
-
-		// Ensure immediate black background coverage first
-		ensureImmediateBlackBackground();
-
-		// Create persistent space background
-		ensureSpaceBackgroundExists();
-
-		// Initialize star canvas animation
-		if (starCanvas && starCtx) {
-			// Get current quality from frameRateController
-			const currentQuality =
-				frameRateController && typeof frameRateController.getCurrentQuality === 'function'
-					? frameRateController.getCurrentQuality()
-					: 1.0;
-
-			// Apply quality adaptive settings
-			const capabilities = get(deviceCapabilities);
-			const baseCount = capabilities?.maxStars || 60;
-			const adjustedCount = Math.max(20, Math.round(baseCount * currentQuality));
-
-			// Adjust star count based on quality
-			let effectiveStarCount = adjustedCount;
-			if (isLowPerformanceDevice) {
-				effectiveStarCount = Math.min(adjustedCount, 30);
-			}
-
-			// Initialize with appropriate star count
-			initStars();
-			startStarEffect(starEffect);
-
-			console.log(`✅ Initialized canvas star field with ${effectiveStarCount} stars`);
-		}
-
-		spaceBackgroundInitialized = true;
-	};
 
 	// FIXED: Optimized screen management with scroll protection and immediate background
 	$: {
@@ -1495,24 +1208,26 @@ Integrated Star Field Effects:
 	$: {
 		if (browser && currentScreen === 'main') {
 			console.log('Star system status:', {
-				starCanvas: !!starCanvas,
-				starCtx: !!starCtx,
-				starEffect,
-				starSpeedMultiplier,
-				currentScreen,
-				spaceBackgroundInitialized
+				starFieldComponent: starFieldComponent !== null,
+				starFieldReady,
+				starFieldComponentStart:
+					starFieldComponent && typeof starFieldComponent.start === 'function',
+				canvasStarFieldManager: !!canvasStarFieldManager,
+				starContainer: !!starContainer,
+				spaceBackgroundInitialized,
+				currentScreen
 			});
 		}
 	}
 
 	$: {
-		if (browser && starCanvas) {
-			console.log('Star canvas status:', {
-				canvas: !!starCanvas,
-				context: !!starCtx,
-				width: starCanvas?.width,
-				height: starCanvas?.height,
-				starCount: stars.length
+		if (browser && starFieldComponent !== null) {
+			console.log('StarField component bound:', {
+				component: !!starFieldComponent,
+				hasStart: typeof starFieldComponent?.start === 'function',
+				hasBoost: typeof starFieldComponent?.boost === 'function',
+				hasUnboost: typeof starFieldComponent?.unboost === 'function',
+				starFieldReady
 			});
 		}
 	}
@@ -1555,12 +1270,6 @@ Integrated Star Field Effects:
 			// FIXED: Initialize space background immediately
 			ensureSpaceBackgroundExists();
 
-			// Initialize star canvas
-			if (starCanvas && spaceBackground) {
-				starCtx = starCanvas.getContext('2d');
-				resizeStarCanvas();
-			}
-
 			// Delayed start of animations (helps with initial render)
 			if (isMobileDevice) {
 				setTimeout(initializeAnimations, 300);
@@ -1579,28 +1288,25 @@ Integrated Star Field Effects:
 		if (!browser) return;
 
 		// Get handlers
-		const {
-			resize,
-			orientationChange,
-			visibility,
-			touchStart,
-			glassEffects,
-			scroll,
-			keydown,
-			keyup,
-			interactiveControls
-		} = eventHandlers || {};
+		const { resize, orientationChange, visibility, touchStart, glassEffects, scroll } =
+			eventHandlers || {};
 
 		// Cleanup all animations and managers
 		stopAnimations();
-		stopStarAnimation();
 
 		// Reset animation state
 		animationState.reset();
 
+		// Properly cleanup canvas star field manager
+		if (canvasStarFieldManager) {
+			canvasStarFieldManager.cleanup();
+			canvasStarFieldManager = null;
+		}
+
 		// Cleanup other managers
 		if (glitchManager) {
 			glitchManager.cleanup();
+			// glitchManager = null; // Do not assign null if not nullable
 		}
 
 		// Stop memory monitoring
@@ -1645,13 +1351,6 @@ Integrated Star Field Effects:
 		if (visibility) document.removeEventListener('visibilitychange', visibility);
 		if (glassEffects) document.removeEventListener('mousemove', glassEffects);
 		if (scroll) window.removeEventListener('scroll', scroll);
-		if (keydown) window.removeEventListener('keydown', keydown);
-		if (keyup) window.removeEventListener('keyup', keyup);
-
-		// ✅ NEW: Cleanup interactive controls
-		if (interactiveControls) {
-			interactiveControls();
-		}
 
 		// Remove any other event listeners that might have been added
 		if (arcadeScreen && touchStart) {
@@ -1662,6 +1361,7 @@ Integrated Star Field Effects:
 		header = undefined as any;
 		insertConcept = undefined as any;
 		arcadeScreen = undefined as any;
+		starContainer = undefined as any;
 		spaceBackground = undefined as any;
 
 		// Force garbage collection hint when available
@@ -1675,6 +1375,7 @@ Integrated Star Field Effects:
 
 		// Clear any other references or pending operations
 		currentTimeline = null;
+		stars = [];
 
 		// Clean up any GSAP animations that might still be running
 		if (typeof window !== 'undefined' && gsap && gsap.ticker) {
@@ -1736,17 +1437,30 @@ Integrated Star Field Effects:
 							style="z-index: 1;"
 							bind:this={spaceBackground}
 						>
-							<!-- Star field canvas -->
-							<canvas
-								bind:this={starCanvas}
-								class="absolute inset-0 w-full h-full pointer-events-none rounded-[3vmin]"
+							<div
+								class="canvas-star-container absolute inset-0 pointer-events-none rounded-[3vmin] hardware-accelerated"
 								style="z-index: 2;"
-							></canvas>
+								bind:this={starContainer}
+							>
+								{#if starContainer}
+									<StarField
+										bind:this={starFieldComponent}
+										containerElement={starContainer}
+										starCount={300}
+										enableBoost={true}
+										baseSpeed={0.25}
+										boostSpeed={2}
+										maxDepth={32}
+									/>
+								{/if}
 
-							<!-- ✅ NEW: Desktop hover control hints -->
-							{#if !isMobileDevice}
-								<StarfieldControlHints visible={spaceBackgroundInitialized} />
-							{/if}
+								<!-- Fallback stars - only render if needed -->
+								<!-- {#if $animationState.stars && $animationState.stars.length > 0 && !starFieldComponent && !canvasStarFieldManager}
+									{#each $animationState.stars as star (star.id)}
+										<div class="star absolute" style={star.style}></div>
+									{/each}
+								{/if} -->
+							</div>
 						</div>
 
 						<!-- Content wrapper -->
@@ -1798,17 +1512,6 @@ Integrated Star Field Effects:
 			</div>
 		</div>
 	</div>
-
-	{#if isMobileDevice && currentScreen === 'main'}
-		<MobileStarfieldControls
-			{starSpeedMultiplier}
-			{starEffect}
-			{boosting}
-			on:speedChange={handleMobileControlChange}
-			on:effectChange={handleMobileControlChange}
-			on:boostToggle={handleMobileControlChange}
-		/>
-	{/if}
 
 	{#if currentScreen === 'game'}
 		<ControlsPortal>
@@ -2016,358 +1719,6 @@ Integrated Star Field Effects:
 		opacity: 1 !important;
 		visibility: visible !important;
 		display: block !important;
-	}
-
-	/* ==========================================================================
-       ✅ NEW: Starfield Control Hints
-       ========================================================================== */
-	.starfield-hints {
-		position: absolute;
-		inset: 0;
-		pointer-events: none;
-		z-index: 15;
-		opacity: 0;
-		transition: opacity 0.5s ease-in-out;
-	}
-
-	.starfield-hints.visible {
-		opacity: 1;
-		animation: showHints 2s ease-in-out 3s forwards;
-	}
-
-	.control-hint {
-		position: absolute;
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		pointer-events: none;
-		animation: hintPulse 3s ease-in-out infinite;
-	}
-
-	.speed-hint {
-		left: 100px;
-		top: 40%;
-		flex-direction: row;
-	}
-
-	.effects-hint {
-		right: 100px;
-		top: 40%;
-		flex-direction: row-reverse;
-	}
-
-	.boost-hint {
-		bottom: 20%;
-		left: 50%;
-		transform: translateX(-50%);
-		flex-direction: column;
-		align-items: center;
-	}
-
-	.hint-arrow {
-		width: 24px;
-		height: 24px;
-		border: 2px solid rgba(39, 255, 153, 0.8);
-		position: relative;
-	}
-
-	.speed-arrow {
-		border-left: none;
-		border-top: none;
-		transform: rotate(-45deg);
-		border-radius: 0 4px 0 0;
-	}
-
-	.effects-arrow {
-		border-right: none;
-		border-top: none;
-		transform: rotate(45deg);
-		border-radius: 0 0 0 4px;
-	}
-
-	.boost-arrow {
-		border-top: none;
-		border-left: none;
-		border-right: none;
-		border-bottom: 2px solid rgba(255, 255, 39, 0.8);
-		transform: rotate(45deg);
-		border-radius: 0 0 4px 0;
-	}
-
-	.hint-text {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-		background: rgba(0, 0, 0, 0.8);
-		padding: 12px 16px;
-		border-radius: 8px;
-		border: 1px solid rgba(39, 255, 153, 0.3);
-		backdrop-filter: blur(8px);
-		max-width: 200px;
-	}
-
-	.boost-hint .hint-text {
-		border-color: rgba(255, 255, 39, 0.3);
-		text-align: center;
-	}
-
-	.effects-hint .hint-text {
-		border-color: rgba(255, 39, 153, 0.3);
-		text-align: right;
-	}
-
-	.hint-title {
-		font-family: 'Press Start 2P', monospace;
-		font-size: 11px;
-		color: rgba(39, 255, 153, 1);
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-	}
-
-	.effects-hint .hint-title {
-		color: rgba(255, 39, 153, 1);
-	}
-
-	.boost-hint .hint-title {
-		color: rgba(255, 255, 39, 1);
-	}
-
-	.hint-description {
-		font-family: 'Pixelify Sans', sans-serif;
-		font-size: 13px;
-		color: rgba(255, 255, 255, 0.9);
-		font-weight: 400;
-	}
-
-	.hint-keys {
-		font-family: 'Press Start 2P', monospace;
-		font-size: 9px;
-		color: rgba(255, 255, 255, 0.6);
-		margin-top: 4px;
-	}
-
-	@keyframes showHints {
-		0% {
-			opacity: 0;
-		}
-		100% {
-			opacity: 1;
-		}
-	}
-
-	@keyframes hintPulse {
-		0%,
-		100% {
-			opacity: 0.7;
-			transform: scale(1);
-		}
-		50% {
-			opacity: 1;
-			transform: scale(1.02);
-		}
-	}
-
-	/* ==========================================================================
-       ✅ NEW: Mobile Starfield Controls
-       ========================================================================== */
-	.mobile-starfield-controls {
-		position: fixed;
-		bottom: 20px;
-		left: 50%;
-		transform: translateX(-50%);
-		background: rgba(0, 0, 0, 0.9);
-		border: 1px solid rgba(39, 255, 153, 0.3);
-		border-radius: 16px;
-		padding: 16px;
-		z-index: 30;
-		backdrop-filter: blur(12px);
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-		min-width: 280px;
-		max-width: 90vw;
-	}
-
-	.controls-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 12px;
-		padding-bottom: 8px;
-		border-bottom: 1px solid rgba(39, 255, 153, 0.2);
-	}
-
-	.controls-title {
-		font-family: 'Press Start 2P', monospace;
-		font-size: 10px;
-		color: rgba(39, 255, 153, 1);
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-	}
-
-	.boost-button {
-		background: none;
-		border: 2px solid rgba(255, 255, 39, 0.6);
-		border-radius: 8px;
-		padding: 8px 12px;
-		font-size: 16px;
-		cursor: pointer;
-		transition: all 0.2s ease;
-		color: rgba(255, 255, 39, 0.8);
-	}
-
-	.boost-button:hover,
-	.boost-button.active {
-		background: rgba(255, 255, 39, 0.2);
-		border-color: rgba(255, 255, 39, 1);
-		transform: scale(1.05);
-	}
-
-	.controls-content {
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-	}
-
-	.control-group {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	.control-label {
-		font-family: 'Pixelify Sans', sans-serif;
-		font-size: 12px;
-		color: rgba(255, 255, 255, 0.9);
-		font-weight: 500;
-	}
-
-	.speed-slider {
-		appearance: none;
-		width: 100%;
-		height: 6px;
-		border-radius: 3px;
-		background: rgba(255, 255, 255, 0.2);
-		outline: none;
-		cursor: pointer;
-	}
-
-	.speed-slider::-webkit-slider-thumb {
-		appearance: none;
-		width: 20px;
-		height: 20px;
-		border-radius: 50%;
-		background: rgba(39, 255, 153, 1);
-		cursor: pointer;
-		box-shadow: 0 0 8px rgba(39, 255, 153, 0.5);
-		transition: all 0.2s ease;
-	}
-
-	.speed-slider::-webkit-slider-thumb:hover {
-		transform: scale(1.1);
-		box-shadow: 0 0 12px rgba(39, 255, 153, 0.8);
-	}
-
-	.speed-slider::-moz-range-thumb {
-		width: 20px;
-		height: 20px;
-		border-radius: 50%;
-		background: rgba(39, 255, 153, 1);
-		cursor: pointer;
-		border: none;
-		box-shadow: 0 0 8px rgba(39, 255, 153, 0.5);
-	}
-
-	.effect-buttons {
-		display: flex;
-		gap: 8px;
-		justify-content: space-between;
-	}
-
-	.effect-button {
-		flex: 1;
-		background: none;
-		border: 2px solid rgba(255, 39, 153, 0.4);
-		border-radius: 12px;
-		padding: 12px 8px;
-		cursor: pointer;
-		transition: all 0.2s ease;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 4px;
-		min-height: 60px;
-	}
-
-	.effect-button:hover {
-		border-color: rgba(255, 39, 153, 0.8);
-		background: rgba(255, 39, 153, 0.1);
-		transform: translateY(-2px);
-	}
-
-	.effect-button.active {
-		border-color: rgba(255, 39, 153, 1);
-		background: rgba(255, 39, 153, 0.2);
-		box-shadow: 0 0 12px rgba(255, 39, 153, 0.4);
-	}
-
-	.effect-icon {
-		font-size: 18px;
-		color: rgba(255, 39, 153, 1);
-	}
-
-	.effect-name {
-		font-family: 'Press Start 2P', monospace;
-		font-size: 8px;
-		color: rgba(255, 255, 255, 0.8);
-		text-transform: uppercase;
-		letter-spacing: 0.3px;
-	}
-
-	/* ==========================================================================
-       ✅ NEW: Starfield Control Zones (for hover interactions)
-       ========================================================================== */
-	.starfield-control-zone {
-		/* Ensure control zones are accessible */
-		outline: none;
-		transition: all 0.3s ease;
-	}
-
-	.starfield-control-zone:focus-visible {
-		outline: 2px solid rgba(39, 255, 153, 0.8);
-		outline-offset: 2px;
-	}
-
-	/* ==========================================================================
-       ✅ NEW: Keyboard Navigation Instructions
-       ========================================================================== */
-	@media (min-width: 769px) {
-		#hero::before {
-			content: 'Controls: Hover edges for effects • Arrow keys for speed • Space to boost • 1,2,3 for effects';
-			position: absolute;
-			bottom: 10px;
-			left: 50%;
-			transform: translateX(-50%);
-			font-family: 'Press Start 2P', monospace;
-			font-size: 8px;
-			color: rgba(255, 255, 255, 0.4);
-			text-align: center;
-			z-index: 100;
-			pointer-events: none;
-			opacity: 0;
-			animation: showInstructions 2s ease-in-out 3s forwards;
-			max-width: 80%;
-			line-height: 1.4;
-		}
-	}
-
-	@keyframes showInstructions {
-		0% {
-			opacity: 0;
-			transform: translateX(-50%) translateY(10px);
-		}
-		100% {
-			opacity: 1;
-			transform: translateX(-50%) translateY(0);
-		}
 	}
 
 	/* ==========================================================================
@@ -2694,28 +2045,6 @@ Integrated Star Field Effects:
 		#insert-concept {
 			will-change: opacity;
 		}
-
-		/* Hide hints on mobile since hover doesn't work */
-		.starfield-hints {
-			display: none !important;
-		}
-
-		/* Hide desktop instructions on mobile */
-		#hero::before {
-			display: none !important;
-		}
-
-		/* Hide on desktop where hover controls work better */
-		.mobile-starfield-controls {
-			display: block;
-		}
-	}
-
-	@media (min-width: 769px) {
-		/* Hide mobile controls on desktop */
-		.mobile-starfield-controls {
-			display: none;
-		}
 	}
 
 	.animate-transform {
@@ -2982,6 +2311,26 @@ Integrated Star Field Effects:
 		/* Add the screen curvature effect */
 		mask-image: radial-gradient(ellipse at center, black 90%, transparent 100%);
 		-webkit-mask-image: radial-gradient(ellipse at center, black 90%, transparent 100%);
+	}
+
+	.star-container {
+		position: absolute;
+		inset: 0;
+		perspective: 500px;
+		transform-style: preserve-3d;
+		z-index: 1;
+		border-radius: var(--border-radius);
+	}
+
+	.star {
+		position: absolute;
+		background: #fff;
+		border-radius: 50%;
+		box-shadow: 0 0 2px 1px rgba(255, 255, 255, 0.5);
+		pointer-events: none;
+		transform: translateZ(0);
+		will-change: transform;
+		contain: layout style;
 	}
 
 	/* ==========================================================================
@@ -3349,6 +2698,17 @@ Integrated Star Field Effects:
       Mobile Optimizations
       ========================================================================== */
 	@media (max-width: 768px) {
+		/* Optimize star rendering on mobile */
+		.star {
+			will-change: transform;
+			position: absolute;
+			background: #fff;
+			border-radius: 50%;
+			box-shadow: 0 0 1px rgba(255, 255, 255, 0.5); /* Reduced shadow */
+			pointer-events: none;
+			contain: layout style;
+		}
+
 		/* Optimize CRT effects for mobile */
 		.crt-screen {
 			--shadow-mask-size: 2px; /* Smaller mask for better performance */
@@ -3417,34 +2777,171 @@ Integrated Star Field Effects:
 			/* Don't use view transitions on mobile */
 			view-transition-name: none;
 		}
-
-		/* Adjust for very small screens */
-		.mobile-starfield-controls {
-			min-width: 260px;
-			padding: 12px;
-		}
-
-		.effect-buttons {
-			flex-wrap: wrap;
-		}
-
-		.effect-button {
-			min-width: 70px;
-		}
 	}
 
-	@media (max-width: 320px) {
-		.mobile-starfield-controls {
-			min-width: 260px;
-			padding: 12px;
+	/* ==========================================================================
+      Mobile Light Mode Optimizations
+      ========================================================================== */
+	@media (max-width: 768px) {
+		/* Soften glitch effects for mobile light mode */
+		:global(html.light) #header::before {
+			animation-duration: 6s;
+			opacity: 0.3;
+			background: linear-gradient(
+				90deg,
+				transparent 0%,
+				rgba(39, 255, 153, 0.1) 15%,
+				transparent 25%
+			);
 		}
 
-		.effect-buttons {
-			flex-wrap: wrap;
+		/* Smoother scanline effect */
+		:global(html.light) #scanline-overlay {
+			opacity: 0.2;
+			background-size: 100% 4px;
+			animation-duration: 0.3s;
 		}
 
-		.effect-button {
-			min-width: 70px;
+		/* Reduce power-up sequence intensity for light mode */
+		:global(html.light) .power-sequence {
+			animation-duration: 2s;
+		}
+
+		@keyframes mobileLightPowerUp {
+			0% {
+				filter: brightness(0.8) blur(1px);
+				transform: scale(0.99);
+			}
+			100% {
+				filter: brightness(1) blur(0);
+				transform: scale(1);
+			}
+		}
+
+		:global(html.light) .power-sequence {
+			animation-name: mobileLightPowerUp;
+		}
+
+		/* Mobile Light Mode Cabinet Styles */
+		:global(html.light) #arcade-cabinet {
+			background: linear-gradient(
+				180deg,
+				var(--light-cabinet-primary) 0%,
+				var(--light-cabinet-secondary) 100%
+			);
+			box-shadow:
+				0 10px 20px rgba(0, 0, 0, 0.08),
+				0 5px 15px rgba(0, 0, 0, 0.04),
+				inset 0 1px 2px var(--light-highlight);
+			border-radius: var(--light-cabinet-border-radius);
+		}
+
+		:global(html.light) .cabinet-plastic {
+			background: linear-gradient(
+				180deg,
+				var(--light-cabinet-secondary) 0%,
+				var(--light-cabinet-tertiary) 100%
+			);
+			box-shadow:
+				inset 0 5px 15px rgba(0, 0, 0, 0.02),
+				inset -3px 0 8px rgba(0, 0, 0, 0.01),
+				inset 3px 0 8px rgba(0, 0, 0, 0.01),
+				inset 0 -3px 8px rgba(0, 0, 0, 0.02);
+			border-radius: var(--light-cabinet-border-radius);
+			border: 1px solid var(--light-cabinet-border-color);
+		}
+
+		:global(html.light) .cabinet-background {
+			background: linear-gradient(
+				45deg,
+				rgba(240, 240, 240, 0.2) 0%,
+				rgba(250, 250, 250, 0.2) 50%,
+				rgba(240, 240, 240, 0.2) 100%
+			);
+			opacity: 0.6;
+			mix-blend-mode: overlay;
+		}
+
+		:global(html.light) .cabinet-wear {
+			background: repeating-linear-gradient(
+				45deg,
+				transparent 0px,
+				transparent 5px,
+				rgba(0, 0, 0, var(--light-cabinet-texture-opacity)) 5px,
+				rgba(0, 0, 0, var(--light-cabinet-texture-opacity)) 6px
+			);
+			opacity: 0.2;
+			mix-blend-mode: soft-light;
+		}
+
+		:global(html.light) .screen-bezel {
+			background: linear-gradient(
+				to bottom,
+				var(--light-bezel-gradient-start) 0%,
+				var(--light-bezel-gradient-end) 100%
+			);
+			box-shadow:
+				inset 0 1px 3px rgba(0, 0, 0, 0.08),
+				0 0 1px rgba(255, 255, 255, 0.9),
+				0 2px 4px rgba(0, 0, 0, 0.03);
+			border-radius: calc(var(--border-radius) + 4px);
+		}
+
+		/* Enhanced mobile t-molding with subtler effect */
+		:global(html.light) .t-molding::before {
+			opacity: 0.2;
+			background: linear-gradient(
+				90deg,
+				var(--light-cabinet-accent) 0%,
+				rgba(0, 150, 255, 0.2) 50%,
+				var(--light-cabinet-accent) 100%
+			);
+			filter: blur(3px);
+		}
+
+		:global(html.light) .t-molding::after {
+			opacity: 0.15;
+			box-shadow:
+				inset 0 0 6px rgba(255, 255, 255, 0.3),
+				0 0 8px var(--light-cabinet-accent);
+		}
+
+		/* Refined corner accents for mobile light mode */
+		:global(html.light) .corner-accent {
+			opacity: 0.3;
+			background: radial-gradient(
+				circle at center,
+				rgba(255, 255, 255, 0.7),
+				rgba(255, 255, 255, 0.05) 70%,
+				transparent 100%
+			);
+			filter: blur(1px);
+		}
+
+		/* Softer light spill for mobile light mode */
+		:global(html.light) .light-spill {
+			background: radial-gradient(circle at 50% 50%, var(--light-cabinet-accent), transparent 70%);
+			opacity: 0.06;
+			filter: blur(15px);
+		}
+
+		/* Subtler control panel light in mobile light mode */
+		:global(html.light) .control-panel-light {
+			opacity: 0.15;
+			background: linear-gradient(to bottom, var(--light-cabinet-accent), transparent);
+		}
+
+		/* Adjust arcade-screen-wrapper margin for mobile */
+		:global(html.light) .arcade-screen-wrapper {
+			margin-top: calc(-0.8 * var(--navbar-height, 64px));
+		}
+
+		/* Ensure proper border-radius on light mode elements */
+		:global(html.light) .cabinet-plastic,
+		:global(html.light) .arcade-screen-wrapper,
+		:global(html.light) .screen-bezel {
+			overflow: hidden;
+			border-radius: var(--light-cabinet-border-radius);
 		}
 	}
 
@@ -3484,37 +2981,6 @@ Integrated Star Field Effects:
 	.ios-optimized #scanline-overlay {
 		opacity: 0.5;
 		background-size: 100% 6px;
-	}
-
-	/* ==========================================================================
-      ✅ NEW: Accessibility & Reduced Motion
-      ========================================================================== */
-	/* Respect user preferences for reduced motion */
-	@media (prefers-reduced-motion: reduce) {
-		.control-hint,
-		.boost-button,
-		.effect-button {
-			animation: none;
-			transition: none;
-		}
-
-		.starfield-hints {
-			transition: none;
-		}
-
-		#hero::before {
-			animation: none;
-			opacity: 1;
-		}
-
-		.boost-button:hover,
-		.boost-button.active {
-			transform: none;
-		}
-
-		.effect-button:hover {
-			transform: none;
-		}
 	}
 
 	/* ==========================================================================
