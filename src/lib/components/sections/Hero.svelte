@@ -241,7 +241,10 @@
 					canvasStarFieldManager.setUseContainerParallax(!isLowPerformanceDevice);
 				}
 
-				canvasStarFieldManager.enablePoolingIntegration(true);
+				// Enable pooling integration if available
+				if ('enablePoolingIntegration' in canvasStarFieldManager) {
+					(canvasStarFieldManager as any).enablePoolingIntegration(true);
+				}
 
 				// Start the animation
 				canvasStarFieldManager.start();
@@ -585,75 +588,59 @@
 				}
 			}
 
-			// Initialize memory monitoring if not already initialized
-			if (
-				memoryManagerUnsubscribes.length === 0 &&
-				browser &&
-				'performance' in window &&
-				'memory' in (performance as any)
-			) {
-				try {
-					// Start monitoring with the unified memory manager
-					memoryManager.startMonitoring();
-
-					// Subscribe to memory pressure events
-					const pressureUnsubscribe = memoryManager.onMemoryPressure((pressure: MemoryPressure) => {
-						if (canvasStarFieldManager) {
-							canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
-						}
-						if (starFieldComponent && 'enableGlow' in starFieldComponent) {
-							starFieldComponent.enableGlow = false;
-						}
-						if (
-							frameRateController &&
-							typeof frameRateController.setQualityOverride === 'function'
-						) {
-							frameRateController.setQualityOverride(0.7);
-						}
-					});
-
-					// Subscribe to memory events for leak detection
-					const eventUnsubscribe = memoryManager.onMemoryEvent((event: MemoryEvent) => {
-						if (event.type === 'leak-suspected') {
-							if (canvasStarFieldManager) {
-								canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
-								const currentCount = canvasStarFieldManager.starCount || 60;
-								canvasStarFieldManager.setStarCount(Math.floor(currentCount * 0.6)); // Reduce by 40%
-								canvasStarFieldManager.setUseContainerParallax(false);
-							}
-							if (starFieldComponent) {
-								const capabilities = get(deviceCapabilities);
-								const currentCount = capabilities?.maxStars || 60;
-								const reducedCount = Math.floor(currentCount * 0.6);
-								if ('starCount' in starFieldComponent) {
-									starFieldComponent.starCount = reducedCount;
-								}
-								if ('enableGlow' in starFieldComponent) {
-									starFieldComponent.enableGlow = false;
-								}
-							}
-							if (
-								frameRateController &&
-								typeof frameRateController.setQualityOverride === 'function'
-							) {
-								frameRateController.setQualityOverride(0.5);
-							}
-
-							// Perform cleanup instead of direct garbage collection
-							memoryManager.performCleanup();
-						}
-					});
-
-					// Store unsubscribe functions for cleanup
-					memoryManagerUnsubscribes.push(pressureUnsubscribe, eventUnsubscribe);
-				} catch (error) {
-					console.warn('Memory manager initialization failed:', error);
-					memoryManagerUnsubscribes = [];
-				}
-			}
+			// Memory monitoring is handled by initializeMemoryMonitoring() - no duplicate initialization needed
 
 			// Create and start optimized GSAP timeline
-			const timeline = createOptimizedTimeline(elements);
+			const timeline = gsap
+				.timeline({
+					paused: true,
+					defaults: {
+						ease: 'power2.out',
+						duration: 1
+					}
+				})
+				.fromTo(
+					elements.header,
+					{
+						opacity: 0,
+						y: -50,
+						scale: 0.8
+					},
+					{
+						opacity: 1,
+						y: 0,
+						scale: 1,
+						duration: 1.2,
+						ease: 'back.out(1.7)'
+					},
+					0
+				)
+				.fromTo(
+					elements.insertConcept,
+					{
+						opacity: 0
+					},
+					{
+						opacity: 1,
+						duration: 0.8,
+						ease: 'power2.out'
+					},
+					0.5
+				)
+				.fromTo(
+					elements.arcadeScreen,
+					{
+						filter: 'brightness(0) blur(2px)',
+						transform: 'scale(0.98)'
+					},
+					{
+						filter: 'brightness(1) blur(0)',
+						transform: 'scale(1)',
+						duration: 2.5,
+						ease: 'power2.out'
+					},
+					0
+				);
 
 			if (timeline) {
 				currentTimeline = timeline;
@@ -768,7 +755,7 @@
 		if (!glassContainer) return;
 
 		// Define a handler for mouse movement that uses frameRateController
-		const handleMouseMove = (e) => {
+		const handleMouseMove = (e: Event) => {
 			if (!glassContainer) return;
 
 			// Skip updates on low-performance frames
@@ -780,8 +767,9 @@
 			const centerY = rect.top + rect.height / 2;
 
 			// Calculate normalized offsets (-1 to 1)
-			const offsetX = (e.clientX - centerX) / (rect.width / 2);
-			const offsetY = (e.clientY - centerY) / (rect.height / 2);
+			const mouseEvent = e as MouseEvent;
+			const offsetX = (mouseEvent.clientX - centerX) / (rect.width / 2);
+			const offsetY = (mouseEvent.clientY - centerY) / (rect.height / 2);
 
 			// Calculate movement limits
 			const maxMove = 8; // maximum movement in pixels
@@ -875,12 +863,14 @@
 
 				// Subscribe to memory events for leak detection
 				const eventUnsubscribe = memoryManager.onMemoryEvent((event: MemoryEvent) => {
-					if (event.type === 'leak-suspected') {
+					if (event.type === 'critical') {
 						// Handle critical memory issues - reduce star count and effects
 						if (canvasStarFieldManager) {
 							canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
-							const currentCount = canvasStarFieldManager.starCount || 60;
-							canvasStarFieldManager.setStarCount(Math.floor(currentCount * 0.6)); // Reduce by 40%
+							const currentCount =
+								canvasStarFieldManager.getStarCount?.() || get(deviceCapabilities)?.maxStars || 60;
+							const reducedCount = Math.floor(currentCount * 0.6);
+							canvasStarFieldManager.setStarCount(reducedCount);
 							canvasStarFieldManager.setUseContainerParallax(false);
 						}
 						if (starFieldComponent) {
@@ -940,9 +930,9 @@
 			detectDeviceCapabilities();
 			debouncedOrientationCheck();
 
-			// Notify canvas manager of resize if it exists
-			if (canvasStarFieldManager && typeof canvasStarFieldManager.resizeCanvas === 'function') {
-				canvasStarFieldManager.resizeCanvas();
+			// Notify canvas manager of resize by re-setting container (triggers internal resize)
+			if (canvasStarFieldManager && starContainer) {
+				canvasStarFieldManager.setContainer(starContainer);
 			}
 		}, 100);
 
@@ -1085,7 +1075,8 @@
 					const adjustedCount = Math.max(20, Math.round(baseCount * quality));
 
 					// Use optional chaining to safely access methods
-					const currentCount = canvasStarFieldManager?.getStarCount?.() ?? 0;
+					const currentCount =
+						canvasStarFieldManager.getStarCount?.() || capabilities?.maxStars || 60;
 					if (
 						typeof canvasStarFieldManager.setStarCount === 'function' &&
 						Math.abs(currentCount - adjustedCount) > 5
