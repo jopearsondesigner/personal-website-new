@@ -1,7 +1,11 @@
-// NEW FILE: src/lib/utils/stats-manager.ts
+// src/lib/utils/stats-manager.ts
 import { browser } from '$app/environment';
 import { get } from 'svelte/store';
-import { objectPoolStatsStore, updateObjectPoolStats } from './device-performance';
+import {
+	memoryManager,
+	objectPoolStatsStore,
+	type ObjectPoolStats
+} from '$lib/utils/memory-manager';
 import { starPoolTracker } from './pool-stats-tracker';
 import { starPoolBridge } from './star-pool-bridge';
 
@@ -54,8 +58,8 @@ class StatsManager {
 
 		// Only initialize if needed
 		if (!currentStats || currentStats.totalCapacity === 0 || !currentStats.poolName) {
-			// Directly update store instead of going through trackers
-			updateObjectPoolStats({
+			// Initialize through the unified memory manager
+			memoryManager.updatePoolStats('stars', {
 				poolName: 'Stars',
 				poolType: 'Star',
 				objectsCreated: 0,
@@ -113,6 +117,7 @@ class StatsManager {
 	public recordCreated(count: number): void {
 		if (!browser || count <= 0) return;
 
+		// Use the existing tracker system
 		starPoolTracker.recordObjectCreated(count);
 		this.refreshStats();
 	}
@@ -123,6 +128,7 @@ class StatsManager {
 	public recordReused(count: number): void {
 		if (!browser || count <= 0) return;
 
+		// Use the existing tracker system
 		starPoolTracker.recordObjectReused(count);
 		this.refreshStats();
 	}
@@ -133,7 +139,20 @@ class StatsManager {
 	public updateActiveCount(active: number, total: number): void {
 		if (!browser) return;
 
+		// Use the existing tracker system
 		starPoolTracker.updatePoolState(active, total);
+
+		// Update the memory manager with current stats
+		const currentStats = get(objectPoolStatsStore);
+		if (currentStats) {
+			memoryManager.updatePoolStats('stars', {
+				...currentStats,
+				activeObjects: active,
+				totalCapacity: total,
+				utilizationRate: total > 0 ? active / total : 0
+			});
+		}
+
 		this.refreshStats();
 	}
 
@@ -143,7 +162,22 @@ class StatsManager {
 	public resetStats(): void {
 		if (!browser) return;
 
+		// Reset the tracker system
 		starPoolTracker.reset();
+
+		// Reset the memory manager stats
+		memoryManager.updatePoolStats('stars', {
+			poolName: 'Stars',
+			poolType: 'Star',
+			objectsCreated: 0,
+			objectsReused: 0,
+			reuseRatio: 0,
+			estimatedMemorySaved: 0,
+			activeObjects: 0,
+			totalCapacity: 300,
+			utilizationRate: 0
+		});
+
 		this.refreshStats();
 
 		if (this.debugMode) {

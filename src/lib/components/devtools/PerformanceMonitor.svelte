@@ -2,12 +2,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { fpsStore } from '$lib/utils/frame-rate-controller';
-	import {
-		deviceCapabilities,
-		memoryUsageStore,
-		objectPoolStatsStore,
-		updateObjectPoolStats
-	} from '$lib/utils/device-performance';
+	import { deviceCapabilities, updateObjectPoolStats } from '$lib/utils/device-performance';
 	import {
 		perfMonitorVisible,
 		setPerformanceMonitorVisibility
@@ -19,8 +14,56 @@
 		PerformanceBenchmark,
 		benchmarkResultsStore
 	} from '$lib/utils/performance-benchmarking';
-	import { memoryMonitor, type MemoryEvent, MemoryEventType } from '$lib/utils/memory-monitor';
 	import { performanceTestRunner } from '$lib/utils/performance-test-runner';
+
+	// UNIFIED MEMORY MANAGER IMPORTS - Replacing fragmented system
+	import {
+		memoryManager,
+		currentMemoryInfo,
+		memoryEvents,
+		memoryPressure,
+		memoryUsageStore,
+		objectPoolStatsStore,
+		type MemoryInfo,
+		type MemoryEvent
+	} from '$lib/utils/memory-manager';
+
+	// **SSR SAFETY**: Safe store access with defaults
+	$: safeObjectPoolStats = $objectPoolStatsStore || {
+		utilizationRate: 0,
+		activeObjects: 0,
+		totalCapacity: 0,
+		objectsCreated: 0,
+		objectsReused: 0,
+		reuseRatio: 0,
+		estimatedMemorySaved: 0,
+		poolName: 'Stars',
+		poolType: 'Star'
+	};
+
+	$: safeMemoryUsage = $memoryUsageStore || 0;
+	$: safeFPS = $fpsStore || 60;
+	$: safeDeviceCapabilities = $deviceCapabilities || {
+		tier: 'medium',
+		maxStars: 200,
+		effectsLevel: 'normal',
+		performance: { targetFPS: 60 }
+	};
+
+	// Safe access to unified memory stores
+	$: safeMemoryInfo = $currentMemoryInfo || {
+		usedJSHeapSize: 0,
+		totalJSHeapSize: 0,
+		jsHeapSizeLimit: 0,
+		usagePercentage: 0,
+		availableMB: 0,
+		usedMB: 0,
+		limitMB: 0,
+		timestamp: 0
+	};
+
+	$: safeMemoryEvents = $memoryEvents || [];
+	$: safeMemoryPressure = $memoryPressure || 'low';
 
 	// Monitor element for touch event handling
 	let monitorElement: HTMLDivElement;
@@ -69,8 +112,7 @@
 	let currentTestId = '';
 	let currentTestStep = '';
 
-	// Memory monitor state
-	let memoryEvents: MemoryEvent[] = [];
+	// Memory monitor state - now using unified system
 	let showMemoryReport = false;
 	let memoryReport = '';
 
@@ -90,7 +132,7 @@
 	};
 
 	// Previous values for trend detection
-	let prevFps = 0;
+	let prevFPS = 0;
 	let prevMemory = 0;
 	let prevPoolUtilization = 0;
 
@@ -98,7 +140,7 @@
 	let warnings: string[] = [];
 
 	// Benchmark results
-	$: benchmarkResults = $benchmarkResultsStore;
+	$: benchmarkResults = $benchmarkResultsStore || [];
 	let selectedBenchmarkResults: any[] = [];
 	let benchmarkComparisonResult: any = null;
 
@@ -115,28 +157,26 @@
 	let pendingUpdate = false;
 	let updateInterval = 500; // ms between updates
 
-	// Subscribe to stores with throttling
+	// Subscribe to stores with throttling and SSR safety
 	$: {
-		const now = browser ? performance.now() : 0;
-		// Only trigger update at most once per interval
-		if (now - lastUpdateTime > updateInterval && !pendingUpdate) {
-			lastUpdateTime = now;
-			pendingUpdate = true;
+		if (browser && $perfMonitorVisible) {
+			const now = performance.now();
+			// Only trigger update at most once per interval
+			if (now - lastUpdateTime > updateInterval && !pendingUpdate) {
+				lastUpdateTime = now;
+				pendingUpdate = true;
 
-			// Schedule update on next animation frame
-			if (browser) {
+				// Schedule update on next animation frame
 				requestAnimationFrame(() => {
 					pendingUpdate = false;
 					updatePerformanceData();
-					// FPS and other values are automatically updated by reactive statements
 				});
 			}
 		}
 	}
 
 	/**
-	 * Optimization: Memoize expensive calculations
-	 * Benefit: Reduces redundant calculations
+	 * **SSR SAFETY**: Memoize expensive calculations with safe defaults
 	 */
 	let memoizedStats = {
 		utilizationPercentage: '0',
@@ -146,18 +186,20 @@
 	};
 
 	function updateMemoizedStats() {
+		if (!browser) return; // ADD THIS LINE
+
 		const now = performance.now();
 		if (now - memoizedStats.lastUpdateTime < 250) return; // Throttle updates
 
 		memoizedStats = {
-			utilizationPercentage: ($objectPoolStatsStore.utilizationRate * 100).toFixed(0),
-			reuseRatioPercentage: ($objectPoolStatsStore.reuseRatio * 100).toFixed(0),
-			memoryPercentage: ($memoryUsageStore * 100).toFixed(0),
+			utilizationPercentage: ((safeObjectPoolStats.utilizationRate || 0) * 100).toFixed(0),
+			reuseRatioPercentage: ((safeObjectPoolStats.reuseRatio || 0) * 100).toFixed(0),
+			memoryPercentage: ((safeMemoryUsage || 0) * 100).toFixed(0),
 			lastUpdateTime: now
 		};
 	}
 
-	// Call updateMemoizedStats when stores change
+	// Call updateMemoizedStats when stores change (browser only)
 	$: if (browser && $perfMonitorVisible) {
 		updateMemoizedStats();
 	}
@@ -166,16 +208,13 @@
 	function updatePerformanceData() {
 		if (!browser) return;
 
-		// Update the FPS chart data
-		fpsChartData.push($fpsStore);
+		fpsChartData.push(safeFPS);
 		if (fpsChartData.length > 100) fpsChartData.shift();
 
-		// Update memory chart data
-		memoryChartData.push($memoryUsageStore * 100); // Convert to percentage
+		memoryChartData.push((safeMemoryUsage || 0) * 100); // Convert to percentage
 		if (memoryChartData.length > 100) memoryChartData.shift();
 
-		// Update pool utilization data
-		poolUtilizationData.push($objectPoolStatsStore.utilizationRate * 100); // Convert to percentage
+		poolUtilizationData.push((safeObjectPoolStats.utilizationRate || 0) * 100); // Convert to percentage
 		if (poolUtilizationData.length > 100) poolUtilizationData.shift();
 
 		// Update time labels
@@ -199,20 +238,20 @@
 		const FPS_THRESHOLD = 5; // FPS change threshold
 
 		// Update FPS trend
-		const currentFps = $fpsStore;
-		if (prevFps > 0) {
-			const fpsDiff = currentFps - prevFps;
+		const currentFPS = safeFPS;
+		if (prevFPS > 0) {
+			const fpsDiff = currentFPS - prevFPS;
 			performanceTrend.fps = {
 				rising: fpsDiff > FPS_THRESHOLD,
 				falling: fpsDiff < -FPS_THRESHOLD,
 				stable: Math.abs(fpsDiff) <= FPS_THRESHOLD,
-				value: currentFps
+				value: currentFPS
 			};
 		}
-		prevFps = currentFps;
+		prevFPS = currentFPS;
 
 		// Update memory trend
-		const currentMemory = $memoryUsageStore;
+		const currentMemory = safeMemoryUsage;
 		if (prevMemory > 0) {
 			const memoryDiff = currentMemory - prevMemory;
 			performanceTrend.memory = {
@@ -225,7 +264,7 @@
 		prevMemory = currentMemory;
 
 		// Update pool utilization trend
-		const currentPoolUtilization = $objectPoolStatsStore.utilizationRate;
+		const currentPoolUtilization = safeObjectPoolStats.utilizationRate || 0;
 		if (prevPoolUtilization > 0) {
 			const poolDiff = currentPoolUtilization - prevPoolUtilization;
 			performanceTrend.poolUtilization = {
@@ -246,218 +285,224 @@
 		warnings = [];
 
 		// Check FPS
-		const currentFps = $fpsStore;
-		const targetFps = get(deviceCapabilities)?.performance?.targetFPS || 60;
-		if (currentFps < targetFps * 0.7) {
+		const currentFPS = safeFPS;
+		const targetFPS = safeDeviceCapabilities?.performance?.targetFPS || 60;
+		if (currentFPS < targetFPS * 0.7) {
 			warnings.push(
-				`Low FPS: ${currentFps.toFixed(1)}/${targetFps} (${((currentFps / targetFps) * 100).toFixed(0)}%)`
+				`Low FPS: ${currentFPS.toFixed(1)}/${targetFPS} (${((currentFPS / targetFPS) * 100).toFixed(0)}%)`
 			);
 		}
 
 		// Check memory usage
-		const memoryUsage = $memoryUsageStore;
+		const memoryUsage = safeMemoryUsage;
 		if (memoryUsage > 0.8) {
 			warnings.push(`High memory usage: ${(memoryUsage * 100).toFixed(0)}%`);
 		}
 
 		// Check pool utilization
-		const poolUtilization = $objectPoolStatsStore.utilizationRate;
+		const poolUtilization = safeObjectPoolStats.utilizationRate || 0;
 		if (poolUtilization > 0.9) {
 			warnings.push(`Object pool near capacity: ${(poolUtilization * 100).toFixed(0)}%`);
 		}
 
 		// Check pool churn
-		const reuseRatio = $objectPoolStatsStore.reuseRatio;
-		if (reuseRatio < 0.5 && $objectPoolStatsStore.objectsCreated > 100) {
+		const reuseRatio = safeObjectPoolStats.reuseRatio || 0;
+		const objectsCreated = safeObjectPoolStats.objectsCreated || 0;
+		if (reuseRatio < 0.5 && objectsCreated > 100) {
 			warnings.push(`Low object reuse ratio: ${(reuseRatio * 100).toFixed(0)}%`);
 		}
 	}
 
-	// Start benchmarking
+	// Benchmark functions
 	function startBenchmark() {
-		if (isBenchmarkRunning || !browser) return;
+		if (isBenchmarkRunning) return;
 
 		isBenchmarkRunning = true;
 		benchmarkProgress = 0;
 
-		// Create and configure the benchmark
-		const benchmarkId = `benchmark-${Date.now()}`;
-		currentBenchmark = new PerformanceBenchmark(benchmarkId, benchmarkType, benchmarkDuration);
+		currentBenchmark = new PerformanceBenchmark(benchmarkType, benchmarkDuration);
 
-		// Setup progress tracking
-		currentBenchmark.onProgress((progress) => {
+		currentBenchmark.onProgress = (progress) => {
 			benchmarkProgress = progress;
-		});
+		};
 
-		// Setup completion handling
-		currentBenchmark.onComplete((result) => {
+		currentBenchmark.onComplete = (result) => {
 			isBenchmarkRunning = false;
-			benchmarkProgress = 100;
+			benchmarkProgress = 0;
 			currentBenchmark = null;
+		};
 
-			// Add result to the selected results for easy comparison
-			if (selectedBenchmarkResults.length < 2) {
-				selectedBenchmarkResults = [...selectedBenchmarkResults, result];
-			}
-
-			// Update comparison if we have two results
-			if (selectedBenchmarkResults.length === 2) {
-				benchmarkComparisonResult = PerformanceBenchmark.compareResults(
-					selectedBenchmarkResults[0],
-					selectedBenchmarkResults[1]
-				);
-			}
-		});
-
-		// Start the benchmark
 		currentBenchmark.start();
 	}
 
-	// Cancel running benchmark
-	function cancelBenchmark() {
-		if (!isBenchmarkRunning || !currentBenchmark) return;
-
-		currentBenchmark.stop();
-		isBenchmarkRunning = false;
-		benchmarkProgress = 0;
-		currentBenchmark = null;
-	}
-
-	// Run standard benchmark suite
-	function runBenchmarkSuite() {
-		if (isBenchmarkRunning || !browser) return;
+	function startBenchmarkSuite() {
+		if (isBenchmarkRunning) return;
 
 		isBenchmarkRunning = true;
 		benchmarkProgress = 0;
 
-		PerformanceBenchmark.runStandardSuite(benchmarkDuration, (benchmarkName, progress) => {
-			// Update progress based on which benchmark is running
-			benchmarkProgress = progress;
-		}).then((results) => {
-			isBenchmarkRunning = false;
-			benchmarkProgress = 100;
+		// Run all benchmark types sequentially
+		const benchmarkTypes = [BenchmarkType.FPS, BenchmarkType.MEMORY, BenchmarkType.RENDERING];
+		let currentIndex = 0;
 
-			// Clear selected results and add the most important ones
-			selectedBenchmarkResults = results.slice(0, 2);
-
-			// Update comparison if we have at least two results
-			if (selectedBenchmarkResults.length >= 2) {
-				benchmarkComparisonResult = PerformanceBenchmark.compareResults(
-					selectedBenchmarkResults[0],
-					selectedBenchmarkResults[1]
-				);
+		function runNextBenchmark() {
+			if (currentIndex >= benchmarkTypes.length) {
+				isBenchmarkRunning = false;
+				benchmarkProgress = 0;
+				return;
 			}
-		});
+
+			const benchmark = new PerformanceBenchmark(benchmarkTypes[currentIndex], benchmarkDuration);
+
+			benchmark.onProgress = (progress) => {
+				const totalProgress = (currentIndex + progress) / benchmarkTypes.length;
+				benchmarkProgress = totalProgress * 100;
+			};
+
+			benchmark.onComplete = (result) => {
+				currentIndex++;
+				setTimeout(runNextBenchmark, 1000); // Brief pause between benchmarks
+			};
+
+			benchmark.start();
+		}
+
+		runNextBenchmark();
 	}
 
-	// Run performance test suite
-	function runPerformanceTests() {
-		if (isTestRunning || !browser) return;
+	function startPerformanceTests() {
+		if (isTestRunning) return;
 
 		isTestRunning = true;
 		testProgress = 0;
+		currentTestId = '';
+		currentTestStep = '';
 
-		// Setup callbacks
-		performanceTestRunner.onProgress((scenarioId, benchmarkType, progress) => {
-			currentTestId = scenarioId;
-			currentTestStep = benchmarkType;
+		performanceTestRunner.runAllTests().then(() => {
+			isTestRunning = false;
+			testProgress = 0;
+		});
+
+		// Listen for test progress updates
+		performanceTestRunner.onProgress = (progress, testId, step) => {
 			testProgress = progress;
-		});
-
-		performanceTestRunner.onTestComplete((result) => {
-			console.log(`Test completed: ${result.scenarioId}`, result);
-		});
-
-		// Run all tests
-		performanceTestRunner
-			.runAllTests()
-			.then((results) => {
-				isTestRunning = false;
-				testProgress = 100;
-
-				console.log('All tests completed:', results);
-
-				// Show a success message
-				alert(`Completed ${results.length} performance tests.`);
-			})
-			.catch((error) => {
-				isTestRunning = false;
-				console.error('Error running tests:', error);
-			});
+			currentTestId = testId;
+			currentTestStep = step;
+		};
 	}
 
-	// Generate memory diagnostic report
+	function cancelBenchmark() {
+		if (currentBenchmark) {
+			currentBenchmark.cancel();
+			currentBenchmark = null;
+		}
+		isBenchmarkRunning = false;
+		isTestRunning = false;
+		benchmarkProgress = 0;
+		testProgress = 0;
+	}
+
+	// Force refresh of stats using unified memory manager
+	function forceStatsRefresh() {
+		if (!browser) return;
+
+		try {
+			// Use unified memory manager to force a memory check
+			memoryManager.forceMemoryCheck();
+		} catch (error) {
+			console.warn('Error refreshing unified memory stats:', error);
+		}
+	}
+
+	// Memory report generation using unified system
 	function generateMemoryReport() {
 		if (!browser) return;
 
-		memoryReport = memoryMonitor.getMemoryLeakReport();
-		showMemoryReport = true;
+		try {
+			memoryReport = memoryManager.getMemoryReport();
+			showMemoryReport = true;
+		} catch (error) {
+			console.error('Error generating memory report:', error);
+			memoryReport = 'Error generating memory report: ' + error.message;
+			showMemoryReport = true;
+		}
 	}
 
-	// Suggest garbage collection
-	function suggestGarbageCollection() {
+	function closeMemoryReport() {
+		showMemoryReport = false;
+		memoryReport = '';
+	}
+
+	function copyMemoryReport() {
+		if (!browser || !memoryReport) return; // ADD BROWSER CHECK
+
+		navigator.clipboard.writeText(memoryReport).then(() => {
+			console.log('Memory report copied to clipboard');
+		});
+	}
+
+	// Cleanup function using unified system
+	function performCleanup() {
 		if (!browser) return;
 
-		memoryMonitor.suggestGarbageCollection();
+		try {
+			memoryManager.performCleanup();
+			console.log('Unified memory cleanup completed');
+		} catch (error) {
+			console.error('Error performing cleanup:', error);
+		}
 	}
 
-	// Update memory events from monitor
-	function updateMemoryEvents() {
-		if (!browser) return;
-
-		memoryEvents = memoryMonitor.getEvents();
-	}
-
-	// Select a benchmark result for comparison
-	function selectBenchmarkResult(result, index) {
-		// Replace the result at the given index, or add it if not enough results
-		if (index < selectedBenchmarkResults.length) {
-			selectedBenchmarkResults[index] = result;
-			selectedBenchmarkResults = [...selectedBenchmarkResults]; // Trigger reactivity
-		} else if (selectedBenchmarkResults.length < 2) {
+	// Benchmark result selection
+	function selectBenchmarkResult(result: any) {
+		if (selectedBenchmarkResults.includes(result)) {
+			selectedBenchmarkResults = selectedBenchmarkResults.filter((r) => r !== result);
+		} else {
 			selectedBenchmarkResults = [...selectedBenchmarkResults, result];
 		}
 
-		// Update comparison if we have two results
+		// Update comparison result
 		if (selectedBenchmarkResults.length === 2) {
-			benchmarkComparisonResult = PerformanceBenchmark.compareResults(
+			benchmarkComparisonResult = compareBenchmarkResults(
 				selectedBenchmarkResults[0],
 				selectedBenchmarkResults[1]
 			);
+		} else {
+			benchmarkComparisonResult = null;
 		}
 	}
 
-	// Clear selected benchmark results
-	function clearSelectedResults() {
+	function removeBenchmarkResult(result: any) {
+		selectedBenchmarkResults = selectedBenchmarkResults.filter((r) => r !== result);
+		benchmarkComparisonResult = null;
+	}
+
+	function clearBenchmarkSelection() {
 		selectedBenchmarkResults = [];
 		benchmarkComparisonResult = null;
 	}
 
-	// Handle double tap on mobile
+	function compareBenchmarkResults(result1: any, result2: any) {
+		// Simple comparison logic
+		const fpsChange = ((result2.avgFPS - result1.avgFPS) / result1.avgFPS) * 100;
+		const memoryChange =
+			((result2.avgMemoryUsage - result1.avgMemoryUsage) / result1.avgMemoryUsage) * 100;
+
+		return {
+			fpsChange: fpsChange.toFixed(1),
+			memoryChange: memoryChange.toFixed(1),
+			fpsImproved: fpsChange > 0,
+			memoryImproved: memoryChange < 0
+		};
+	}
+
 	function handleTouchStart(event: TouchEvent) {
-		const touch = event.touches[0];
-		touchStartX = touch.clientX;
-		touchStartY = touch.clientY;
+		if (!browser) return; // ADD THIS LINE
 
-		// Double-tap detection
-		if (touchTimeout === null) {
-			touchTimeout = window.setTimeout(() => {
-				touchTimeout = null;
-			}, 300);
-		} else {
-			// Double tap detected
-			window.clearTimeout(touchTimeout);
-			touchTimeout = null;
-
-			// Toggle visibility on double tap
-			perfMonitorVisible.update((value) => !value);
-			event.preventDefault();
-		}
-
-		// Initialize touch drag if touching the header
-		const header = monitorElement?.querySelector('.monitor-header');
-		if (header && event.target && header.contains(event.target as Node)) {
-			isTouchDragging = true;
+		if (event.touches.length === 1) {
+			const touch = event.touches[0];
+			touchStartX = touch.clientX;
+			touchStartY = touch.clientY;
 			touchDragStartX = touch.clientX;
 			touchDragStartY = touch.clientY;
 
@@ -465,338 +510,189 @@
 			initialTouchLeft = rect.left;
 			initialTouchTop = rect.top;
 
-			event.preventDefault(); // Prevent scrolling while dragging the header
+			// Long press detection
+			touchTimeout = window.setTimeout(() => {
+				isTouchDragging = true;
+			}, 500);
 		}
 	}
 
-	// Handle touch move for dragging
 	function handleTouchMove(event: TouchEvent) {
-		if (!isTouchDragging) return;
+		if (!browser) return; // ADD THIS LINE
 
-		const touch = event.touches[0];
-		const deltaX = touch.clientX - touchDragStartX;
-		const deltaY = touch.clientY - touchDragStartY;
-
-		const newLeft = initialTouchLeft + deltaX;
-		const newTop = initialTouchTop + deltaY;
-
-		// Constrain to viewport
-		const maxX = window.innerWidth - monitorElement.offsetWidth;
-		const maxY = window.innerHeight - monitorElement.offsetHeight;
-
-		const constrainedX = Math.max(0, Math.min(newLeft, maxX));
-		const constrainedY = Math.max(0, Math.min(newTop, maxY));
-
-		monitorElement.style.right = 'auto';
-		monitorElement.style.bottom = 'auto';
-		monitorElement.style.left = `${constrainedX}px`;
-		monitorElement.style.top = `${constrainedY}px`;
-
-		// Only call preventDefault when we're actually dragging
-		if (isTouchDragging) {
-			event.preventDefault(); // Prevent page scrolling during drag
-		}
-	}
-
-	// Handle touch end
-	function handleTouchEnd(event: TouchEvent) {
-		if (isTouchDragging) {
-			isTouchDragging = false;
-
-			// Save position
-			if (browser && monitorElement) {
-				const rect = monitorElement.getBoundingClientRect();
-				localStorage.setItem('perfMonitorX', String(rect.left));
-				localStorage.setItem('perfMonitorY', String(rect.top));
-			}
-
+		if (event.touches.length === 1 && isTouchDragging) {
 			event.preventDefault();
+			const touch = event.touches[0];
+
+			const deltaX = touch.clientX - touchDragStartX;
+			const deltaY = touch.clientY - touchDragStartY;
+
+			const newLeft = initialTouchLeft + deltaX;
+			const newTop = initialTouchTop + deltaY;
+
+			monitorElement.style.left = `${Math.max(0, Math.min(window.innerWidth - monitorElement.offsetWidth, newLeft))}px`;
+			monitorElement.style.top = `${Math.max(0, Math.min(window.innerHeight - monitorElement.offsetHeight, newTop))}px`;
+			monitorElement.style.right = 'auto';
+			monitorElement.style.bottom = 'auto';
 		}
 	}
 
-	// Dragging handlers
+	function handleTouchEnd(event: TouchEvent) {
+		if (!browser) return; // ADD THIS LINE
+
+		if (touchTimeout) {
+			clearTimeout(touchTimeout);
+			touchTimeout = null;
+		}
+
+		if (!isTouchDragging && event.changedTouches.length === 1) {
+			const touch = event.changedTouches[0];
+			const deltaX = Math.abs(touch.clientX - touchStartX);
+			const deltaY = Math.abs(touch.clientY - touchStartY);
+
+			// Consider it a tap if movement is minimal
+			if (deltaX < 10 && deltaY < 10) {
+				// Handle tap - could toggle detailed view
+				showDetailedMetrics = !showDetailedMetrics;
+			}
+		}
+
+		isTouchDragging = false;
+	}
+
+	// Mouse event handlers
 	function handleMouseDown(event: MouseEvent) {
-		// Only start dragging on header element to avoid interference
-		const header = monitorElement?.querySelector('.monitor-header');
-		if (header && event.target && header.contains(event.target as Node)) {
+		if (!browser) return; // THIS LINE FIXES THE SSR ERROR
+
+		if (event.button === 0) {
+			// Left mouse button
 			isDragging = true;
 			offsetX = event.clientX - monitorElement.getBoundingClientRect().left;
 			offsetY = event.clientY - monitorElement.getBoundingClientRect().top;
-			event.preventDefault();
+
+			document.addEventListener('mousemove', handleMouseMove);
+			document.addEventListener('mouseup', handleMouseUp);
 		}
 	}
 
 	function handleMouseMove(event: MouseEvent) {
-		if (!isDragging) return;
+		if (!browser) return; // ADD THIS LINE
 
-		const x = event.clientX - offsetX;
-		const y = event.clientY - offsetY;
+		if (isDragging) {
+			const newLeft = event.clientX - offsetX;
+			const newTop = event.clientY - offsetY;
 
-		// Constrain to viewport
-		const maxX = window.innerWidth - monitorElement.offsetWidth;
-		const maxY = window.innerHeight - monitorElement.offsetHeight;
-
-		const constrainedX = Math.max(0, Math.min(x, maxX));
-		const constrainedY = Math.max(0, Math.min(y, maxY));
-
-		monitorElement.style.right = 'auto';
-		monitorElement.style.bottom = 'auto';
-		monitorElement.style.left = `${constrainedX}px`;
-		monitorElement.style.top = `${constrainedY}px`;
+			monitorElement.style.left = `${Math.max(0, Math.min(window.innerWidth - monitorElement.offsetWidth, newLeft))}px`;
+			monitorElement.style.top = `${Math.max(0, Math.min(window.innerHeight - monitorElement.offsetHeight, newTop))}px`;
+			monitorElement.style.right = 'auto';
+			monitorElement.style.bottom = 'auto';
+		}
 	}
 
 	function handleMouseUp() {
-		if (isDragging) {
-			isDragging = false;
+		if (!browser) return; // ADD THIS LINE
 
-			// Save position
-			if (browser && monitorElement) {
-				const rect = monitorElement.getBoundingClientRect();
-				localStorage.setItem('perfMonitorX', String(rect.left));
-				localStorage.setItem('perfMonitorY', String(rect.top));
-			}
-		}
+		isDragging = false;
+		document.removeEventListener('mousemove', handleMouseMove);
+		document.removeEventListener('mouseup', handleMouseUp);
 	}
 
-	// Click outside to dismiss - fixed to prevent mobile menu conflicts
-	function handleClickOutside(event: MouseEvent) {
-		// Skip processing if the click was part of the mobile menu interaction
-		const mobileMenuButton = document.querySelector('button[aria-controls="mobile-menu"]');
-		const mobileMenuOverlay = document.querySelector('.mobile-menu-container button.fixed');
-		const settingsButton = document.querySelector('button[aria-controls="settings-submenu"]');
-		const settingsSubmenu = document.querySelector('#settings-submenu');
-
-		// Check if the click was on the mobile menu toggle, settings button, or within the settings submenu
-		if (
-			(mobileMenuButton && mobileMenuButton.contains(event.target as Node)) ||
-			(mobileMenuOverlay && mobileMenuOverlay.contains(event.target as Node)) ||
-			(settingsButton && settingsButton.contains(event.target as Node)) ||
-			(settingsSubmenu && settingsSubmenu.contains(event.target as Node))
-		) {
-			return; // Skip processing for mobile menu and settings interactions
-		}
-
-		// Regular behavior for other clicks
-		if (monitorElement && !monitorElement.contains(event.target as Node) && $perfMonitorVisible) {
-			// Only dismiss if we didn't just finish dragging and not clicking UI elements
-			if (!isDragging) {
-				setPerformanceMonitorVisibility(false);
-			}
-		}
-	}
-
-	// Handle close button click - ensure we properly stop propagation
-	function handleCloseClick(event: MouseEvent) {
-		event.stopPropagation(); // Prevent event bubbling
+	function handleCloseClick() {
 		setPerformanceMonitorVisibility(false);
 	}
 
-	// Force refresh of stats
-	function forceStatsRefresh() {
-		if (!browser) return;
-
-		try {
-			// Import both modules and force refresh
-			Promise.all([import('$lib/utils/pool-stats-tracker'), import('$lib/utils/star-pool-bridge')])
-				.then(([trackerModule, bridgeModule]) => {
-					// Force immediate refresh
-					if (trackerModule.starPoolTracker) {
-						trackerModule.starPoolTracker.reportNow();
-					}
-
-					if (bridgeModule.starPoolBridge) {
-						bridgeModule.starPoolBridge.forceSyncStats();
-					}
-				})
-				.catch((error) => {
-					console.error('Failed to refresh pool stats:', error);
-				});
-		} catch (error) {
-			console.error('Error refreshing pool stats:', error);
-		}
-	}
-
-	// Setup periodic refresh
-	function setupStatsRefresh() {
-		if (!browser || statsRefreshInterval !== null) return;
-
-		// Refresh stats every 250ms when visible
-		statsRefreshInterval = window.setInterval(() => {
-			if ($perfMonitorVisible) {
-				forceStatsRefresh();
-				updatePerformanceData();
-			}
-		}, 250);
-	}
-
-	// Setup chart updates
-	function setupChartUpdates() {
-		if (!browser || chartUpdateInterval !== null) return;
-
-		// Update chart data every second
-		chartUpdateInterval = window.setInterval(() => {
-			if ($perfMonitorVisible) {
-				updatePerformanceData();
-			}
-		}, 1000);
-	}
-
-	// Setup memory updates
-	function setupMemoryUpdates() {
-		if (!browser || memoryUpdateInterval !== null) return;
-
-		// Update memory events every 2 seconds
-		memoryUpdateInterval = window.setInterval(() => {
-			if ($perfMonitorVisible && showMemoryPanel) {
-				updateMemoryEvents();
-			}
-		}, 2000);
-	}
-
-	// Cleanup interval on destroy
-	function cleanupIntervals() {
-		if (statsRefreshInterval !== null) {
-			window.clearInterval(statsRefreshInterval);
-			statsRefreshInterval = null;
-		}
-
-		if (chartUpdateInterval !== null) {
-			window.clearInterval(chartUpdateInterval);
-			chartUpdateInterval = null;
-		}
-
-		if (memoryUpdateInterval !== null) {
-			window.clearInterval(memoryUpdateInterval);
-			memoryUpdateInterval = null;
-		}
-	}
-
+	// Lifecycle management
 	onMount(() => {
-		if (browser && monitorElement) {
-			/**
-			 * Optimization: Passive touch event handling
-			 * Benefit: Improves scrolling performance
-			 */
-			// Add touch events with correct passive settings
-			monitorElement.addEventListener('touchstart', handleTouchStart, {
-				passive: false // Changed to false since we call preventDefault()
-			});
-
-			// Only add non-passive for events that need preventDefault
-			document.addEventListener('touchmove', handleTouchMove, {
-				passive: false // Keep non-passive only when needed
-			});
-			document.addEventListener('touchend', handleTouchEnd, {
-				passive: false // Changed to false since we call preventDefault()
-			});
-
-			// Use capture phase for outside clicks to handle early
-			document.addEventListener('mousedown', handleClickOutside, {
-				capture: true,
-				passive: true
-			});
-
-			// Add drag handlers
-			monitorElement.addEventListener('mousedown', handleMouseDown);
-			document.addEventListener('mousemove', handleMouseMove);
-			document.addEventListener('mouseup', handleMouseUp);
-
-			// Initialize stats
-			forceStatsRefresh();
-
-			// Setup periodic refresh and chart updates
-			setupStatsRefresh();
-			setupChartUpdates();
-			setupMemoryUpdates();
-
-			// Load saved position
-			const savedX = localStorage.getItem('perfMonitorX');
-			const savedY = localStorage.getItem('perfMonitorY');
-
-			if (savedX && savedY) {
-				// Convert to numbers and validate
-				const x = parseFloat(savedX);
-				const y = parseFloat(savedY);
-
-				// Make sure position is within viewport
-				const maxX = window.innerWidth - monitorElement.offsetWidth;
-				const maxY = window.innerHeight - monitorElement.offsetHeight;
-
-				if (!isNaN(x) && !isNaN(y) && x >= 0 && y >= 0 && x <= maxX && y <= maxY) {
-					monitorElement.style.right = 'auto';
-					monitorElement.style.bottom = 'auto';
-					monitorElement.style.left = `${x}px`;
-					monitorElement.style.top = `${y}px`;
+		if (browser) {
+			// Setup periodic updates
+			statsRefreshInterval = setInterval(() => {
+				if ($perfMonitorVisible) {
+					updatePerformanceData();
 				}
-			}
+			}, 1000) as any;
 
-			// Initialize memory events
-			updateMemoryEvents();
+			// Setup chart updates
+			chartUpdateInterval = setInterval(() => {
+				if ($perfMonitorVisible && activeChart) {
+					updatePerformanceData();
+				}
+			}, 2000) as any;
+
+			// Initial data update
+			updatePerformanceData();
 		}
 	});
 
 	onDestroy(() => {
-		if (browser && monitorElement) {
-			// Remove event listeners
-			monitorElement.removeEventListener('touchstart', handleTouchStart);
-			monitorElement.removeEventListener('mousedown', handleMouseDown);
-			document.removeEventListener('mousemove', handleMouseMove);
-			document.removeEventListener('mouseup', handleMouseUp);
-			document.removeEventListener('mousedown', handleClickOutside);
-			document.removeEventListener('touchmove', handleTouchMove);
-			document.removeEventListener('touchend', handleTouchEnd);
-
-			if (touchTimeout !== null) {
-				window.clearTimeout(touchTimeout);
-			}
+		// Cleanup intervals
+		if (statsRefreshInterval) {
+			clearInterval(statsRefreshInterval);
+		}
+		if (chartUpdateInterval) {
+			clearInterval(chartUpdateInterval);
+		}
+		if (memoryUpdateInterval) {
+			clearInterval(memoryUpdateInterval);
 		}
 
-		// Cleanup intervals
-		cleanupIntervals();
+		// Cancel any running benchmarks
+		cancelBenchmark();
 
-		// Cancel any running benchmark
-		if (currentBenchmark) {
-			currentBenchmark.stop();
+		// Cleanup touch timeout
+		if (touchTimeout) {
+			clearTimeout(touchTimeout);
+		}
+
+		// Remove event listeners - ONLY IN BROWSER
+		if (browser) {
+			document.removeEventListener('mousemove', handleMouseMove);
+			document.removeEventListener('mouseup', handleMouseUp);
 		}
 	});
 </script>
 
-{#if true}
-	<!-- Always render but control visibility with CSS -->
+{#if browser}
+	<!-- Only render in browser to avoid SSR issues -->
 	<div
 		bind:this={monitorElement}
 		class="performance-monitor debug-panel {$perfMonitorVisible ? 'visible' : 'hidden'}"
 		data-perf-monitor="true"
 		role="status"
 		aria-live="polite"
+		on:touchstart={handleTouchStart}
+		on:touchmove={handleTouchMove}
+		on:touchend={handleTouchEnd}
 	>
 		<div class="monitor-header" on:mousedown={handleMouseDown}>
 			<span class="title">Performance Monitor</span>
 			<span class="close-btn" on:click={handleCloseClick}>×</span>
 		</div>
 
-		<!-- Tabs for different monitor sections -->
+		<!-- Tabs for different panels -->
 		<div class="monitor-tabs">
 			<button
-				class="tab-btn {!showBenchmarkPanel && !showMemoryPanel ? 'active' : ''}"
+				class="tab-btn"
+				class:active={!showBenchmarkPanel && !showMemoryPanel}
 				on:click={() => {
 					showBenchmarkPanel = false;
 					showMemoryPanel = false;
 				}}
 			>
-				Live Metrics
+				Live
 			</button>
 			<button
-				class="tab-btn {showBenchmarkPanel ? 'active' : ''}"
+				class="tab-btn"
+				class:active={showBenchmarkPanel}
 				on:click={() => {
 					showBenchmarkPanel = true;
 					showMemoryPanel = false;
 				}}
 			>
-				Benchmarks
+				Bench
 			</button>
 			<button
-				class="tab-btn {showMemoryPanel ? 'active' : ''}"
+				class="tab-btn"
+				class:active={showMemoryPanel}
 				on:click={() => {
 					showBenchmarkPanel = false;
 					showMemoryPanel = true;
@@ -806,8 +702,8 @@
 			</button>
 		</div>
 
+		<!-- Live Metrics Panel -->
 		{#if !showBenchmarkPanel && !showMemoryPanel}
-			<!-- Live Metrics Panel -->
 			<div class="metrics-panel">
 				<!-- Performance Warnings -->
 				{#if warnings.length > 0}
@@ -818,14 +714,14 @@
 					</div>
 				{/if}
 
-				<!-- Basic Metrics Display -->
+				<!-- Basic Metrics Display with safe values -->
 				<div class="basic-metrics">
 					<div
-						class:good={$fpsStore > 50}
-						class:warning={$fpsStore <= 50 && $fpsStore > 30}
-						class:bad={$fpsStore <= 30}
+						class:good={safeFPS > 50}
+						class:warning={safeFPS <= 50 && safeFPS > 30}
+						class:bad={safeFPS <= 30}
 					>
-						FPS: {$fpsStore.toFixed(1)}
+						FPS: {safeFPS.toFixed(1)}
 						{#if performanceTrend.fps.rising}
 							<span class="trend up">↑</span>
 						{:else if performanceTrend.fps.falling}
@@ -833,9 +729,9 @@
 						{/if}
 					</div>
 					<div
-						class:good={$memoryUsageStore < 0.5}
-						class:warning={$memoryUsageStore >= 0.5 && $memoryUsageStore < 0.8}
-						class:bad={$memoryUsageStore >= 0.8}
+						class:good={safeMemoryUsage < 0.5}
+						class:warning={safeMemoryUsage >= 0.5 && safeMemoryUsage < 0.8}
+						class:bad={safeMemoryUsage >= 0.8}
 					>
 						Memory: {memoizedStats.memoryPercentage}%
 						{#if performanceTrend.memory.rising}
@@ -845,10 +741,10 @@
 						{/if}
 					</div>
 					<div
-						class:good={$objectPoolStatsStore.utilizationRate < 0.7}
-						class:warning={$objectPoolStatsStore.utilizationRate >= 0.7 &&
-							$objectPoolStatsStore.utilizationRate < 0.9}
-						class:bad={$objectPoolStatsStore.utilizationRate >= 0.9}
+						class:good={(safeObjectPoolStats.utilizationRate || 0) < 0.7}
+						class:warning={(safeObjectPoolStats.utilizationRate || 0) >= 0.7 &&
+							(safeObjectPoolStats.utilizationRate || 0) < 0.9}
+						class:bad={(safeObjectPoolStats.utilizationRate || 0) >= 0.9}
 					>
 						Pool: {memoizedStats.utilizationPercentage}%
 						{#if performanceTrend.poolUtilization.rising}
@@ -857,132 +753,53 @@
 							<span class="trend up">↓</span>
 						{/if}
 					</div>
-					<div>Quality: {$deviceCapabilities?.tier || 'high'}</div>
-				</div>
-				<!-- Performance Chart Selector -->
-				<div class="chart-selector">
-					<button
-						class="chart-tab {activeChart === 'fps' ? 'active' : ''}"
-						on:click={() => (activeChart = 'fps')}
-					>
-						FPS Chart
-					</button>
-					<button
-						class="chart-tab {activeChart === 'memory' ? 'active' : ''}"
-						on:click={() => (activeChart = 'memory')}
-					>
-						Memory
-					</button>
-					<button
-						class="chart-tab {activeChart === 'pool' ? 'active' : ''}"
-						on:click={() => (activeChart = 'pool')}
-					>
-						Pool Usage
-					</button>
+					<div>Quality: {safeDeviceCapabilities?.tier || 'medium'}</div>
+					<div>Pressure: {safeMemoryPressure}</div>
 				</div>
 
-				<!-- Performance Chart Area -->
-				<div class="chart-area">
-					{#if activeChart === 'fps'}
-						<div class="chart fps-chart">
-							<div class="chart-target-line" style="top: 10%;"></div>
-							{#each fpsChartData as fps, i}
-								{#if i < fpsChartData.length - 1}
-									<div
-										class="chart-bar"
-										style="height: {Math.min(100, (fps / 60) * 100)}%; left: {(i /
-											fpsChartData.length) *
-											100}%;"
-										class:good={fps > 50}
-										class:warning={fps <= 50 && fps > 30}
-										class:bad={fps <= 30}
-									></div>
-								{/if}
-							{/each}
-						</div>
-						<div class="chart-label">FPS over time (Target: 60)</div>
-					{:else if activeChart === 'memory'}
-						<div class="chart memory-chart">
-							<div class="chart-warning-line" style="top: 20%;"></div>
-							<div class="chart-danger-line" style="top: 50%;"></div>
-							{#each memoryChartData as memory, i}
-								{#if i < memoryChartData.length - 1}
-									<div
-										class="chart-bar"
-										style="height: {memory}%; left: {(i / memoryChartData.length) * 100}%;"
-										class:good={memory < 50}
-										class:warning={memory >= 50 && memory < 80}
-										class:bad={memory >= 80}
-									></div>
-								{/if}
-							{/each}
-						</div>
-						<div class="chart-label">Memory Usage % (Lower is better)</div>
-					{:else if activeChart === 'pool'}
-						<div class="chart pool-chart">
-							<div class="chart-warning-line" style="top: 30%;"></div>
-							<div class="chart-danger-line" style="top: 10%;"></div>
-							{#each poolUtilizationData as poolUsage, i}
-								{#if i < poolUtilizationData.length - 1}
-									<div
-										class="chart-bar"
-										style="height: {poolUsage}%; left: {(i / poolUtilizationData.length) * 100}%;"
-										class:good={poolUsage < 70}
-										class:warning={poolUsage >= 70 && poolUsage < 90}
-										class:bad={poolUsage >= 90}
-									></div>
-								{/if}
-							{/each}
-						</div>
-						<div class="chart-label">Object Pool Utilization % (Maintain below 90%)</div>
-					{/if}
-				</div>
-
-				<!-- Metrics Toggles -->
+				<!-- Metrics Toggle Buttons -->
 				<div class="metrics-toggles">
 					<button
-						class="metrics-toggle {showDetailedMetrics ? 'active' : ''}"
+						class="metrics-toggle"
+						class:active={showDetailedMetrics}
 						on:click={() => (showDetailedMetrics = !showDetailedMetrics)}
 					>
-						{showDetailedMetrics ? 'Hide Details' : 'Show Details'}
+						Details
 					</button>
-
 					<button
-						class="metrics-toggle {showPoolMetrics ? 'active' : ''}"
+						class="metrics-toggle"
+						class:active={showPoolMetrics}
 						on:click={() => (showPoolMetrics = !showPoolMetrics)}
 					>
-						{showPoolMetrics ? 'Hide Object Pool' : 'Show Object Pool'}
+						Pools
 					</button>
 				</div>
 
-				<!-- Detailed Device Metrics -->
+				<!-- Detailed Metrics -->
 				{#if showDetailedMetrics}
 					<div class="detailed-metrics">
-						<div>Device Tier: {$deviceCapabilities?.tier || 'unknown'}</div>
-						<div>Max Stars: {$deviceCapabilities?.maxStars || 'unknown'}</div>
-						<div>Effects Level: {$deviceCapabilities?.effectsLevel || 'unknown'}</div>
 						<div>
-							Device Type: {$deviceCapabilities?.isMobile
-								? 'Mobile'
-								: $deviceCapabilities?.isTablet
-									? 'Tablet'
-									: 'Desktop'}
+							Device: {safeDeviceCapabilities.isMobile ? 'Mobile' : 'Desktop'} ({safeDeviceCapabilities.tier})
 						</div>
+						<div>Max Stars: {safeDeviceCapabilities.maxStars}</div>
+						<div>Effects: {safeDeviceCapabilities.effectsLevel}</div>
 						<div>
-							Hardware Acceleration: {$deviceCapabilities?.hasGPUAcceleration
-								? 'Enabled'
-								: 'Disabled'}
+							Hardware Acceleration: {safeDeviceCapabilities.useHardwareAcceleration ? 'Yes' : 'No'}
 						</div>
-						<div>Frame Skip: {$deviceCapabilities?.frameSkip || 0}</div>
-						<div>Update Interval: {$deviceCapabilities?.updateInterval || 0}ms</div>
+						<div>Memory Used: {safeMemoryInfo.usedMB.toFixed(1)} MB</div>
+						<div>Memory Available: {safeMemoryInfo.availableMB.toFixed(1)} MB</div>
+						<div>Memory Limit: {safeMemoryInfo.limitMB.toFixed(1)} MB</div>
 					</div>
 				{/if}
 
-				<!-- Object Pool Metrics -->
+				<!-- Pool Metrics with safe access -->
 				{#if showPoolMetrics}
 					<div class="pool-metrics">
 						<div class="pool-header">
-							<span>{$objectPoolStatsStore.poolName} Pool ({$objectPoolStatsStore.poolType})</span>
+							<span
+								>{safeObjectPoolStats.poolName || 'Stars'} Pool ({safeObjectPoolStats.poolType ||
+									'Star'})</span
+							>
 							<button class="refresh-btn" on:click={forceStatsRefresh} title="Refresh Stats"
 								>⟳</button
 							>
@@ -991,125 +808,196 @@
 							<div class="utilization-bar">
 								<div
 									class="utilization-fill"
-									class:good={$objectPoolStatsStore.utilizationRate < 0.7}
-									class:warning={$objectPoolStatsStore.utilizationRate >= 0.7 &&
-										$objectPoolStatsStore.utilizationRate < 0.9}
-									class:bad={$objectPoolStatsStore.utilizationRate >= 0.9}
+									class:good={(safeObjectPoolStats.utilizationRate || 0) < 0.7}
+									class:warning={(safeObjectPoolStats.utilizationRate || 0) >= 0.7 &&
+										(safeObjectPoolStats.utilizationRate || 0) < 0.9}
+									class:bad={(safeObjectPoolStats.utilizationRate || 0) >= 0.9}
 									style="width: {memoizedStats.utilizationPercentage}%"
 								></div>
 							</div>
 							<div class="utilization-text">
-								{$objectPoolStatsStore.activeObjects} / {$objectPoolStatsStore.totalCapacity} objects
+								{safeObjectPoolStats.activeObjects || 0} / {safeObjectPoolStats.totalCapacity || 0} objects
 								({memoizedStats.utilizationPercentage}%)
 							</div>
 						</div>
 						<div class="pool-stats">
-							<div>Created: {$objectPoolStatsStore.objectsCreated}</div>
-							<div>Reused: {$objectPoolStatsStore.objectsReused}</div>
+							<div>Created: {safeObjectPoolStats.objectsCreated || 0}</div>
+							<div>Reused: {safeObjectPoolStats.objectsReused || 0}</div>
 							<div>Reuse Ratio: {memoizedStats.reuseRatioPercentage}%</div>
-							<div>Memory Saved: {$objectPoolStatsStore.estimatedMemorySaved.toFixed(0)} KB</div>
+							<div>
+								Memory Saved: {(safeObjectPoolStats.estimatedMemorySaved || 0).toFixed(0)} KB
+							</div>
 						</div>
 					</div>
 				{/if}
+
+				<!-- Chart Selector -->
+				<div class="chart-selector">
+					<button
+						class="chart-tab"
+						class:active={activeChart === 'fps'}
+						on:click={() => (activeChart = 'fps')}
+					>
+						FPS
+					</button>
+					<button
+						class="chart-tab"
+						class:active={activeChart === 'memory'}
+						on:click={() => (activeChart = 'memory')}
+					>
+						Memory
+					</button>
+					<button
+						class="chart-tab"
+						class:active={activeChart === 'pool'}
+						on:click={() => (activeChart = 'pool')}
+					>
+						Pool
+					</button>
+				</div>
+
+				<!-- Chart Area -->
+				<div class="chart-area">
+					<div class="chart">
+						{#if activeChart === 'fps'}
+							{#each fpsChartData as fps, i}
+								<div
+									class="chart-bar"
+									class:good={fps > 50}
+									class:warning={fps <= 50 && fps > 30}
+									class:bad={fps <= 30}
+									style="height: {Math.max(2, (fps / 60) * 100)}%; left: {(i /
+										Math.max(1, fpsChartData.length - 1)) *
+										100}%"
+								></div>
+							{/each}
+							<div class="chart-target-line" style="top: {100 - (60 / 60) * 100}%"></div>
+							<div class="chart-warning-line" style="top: {100 - (30 / 60) * 100}%"></div>
+						{:else if activeChart === 'memory'}
+							{#each memoryChartData as memory, i}
+								<div
+									class="chart-bar"
+									class:good={memory < 50}
+									class:warning={memory >= 50 && memory < 80}
+									class:bad={memory >= 80}
+									style="height: {Math.max(2, memory)}%; left: {(i /
+										Math.max(1, memoryChartData.length - 1)) *
+										100}%"
+								></div>
+							{/each}
+							<div class="chart-warning-line" style="top: 20%"></div>
+							<div class="chart-danger-line" style="top: 50%"></div>
+						{:else if activeChart === 'pool'}
+							{#each poolUtilizationData as utilization, i}
+								<div
+									class="chart-bar"
+									class:good={utilization < 70}
+									class:warning={utilization >= 70 && utilization < 90}
+									class:bad={utilization >= 90}
+									style="height: {Math.max(2, utilization)}%; left: {(i /
+										Math.max(1, poolUtilizationData.length - 1)) *
+										100}%"
+								></div>
+							{/each}
+							<div class="chart-warning-line" style="top: 30%"></div>
+							<div class="chart-danger-line" style="top: 10%"></div>
+						{/if}
+					</div>
+					<div class="chart-label">
+						{activeChart === 'fps'
+							? 'FPS Over Time'
+							: activeChart === 'memory'
+								? 'Memory Usage %'
+								: 'Pool Utilization %'}
+					</div>
+				</div>
 			</div>
-		{:else if showBenchmarkPanel}
-			<!-- Benchmarking Panel -->
+		{/if}
+
+		<!-- Benchmark Panel -->
+		{#if showBenchmarkPanel}
 			<div class="benchmark-panel">
 				<div class="benchmark-controls">
 					<div class="benchmark-type-selector">
-						<label for="benchmark-type">Benchmark Type:</label>
-						<select id="benchmark-type" bind:value={benchmarkType} disabled={isBenchmarkRunning}>
-							<option value={BenchmarkType.FPS}>FPS Performance</option>
-							<option value={BenchmarkType.MemoryUsage}>Memory Usage</option>
-							<option value={BenchmarkType.RenderTime}>Render Time</option>
-							<option value={BenchmarkType.InteractiveResponsiveness}
-								>Interactive Responsiveness</option
-							>
-							<option value={BenchmarkType.GarbageCollection}>Garbage Collection</option>
+						<label>Type:</label>
+						<select bind:value={benchmarkType} disabled={isBenchmarkRunning}>
+							<option value={BenchmarkType.FPS}>FPS</option>
+							<option value={BenchmarkType.MEMORY}>Memory</option>
+							<option value={BenchmarkType.RENDERING}>Rendering</option>
 						</select>
 					</div>
 
 					<div class="benchmark-duration-selector">
-						<label for="benchmark-duration">Duration (sec):</label>
-						<select
-							id="benchmark-duration"
-							bind:value={benchmarkDuration}
-							disabled={isBenchmarkRunning}
-						>
-							<option value={3000}>3</option>
-							<option value={5000}>5</option>
-							<option value={10000}>10</option>
-							<option value={30000}>30</option>
+						<label>Duration:</label>
+						<select bind:value={benchmarkDuration} disabled={isBenchmarkRunning}>
+							<option value={3000}>3 seconds</option>
+							<option value={5000}>5 seconds</option>
+							<option value={10000}>10 seconds</option>
+							<option value={30000}>30 seconds</option>
 						</select>
 					</div>
 
 					<div class="benchmark-buttons">
 						{#if !isBenchmarkRunning && !isTestRunning}
-							<button class="benchmark-btn start" on:click={startBenchmark}> Run Benchmark </button>
-							<button class="benchmark-btn suite" on:click={runBenchmarkSuite}>
-								Run Test Suite
-							</button>
-							<button class="benchmark-btn tests" on:click={runPerformanceTests}>
-								Run All Tests
-							</button>
+							<button class="benchmark-btn start" on:click={startBenchmark}>Start</button>
+							<button class="benchmark-btn suite" on:click={startBenchmarkSuite}>Suite</button>
+							<button class="benchmark-btn tests" on:click={startPerformanceTests}>Tests</button>
 						{:else}
-							<button
-								class="benchmark-btn cancel"
-								on:click={isBenchmarkRunning ? cancelBenchmark : null}
-							>
-								Cancel
-							</button>
+							<button class="benchmark-btn cancel" on:click={cancelBenchmark}>Cancel</button>
 						{/if}
 					</div>
 				</div>
 
+				<!-- Benchmark Progress -->
 				{#if isBenchmarkRunning}
 					<div class="benchmark-progress">
 						<div class="progress-bar">
-							<div class="progress-fill" style="width: {benchmarkProgress}%;"></div>
-						</div>
-						<div class="progress-text">Running benchmark... {benchmarkProgress.toFixed(0)}%</div>
-					</div>
-				{:else if isTestRunning}
-					<div class="benchmark-progress">
-						<div class="progress-bar">
-							<div class="progress-fill" style="width: {testProgress}%;"></div>
+							<div class="progress-fill" style="width: {benchmarkProgress}%"></div>
 						</div>
 						<div class="progress-text">
-							Running test: {currentTestId} - {currentTestStep} - {testProgress.toFixed(0)}%
+							{benchmarkProgress.toFixed(0)}% Complete
 						</div>
 					</div>
 				{/if}
 
-				<!-- Benchmark Results Toggle -->
+				<!-- Test Progress -->
+				{#if isTestRunning}
+					<div class="benchmark-progress">
+						<div class="progress-bar">
+							<div class="progress-fill" style="width: {testProgress}%"></div>
+						</div>
+						<div class="progress-text">
+							Running: {currentTestId} - {currentTestStep}
+						</div>
+					</div>
+				{/if}
+
+				<!-- Results Toggle -->
 				<div class="results-toggle">
 					<button
-						class="toggle-btn {!showResultsComparison ? 'active' : ''}"
+						class="toggle-btn"
+						class:active={!showResultsComparison}
 						on:click={() => (showResultsComparison = false)}
 					>
-						Benchmark History
+						History
 					</button>
 					<button
-						class="toggle-btn {showResultsComparison ? 'active' : ''}"
+						class="toggle-btn"
+						class:active={showResultsComparison}
 						on:click={() => (showResultsComparison = true)}
 					>
-						Compare Results
+						Compare
 					</button>
 				</div>
 
+				<!-- Benchmark Results -->
 				{#if !showResultsComparison}
-					<!-- Benchmark History -->
 					<div class="benchmark-history" bind:this={benchmarkResultsElement}>
 						{#if benchmarkResults.length === 0}
-							<div class="no-results">
-								No benchmark results yet. Run a benchmark to see results here.
-							</div>
+							<div class="no-results">No results yet. Run a benchmark to see results.</div>
 						{:else}
-							{#each benchmarkResults as result, index}
-								<div
-									class="result-item"
-									on:click={() => selectBenchmarkResult(result, selectedBenchmarkResults.length)}
-								>
+							{#each benchmarkResults.slice(-10).reverse() as result}
+								<div class="result-item" on:click={() => selectBenchmarkResult(result)}>
 									<div class="result-header">
 										<span class="result-type">{result.type}</span>
 										<span class="result-timestamp"
@@ -1117,9 +1005,9 @@
 										>
 									</div>
 									<div class="result-metrics">
-										<span class="metric">Avg: {result.metrics.avg.toFixed(2)}</span>
-										<span class="metric">Min: {result.metrics.min.toFixed(2)}</span>
-										<span class="metric">Max: {result.metrics.max.toFixed(2)}</span>
+										<span class="metric">FPS: {result.avgFPS?.toFixed(1) || 'N/A'}</span>
+										<span class="metric">Mem: {result.avgMemoryUsage?.toFixed(1) || 'N/A'}MB</span>
+										<span class="metric">Score: {result.overallScore?.toFixed(0) || 'N/A'}</span>
 									</div>
 								</div>
 							{/each}
@@ -1128,231 +1016,185 @@
 				{:else}
 					<!-- Results Comparison -->
 					<div class="results-comparison">
-						<div class="selected-results">
-							{#if selectedBenchmarkResults.length === 0}
-								<div class="no-selection">Select results from the Benchmark History to compare</div>
-							{:else if selectedBenchmarkResults.length === 1}
-								<div class="single-result">
-									<div class="result-card">
-										<div class="result-card-header">
-											{selectedBenchmarkResults[0].type}
-											<button class="remove-btn" on:click={() => clearSelectedResults()}>×</button>
-										</div>
-										<div class="result-card-content">
-											<div class="metric-row">
-												Avg: {selectedBenchmarkResults[0].metrics.avg.toFixed(2)}
-											</div>
-											<div class="metric-row">
-												Min: {selectedBenchmarkResults[0].metrics.min.toFixed(2)}
-											</div>
-											<div class="metric-row">
-												Max: {selectedBenchmarkResults[0].metrics.max.toFixed(2)}
-											</div>
-											<div class="metric-row">
-												Median: {selectedBenchmarkResults[0].metrics.median.toFixed(2)}
-											</div>
-										</div>
-										<div class="result-card-footer">Select another result to compare</div>
+						{#if selectedBenchmarkResults.length === 0}
+							<div class="no-selection">Select 2 results from history to compare.</div>
+						{:else if selectedBenchmarkResults.length === 1}
+							<div class="single-result">Select one more result to compare.</div>
+						{:else if selectedBenchmarkResults.length === 2 && benchmarkComparisonResult}
+							<div class="comparison-results">
+								<!-- First Result -->
+								<div class="result-card">
+									<div class="result-card-header">
+										<span>Result 1</span>
+										<button
+											class="remove-btn"
+											on:click={() => removeBenchmarkResult(selectedBenchmarkResults[0])}>×</button
+										>
 									</div>
-								</div>
-							{:else}
-								<div class="comparison-results">
-									<div class="result-card">
-										<div class="result-card-header">
-											{selectedBenchmarkResults[0].type}
-											<button
-												class="remove-btn"
-												on:click={() => (selectedBenchmarkResults = [selectedBenchmarkResults[1]])}
-												>×</button
-											>
+									<div class="result-card-content">
+										<div class="metric-row">
+											FPS: {selectedBenchmarkResults[0].avgFPS?.toFixed(1) || 'N/A'}
 										</div>
-										<div class="result-card-content">
-											<div class="metric-row">
-												Avg: {selectedBenchmarkResults[0].metrics.avg.toFixed(2)}
-											</div>
-											<div class="metric-row">
-												Min: {selectedBenchmarkResults[0].metrics.min.toFixed(2)}
-											</div>
-											<div class="metric-row">
-												Max: {selectedBenchmarkResults[0].metrics.max.toFixed(2)}
-											</div>
+										<div class="metric-row">
+											Memory: {selectedBenchmarkResults[0].avgMemoryUsage?.toFixed(1) || 'N/A'}MB
 										</div>
-										<div class="result-card-footer">
-											{new Date(selectedBenchmarkResults[0].timestamp).toLocaleString()}
+										<div class="metric-row">
+											Score: {selectedBenchmarkResults[0].overallScore?.toFixed(0) || 'N/A'}
 										</div>
 									</div>
-
-									<div class="comparison-indicator">
-										{#if benchmarkComparisonResult}
-											<div
-												class="change-arrow {benchmarkComparisonResult.improved
-													? 'improved'
-													: 'degraded'}"
-											>
-												{benchmarkComparisonResult.improved ? '↑' : '↓'}
-											</div>
-											<div
-												class="change-percentage {benchmarkComparisonResult.improved
-													? 'improved'
-													: 'degraded'}"
-											>
-												{benchmarkComparisonResult.percentageChange > 0
-													? '+'
-													: ''}{benchmarkComparisonResult.percentageChange.toFixed(1)}%
-											</div>
-											<div class="significance-label {benchmarkComparisonResult.significance}">
-												{benchmarkComparisonResult.significance}
-												{benchmarkComparisonResult.improved ? 'improvement' : 'degradation'}
-											</div>
-										{:else}
-											<div class="comparison-loading">Calculating comparison...</div>
-										{/if}
-									</div>
-
-									<div class="result-card">
-										<div class="result-card-header">
-											{selectedBenchmarkResults[1].type}
-											<button
-												class="remove-btn"
-												on:click={() => (selectedBenchmarkResults = [selectedBenchmarkResults[0]])}
-												>×</button
-											>
-										</div>
-										<div class="result-card-content">
-											<div class="metric-row">
-												Avg: {selectedBenchmarkResults[1].metrics.avg.toFixed(2)}
-											</div>
-											<div class="metric-row">
-												Min: {selectedBenchmarkResults[1].metrics.min.toFixed(2)}
-											</div>
-											<div class="metric-row">
-												Max: {selectedBenchmarkResults[1].metrics.max.toFixed(2)}
-											</div>
-										</div>
-										<div class="result-card-footer">
-											{new Date(selectedBenchmarkResults[1].timestamp).toLocaleString()}
-										</div>
+									<div class="result-card-footer">
+										{new Date(selectedBenchmarkResults[0].timestamp).toLocaleString()}
 									</div>
 								</div>
 
-								<button class="clear-btn" on:click={() => clearSelectedResults()}>
-									Clear Selection
-								</button>
-							{/if}
-						</div>
+								<!-- Comparison Indicator -->
+								<div class="comparison-indicator">
+									<div
+										class="change-arrow"
+										class:improved={benchmarkComparisonResult.fpsImproved}
+										class:degraded={!benchmarkComparisonResult.fpsImproved}
+									>
+										{benchmarkComparisonResult.fpsImproved ? '↗' : '↙'}
+									</div>
+									<div
+										class="change-percentage"
+										class:improved={benchmarkComparisonResult.fpsImproved}
+										class:degraded={!benchmarkComparisonResult.fpsImproved}
+									>
+										{benchmarkComparisonResult.fpsChange}%
+									</div>
+									<div
+										class="significance-label"
+										class:none={Math.abs(parseFloat(benchmarkComparisonResult.fpsChange)) < 5}
+										class:minor={Math.abs(parseFloat(benchmarkComparisonResult.fpsChange)) >= 5 &&
+											Math.abs(parseFloat(benchmarkComparisonResult.fpsChange)) < 15}
+										class:significant={Math.abs(parseFloat(benchmarkComparisonResult.fpsChange)) >=
+											15}
+									>
+										{Math.abs(parseFloat(benchmarkComparisonResult.fpsChange)) < 5
+											? 'No Change'
+											: Math.abs(parseFloat(benchmarkComparisonResult.fpsChange)) < 15
+												? 'Minor'
+												: 'Significant'}
+									</div>
+								</div>
+
+								<!-- Second Result -->
+								<div class="result-card">
+									<div class="result-card-header">
+										<span>Result 2</span>
+										<button
+											class="remove-btn"
+											on:click={() => removeBenchmarkResult(selectedBenchmarkResults[1])}>×</button
+										>
+									</div>
+									<div class="result-card-content">
+										<div class="metric-row">
+											FPS: {selectedBenchmarkResults[1].avgFPS?.toFixed(1) || 'N/A'}
+										</div>
+										<div class="metric-row">
+											Memory: {selectedBenchmarkResults[1].avgMemoryUsage?.toFixed(1) || 'N/A'}MB
+										</div>
+										<div class="metric-row">
+											Score: {selectedBenchmarkResults[1].overallScore?.toFixed(0) || 'N/A'}
+										</div>
+									</div>
+									<div class="result-card-footer">
+										{new Date(selectedBenchmarkResults[1].timestamp).toLocaleString()}
+									</div>
+								</div>
+							</div>
+						{/if}
+
+						{#if selectedBenchmarkResults.length > 0}
+							<button class="clear-btn" on:click={clearBenchmarkSelection}>Clear Selection</button>
+						{/if}
 					</div>
 				{/if}
 			</div>
-		{:else if showMemoryPanel}
-			<!-- Memory Monitoring Panel -->
+		{/if}
+
+		<!-- Memory Panel -->
+		{#if showMemoryPanel}
 			<div class="memory-panel">
 				<div class="memory-controls">
-					<button class="memory-btn" on:click={generateMemoryReport}> Generate Report </button>
-					<button class="memory-btn" on:click={suggestGarbageCollection}> Suggest GC </button>
-					<button class="memory-btn" on:click={() => memoryMonitor.takeSnapshot()}>
-						Take Snapshot
-					</button>
+					<button class="memory-btn" on:click={generateMemoryReport}>Generate Report</button>
+					<button class="memory-btn" on:click={performCleanup}>Force Cleanup</button>
+					<button class="memory-btn" on:click={forceStatsRefresh}>Refresh Stats</button>
 				</div>
 
+				<!-- Memory Events using unified system -->
+				<div class="memory-events">
+					<div class="events-header">Recent Memory Events</div>
+					{#if safeMemoryEvents.length === 0}
+						<div class="no-events">No memory events recorded yet.</div>
+					{:else}
+						{#each safeMemoryEvents.slice(-10).reverse() as event}
+							<div
+								class="event-item"
+								class:event-info={event.severity === 'info'}
+								class:event-warning={event.severity === 'warning'}
+								class:event-critical={event.severity === 'critical'}
+							>
+								<div class="event-header">
+									<span class="event-type">{event.type}</span>
+									<span class="event-timestamp"
+										>{new Date(event.timestamp).toLocaleTimeString()}</span
+									>
+								</div>
+								<div class="event-details">{event.details}</div>
+							</div>
+						{/each}
+					{/if}
+				</div>
+
+				<!-- Memory Metrics using unified system -->
+				<div class="memory-metrics">
+					<div class="metrics-header">Current Memory Status</div>
+					<div class="memory-metric-item">
+						<span>Usage:</span>
+						<span>{(safeMemoryInfo.usagePercentage * 100).toFixed(1)}%</span>
+					</div>
+					<div class="memory-metric-item">
+						<span>Used:</span>
+						<span>{safeMemoryInfo.usedMB.toFixed(1)} MB</span>
+					</div>
+					<div class="memory-metric-item">
+						<span>Available:</span>
+						<span>{safeMemoryInfo.availableMB.toFixed(1)} MB</span>
+					</div>
+					<div class="memory-metric-item">
+						<span>Limit:</span>
+						<span>{safeMemoryInfo.limitMB.toFixed(1)} MB</span>
+					</div>
+					<div class="memory-metric-item">
+						<span>Pressure Level:</span>
+						<span>{safeMemoryPressure}</span>
+					</div>
+					<div class="memory-metric-item">
+						<span>Memory Saved by Pool:</span>
+						<span>{(safeObjectPoolStats.estimatedMemorySaved || 0).toFixed(0)} KB</span>
+					</div>
+				</div>
+
+				<!-- Memory Report Display -->
 				{#if showMemoryReport}
 					<div class="memory-report">
 						<div class="report-header">
-							<span>Memory Diagnostic Report</span>
-							<button class="close-report-btn" on:click={() => (showMemoryReport = false)}>×</button
-							>
+							<span>Memory Report</span>
+							<button class="close-report-btn" on:click={closeMemoryReport}>×</button>
 						</div>
 						<div class="report-content">
 							<pre>{memoryReport}</pre>
 						</div>
 						<div class="report-footer">
-							<button
-								class="copy-btn"
-								on:click={() => {
-									if (browser) {
-										navigator.clipboard.writeText(memoryReport);
-										alert('Report copied to clipboard');
-									}
-								}}
-							>
-								Copy to Clipboard
-							</button>
-						</div>
-					</div>
-				{:else}
-					<!-- Memory Events -->
-					<div class="memory-events">
-						<div class="events-header">Recent Memory Events</div>
-						{#if memoryEvents.length === 0}
-							<div class="no-events">No memory events recorded yet</div>
-						{:else}
-							{#each memoryEvents.slice().reverse().slice(0, 10) as event}
-								<div
-									class="event-item"
-									class:event-info={event.severity === 'info'}
-									class:event-warning={event.severity === 'warning'}
-									class:event-critical={event.severity === 'critical'}
-								>
-									<div class="event-header">
-										<span class="event-type">{event.type}</span>
-										<span class="event-timestamp"
-											>{new Date(event.timestamp).toLocaleTimeString()}</span
-										>
-									</div>
-									<div class="event-details">
-										{event.details}
-									</div>
-								</div>
-							{/each}
-						{/if}
-					</div>
-					<!-- Memory Metrics -->
-					<div class="memory-metrics">
-						<div class="metrics-header">Current Memory Metrics</div>
-						<div class="memory-metric-item">
-							<span>Heap Usage:</span>
-							<span
-								class:good={$memoryUsageStore < 0.5}
-								class:warning={$memoryUsageStore >= 0.5 && $memoryUsageStore < 0.8}
-								class:bad={$memoryUsageStore >= 0.8}
-							>
-								{($memoryUsageStore * 100).toFixed(1)}%
-							</span>
-						</div>
-						{#if browser && 'performance' in window && 'memory' in (performance as any)}
-							<div class="memory-metric-item">
-								<span>Used Heap:</span>
-								<span>
-									{((performance as any).memory.usedJSHeapSize / (1024 * 1024)).toFixed(1)} MB
-								</span>
-							</div>
-							<div class="memory-metric-item">
-								<span>Total Heap:</span>
-								<span>
-									{((performance as any).memory.totalJSHeapSize / (1024 * 1024)).toFixed(1)} MB
-								</span>
-							</div>
-							<div class="memory-metric-item">
-								<span>Heap Limit:</span>
-								<span>
-									{((performance as any).memory.jsHeapSizeLimit / (1024 * 1024)).toFixed(1)} MB
-								</span>
-							</div>
-						{:else}
-							<div class="memory-metric-item">
-								<span>Detailed Memory API:</span>
-								<span class="warning">Not available in this browser</span>
-							</div>
-						{/if}
-						<div class="memory-metric-item">
-							<span>Memory Saved by Pool:</span>
-							<span>
-								{$objectPoolStatsStore.estimatedMemorySaved.toFixed(0)} KB
-							</span>
+							<button class="copy-btn" on:click={copyMemoryReport}>Copy</button>
 						</div>
 					</div>
 				{/if}
 			</div>
 		{/if}
+
 		<div class="shortcut-hint">Ctrl+Shift+P to toggle | Drag to move</div>
 	</div>
 {/if}

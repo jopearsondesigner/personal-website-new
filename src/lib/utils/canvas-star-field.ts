@@ -770,23 +770,15 @@ export class CanvasStarFieldManager {
 			this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
 			this.ctx.fillRect(0, 0, this.containerWidth, this.containerHeight);
 
-			// ADD: Simple test rendering if no stars
-			if (!this.starData || this.starData.length === 0) {
-				// Render test dots to verify canvas is working
-				this.ctx.fillStyle = '#ffffff';
-				for (let i = 0; i < 10; i++) {
-					const x = Math.random() * this.containerWidth;
-					const y = Math.random() * this.containerHeight;
-					this.ctx.fillRect(x, y, 2, 2);
-				}
-			} else if (this.starData) {
+			// FIXED: Removed random test dots - they were causing sporadic white dots
+			if (this.starData) {
 				this.renderStars(this.ctx);
 			}
+			// If no starData, just show the black background (no test dots)
 		}
 
 		this.requestNextFrame();
 	};
-
 	// Updated renderStars method that uses the optimized renderer:
 	private renderStars(context: CanvasRenderingContext2D) {
 		if (!this.starData || !this.starRenderer) return;

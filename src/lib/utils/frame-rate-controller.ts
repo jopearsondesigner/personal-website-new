@@ -4,12 +4,18 @@ import { browser } from '$app/environment';
 import { deviceCapabilities } from './device-performance';
 import { get } from 'svelte/store';
 import { writable } from 'svelte/store';
+import {
+	memoryManager,
+	currentMemoryInfo,
+	memoryEvents,
+	memoryPressure,
+	memoryUsageStore,
+	type MemoryInfo
+} from '$lib/utils/memory-manager';
 
 type QualityCallback = (quality: number) => void;
 type FPSCallback = (fps: number) => void;
 
-// Create stores for memory usage and FPS monitoring
-export const memoryUsageStore = writable<number>(0);
 export const fpsStore = writable<number>(60);
 
 /**
@@ -27,6 +33,7 @@ class FrameRateController {
 	private minQuality = 0.4; // Minimum quality level to maintain
 	private maxQuality = 1.0; // Maximum quality level
 	private qualityStep = 0.1; // Step size for quality adjustments
+	private memoryUnsubscribers: (() => void)[] = [];
 
 	// State
 	private qualitySubscribers: QualityCallback[] = [];
@@ -53,6 +60,8 @@ class FrameRateController {
 		if (browser) {
 			// FIXED: Add safety checks for browser APIs before using them
 			this.safeInitialize();
+			// Start unified memory monitoring
+			memoryManager.startMonitoring();
 		}
 	}
 
@@ -291,42 +300,39 @@ class FrameRateController {
 	}
 
 	/**
-	 * Setup memory monitoring - simplified to reduce overhead
+	 * Setup memory monitoring using unified memory manager
 	 */
 	private setupMemoryMonitoring() {
-		if (!browser || typeof window === 'undefined' || !('performance' in window)) {
+		if (!browser || typeof window === 'undefined') {
 			return;
 		}
 
 		try {
-			// Check if memory API is available
-			const hasMemoryAPI = 'memory' in (performance as any);
+			// Subscribe to memory changes from unified system
+			const unsubscribeMemory = memoryManager.onMemoryChange((memoryInfo: MemoryInfo) => {
+				// Apply smoothing to avoid jumps
+				this.lastMemoryUsage = this.lastMemoryUsage * 0.7 + memoryInfo.usagePercentage * 0.3;
 
-			if (!hasMemoryAPI) return; // Don't set up interval if not available
-
-			this.memoryCheckInterval = setInterval(() => {
-				try {
-					const memory = (performance as any).memory;
-					if (memory && memory.jsHeapSizeLimit > 0) {
-						const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
-
-						// Apply smoothing to avoid jumps
-						this.lastMemoryUsage = this.lastMemoryUsage * 0.7 + memUsage * 0.3;
-
-						// Store memory usage in shared store with validation
-						memoryUsageStore.set(Math.max(0, Math.min(1, this.lastMemoryUsage)));
-
-						// If memory usage is high, trigger garbage collection hint
-						if (this.lastMemoryUsage > 0.7) {
-							this.forceGarbageCollectionHint();
-						}
-					}
-				} catch (e) {
-					if (this.debugMode) {
-						console.error('Error accessing memory metrics:', e);
-					}
+				// If memory usage is high, trigger cleanup
+				if (this.lastMemoryUsage > 0.7) {
+					this.forceGarbageCollectionHint();
 				}
-			}, 5000); // Lower frequency to reduce overhead (every 5s instead of 2s)
+			});
+
+			// Subscribe to memory pressure events - handle different pressure type formats
+			const unsubscribePressure = memoryManager.onMemoryPressure((pressure) => {
+				// Handle pressure as either string or object
+				const pressureLevel = typeof pressure === 'string' ? pressure : pressure?.level || pressure;
+
+				if (pressureLevel === 'critical' || pressureLevel === 'high') {
+					// More aggressive quality reduction under memory pressure
+					const pressureQuality = pressureLevel === 'critical' ? 0.3 : 0.5;
+					this.setQualityOverride(Math.min(this.currentQuality, pressureQuality));
+				}
+			});
+
+			// Store unsubscribe functions for cleanup
+			this.memoryUnsubscribers = [unsubscribeMemory, unsubscribePressure];
 		} catch (error) {
 			if (this.debugMode) {
 				console.error('Error setting up memory monitoring:', error);
@@ -335,23 +341,16 @@ class FrameRateController {
 	}
 
 	/**
-	 * Hint to browser to perform garbage collection
-	 * Note: This doesn't directly trigger GC but helps hint the browser
+	 * Trigger cleanup using unified memory manager
 	 */
 	private forceGarbageCollectionHint() {
 		if (!browser || typeof window === 'undefined') return;
 
 		try {
-			// Hint to browser to garbage collect
-			if ((window as any).gc) {
-				try {
-					(window as any).gc();
-				} catch (e) {
-					// GC not available or not permitted
-				}
-			}
+			// Use unified memory manager for cleanup
+			memoryManager.performCleanup();
 
-			// Alternative approach to hint GC
+			// Additional hint for quality trend cleanup
 			if (this.qualityTrend.length > 0) {
 				const temp = this.qualityTrend;
 				this.qualityTrend = [];
@@ -665,12 +664,21 @@ class FrameRateController {
 	 * Get performance metrics for debugging
 	 */
 	public getPerformanceMetrics() {
+		const currentMemory = memoryManager.getCurrentMemory();
+		const currentPressure = get(memoryPressure);
+
 		return {
 			fps: this.currentFPS,
 			quality: this.currentQuality,
 			frameCount: this.frameCount,
 			skippedFrames: this.skippedFrames,
-			memoryUsage: this.lastMemoryUsage,
+			memoryUsage: currentMemory?.usagePercentage ?? this.lastMemoryUsage,
+			memoryPressure:
+				typeof currentPressure === 'string'
+					? currentPressure
+					: currentPressure && 'level' in currentPressure
+						? (currentPressure as { level: string }).level
+						: 'normal',
 			onBatteryPower: this.onBatteryPower,
 			lowBatteryMode: this.lowBatteryMode
 		};
@@ -697,7 +705,13 @@ class FrameRateController {
 			this.qualitySubscribers = [];
 			this.fpsSubscribers = [];
 
-			// Clear memory monitoring interval
+			// Cleanup memory monitoring subscriptions
+			if (this.memoryUnsubscribers) {
+				this.memoryUnsubscribers.forEach((unsubscribe) => unsubscribe());
+				this.memoryUnsubscribers = [];
+			}
+
+			// Clear memory monitoring interval (legacy - now handled by unified system)
 			if (this.memoryCheckInterval) {
 				clearInterval(this.memoryCheckInterval);
 				this.memoryCheckInterval = null;
@@ -720,6 +734,9 @@ class FrameRateController {
 
 // Singleton instance
 export const frameRateController = new FrameRateController();
+
+// Re-export the unified memory usage store
+export { memoryUsageStore };
 
 // Subscribe to FPS updates to update the store
 if (browser) {

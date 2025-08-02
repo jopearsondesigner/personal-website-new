@@ -15,7 +15,17 @@
 	import GameControls from '$lib/components/game/GameControls.svelte';
 	import { deviceCapabilities, setupPerformanceMonitoring } from '$lib/utils/device-performance';
 	import { CanvasStarFieldManager } from '$lib/utils/canvas-star-field';
-	import { MemoryMonitor } from '$lib/utils/memory-monitor';
+	import {
+		memoryManager,
+		currentMemoryInfo,
+		memoryEvents,
+		memoryPressure,
+		memoryUsageStore,
+		objectPoolStatsStore,
+		type MemoryInfo,
+		type MemoryEvent,
+		type MemoryPressure
+	} from '$lib/utils/memory-manager';
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
 	import { createThrottledRAF } from '$lib/utils/animation-helpers';
 	import StarField from '$lib/components/effects/StarField.svelte';
@@ -42,7 +52,7 @@
 	let resizeObserver: ResizeObserver | null = null;
 	let orientationTimeout: number | null = null;
 	let hasError = false;
-	let memoryMonitor: MemoryMonitor | null = null;
+	let memoryManagerUnsubscribes: (() => void)[] = [];
 	let eventHandlers: {
 		resize?: EventListener;
 		orientationChange?: EventListener;
@@ -575,44 +585,40 @@
 				}
 			}
 
-			// Initialize memory monitoring if not already
+			// Initialize memory monitoring if not already initialized
 			if (
-				!memoryMonitor &&
+				memoryManagerUnsubscribes.length === 0 &&
 				browser &&
 				'performance' in window &&
 				'memory' in (performance as any)
 			) {
-				// FIXED: Use individual parameters instead of config object
 				try {
-					memoryMonitor = new MemoryMonitor(
-						30000, // interval: 30 seconds
-						{
-							memoryPressureThreshold: 0.7
+					// Start monitoring with the unified memory manager
+					memoryManager.startMonitoring();
+
+					// Subscribe to memory pressure events
+					const pressureUnsubscribe = memoryManager.onMemoryPressure((pressure: MemoryPressure) => {
+						if (canvasStarFieldManager) {
+							canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
 						}
-					);
-					memoryMonitor
-						.onMemoryPressure(() => {
-							// onWarning callback
+						if (starFieldComponent && 'enableGlow' in starFieldComponent) {
+							starFieldComponent.enableGlow = false;
+						}
+						if (
+							frameRateController &&
+							typeof frameRateController.setQualityOverride === 'function'
+						) {
+							frameRateController.setQualityOverride(0.7);
+						}
+					});
+
+					// Subscribe to memory events for leak detection
+					const eventUnsubscribe = memoryManager.onMemoryEvent((event: MemoryEvent) => {
+						if (event.type === 'leak-suspected') {
 							if (canvasStarFieldManager) {
 								canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
-							}
-							if (starFieldComponent && 'enableGlow' in starFieldComponent) {
-								starFieldComponent.enableGlow = false;
-							}
-							if (
-								frameRateController &&
-								typeof frameRateController.setQualityOverride === 'function'
-							) {
-								frameRateController.setQualityOverride(0.7);
-							}
-						})
-						.onLeakSuspected(() => {
-							// onCritical callback - reduce star count and effects
-							if (canvasStarFieldManager) {
-								canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
-								// starCount is private, so we use a fallback value (TODO: use a public getter if available)
-								const fallbackStarCount = 60;
-								canvasStarFieldManager.setStarCount(Math.floor(fallbackStarCount * 0.6)); // Reduce by 40%
+								const currentCount = canvasStarFieldManager.starCount || 60;
+								canvasStarFieldManager.setStarCount(Math.floor(currentCount * 0.6)); // Reduce by 40%
 								canvasStarFieldManager.setUseContainerParallax(false);
 							}
 							if (starFieldComponent) {
@@ -632,18 +638,17 @@
 							) {
 								frameRateController.setQualityOverride(0.5);
 							}
-							if (memoryMonitor && typeof memoryMonitor.suggestGarbageCollection === 'function') {
-								memoryMonitor.suggestGarbageCollection();
-							}
-						});
-				} catch (error) {
-					// Fallback to simple constructor
-					console.warn('MemoryMonitor initialization failed:', error);
-					memoryMonitor = null;
-				}
 
-				if (memoryMonitor && typeof memoryMonitor.start === 'function') {
-					memoryMonitor.start();
+							// Perform cleanup instead of direct garbage collection
+							memoryManager.performCleanup();
+						}
+					});
+
+					// Store unsubscribe functions for cleanup
+					memoryManagerUnsubscribes.push(pressureUnsubscribe, eventUnsubscribe);
+				} catch (error) {
+					console.warn('Memory manager initialization failed:', error);
+					memoryManagerUnsubscribes = [];
 				}
 			}
 
@@ -843,39 +848,39 @@
 		}
 	}
 
-	// FIXED: Updated memory monitoring initialization to use correct MemoryMonitor API and CanvasStarFieldManager API
 	function initializeMemoryMonitoring() {
-		if (!memoryMonitor && browser && 'performance' in window && 'memory' in (performance as any)) {
+		if (
+			memoryManagerUnsubscribes.length === 0 &&
+			browser &&
+			'performance' in window &&
+			'memory' in (performance as any)
+		) {
 			try {
-				// Use correct constructor: interval and options object
-				memoryMonitor = new MemoryMonitor(
-					30000, // interval: Check every 30 seconds
-					{
-						memoryPressureThreshold: 0.7
-						// Optionally add more options if needed
+				// Start monitoring with the unified memory manager
+				memoryManager.startMonitoring();
+
+				// Subscribe to memory pressure events
+				const pressureUnsubscribe = memoryManager.onMemoryPressure((pressure: MemoryPressure) => {
+					// Handle memory pressure - reduce effects
+					if (canvasStarFieldManager) {
+						canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
 					}
-				);
+					if (starFieldComponent) {
+						starFieldComponent.enableGlow = false;
+					}
 
-				memoryMonitor
-					.onMemoryPressure(() => {
-						// onWarning callback - reduce effects
+					// Reduce quality through frameRateController
+					frameRateController.setQualityOverride(0.7);
+				});
+
+				// Subscribe to memory events for leak detection
+				const eventUnsubscribe = memoryManager.onMemoryEvent((event: MemoryEvent) => {
+					if (event.type === 'leak-suspected') {
+						// Handle critical memory issues - reduce star count and effects
 						if (canvasStarFieldManager) {
 							canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
-						}
-						if (starFieldComponent) {
-							starFieldComponent.enableGlow = false;
-						}
-
-						// Reduce quality through frameRateController
-						frameRateController.setQualityOverride(0.7);
-					})
-					.onLeakSuspected(() => {
-						// onCritical callback - reduce star count and effects
-						if (canvasStarFieldManager) {
-							canvasStarFieldManager.adaptToDeviceCapabilities({ enableGlow: false });
-							canvasStarFieldManager.setStarCount(
-								Math.floor(canvasStarFieldManager.starCount * 0.6)
-							); // Reduce by 40%
+							const currentCount = canvasStarFieldManager.starCount || 60;
+							canvasStarFieldManager.setStarCount(Math.floor(currentCount * 0.6)); // Reduce by 40%
 							canvasStarFieldManager.setUseContainerParallax(false);
 						}
 						if (starFieldComponent) {
@@ -890,19 +895,17 @@
 						// Significantly reduce quality through frameRateController
 						frameRateController.setQualityOverride(0.5);
 
-						// Suggest garbage collection
-						memoryMonitor?.suggestGarbageCollection();
-					});
-			} catch (error) {
-				// Fallback: disable memory monitoring if constructor fails
-				console.warn('MemoryMonitor initialization failed, disabling memory monitoring:', error);
-				memoryMonitor = null;
-				return;
-			}
+						// Perform cleanup
+						memoryManager.performCleanup();
+					}
+				});
 
-			// Start monitoring if successfully initialized
-			if (memoryMonitor && typeof memoryMonitor.start === 'function') {
-				memoryMonitor.start();
+				// Store unsubscribe functions for cleanup
+				memoryManagerUnsubscribes.push(pressureUnsubscribe, eventUnsubscribe);
+			} catch (error) {
+				// Fallback: disable memory monitoring if initialization fails
+				console.warn('Memory manager initialization failed, disabling memory monitoring:', error);
+				memoryManagerUnsubscribes = [];
 			}
 		}
 	}
@@ -1309,10 +1312,10 @@
 			// glitchManager = null; // Do not assign null if not nullable
 		}
 
-		// Stop memory monitoring
-		if (memoryMonitor) {
-			memoryMonitor.stop();
-			memoryMonitor = null;
+		if (memoryManagerUnsubscribes.length > 0) {
+			memoryManager.stopMonitoring();
+			memoryManagerUnsubscribes.forEach((unsubscribe) => unsubscribe());
+			memoryManagerUnsubscribes = [];
 		}
 
 		// Clean up perfMonitor if it exists

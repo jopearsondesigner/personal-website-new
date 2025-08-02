@@ -16,18 +16,33 @@ DO NOT REMOVE THIS COMMENT -->
 
 	// Configuration data
 	const skills = [
-		{ name: 'UI/UX Design', level: 99 },
-		{ name: 'Frontend Development', level: 99 },
-		{ name: 'Graphic Design', level: 99 },
-		{ name: 'Animation/Illustration', level: 99 },
-		{ name: 'Brand Identity', level: 99 }
+		{
+			name: 'User Experience Design — Research-driven solutions that increase engagement and conversions',
+			level: 99
+		},
+		{
+			name: 'Interactive Development — High-performance interfaces built with modern frameworks and optimized code',
+			level: 99
+		},
+		{
+			name: 'Visual Communication — Strategic design that enhances brand perception and drives user trust',
+			level: 99
+		},
+		{
+			name: 'System Integration — Seamless connection between frontend experiences and backend functionality',
+			level: 99
+		},
+		{
+			name: 'Process Optimization — Streamlined workflows that reduce costs and accelerate delivery timelines',
+			level: 99
+		}
 	];
 
 	// UVP bullet points based on psychometrics test
 	const uvpPoints = [
-		'Turn vague ideas into polished products with minimal direction needed',
+		'Transform abstract business goals into profitable digital experiences with minimal direction needed',
 		'Full-spectrum capabilities: graphics, UI/UX, branding, and front-end development',
-		'Quality-first handcrafted solutions that stand out from AI/template approaches',
+		'Quality-first handcrafted solutions that deliver measurable results, not just aesthetic appeal',
 		'Startup-proven approach that scales to enterprise needs'
 	];
 
@@ -121,28 +136,52 @@ DO NOT REMOVE THIS COMMENT -->
 							<span
 								class="text-[var(--metallic-gold-500)] dark:text-[var(--arcade-bright-yellow-100)]"
 							>
-								Interface Alchemy
+								The Unified Development Approach
 							</span>
-							Transformation Mastery
+							Eliminating Traditional Project Bottlenecks
 						</h3>
 
 						<div class="expertise-description ibm-regular">
 							<p>
-								Like alchemists who transformed base metals into gold, I transmute abstract business
-								goals into valuable digital experiences. The magic happens where creative vision
-								meets technical precision.
+								Most digital projects fail due to the disconnect between design vision and
+								development reality. My integrated approach eliminates these friction points by
+								maintaining consistent ownership throughout the entire process—from initial concept
+								through final deployment.
 							</p>
 
-							<p>
-								Every project begins with raw materials: rough concepts, scattered requirements,
-								technical constraints. Through careful process and proven formulas, these elements
-								become polished digital products that drive measurable results.
-							</p>
+							<p class="text-arcade-white-200/80 mb-4">This seamless methodology delivers:</p>
+							<ul class="space-y-3">
+								<li
+									class="custom-bullet text-arcade-white-200/90 text-base leading-relaxed hover:text-arcade-white-200 transition-colors duration-300"
+								>
+									40% faster project completion through eliminated handoff delays
+								</li>
+								<li
+									class="custom-bullet text-arcade-white-200/90 text-base leading-relaxed hover:text-arcade-white-200 transition-colors duration-300"
+								>
+									Consistent design execution without interpretation gaps
+								</li>
+								<li
+									class="custom-bullet text-arcade-white-200/90 text-base leading-relaxed hover:text-arcade-white-200 transition-colors duration-300"
+								>
+									Proactive problem-solving that prevents expensive late-stage revisions
+								</li>
+								<li
+									class="custom-bullet text-arcade-white-200/90 text-base leading-relaxed hover:text-arcade-white-200 transition-colors duration-300"
+								>
+									Direct communication that keeps projects on track and on budget
+								</li>
+								<li
+									class="custom-bullet text-arcade-white-200/90 text-base leading-relaxed hover:text-arcade-white-200 transition-colors duration-300"
+								>
+									Solutions that are both visually compelling and technically sound
+								</li>
+							</ul>
 
 							<p class="expertise-highlight ibm-bold">
-								<span class="text-[var(--arcade-bright-green-300)]">Result:</span>
-								Digital gold—interfaces that not only look premium but perform like finely-tuned machines,
-								converting visitors into customers.
+								<span class="text-[var(--arcade-bright-green-300)]">The result:</span>
+								Digital products that not only look exceptional but perform flawlessly, converting visitors
+								into customers and supporting sustainable business growth.
 							</p>
 						</div>
 					</div>
@@ -163,9 +202,13 @@ DO NOT REMOVE THIS COMMENT -->
 					>
 						<div class="skills-content">
 							<div class="skills-header">
-								<h4 class="skills-title orbitron-bold">Alchemical Arsenal</h4>
-								<p class="skills-subtitle ibm-regular">
-									Master-level tools for transmuting concepts into digital gold
+								<h4 class="skills-title orbitron-bold">Technical Arsenal</h4>
+								<p class="skills-subtitle ibm-regular">Engineered for Modern Digital Challenges</p>
+								<p>
+									As a T-shaped professional, I combine deep expertise in user experience design
+									with comprehensive development capabilities. This rare combination allows me to
+									solve complex problems that typically require entire teams, delivering both
+									creative excellence and technical precision.
 								</p>
 							</div>
 

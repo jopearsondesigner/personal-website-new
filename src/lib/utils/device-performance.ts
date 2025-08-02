@@ -1,6 +1,17 @@
 // src/lib/utils/device-performance.ts
 import { browser } from '$app/environment';
 import { writable, get } from 'svelte/store';
+import {
+	memoryManager,
+	currentMemoryInfo,
+	memoryEvents,
+	memoryPressure,
+	memoryUsageStore,
+	objectPoolStatsStore,
+	type MemoryInfo,
+	type MemoryEvent,
+	type MemoryPressure
+} from '$lib/utils/memory-manager';
 
 declare global {
 	interface Navigator {
@@ -489,22 +500,11 @@ async function determineDeviceCapabilities(): Promise<DeviceCapabilities> {
 	return quickCapabilities;
 }
 
-// Create stores with safe initial values
+// Create device capabilities store (keeping this local as it's device-specific)
 export const deviceCapabilities = writable<DeviceCapabilities>(highCapabilities);
-export const memoryUsageStore = writable<number>(0);
 
-// Create object pool statistics store
-export const objectPoolStatsStore = writable<ObjectPoolStats>({
-	totalCapacity: 0,
-	activeObjects: 0,
-	utilizationRate: 0,
-	objectsCreated: 0,
-	objectsReused: 0,
-	reuseRatio: 0,
-	estimatedMemorySaved: 0,
-	poolName: 'Stars',
-	poolType: 'Star'
-});
+// Export unified memory stores for convenience
+export { memoryUsageStore, objectPoolStatsStore } from '$lib/utils/memory-manager';
 
 // Initialize capabilities - only run in browser
 function initializeCapabilities() {
@@ -545,16 +545,11 @@ export function setupPerformanceMonitoring() {
 			initializeCapabilities();
 
 			// Use lower frequency monitoring interval for memory
+			// Use unified memory monitoring system
 			monitoringInterval = window.setInterval(() => {
 				try {
-					// Check memory usage periodically instead of every frame
-					if ('memory' in performance) {
-						const memory = (performance as any).memory;
-						if (memory) {
-							const memUsage = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
-							memoryUsageStore.set(Math.max(0, Math.min(1, memUsage)));
-						}
-					}
+					// Use unified memory manager for memory checks
+					memoryManager.forceMemoryCheck();
 
 					// Reset frame counter periodically in case requestAnimationFrame stops
 					if (Date.now() - lastTime > 5000) {
@@ -587,38 +582,13 @@ export function setupPerformanceMonitoring() {
 	};
 }
 
-// Efficient update for object pool statistics
+// Efficient update for object pool statistics using unified system
 export function updateObjectPoolStats(stats: Partial<ObjectPoolStats>) {
 	if (!browser) return;
 
 	try {
-		objectPoolStatsStore.update((currentStats) => {
-			// Create new stats object with updated values
-			const newStats = { ...currentStats, ...stats };
-
-			// Calculate derived statistics if needed
-			if (
-				(stats.activeObjects !== undefined || stats.totalCapacity !== undefined) &&
-				newStats.totalCapacity > 0
-			) {
-				newStats.utilizationRate = newStats.activeObjects / newStats.totalCapacity;
-			}
-
-			// Update reuse ratio when relevant fields change
-			if (stats.objectsCreated !== undefined || stats.objectsReused !== undefined) {
-				const total = newStats.objectsCreated + newStats.objectsReused;
-				newStats.reuseRatio = total > 0 ? newStats.objectsReused / total : 0;
-			}
-
-			// Estimate memory savings if not provided but we have reuse data
-			if (stats.objectsReused !== undefined && stats.estimatedMemorySaved === undefined) {
-				// Use a simple fixed object size estimate when specific size unknown
-				const objectSize = 240; // bytes
-				newStats.estimatedMemorySaved = (newStats.objectsReused * objectSize) / 1024; // in KB
-			}
-
-			return newStats;
-		});
+		// Use unified memory manager for object pool stats updates
+		memoryManager.updatePoolStats('device-performance', stats);
 	} catch (e) {
 		// Ignore update errors
 	}
@@ -644,6 +614,8 @@ export function setupEventListeners() {
 					// Resume normal operations when tab is visible again
 					setTimeout(() => {
 						initializeCapabilities();
+						// Resume unified memory monitoring
+						memoryManager.startMonitoring();
 					}, 300); // Short delay to let the browser stabilize
 				}
 			} catch (e) {
@@ -706,10 +678,12 @@ const checkGPUCapabilities = (): 'high' | 'medium' | 'low' => {
 	}
 };
 
-// Initialize capabilities on module load ONLY in browser
+// Initialize capabilities and memory monitoring on module load ONLY in browser
 if (browser) {
 	// Use a microtask to ensure the module is fully loaded first
 	Promise.resolve().then(() => {
 		initializeCapabilities();
+		// Start unified memory monitoring
+		memoryManager.startMonitoring();
 	});
 }
