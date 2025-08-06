@@ -349,8 +349,8 @@
 		}
 	}
 
-	// FIXED: Modified stopAnimations 
-	function stopAnimations(clearBackground = true) {
+	// BULLETPROOF: Modified stopAnimations - never touch background
+	function stopAnimations(clearBackground = false) {
 		if (!browser) return;
 
 		// Stop glitch manager
@@ -852,6 +852,9 @@
 		style="z-index: 1;"
 	></div>
 
+	<!-- RESERVED: Future Starfield Layer (z-index: 2) -->
+	<!-- The starfield will be inserted here with z-index: 2 -->
+	
 	<!-- Content wrapper -->
 	<div
 		id="text-wrapper"
@@ -1034,7 +1037,7 @@
 		overflow: hidden;
 	}
 
-	#arcade-screen {
+#arcade-screen {
 		width: var(--arcade-screen-width);
 		height: var(--arcade-screen-height);
 		border: none;
@@ -1044,18 +1047,21 @@
 		z-index: 0;
 		aspect-ratio: 4/3;
 		box-shadow: var(--screen-shadow);
-		/* Use a dark background with subtle gradient */
-		/* Ensure solid black base - no gradients */
-	background-color: #000 !important;
-	background-image: none !important;
+		
+		/* REMOVED: All background properties to prevent conflicts with blank monitor */
+		/* The blank-crt-monitor div will handle all background rendering */
+		background: transparent !important;
+		background-color: transparent !important;
+		background-image: none !important;
+		
 		transform-style: preserve-3d;
 		overflow: hidden;
 	}
 /* ==========================================================================
-   Blank CRT Monitor Background
+   Blank CRT Monitor Background - Starfield Ready
    ========================================================================== */
 .blank-crt-monitor {
-	/* Force immediate black background */
+	/* BULLETPROOF: Force immediate black background */
 	background-color: #000 !important;
 	background-image: 
 		/* Subtle CRT monitor texture */
@@ -1066,45 +1072,91 @@
 			transparent 0px,
 			rgba(0, 20, 40, 0.1) 1px,
 			transparent 2px
-		);
+		) !important;
 	
-	/* Ensure it's always visible and stable */
+	/* BULLETPROOF: Ensure it's always visible and stable */
 	opacity: 1 !important;
 	visibility: visible !important;
 	display: block !important;
 	
-	/* Force hardware acceleration and prevent re-rendering */
+	/* BULLETPROOF: Force hardware acceleration and prevent re-rendering */
 	transform: translateZ(0) !important;
 	backface-visibility: hidden !important;
 	-webkit-backface-visibility: hidden !important;
 	
-	/* Prevent any transition delays */
+	/* BULLETPROOF: Prevent any transition delays or animations */
 	transition: none !important;
 	animation: none !important;
 	
-	/* Create isolation to prevent parent effects */
+	/* BULLETPROOF: Create isolation to prevent parent effects */
 	isolation: isolate !important;
 	contain: layout style paint !important;
 	
-	/* Ensure it covers everything */
-	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
+	/* BULLETPROOF: Ensure it covers everything */
+	position: absolute !important;
+	inset: 0 !important;
+	width: 100% !important;
+	height: 100% !important;
 	
-	/* Match the screen border radius */
-	border-radius: var(--border-radius);
-	overflow: hidden;
+	/* BULLETPROOF: Match the screen border radius */
+	border-radius: var(--border-radius) !important;
+	overflow: hidden !important;
 	
-	/* Ensure it stays above any default backgrounds */
-	z-index: 1;
-	pointer-events: none;
+	/* STARFIELD READY: Base layer positioning */
+	z-index: 1 !important;
+	pointer-events: none !important;
+	
+	/* BULLETPROOF: Override any competing styles */
+	background-blend-mode: normal !important;
+	mix-blend-mode: normal !important;
+	filter: none !important;
+	backdrop-filter: none !important;
+	
+	/* BULLETPROOF: Prevent scroll-induced re-rendering */
+	will-change: auto !important;
+	content-visibility: visible !important;
 }
-
-/* Extra safety - override any conflicting styles */
+/* BULLETPROOF: Extra safety overrides for all scenarios */
 #blank-monitor-background.blank-crt-monitor {
 	background: #000 !important;
 	opacity: 1 !important;
+}
+
+/* BULLETPROOF: Scroll protection - never allow background changes during scroll */
+.blank-crt-monitor,
+#blank-monitor-background,
+[id="blank-monitor-background"] {
+	background-color: #000 !important;
+	opacity: 1 !important;
+	visibility: visible !important;
+	display: block !important;
+	transform: translateZ(0) !important;
+}
+
+/* BULLETPROOF: State change protection - maintain background during all state changes */
+#hero .blank-crt-monitor,
+#arcade-screen .blank-crt-monitor,
+.arcade-screen-wrapper .blank-crt-monitor {
+	background-color: #000 !important;
+	background-image: 
+		radial-gradient(circle at center, #000 0%, #0a0a0a 40%, #000 100%),
+		repeating-linear-gradient(
+			0deg,
+			transparent 0px,
+			rgba(0, 20, 40, 0.1) 1px,
+			transparent 2px
+		) !important;
+}
+
+/* STARFIELD READY: Future starfield container preparation */
+.starfield-container {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	pointer-events: none;
+	border-radius: var(--border-radius);
+	overflow: hidden;
+	/* Ready for future starfield integration */
 }
 
 /* Add subtle CRT monitor characteristics */
@@ -1131,6 +1183,7 @@
 }
 
 /* Light theme variant */
+/* BULLETPROOF: Light theme variant - starfield ready */
 :global(html.light) .blank-crt-monitor {
 	background-color: #111 !important;
 	background-image: 
@@ -1140,11 +1193,22 @@
 			transparent 0px,
 			rgba(255, 255, 255, 0.02) 1px,
 			transparent 2px
-		);
+		) !important;
+		
+	/* BULLETPROOF: Extra safety for light theme */
+	opacity: 1 !important;
+	visibility: visible !important;
+	display: block !important;
 }
 
 :global(html.light) .blank-crt-monitor::before {
 	box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5);
+}
+
+/* BULLETPROOF: Light theme state protection */
+:global(html.light) #blank-monitor-background.blank-crt-monitor,
+:global(html.light) .blank-crt-monitor {
+	background-color: #111 !important;
 }
 
 	/* ==========================================================================
@@ -1493,9 +1557,12 @@
 		--misconvergence-offset: 0.5px;
 		position: relative;
 		overflow: hidden;
-		/* Use a dark background for CRT screen */
-		background-color: #000;
-		background-image: linear-gradient(145deg, #000 0%, #111 100%);
+		
+		/* BULLETPROOF: Remove background - let blank monitor handle it */
+		background: transparent !important;
+		background-color: transparent !important;
+		background-image: none !important;
+		
 		border-radius: var(--border-radius);
 		overflow: hidden;
 	}
