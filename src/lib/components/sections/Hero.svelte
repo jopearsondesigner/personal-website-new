@@ -1045,11 +1045,107 @@
 		aspect-ratio: 4/3;
 		box-shadow: var(--screen-shadow);
 		/* Use a dark background with subtle gradient */
-		background-color: #000;
-		background-image: linear-gradient(145deg, #111 0%, #444 100%);
+		/* Ensure solid black base - no gradients */
+	background-color: #000 !important;
+	background-image: none !important;
 		transform-style: preserve-3d;
 		overflow: hidden;
 	}
+/* ==========================================================================
+   Blank CRT Monitor Background
+   ========================================================================== */
+.blank-crt-monitor {
+	/* Force immediate black background */
+	background-color: #000 !important;
+	background-image: 
+		/* Subtle CRT monitor texture */
+		radial-gradient(circle at center, #000 0%, #0a0a0a 40%, #000 100%),
+		/* Very subtle scanline texture */
+		repeating-linear-gradient(
+			0deg,
+			transparent 0px,
+			rgba(0, 20, 40, 0.1) 1px,
+			transparent 2px
+		);
+	
+	/* Ensure it's always visible and stable */
+	opacity: 1 !important;
+	visibility: visible !important;
+	display: block !important;
+	
+	/* Force hardware acceleration and prevent re-rendering */
+	transform: translateZ(0) !important;
+	backface-visibility: hidden !important;
+	-webkit-backface-visibility: hidden !important;
+	
+	/* Prevent any transition delays */
+	transition: none !important;
+	animation: none !important;
+	
+	/* Create isolation to prevent parent effects */
+	isolation: isolate !important;
+	contain: layout style paint !important;
+	
+	/* Ensure it covers everything */
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	
+	/* Match the screen border radius */
+	border-radius: var(--border-radius);
+	overflow: hidden;
+	
+	/* Ensure it stays above any default backgrounds */
+	z-index: 1;
+	pointer-events: none;
+}
+
+/* Extra safety - override any conflicting styles */
+#blank-monitor-background.blank-crt-monitor {
+	background: #000 !important;
+	opacity: 1 !important;
+}
+
+/* Add subtle CRT monitor characteristics */
+.blank-crt-monitor::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	
+	/* Very subtle monitor curvature effect */
+	background: radial-gradient(
+		ellipse at center,
+		transparent 0%,
+		transparent 60%,
+		rgba(0, 0, 0, 0.1) 80%,
+		rgba(0, 0, 0, 0.3) 100%
+	);
+	
+	/* Subtle inner shadow to simulate monitor depth */
+	box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.8);
+	
+	border-radius: inherit;
+	pointer-events: none;
+	z-index: 1;
+}
+
+/* Light theme variant */
+:global(html.light) .blank-crt-monitor {
+	background-color: #111 !important;
+	background-image: 
+		radial-gradient(circle at center, #111 0%, #222 40%, #111 100%),
+		repeating-linear-gradient(
+			0deg,
+			transparent 0px,
+			rgba(255, 255, 255, 0.02) 1px,
+			transparent 2px
+		);
+}
+
+:global(html.light) .blank-crt-monitor::before {
+	box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5);
+}
 
 	/* ==========================================================================
        Visual Effects
