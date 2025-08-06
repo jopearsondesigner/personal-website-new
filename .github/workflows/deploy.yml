@@ -29,7 +29,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-        npm ci || npm install
+          rm -f package-lock.json
+          npm install
 
       - name: List contents before build
         run: ls -la
