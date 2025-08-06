@@ -844,13 +844,20 @@
 
 					<div class="glow-effect rounded-[3vmin]"></div>
 
-					{#if currentScreen === 'main'}
-						<!-- Content wrapper -->
-						<div
-							id="text-wrapper"
-							class="absolute inset-0 flex flex-col items-center justify-center p-2 mt-12 box-border"
-							style="z-index: 5;"
-						>
+{#if currentScreen === 'main'}
+	<!-- Persistent Blank CRT Monitor Background -->
+	<div
+		id="blank-monitor-background"
+		class="absolute inset-0 blank-crt-monitor"
+		style="z-index: 1;"
+	></div>
+
+	<!-- Content wrapper -->
+	<div
+		id="text-wrapper"
+		class="absolute inset-0 flex flex-col items-center justify-center p-2 mt-12 box-border"
+		style="z-index: 5;"
+	>
 							<div id="header" class="text-center mb-2 animate-transform" bind:this={header}>
 								Power-up Your Brand!
 							</div>
