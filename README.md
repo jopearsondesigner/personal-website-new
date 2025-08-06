@@ -1,5 +1,5 @@
 # personal-website-new
-This is the new website I'm developing to replace my current one!
+This is the new website I'm developing to replace my current one.
 
 # create-svelte
 
