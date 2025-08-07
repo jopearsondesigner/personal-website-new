@@ -1,30 +1,53 @@
 <!-- src/lib/components/ui/ArcadeCtaButton.svelte -->
+<!-- src/lib/components/ui/ArcadeCtaButton.svelte -->
 <script>
 	import { onMount } from 'svelte';
 	import gsap from 'gsap';
+	import { onDestroy } from 'svelte';
 
 	let isHovered = false;
 	let buttonSize = 0.55; // Modify this value to adjust the size
+	/**
+	 * @type {gsap.core.Tween | null}
+	 */
+	let animation = null;
 
 	// Function to handle GSAP animations
 	const animateButton = () => {
-		gsap.fromTo(
+		// Kill any existing animation
+		if (animation) {
+			animation.kill();
+		}
+
+		// FIXED: Remove problematic filter - use only opacity and scale
+		animation = gsap.fromTo(
 			'.cta-button',
-			{ opacity: 0.8, scale: 1, filter: 'drop-shadow(0 0 5px rgba(0,255,0,0.5))' },
+			{
+				opacity: 0.8,
+				scale: 1
+				// REMOVED: filter property
+			},
 			{
 				opacity: 1,
 				scale: 1.1,
 				repeat: -1,
 				yoyo: true,
 				duration: 1,
-				ease: 'power1.inOut',
-				filter: 'drop-shadow(0 0 10px rgba(0,255,0,0.8))'
+				ease: 'power1.inOut'
+				// REMOVED: filter property
 			}
 		);
 	};
 
 	onMount(() => {
 		animateButton();
+	});
+
+	onDestroy(() => {
+		if (animation) {
+			animation.kill();
+			animation = null;
+		}
 	});
 </script>
 
@@ -489,13 +512,27 @@
 
 <style>
 	.cta-button {
-		/* Button's size is now dependent on the size multiplier */
 		transform: scale(var(--size-multiplier));
-		/* You can add padding, margins, or other properties relative to the size here */
 		transition: transform 0.2s ease-in-out;
+
+		/* SIMPLE FIX: Remove problematic filters */
+		filter: none !important;
+
+		/* Keep basic positioning */
+		isolation: isolate;
+		position: relative;
+		z-index: 10;
+
+		/* Prevent parent effect inheritance */
+		mix-blend-mode: normal !important;
+		backdrop-filter: none !important;
 	}
 
 	.cta-button:hover {
-		transform: scale(calc(var(--size-multiplier) * 1.1)); /* Slightly bigger on hover */
+		transform: scale(calc(var(--size-multiplier) * 1.1));
+
+		/* Use box-shadow instead of filter */
+		box-shadow: 0 0 12px rgba(39, 255, 153, 0.8);
+		filter: none !important;
 	}
 </style>
