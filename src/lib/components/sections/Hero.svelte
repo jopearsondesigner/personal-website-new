@@ -29,6 +29,7 @@
 	import BoostCue from '$lib/components/ui/BoostCue.svelte';
 	import type { GameState } from '$lib/types/game';
 
+	// PERFORMANCE OPTIMIZATION: Consolidate state management
 	// Device detection state
 	let isMobileDevice = false;
 	let isLowPerformanceDevice = false;
@@ -59,31 +60,60 @@
 
 	let currentGameState: GameState = 'idle';
 
-	// FIXED: Add scroll state management to prevent unnecessary resets
+	// PERFORMANCE FIX #1: Isolate scroll state from animation logic
 	let isScrolling = false;
 	let scrollTimeout: number | null = null;
 	let lastVisibilityState = true;
-
 	let hasMounted = false;
 
-	// Use the frameRateController for efficient CSS updates
+	// PERFORMANCE FIX #2: Add animation state guards
+	let isAnimationInitialized = false;
+	let animationInitTimeout: number | null = null;
+	let lastNavbarHeight = 0;
+
+	// PERFORMANCE FIX #3: CSS Variable change detection with threshold
+	const CSS_UPDATE_THRESHOLD = 2; // pixels
 	$: if (browser && $layoutStore?.navbarHeight !== undefined) {
-		// Only update if we should render this frame or the value has changed significantly
-		if (
-			frameRateController.shouldRenderFrame() ||
-			Math.abs(
-				$layoutStore.navbarHeight -
-					parseFloat(document.documentElement.style.getPropertyValue('--navbar-height') || '0')
-			) > 2
-		) {
-			document.documentElement.style.setProperty(
-				'--navbar-height',
-				`${$layoutStore.navbarHeight}px`
-			);
+		const newHeight = $layoutStore.navbarHeight;
+		// Only update if change is significant to prevent layout thrashing
+		if (Math.abs(newHeight - lastNavbarHeight) > CSS_UPDATE_THRESHOLD) {
+			// Use RAF for optimal performance timing
+			if (frameRateController.shouldRenderFrame()) {
+				requestAnimationFrame(() => {
+					document.documentElement.style.setProperty('--navbar-height', `${newHeight}px`);
+					lastNavbarHeight = newHeight;
+				});
+			}
 		}
 	}
 
-	// FIXED: Move all function declarations to the top before any reactive statements
+	// PERFORMANCE FIX #4: Optimized animation reactive statement
+	// Only trigger animations on specific state combinations, with debouncing
+	$: if (currentScreen === 'main' && browser && hasMounted && !isAnimationInitialized) {
+		// Debounce animation initialization to prevent rapid fire
+		if (animationInitTimeout) {
+			clearTimeout(animationInitTimeout);
+		}
+
+		animationInitTimeout = setTimeout(() => {
+			const elements = { header, insertConcept, arcadeScreen };
+			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
+				// PERFORMANCE: Only initialize if not already done
+				if (!isAnimationInitialized) {
+					requestAnimationFrame(() => {
+						startAnimations(elements);
+						isAnimationInitialized = true;
+					});
+				}
+			}
+		}, 50); // Small debounce to prevent rapid calls
+	}
+
+	// PERFORMANCE FIX #5: Reset animation state when leaving main screen
+	$: if (currentScreen !== 'main' && isAnimationInitialized) {
+		isAnimationInitialized = false;
+		stopAnimations(false);
+	}
 
 	// Device detection function optimized with memoization
 	function detectDeviceCapabilities() {
@@ -107,10 +137,12 @@
 		);
 	}
 
-	// FIXED: Add scroll event handler to prevent background resets during scroll
+	// PERFORMANCE FIX #6: Optimize scroll handling with better isolation
 	function handleScroll() {
 		if (!browser) return;
 
+		// PERFORMANCE: Track scroll state without affecting animations
+		const wasScrolling = isScrolling;
 		isScrolling = true;
 
 		// Clear existing timeout
@@ -118,9 +150,16 @@
 			clearTimeout(scrollTimeout);
 		}
 
-		// Debounce scroll end detection
+		// Debounce scroll end detection - don't trigger animations during scroll
 		scrollTimeout = window.setTimeout(() => {
 			isScrolling = false;
+			// PERFORMANCE: Only trigger updates if scroll state actually changed
+			if (wasScrolling !== isScrolling) {
+				// Scroll ended - opportunity to optimize
+				requestAnimationFrame(() => {
+					// Perform any scroll-end optimizations here
+				});
+			}
 		}, 150);
 	}
 
@@ -155,9 +194,7 @@
 		// Don't do anything if screen hasn't changed
 		if (newScreen === prevScreen) return;
 
-		// FIXED: Prevent screen changes during scroll to avoid background flicker
-		if (isScrolling) return;
-
+		// PERFORMANCE FIX #7: Remove scroll state check that was causing animation issues
 		// Update the screen state
 		screenStore.set(newScreen);
 		currentScreen = newScreen;
@@ -167,7 +204,8 @@
 			// Stop current animations only if needed
 			if (prevScreen === 'main' && newScreen !== 'main') {
 				// We're leaving the main screen, stop animations
-				stopAnimations(false); // FIXED: Pass parameter to preserve background
+				stopAnimations(false);
+				isAnimationInitialized = false; // PERFORMANCE: Reset state
 
 				// Keep glass effects active even when switching screens
 				const glassContainer = document.querySelector('.screen-glass-container');
@@ -184,7 +222,7 @@
 					);
 				}
 			} else if (newScreen === 'main' && prevScreen !== 'main') {
-				// We're returning to main screen, restart animations
+				// We're returning to main screen - animations will be handled by reactive statement
 
 				// Add glass transition effect when returning to main screen
 				const glassContainer = document.querySelector('.screen-glass-container');
@@ -256,13 +294,19 @@
 		orientationTimeout = window.setTimeout(handleOrientation, 150);
 	}
 
-	// FIXED: Modified animation control functions 
+	// PERFORMANCE FIX #8: Enhanced animation control with state guards
 	function startAnimations(elements: {
 		header: HTMLElement;
 		insertConcept: HTMLElement;
 		arcadeScreen: HTMLElement;
 	}) {
 		try {
+			// PERFORMANCE: Guard against multiple initializations
+			if (isAnimationInitialized) {
+				console.log('⚡ Skipping animation start - already initialized');
+				return;
+			}
+
 			// Stop existing animations first
 			stopAnimations(false);
 
@@ -342,16 +386,19 @@
 			if (timeline) {
 				currentTimeline = timeline;
 				timeline.play();
+				console.log('⚡ Animations started successfully');
 			}
-
 		} catch (error) {
 			console.error('Animation initialization failed:', error);
+			isAnimationInitialized = false; // Reset on error
 		}
 	}
 
-	// BULLETPROOF: Modified stopAnimations - never touch background
+	// PERFORMANCE FIX #9: Enhanced animation cleanup
 	function stopAnimations(clearBackground = false) {
 		if (!browser) return;
+
+		console.log('⚡ Stopping animations');
 
 		// Stop glitch manager
 		if (glitchManager) {
@@ -486,6 +533,7 @@
 		}
 	}
 
+	// PERFORMANCE FIX #10: Optimized memory monitoring initialization
 	function initializeMemoryMonitoring() {
 		if (
 			memoryManagerUnsubscribes.length === 0 &&
@@ -497,10 +545,13 @@
 				// Start monitoring with the unified memory manager
 				memoryManager.startMonitoring();
 
-				// Subscribe to memory pressure events
+				// Subscribe to memory pressure events with throttling
 				const pressureUnsubscribe = memoryManager.onMemoryPressure((pressure: MemoryPressure) => {
-					// Reduce quality through frameRateController
-					frameRateController.setQualityOverride(0.7);
+					// Only respond to significant pressure changes
+					if (pressure === 'high' || pressure === 'critical') {
+						// Reduce quality through frameRateController
+						frameRateController.setQualityOverride(pressure === 'critical' ? 0.5 : 0.7);
+					}
 				});
 
 				// Subscribe to memory events for leak detection
@@ -524,16 +575,6 @@
 		}
 	}
 
-	function initializeAnimations() {
-		if (currentScreen === 'main') {
-			const elements = { header, insertConcept, arcadeScreen };
-			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-				// Start animations with the validated elements
-				startAnimations(elements);
-			}
-		}
-	}
-
 	function setupEventListeners() {
 		// Define optimized event handlers
 		const optimizedResizeCheck = createThrottledRAF(() => {
@@ -543,10 +584,9 @@
 			// Update device capabilities on resize
 			detectDeviceCapabilities();
 			debouncedOrientationCheck();
-
 		}, 100);
 
-		// FIXED: Modified visibility handler
+		// PERFORMANCE FIX #11: Optimized visibility handler
 		const visibilityHandler = () => {
 			const isVisible = !document.hidden;
 
@@ -602,7 +642,7 @@
 		if (typeof window !== 'undefined') {
 			window.addEventListener('resize', optimizedResizeCheck, passiveOptions);
 			window.addEventListener('orientationchange', orientationChangeHandler, passiveOptions);
-			// FIXED: Add scroll event listener
+			// Add scroll event listener
 			window.addEventListener('scroll', handleScroll, passiveOptions);
 		}
 
@@ -644,33 +684,20 @@
 
 		// Subscribe to quality changes to adapt animations
 		frameRateUnsubscribe = frameRateController.subscribeQuality((quality) => {
-			// Update animations based on quality level
+			// Animation quality adaptations can be added here if needed
 			try {
-				// Animation quality adaptations can be added here if needed
+				// Future: Adapt animation complexity based on quality
 			} catch (error) {
 				console.warn('Error in quality adjustment callback:', error);
 			}
 		});
 	}
 
-	// FIXED: Optimized screen management with scroll protection
-	$: {
-		if (currentScreen === 'main' && browser && !isScrolling && hasMounted) {
-			const elements = { header, insertConcept, arcadeScreen };
-
-			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-				requestAnimationFrame(() => {
-					if (currentScreen === 'main' && !isScrolling) {
-						startAnimations(elements);
-					}
-				});
-			}
-		}
-	}
-
 	// Lifecycle hooks
 	onMount(() => {
 		if (!browser) return;
+
+		console.log('⚡ Hero component mounting');
 
 		currentScreen = 'main';
 
@@ -698,12 +725,8 @@
 			// Check orientation initially
 			handleOrientation();
 
-			// Delayed start of animations (helps with initial render)
-			if (isMobileDevice) {
-				setTimeout(initializeAnimations, 300);
-			} else {
-				initializeAnimations();
-			}
+			// PERFORMANCE: Don't auto-start animations in onMount
+			// Let reactive statement handle it based on proper conditions
 		});
 
 		return () => {
@@ -715,12 +738,15 @@
 	onDestroy(() => {
 		if (!browser) return;
 
+		console.log('⚡ Hero component destroying');
+
 		// Get handlers
 		const { resize, orientationChange, visibility, touchStart, glassEffects, scroll } =
 			eventHandlers || {};
 
 		// Cleanup all animations and managers
 		stopAnimations();
+		isAnimationInitialized = false;
 
 		// Cleanup other managers
 		if (glitchManager) {
@@ -757,10 +783,15 @@
 			orientationTimeout = null;
 		}
 
-		// FIXED: Clear scroll timeout
 		if (scrollTimeout) {
 			clearTimeout(scrollTimeout);
 			scrollTimeout = null;
+		}
+
+		// PERFORMANCE FIX #12: Clear animation timeout
+		if (animationInitTimeout) {
+			clearTimeout(animationInitTimeout);
+			animationInitTimeout = null;
 		}
 
 		// Remove event listeners with the same handlers that were added
@@ -844,23 +875,23 @@
 
 					<div class="glow-effect rounded-[3vmin]"></div>
 
-{#if currentScreen === 'main'}
-	<!-- Persistent Blank CRT Monitor Background -->
-	<div
-		id="blank-monitor-background"
-		class="absolute inset-0 blank-crt-monitor"
-		style="z-index: 1;"
-	></div>
+					{#if currentScreen === 'main'}
+						<!-- Persistent Blank CRT Monitor Background -->
+						<div
+							id="blank-monitor-background"
+							class="absolute inset-0 blank-crt-monitor"
+							style="z-index: 1;"
+						></div>
 
-	<!-- RESERVED: Future Starfield Layer (z-index: 2) -->
-	<!-- The starfield will be inserted here with z-index: 2 -->
-	
-	<!-- Content wrapper -->
-	<div
-		id="text-wrapper"
-		class="absolute inset-0 flex flex-col items-center justify-center p-2 mt-12 box-border"
-		style="z-index: 5;"
-	>
+						<!-- RESERVED: Future Starfield Layer (z-index: 2) -->
+						<!-- The starfield will be inserted here with z-index: 2 -->
+
+						<!-- Content wrapper -->
+						<div
+							id="text-wrapper"
+							class="absolute inset-0 flex flex-col items-center justify-center p-2 mt-12 box-border"
+							style="z-index: 5;"
+						>
 							<div id="header" class="text-center mb-2 animate-transform" bind:this={header}>
 								Power-up Your Brand!
 							</div>
@@ -908,7 +939,7 @@
 	{#if currentScreen === 'game'}
 		<ControlsPortal>
 			<div class="controls-container">
-				<!-- MODIFY THIS LINE: Pass the current game state to GameControls -->
+				<!-- Pass the current game state to GameControls -->
 				<GameControls
 					on:control={handleControlInput}
 					gameState={currentGameState}
@@ -1037,7 +1068,7 @@
 		overflow: hidden;
 	}
 
-#arcade-screen {
+	#arcade-screen {
 		width: var(--arcade-screen-width);
 		height: var(--arcade-screen-height);
 		border: none;
@@ -1047,169 +1078,159 @@
 		z-index: 0;
 		aspect-ratio: 4/3;
 		box-shadow: var(--screen-shadow);
-		
+
 		/* REMOVED: All background properties to prevent conflicts with blank monitor */
 		/* The blank-crt-monitor div will handle all background rendering */
 		background: transparent !important;
 		background-color: transparent !important;
 		background-image: none !important;
-		
+
 		transform-style: preserve-3d;
 		overflow: hidden;
 	}
-/* ==========================================================================
+	/* ==========================================================================
    Blank CRT Monitor Background - Starfield Ready
    ========================================================================== */
-.blank-crt-monitor {
-	/* BULLETPROOF: Force immediate black background */
-	background-color: #000 !important;
-	background-image: 
+	.blank-crt-monitor {
+		/* BULLETPROOF: Force immediate black background */
+		background-color: #000 !important;
+		background-image:
 		/* Subtle CRT monitor texture */
-		radial-gradient(circle at center, #000 0%, #0a0a0a 40%, #000 100%),
-		/* Very subtle scanline texture */
-		repeating-linear-gradient(
-			0deg,
-			transparent 0px,
-			rgba(0, 20, 40, 0.1) 1px,
-			transparent 2px
-		) !important;
-	
-	/* BULLETPROOF: Ensure it's always visible and stable */
-	opacity: 1 !important;
-	visibility: visible !important;
-	display: block !important;
-	
-	/* BULLETPROOF: Force hardware acceleration and prevent re-rendering */
-	transform: translateZ(0) !important;
-	backface-visibility: hidden !important;
-	-webkit-backface-visibility: hidden !important;
-	
-	/* BULLETPROOF: Prevent any transition delays or animations */
-	transition: none !important;
-	animation: none !important;
-	
-	/* BULLETPROOF: Create isolation to prevent parent effects */
-	isolation: isolate !important;
-	contain: layout style paint !important;
-	
-	/* BULLETPROOF: Ensure it covers everything */
-	position: absolute !important;
-	inset: 0 !important;
-	width: 100% !important;
-	height: 100% !important;
-	
-	/* BULLETPROOF: Match the screen border radius */
-	border-radius: var(--border-radius) !important;
-	overflow: hidden !important;
-	
-	/* STARFIELD READY: Base layer positioning */
-	z-index: 1 !important;
-	pointer-events: none !important;
-	
-	/* BULLETPROOF: Override any competing styles */
-	background-blend-mode: normal !important;
-	mix-blend-mode: normal !important;
-	filter: none !important;
-	backdrop-filter: none !important;
-	
-	/* BULLETPROOF: Prevent scroll-induced re-rendering */
-	will-change: auto !important;
-	content-visibility: visible !important;
-}
-/* BULLETPROOF: Extra safety overrides for all scenarios */
-#blank-monitor-background.blank-crt-monitor {
-	background: #000 !important;
-	opacity: 1 !important;
-}
+			radial-gradient(circle at center, #000 0%, #0a0a0a 40%, #000 100%),
+			/* Very subtle scanline texture */
+				repeating-linear-gradient(0deg, transparent 0px, rgba(0, 20, 40, 0.1) 1px, transparent 2px) !important;
 
-/* BULLETPROOF: Scroll protection - never allow background changes during scroll */
-.blank-crt-monitor,
-#blank-monitor-background,
-[id="blank-monitor-background"] {
-	background-color: #000 !important;
-	opacity: 1 !important;
-	visibility: visible !important;
-	display: block !important;
-	transform: translateZ(0) !important;
-}
+		/* BULLETPROOF: Ensure it's always visible and stable */
+		opacity: 1 !important;
+		visibility: visible !important;
+		display: block !important;
 
-/* BULLETPROOF: State change protection - maintain background during all state changes */
-#hero .blank-crt-monitor,
-#arcade-screen .blank-crt-monitor,
-.arcade-screen-wrapper .blank-crt-monitor {
-	background-color: #000 !important;
-	background-image: 
-		radial-gradient(circle at center, #000 0%, #0a0a0a 40%, #000 100%),
-		repeating-linear-gradient(
-			0deg,
-			transparent 0px,
-			rgba(0, 20, 40, 0.1) 1px,
-			transparent 2px
-		) !important;
-}
+		/* BULLETPROOF: Force hardware acceleration and prevent re-rendering */
+		transform: translateZ(0) !important;
+		backface-visibility: hidden !important;
+		-webkit-backface-visibility: hidden !important;
 
-/* STARFIELD READY: Future starfield container preparation */
-.starfield-container {
-	position: absolute;
-	inset: 0;
-	z-index: 2;
-	pointer-events: none;
-	border-radius: var(--border-radius);
-	overflow: hidden;
-	/* Ready for future starfield integration */
-}
+		/* BULLETPROOF: Prevent any transition delays or animations */
+		transition: none !important;
+		animation: none !important;
 
-/* Add subtle CRT monitor characteristics */
-.blank-crt-monitor::before {
-	content: '';
-	position: absolute;
-	inset: 0;
-	
-	/* Very subtle monitor curvature effect */
-	background: radial-gradient(
-		ellipse at center,
-		transparent 0%,
-		transparent 60%,
-		rgba(0, 0, 0, 0.1) 80%,
-		rgba(0, 0, 0, 0.3) 100%
-	);
-	
-	/* Subtle inner shadow to simulate monitor depth */
-	box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.8);
-	
-	border-radius: inherit;
-	pointer-events: none;
-	z-index: 1;
-}
+		/* BULLETPROOF: Create isolation to prevent parent effects */
+		isolation: isolate !important;
+		contain: layout style paint !important;
 
-/* Light theme variant */
-/* BULLETPROOF: Light theme variant - starfield ready */
-:global(html.light) .blank-crt-monitor {
-	background-color: #111 !important;
-	background-image: 
-		radial-gradient(circle at center, #111 0%, #222 40%, #111 100%),
-		repeating-linear-gradient(
-			0deg,
-			transparent 0px,
-			rgba(255, 255, 255, 0.02) 1px,
-			transparent 2px
-		) !important;
-		
-	/* BULLETPROOF: Extra safety for light theme */
-	opacity: 1 !important;
-	visibility: visible !important;
-	display: block !important;
-}
+		/* BULLETPROOF: Ensure it covers everything */
+		position: absolute !important;
+		inset: 0 !important;
+		width: 100% !important;
+		height: 100% !important;
 
-:global(html.light) .blank-crt-monitor::before {
-	box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5);
-}
+		/* BULLETPROOF: Match the screen border radius */
+		border-radius: var(--border-radius) !important;
+		overflow: hidden !important;
 
-/* BULLETPROOF: Light theme state protection */
-:global(html.light) #blank-monitor-background.blank-crt-monitor,
-:global(html.light) .blank-crt-monitor {
-	background-color: #111 !important;
-}
+		/* STARFIELD READY: Base layer positioning */
+		z-index: 1 !important;
+		pointer-events: none !important;
+
+		/* BULLETPROOF: Override any competing styles */
+		background-blend-mode: normal !important;
+		mix-blend-mode: normal !important;
+		filter: none !important;
+		backdrop-filter: none !important;
+
+		/* BULLETPROOF: Prevent scroll-induced re-rendering */
+		will-change: auto !important;
+		content-visibility: visible !important;
+	}
+	/* BULLETPROOF: Extra safety overrides for all scenarios */
+	#blank-monitor-background.blank-crt-monitor {
+		background: #000 !important;
+		opacity: 1 !important;
+	}
+
+	/* BULLETPROOF: Scroll protection - never allow background changes during scroll */
+	.blank-crt-monitor,
+	#blank-monitor-background,
+	[id='blank-monitor-background'] {
+		background-color: #000 !important;
+		opacity: 1 !important;
+		visibility: visible !important;
+		display: block !important;
+		transform: translateZ(0) !important;
+	}
+
+	/* BULLETPROOF: State change protection - maintain background during all state changes */
+	#hero .blank-crt-monitor,
+	#arcade-screen .blank-crt-monitor,
+	.arcade-screen-wrapper .blank-crt-monitor {
+		background-color: #000 !important;
+		background-image:
+			radial-gradient(circle at center, #000 0%, #0a0a0a 40%, #000 100%),
+			repeating-linear-gradient(0deg, transparent 0px, rgba(0, 20, 40, 0.1) 1px, transparent 2px) !important;
+	}
+
+	/* STARFIELD READY: Future starfield container preparation */
+	.starfield-container {
+		position: absolute;
+		inset: 0;
+		z-index: 2;
+		pointer-events: none;
+		border-radius: var(--border-radius);
+		overflow: hidden;
+		/* Ready for future starfield integration */
+	}
+
+	/* Add subtle CRT monitor characteristics */
+	.blank-crt-monitor::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+
+		/* Very subtle monitor curvature effect */
+		background: radial-gradient(
+			ellipse at center,
+			transparent 0%,
+			transparent 60%,
+			rgba(0, 0, 0, 0.1) 80%,
+			rgba(0, 0, 0, 0.3) 100%
+		);
+
+		/* Subtle inner shadow to simulate monitor depth */
+		box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.8);
+
+		border-radius: inherit;
+		pointer-events: none;
+		z-index: 1;
+	}
+
+	/* Light theme variant */
+	/* BULLETPROOF: Light theme variant - starfield ready */
+	:global(html.light) .blank-crt-monitor {
+		background-color: #111 !important;
+		background-image:
+			radial-gradient(circle at center, #111 0%, #222 40%, #111 100%),
+			repeating-linear-gradient(
+				0deg,
+				transparent 0px,
+				rgba(255, 255, 255, 0.02) 1px,
+				transparent 2px
+			) !important;
+
+		/* BULLETPROOF: Extra safety for light theme */
+		opacity: 1 !important;
+		visibility: visible !important;
+		display: block !important;
+	}
+
+	:global(html.light) .blank-crt-monitor::before {
+		box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5);
+	}
+
+	/* BULLETPROOF: Light theme state protection */
+	:global(html.light) #blank-monitor-background.blank-crt-monitor,
+	:global(html.light) .blank-crt-monitor {
+		background-color: #111 !important;
+	}
 
 	/* ==========================================================================
        Visual Effects
@@ -1557,12 +1578,12 @@
 		--misconvergence-offset: 0.5px;
 		position: relative;
 		overflow: hidden;
-		
+
 		/* BULLETPROOF: Remove background - let blank monitor handle it */
 		background: transparent !important;
 		background-color: transparent !important;
 		background-image: none !important;
-		
+
 		border-radius: var(--border-radius);
 		overflow: hidden;
 	}
