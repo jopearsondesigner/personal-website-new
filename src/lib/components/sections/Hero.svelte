@@ -26,7 +26,6 @@
 	} from '$lib/utils/memory-manager';
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
 	import { createThrottledRAF } from '$lib/utils/animation-helpers';
-	import BoostCue from '$lib/components/ui/BoostCue.svelte';
 	import type { GameState } from '$lib/types/game';
 
 	// PERFORMANCE OPTIMIZATION: Consolidate state management
@@ -906,7 +905,6 @@
 							>
 								Insert Concept
 							</div>
-							<BoostCue on:boost={(e) => console.log('Boost requested:', e.detail)} />
 						</div>
 					{:else if currentScreen === 'game'}
 						<GameScreen on:stateChange={handleGameStateChange} />
