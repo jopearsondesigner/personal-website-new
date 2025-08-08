@@ -43,6 +43,13 @@ interface NavigatorWithDeviceMemory extends Navigator {
 	deviceMemory?: number;
 }
 
+export interface StarfieldCapabilities {
+	enabled: boolean;
+	maxStars: number;
+	animationSpeed: number;
+	qualityLevel: 'minimal' | 'reduced' | 'normal';
+}
+
 export interface DeviceCapabilities {
 	// Core performance tier
 	tier: 'high' | 'medium' | 'low';
@@ -105,6 +112,9 @@ export interface DeviceCapabilities {
 	useObjectPooling: boolean; // Whether to use object pooling
 	objectPoolSize: number; // Maximum size of the object pool
 	objectPoolMargin: number; // Extra capacity percentage (e.g., 0.2 = 20% extra)
+
+	// Starfield-specific capabilities
+	starfield: StarfieldCapabilities;
 }
 
 export interface RenderingCapabilities {
@@ -194,7 +204,13 @@ const highCapabilities: DeviceCapabilities = {
 	useIOSCompatibleEffects: false,
 	useObjectPooling: true,
 	objectPoolSize: 400, // 300 stars with room for more
-	objectPoolMargin: 0.2 // 20% extra capacity
+	objectPoolMargin: 0.2, // 20% extra capacity
+	starfield: {
+		enabled: true,
+		maxStars: 60,
+		animationSpeed: 1.0,
+		qualityLevel: 'normal'
+	}
 };
 
 // Default medium capability settings
@@ -217,7 +233,13 @@ const mediumCapabilities: DeviceCapabilities = {
 	animateInBackground: false, // Don't animate in background to save resources
 	useObjectPooling: true,
 	objectPoolSize: 200, // Smaller pool for medium devices
-	objectPoolMargin: 0.3 // 30% extra capacity for more flexibility
+	objectPoolMargin: 0.3, // 30% extra capacity for more flexibility
+	starfield: {
+		enabled: true,
+		maxStars: 40,
+		animationSpeed: 0.8,
+		qualityLevel: 'reduced'
+	}
 };
 
 // Default low capability settings
@@ -243,7 +265,13 @@ const lowCapabilities: DeviceCapabilities = {
 	hasGPUAcceleration: false, // Assume no GPU acceleration on low-end devices
 	useObjectPooling: true,
 	objectPoolSize: 100, // Even smaller pool for low-end devices
-	objectPoolMargin: 0.5 // 50% extra capacity to avoid creating new objects
+	objectPoolMargin: 0.5, // 50% extra capacity to avoid creating new objects
+	starfield: {
+		enabled: true,
+		maxStars: 25,
+		animationSpeed: 0.5,
+		qualityLevel: 'minimal'
+	}
 };
 
 // Special iOS optimized settings for iPhone and similar devices
@@ -264,7 +292,13 @@ const iosOptimizedCapabilities: DeviceCapabilities = {
 	enableParallax: false,
 	useObjectPooling: true,
 	objectPoolSize: 150, // iOS-specific pool size
-	objectPoolMargin: 0.3 // 30% extra capacity
+	objectPoolMargin: 0.3, // 30% extra capacity
+	starfield: {
+		enabled: true,
+		maxStars: 30,
+		animationSpeed: 0.7,
+		qualityLevel: 'reduced'
+	}
 };
 
 /**
@@ -375,6 +409,9 @@ function getQuickCapabilitiesEstimate(): DeviceCapabilities {
 				capabilities.tier = 'low';
 				capabilities.maxStars = 15;
 				capabilities.frameSkip = 2;
+				capabilities.starfield.maxStars = 15;
+				capabilities.starfield.animationSpeed = 0.4;
+				capabilities.starfield.qualityLevel = 'minimal';
 			}
 		}
 
@@ -399,6 +436,9 @@ function getQuickCapabilitiesEstimate(): DeviceCapabilities {
 				capabilities.enableScanlines = false;
 				capabilities.enableBlur = false;
 				capabilities.enableShadows = false;
+				capabilities.starfield.maxStars = 15;
+				capabilities.starfield.animationSpeed = 0.4;
+				capabilities.starfield.qualityLevel = 'minimal';
 			}
 		}
 
@@ -409,6 +449,8 @@ function getQuickCapabilitiesEstimate(): DeviceCapabilities {
 			capabilities.enablePulse = false;
 			capabilities.effectsLevel = 'minimal';
 			capabilities.frameSkip = Math.max(1, capabilities.frameSkip);
+			capabilities.starfield.animationSpeed *= 0.3;
+			capabilities.starfield.qualityLevel = 'minimal';
 		}
 
 		// Return the optimized capabilities
@@ -480,14 +522,28 @@ async function determineDeviceCapabilities(): Promise<DeviceCapabilities> {
 							frameSkip: Math.max(1, caps.frameSkip),
 							enableBlur: false,
 							enableShadows: false,
-							maxStars: Math.min(caps.maxStars, 25)
+							maxStars: Math.min(caps.maxStars, 25),
+							starfield: {
+								...caps.starfield,
+								maxStars: Math.min(caps.starfield.maxStars, 25),
+								animationSpeed: caps.starfield.animationSpeed * 0.8,
+								qualityLevel: 'minimal'
+							}
 						}));
 					} else if (benchmarkScore >= 0.8 && quickCapabilities.tier !== 'high') {
 						// Better performance than initially detected
 						deviceCapabilities.update((caps) => ({
 							...caps,
 							tier: 'medium', // Only upgrade to medium, not high
-							frameSkip: Math.min(caps.frameSkip, 1)
+							frameSkip: Math.min(caps.frameSkip, 1),
+							starfield: {
+								...caps.starfield,
+								animationSpeed: Math.min(caps.starfield.animationSpeed * 1.2, 1.0),
+								qualityLevel:
+									caps.starfield.qualityLevel === 'minimal'
+										? 'reduced'
+										: caps.starfield.qualityLevel
+							}
 						}));
 					}
 				}

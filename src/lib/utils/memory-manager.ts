@@ -1012,6 +1012,25 @@ class MemoryManager {
 	}
 
 	/**
+	 * Register starfield-specific cleanup
+	 */
+	public registerStarfieldCleanup(): () => void {
+		const cleanup = () => {
+			// Clean up starfield object pool
+			const starfieldPool = this.objectPools.get('starfield-stars');
+			if (starfieldPool) {
+				starfieldPool.length = Math.min(starfieldPool.length, 20); // Keep minimal pool
+			}
+		};
+
+		this.registerCleanupTask(cleanup);
+
+		return () => {
+			this.cleanupTasks = this.cleanupTasks.filter((task) => task !== cleanup);
+		};
+	}
+
+	/**
 	 * Add memory change listener
 	 */
 	public onMemoryChange(listener: (info: MemoryInfo) => void): () => void {
@@ -1459,6 +1478,3 @@ export function getMemoryRecommendations(): string[] {
 
 	return recommendations;
 }
-
-// Export the manager instance for external use
-// (Already exported elsewhere, so this export is removed to fix redeclaration error)

@@ -7,9 +7,11 @@
 	import ArcadeCtaButton from '$lib/components/ui/ArcadeCtaButton.svelte';
 	import ArcadeNavigation from '$lib/components/ui/ArcadeNavigation.svelte';
 	import GameScreen from '$lib/components/game/GameScreen.svelte';
+	import StarfieldCanvas from '$lib/components/effects/StarfieldCanvas.svelte';
 	import { animations } from '$lib/utils/animation-utils';
 	import { screenStore } from '$lib/stores/animation-store';
 	import { layoutStore } from '$lib/stores/store';
+	import { theme } from '$lib/stores/theme';
 	import ControlsPortal from '$lib/components/ui/ControlsPortal.svelte';
 	import GameControls from '$lib/components/game/GameControls.svelte';
 	import { deviceCapabilities, setupPerformanceMonitoring } from '$lib/utils/device-performance';
@@ -882,8 +884,8 @@
 							style="z-index: 1;"
 						></div>
 
-						<!-- RESERVED: Future Starfield Layer (z-index: 2) -->
-						<!-- The starfield will be inserted here with z-index: 2 -->
+						<!-- Starfield Layer (z-index: 2) -->
+						<StarfieldCanvas theme={$theme} isVisible={currentScreen === 'main' && !isScrolling} />
 
 						<!-- Content wrapper -->
 						<div
