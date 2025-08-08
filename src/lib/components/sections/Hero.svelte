@@ -1068,26 +1068,57 @@
 		overflow: hidden;
 	}
 
-	#arcade-screen {
-		width: var(--arcade-screen-width);
-		height: var(--arcade-screen-height);
-		border: none;
-		border-radius: var(--border-radius);
-		position: relative;
-		overflow: hidden;
-		z-index: 0;
-		aspect-ratio: 4/3;
-		box-shadow: var(--screen-shadow);
+#arcade-screen {
+	width: var(--arcade-screen-width);
+	height: var(--arcade-screen-height);
+	border: none;
+	position: relative;
+	overflow: hidden;
+	z-index: 0;
+	aspect-ratio: 4/3;
+	border-radius: var(--border-radius);
+	
+	/* Lightweight CRT Curvature */
+	transform: 
+		perspective(1200px)
+		rotateX(1deg)
+		scale3d(0.999, 0.998, 1)
+		translateZ(0);
+	
+	/* Base shadows (static) */
+	box-shadow: var(--screen-shadow);
 
-		/* REMOVED: All background properties to prevent conflicts with blank monitor */
-		/* The blank-crt-monitor div will handle all background rendering */
-		background: transparent !important;
-		background-color: transparent !important;
-		background-image: none !important;
+	background: transparent !important;
+	background-color: transparent !important;
+	background-image: none !important;
 
-		transform-style: preserve-3d;
-		overflow: hidden;
-	}
+	transform-style: preserve-3d;
+	will-change: transform;
+	backface-visibility: hidden;
+	-webkit-backface-visibility: hidden;
+}
+
+/* Pulsating Glow - Respects your existing performance system */
+#arcade-screen::before {
+	content: '';
+	position: absolute;
+	inset: -8px;
+	border-radius: calc(var(--border-radius) + 8px);
+	background: transparent;
+	box-shadow: 0 0 12px rgba(39, 255, 153, 0.8);
+	z-index: -1;
+	pointer-events: none;
+	will-change: opacity;
+	backface-visibility: hidden;
+	
+	/* Subtle pulsation - only on capable devices */
+	animation: subtleGlowPulse 4s ease-in-out infinite alternate;
+}
+
+@keyframes subtleGlowPulse {
+	0% { opacity: 0.4; }
+	100% { opacity: 0.7; }
+}
 	/* ==========================================================================
    Blank CRT Monitor Background - Starfield Ready
    ========================================================================== */
