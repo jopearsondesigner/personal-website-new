@@ -1,5 +1,4 @@
 <!-- src/lib/components/ui/ArcadeCtaButton.svelte -->
-<!-- src/lib/components/ui/ArcadeCtaButton.svelte -->
 <script>
 	import { onMount } from 'svelte';
 	import gsap from 'gsap';
@@ -515,24 +514,19 @@
 		transform: scale(var(--size-multiplier));
 		transition: transform 0.2s ease-in-out;
 
-		/* SIMPLE FIX: Remove problematic filters */
-		filter: none !important;
+		/* FIXED: Add CSS drop shadow instead of GSAP filter */
+		filter: drop-shadow(0 0 8px rgba(39, 255, 153, 0.6));
 
-		/* Keep basic positioning */
+		/* FIXED: Ensure button is isolated from parent effects */
 		isolation: isolate;
 		position: relative;
 		z-index: 10;
-
-		/* Prevent parent effect inheritance */
-		mix-blend-mode: normal !important;
-		backdrop-filter: none !important;
 	}
 
 	.cta-button:hover {
 		transform: scale(calc(var(--size-multiplier) * 1.1));
 
-		/* Use box-shadow instead of filter */
-		box-shadow: 0 0 12px rgba(39, 255, 153, 0.8);
-		filter: none !important;
+		/* FIXED: Enhanced glow on hover */
+		filter: drop-shadow(0 0 12px rgba(39, 255, 153, 0.8));
 	}
 </style>

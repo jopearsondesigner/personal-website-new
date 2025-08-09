@@ -26,6 +26,7 @@
 	} from '$lib/utils/memory-manager';
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
 	import { createThrottledRAF } from '$lib/utils/animation-helpers';
+
 	import type { GameState } from '$lib/types/game';
 
 	// PERFORMANCE OPTIMIZATION: Consolidate state management
