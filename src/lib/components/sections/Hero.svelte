@@ -1266,13 +1266,20 @@
 
 	/* BULLETPROOF: Scroll protection - never allow background changes during scroll */
 	.blank-crt-monitor,
-	#blank-monitor-background,
-	[id='blank-monitor-background'] {
-		background-color: #000 !important;
+	#space-background,
+	[id='space-background'] {
 		opacity: 1 !important;
 		visibility: visible !important;
 		display: block !important;
 		transform: translateZ(0) !important;
+	}
+
+	.blank-crt-monitor:after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(circle at center, #000 20%, #001c4d 70%, #000000 100%);
+		z-index: -2;
 	}
 
 	/* BULLETPROOF: State change protection - maintain background during all state changes */
