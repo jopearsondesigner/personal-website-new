@@ -6,18 +6,12 @@
 	import { navigationStore } from '$lib/stores/navigation';
 	import { layoutStore } from '$lib/stores/store';
 
-	// Get all sections in their proper order
 	const orderedSections = getAllSections();
 
 	onMount(() => {
-		// Initialize section observer for scroll tracking
 		const cleanup = navigationStore.initSectionObserver();
-
-		// Handle hash navigation on initial page load
 		navigationStore.handleInitialHash();
-
 		return () => {
-			// Clean up any observers when component is destroyed
 			if (typeof cleanup === 'function') cleanup();
 		};
 	});
@@ -33,7 +27,7 @@
 
 <div
 	class="homepage bg-background dark:bg-background-dark text-[color:var(--arcade-black-500)] dark:text-[color:var(--arcade-white-200)]"
-	style="margin-top: calc(-{$layoutStore.navbarHeight}px)"
+	style="margin-top: calc(-{$layoutStore?.navbarHeight ?? 0}px)"
 >
 	<div class="container-fluid sections-container">
 		{#each orderedSections as section (section.id)}

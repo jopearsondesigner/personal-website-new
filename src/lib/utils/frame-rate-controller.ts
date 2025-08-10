@@ -399,7 +399,14 @@ class FrameRateController {
 						enableShadows: false,
 						enableBlur: false,
 						enableGlow: false,
-						enableParallax: false
+						enableParallax: false,
+						maxEffectObjects: Math.min(caps.maxEffectObjects, 30),
+						backgroundEffect: {
+							...caps.backgroundEffect,
+							maxObjects: Math.min(caps.backgroundEffect.maxObjects, 30),
+							animationSpeed: Math.min(caps.backgroundEffect.animationSpeed, 0.6),
+							qualityLevel: 'minimal'
+						}
 					}));
 
 					// Set lower quality on low battery
@@ -442,7 +449,13 @@ class FrameRateController {
 								enableBlur: false,
 								enableGlow: false,
 								useCanvas: true, // Canvas is typically more efficient
-								maxStars: Math.min(caps.maxStars, 30)
+								maxEffectObjects: Math.min(caps.maxEffectObjects, 30),
+								backgroundEffect: {
+									...caps.backgroundEffect,
+									maxObjects: Math.min(caps.backgroundEffect.maxObjects, 30),
+									animationSpeed: Math.min(caps.backgroundEffect.animationSpeed, 0.6),
+									qualityLevel: 'minimal'
+								}
 							}));
 
 							this.setQualityOverride(0.4);
@@ -471,7 +484,12 @@ class FrameRateController {
 					...caps,
 					enableParallax: false,
 					enablePulse: false,
-					frameSkip: Math.max(1, caps.frameSkip)
+					frameSkip: Math.max(1, caps.frameSkip),
+					backgroundEffect: {
+						...caps.backgroundEffect,
+						animationSpeed: Math.min(caps.backgroundEffect.animationSpeed, 0.5),
+						qualityLevel: 'minimal'
+					}
 				}));
 
 				this.setQualityOverride(Math.min(this.currentQuality, 0.7));

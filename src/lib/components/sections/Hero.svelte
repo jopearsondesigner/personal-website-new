@@ -859,27 +859,30 @@
 				</div>
 
 				<!-- Add explicit border-radius and overflow-hidden -->
-				<div class="screen-bezel rounded-[3vmin] overflow-hidden"></div>
+				<div class="screen-bezel"></div>
+
 				<div
 					id="arcade-screen"
-					class="crt-screen hardware-accelerated relative glow rounded-[3vmin] overflow-hidden will-change-transform"
+					class="crt-screen hardware-accelerated relative glow will-change-transform"
+					data-radius-sync
 					bind:this={arcadeScreen}
 				>
-					<div class="phosphor-decay rounded-[3vmin]"></div>
-					<div class="shadow-mask rounded-[3vmin]"></div>
-					<div class="interlace rounded-[3vmin]"></div>
+					<!-- Every layer inside #arcade-screen inherits the same radius -->
+					<div class="phosphor-decay rounded-arcade"></div>
+					<div class="shadow-mask rounded-arcade"></div>
+					<div class="interlace rounded-arcade"></div>
 
-					<!-- Update all screen effects to include border radius -->
-					<div class="screen-reflection rounded-[3vmin]"></div>
-					<div class="screen-glare rounded-[3vmin]"></div>
+					<!-- Update all screen effects to include unified radius -->
+					<div class="screen-reflection rounded-arcade"></div>
+					<div class="screen-glare rounded-arcade"></div>
 
-					<div class="glow-effect rounded-[3vmin]"></div>
+					<div class="glow-effect rounded-arcade"></div>
 
 					{#if currentScreen === 'main'}
 						<!-- Persistent Blank CRT Monitor Background -->
 						<div
 							id="blank-monitor-background"
-							class="absolute inset-0 blank-crt-monitor"
+							class="absolute inset-0 blank-crt-monitor rounded-arcade"
 							style="z-index: 1;"
 						></div>
 
@@ -899,6 +902,7 @@
 							<div class="mt-6">
 								<ArcadeCtaButton />
 							</div>
+
 							<div
 								id="insert-concept"
 								class="text-center mt-3 animate-opacity"
@@ -912,22 +916,22 @@
 					{/if}
 
 					<div
-						class="screen-glass-container rounded-[3vmin] hardware-accelerated"
+						class="screen-glass-container rounded-arcade hardware-accelerated"
 						style="z-index: 3;"
 					>
-						<div class="screen-glass-outer rounded-[3vmin]"></div>
-						<div class="screen-glass-inner rounded-[3vmin]"></div>
-						<div class="screen-glass-reflection rounded-[3vmin]"></div>
-						<div class="screen-glass-edge rounded-[3vmin]"></div>
-						<div class="screen-glass-smudges rounded-[3vmin]"></div>
-						<div class="screen-glass-dust rounded-[3vmin]"></div>
-						<div class="screen-glass-specular rounded-[3vmin]"></div>
-						<div class="screen-internal-reflection rounded-[3vmin]"></div>
+						<div class="screen-glass-outer rounded-arcade"></div>
+						<div class="screen-glass-inner rounded-arcade"></div>
+						<div class="screen-glass-reflection rounded-arcade"></div>
+						<div class="screen-glass-edge rounded-arcade"></div>
+						<div class="screen-glass-smudges rounded-arcade"></div>
+						<div class="screen-glass-dust rounded-arcade"></div>
+						<div class="screen-glass-specular rounded-arcade"></div>
+						<div class="screen-internal-reflection rounded-arcade"></div>
 					</div>
 
 					<div
 						id="scanline-overlay"
-						class="absolute inset-0 pointer-events-none rounded-[3vmin]"
+						class="absolute inset-0 pointer-events-none rounded-arcade"
 						style="z-index: 4;"
 					></div>
 				</div>
@@ -1087,6 +1091,60 @@
 		transform-style: preserve-3d;
 		overflow: hidden;
 	}
+
+	/* ==========================================================================
+	   Rounded Corner Sync (single source of truth for all inner layers)
+	   ========================================================================== */
+
+	/* Use the existing variable as the canonical radius */
+	:root {
+		/* already present: --border-radius */
+	}
+
+	/* Make the radius enforceable at the container level */
+	#arcade-screen[data-radius-sync] {
+		/* Ensure the container itself has the canonical radius */
+		border-radius: var(--border-radius);
+		/* Strong clipping for children including blend/blur layers */
+		overflow: hidden;
+
+		/* GPU-safe clip to avoid subpixel bleed */
+		clip-path: inset(0 round var(--border-radius));
+		-webkit-clip-path: inset(0 round var(--border-radius));
+
+		/* Helps Safari/WebKit clip certain composited effects reliably */
+		-webkit-mask-image: radial-gradient(circle at 50% 50%, #000 70%, #000 71%);
+		-webkit-mask-composite: source-over;
+	}
+
+	/* Any element meant to match the screen’s radius just opts into this */
+	.rounded-arcade {
+		border-radius: var(--border-radius) !important;
+		overflow: hidden; /* prevent subtle corners from peeking through */
+	}
+
+	/* Safety net: the most common layers inside #arcade-screen inherit radius */
+	#arcade-screen[data-radius-sync]
+		:where(
+			.blank-crt-monitor,
+			.phosphor-decay,
+			.shadow-mask,
+			.interlace,
+			.screen-reflection,
+			.screen-glare,
+			.glow-effect,
+			.screen-glass-container,
+			.screen-glass-container > div,
+			#scanline-overlay
+		) {
+		border-radius: inherit;
+	}
+
+	/* Ensure the container actually provides the “inherit” value */
+	#arcade-screen[data-radius-sync] {
+		border-radius: var(--border-radius);
+	}
+
 	/* ==========================================================================
    Blank CRT Monitor Background - Starfield Ready
    ========================================================================== */
@@ -1815,7 +1873,7 @@
 		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.0675) 51%);
 		background-size: 100% 4px;
 		animation: scanline 0.2s linear infinite;
-		border-radius: calc(var(--border-radius) - 0.5vmin);
+		border-radius: inherit;
 		z-index: 25;
 	}
 
@@ -2158,9 +2216,9 @@
 	:global(html.light) .cabinet-background {
 		background: linear-gradient(
 			45deg,
-			rgba(140, 140, 140, 0.5) 0%,
-			rgba(180, 180, 180, 0.5) 50%,
-			rgba(140, 140, 140, 0.5) 100%
+			rgba(240, 240, 240, 0.2) 0%,
+			rgba(250, 250, 250, 0.2) 50%,
+			rgba(240, 240, 240, 0.2) 100%
 		);
 		mix-blend-mode: multiply;
 	}

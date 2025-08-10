@@ -10,11 +10,10 @@
 	import { browser } from '$app/environment';
 	import { get } from 'svelte/store';
 	import {
-		BenchmarkType,
+		BenchmarkType as ImportedBenchmarkType,
 		PerformanceBenchmark,
 		benchmarkResultsStore
 	} from '$lib/utils/performance-benchmarking';
-	import { performanceTestRunner } from '$lib/utils/performance-test-runner';
 
 	// UNIFIED MEMORY MANAGER IMPORTS - Replacing fragmented system
 	import {
@@ -28,6 +27,17 @@
 		type MemoryEvent
 	} from '$lib/utils/memory-manager';
 
+	const BT =
+		ImportedBenchmarkType ??
+		({
+			FPS: 0,
+			MEMORY: 1,
+			RENDERING: 2
+		} as const); // SSR-safe fallback
+
+	// Safe label map for UI (prevents `.FPS` on undefined)
+	const LABELS: { FPS: string } = { FPS: 'FPS' };
+
 	// **SSR SAFETY**: Safe store access with defaults
 	$: safeObjectPoolStats = $objectPoolStatsStore || {
 		utilizationRate: 0,
@@ -37,17 +47,18 @@
 		objectsReused: 0,
 		reuseRatio: 0,
 		estimatedMemorySaved: 0,
-		poolName: 'Stars',
-		poolType: 'Star'
+		// Generic fallbacks
+		poolName: 'visual-effects',
+		poolType: 'object'
 	};
 
 	$: safeMemoryUsage = $memoryUsageStore || 0;
 	$: safeFPS = $fpsStore || 60;
 	$: safeDeviceCapabilities = $deviceCapabilities || {
 		tier: 'medium',
-		maxStars: 200,
+		maxEffectUnits: 200, // generic budget hint
 		effectsLevel: 'normal',
-		performance: { targetFPS: 60 }
+		performance: { targetFPS: 60 } // keep for UI default
 	};
 
 	// Safe access to unified memory stores
@@ -102,7 +113,7 @@
 	// Benchmark running state
 	let isBenchmarkRunning = false;
 	let benchmarkProgress = 0;
-	let benchmarkType = BenchmarkType.FPS;
+	let benchmarkType: number = BT.FPS; // use the guarded enum
 	let benchmarkDuration = 5000;
 	let currentBenchmark: PerformanceBenchmark | null = null;
 
@@ -342,7 +353,7 @@
 		benchmarkProgress = 0;
 
 		// Run all benchmark types sequentially
-		const benchmarkTypes = [BenchmarkType.FPS, BenchmarkType.MEMORY, BenchmarkType.RENDERING];
+		const benchmarkTypes = [BT.FPS, BT.MEMORY, BT.RENDERING];
 		let currentIndex = 0;
 
 		function runNextBenchmark() {
@@ -368,6 +379,20 @@
 		}
 
 		runNextBenchmark();
+	}
+
+	function getMaxUnits(dc: unknown): number {
+		const cap = dc as Record<string, unknown>;
+		const fromEffect =
+			typeof cap?.maxEffectUnits === 'number' ? (cap as any).maxEffectUnits : undefined;
+		const fromLegacy = typeof cap?.maxStars === 'number' ? (cap as any).maxStars : undefined;
+		const fromLegacyObj =
+			typeof (cap as any)?.starfield?.maxUnits === 'number'
+				? (cap as any).starfield.maxUnits
+				: undefined;
+
+		const val = fromEffect ?? fromLegacy ?? fromLegacyObj;
+		return typeof val === 'number' ? val : 0;
 	}
 
 	function startPerformanceTests() {
@@ -781,7 +806,7 @@
 						<div>
 							Device: {safeDeviceCapabilities.isMobile ? 'Mobile' : 'Desktop'} ({safeDeviceCapabilities.tier})
 						</div>
-						<div>Max Stars: {safeDeviceCapabilities.maxStars}</div>
+						<div>Max Instances: {safeDeviceCapabilities.maxEffectUnits ?? 0}</div>
 						<div>Effects: {safeDeviceCapabilities.effectsLevel}</div>
 						<div>
 							Hardware Acceleration: {safeDeviceCapabilities.useHardwareAcceleration ? 'Yes' : 'No'}
@@ -797,9 +822,10 @@
 					<div class="pool-metrics">
 						<div class="pool-header">
 							<span
-								>{safeObjectPoolStats.poolName || 'Stars'} Pool ({safeObjectPoolStats.poolType ||
-									'Star'})</span
+								>{safeObjectPoolStats.poolName || 'visual-effects'} Pool ({safeObjectPoolStats.poolType ||
+									'object'})</span
 							>
+
 							<button class="refresh-btn" on:click={forceStatsRefresh} title="Refresh Stats"
 								>⟳</button
 							>
@@ -921,9 +947,9 @@
 					<div class="benchmark-type-selector">
 						<label>Type:</label>
 						<select bind:value={benchmarkType} disabled={isBenchmarkRunning}>
-							<option value={BenchmarkType.FPS}>FPS</option>
-							<option value={BenchmarkType.MEMORY}>Memory</option>
-							<option value={BenchmarkType.RENDERING}>Rendering</option>
+							<option value={BT.FPS}>FPS</option>
+							<option value={BT.MEMORY}>Memory</option>
+							<option value={BT.RENDERING}>Rendering</option>
 						</select>
 					</div>
 

@@ -1,6 +1,18 @@
 // src/lib/utils/device-performance.ts
+/**
+ * CHANGELOG (2025-08-09)
+ * - Removed star-field–specific semantics and renamed core limits to generic "effect units".
+ * - Introduced VisualEffectsCapabilities for future visual/particle systems.
+ * - Kept legacy compatibility surfaces:
+ *     - `DeviceCapabilities.maxStars` (alias of `maxEffectUnits`)
+ *     - `DeviceCapabilities.starfield` (typed generically)
+ *   These are annotated with: // Legacy compatibility: no star-field specifics
+ * - Updated comments and guidance to be generic (no references to "stars" beyond legacy shims).
+ * - Ensured all internal updates mirror values to both generic and legacy fields to avoid breakage.
+ */
+
 import { browser } from '$app/environment';
-import { writable, get } from 'svelte/store';
+import { writable } from 'svelte/store';
 import {
 	memoryManager,
 	currentMemoryInfo,
@@ -43,20 +55,29 @@ interface NavigatorWithDeviceMemory extends Navigator {
 	deviceMemory?: number;
 }
 
-export interface StarfieldCapabilities {
+type VisualQuality = 'minimal' | 'reduced' | 'normal';
+
+export interface VisualEffectsCapabilities {
 	enabled: boolean;
-	maxStars: number;
+	maxUnits: number;
 	animationSpeed: number;
-	qualityLevel: 'minimal' | 'reduced' | 'normal';
+	qualityLevel: VisualQuality;
 }
+
+/**
+ * Legacy compatibility: no star-field specifics
+ * Alias retained so downstream imports/types do not break.
+ */
+export type StarfieldCapabilities = VisualEffectsCapabilities; // Legacy compatibility: no star-field specifics
 
 export interface DeviceCapabilities {
 	// Core performance tier
 	tier: 'high' | 'medium' | 'low';
 
 	// General settings
-	maxStars: number;
-	effectsLevel: 'minimal' | 'reduced' | 'normal';
+	maxEffectUnits: number; // Generic limit for visual/particle units
+	maxStars: number; // Legacy compatibility: no star-field specifics (mirrors maxEffectUnits)
+	effectsLevel: VisualQuality;
 	useHardwareAcceleration: boolean;
 
 	// Animation settings
@@ -65,17 +86,17 @@ export interface DeviceCapabilities {
 	animateInBackground: boolean; // Continue animations when tab not focused
 
 	// Rendering settings
-	useCanvas: boolean; // Use canvas instead of DOM for stars
+	useCanvas: boolean; // Prefer Canvas for visual effects
 	useShadersIfAvailable: boolean;
 
-	// Visual effects
+	// Visual effects toggles (generic)
 	enableBlur: boolean;
 	enableShadows: boolean;
 	enableReflections: boolean;
 	enableParallax: boolean;
 	enablePulse: boolean;
 
-	// CRT effects
+	// CRT-style effects (generic)
 	enableScanlines: boolean;
 	enablePhosphorDecay: boolean;
 	enableInterlace: boolean;
@@ -113,8 +134,8 @@ export interface DeviceCapabilities {
 	objectPoolSize: number; // Maximum size of the object pool
 	objectPoolMargin: number; // Extra capacity percentage (e.g., 0.2 = 20% extra)
 
-	// Starfield-specific capabilities
-	starfield: StarfieldCapabilities;
+	// Generic visual/particle system capabilities
+	starfield: VisualEffectsCapabilities; // Legacy compatibility: no star-field specifics
 }
 
 export interface RenderingCapabilities {
@@ -129,12 +150,15 @@ export interface RenderingCapabilities {
 }
 
 export interface MemoryCapabilities {
-	maxStars: number;
+	maxEffectUnits: number;
 	maxTrailLength: number;
 	maxSectors: number;
 	useTypedArrays: boolean;
 	enableGarbageCollection: boolean;
 	enableMemoryMonitoring: boolean;
+
+	/** Legacy compatibility: mirrors maxEffectUnits when needed */
+	maxStars?: number; // Legacy compatibility: no star-field specifics
 }
 
 export interface PerformanceCapabilities {
@@ -165,10 +189,18 @@ export interface ObjectPoolStats {
 	poolType: string;
 }
 
-// Default high-end capability settings
-const highCapabilities: DeviceCapabilities = {
+/** Utility to mirror generic values into legacy shims */
+function mirrorLegacy(caps: DeviceCapabilities): DeviceCapabilities {
+	// Keep legacy fields in sync without introducing star-field semantics
+	caps.maxStars = caps.maxEffectUnits;
+	return caps;
+}
+
+// Default high-end capability settings (generic)
+const highCapabilities: DeviceCapabilities = mirrorLegacy({
 	tier: 'high',
-	maxStars: 60,
+	maxEffectUnits: 60,
+	maxStars: 60, // Legacy compatibility: no star-field specifics
 	effectsLevel: 'normal',
 	useHardwareAcceleration: true,
 	frameSkip: 0,
@@ -193,9 +225,9 @@ const highCapabilities: DeviceCapabilities = {
 	isDesktop: true,
 	estimatedRAM: 'high',
 	gpuTier: 'high',
-	prioritizeMainContent: false, // No need to prioritize on high-end
-	prioritizeInteractivity: false, // No need to prioritize on high-end
-	useDeferredLoading: false, // No need to defer on high-end
+	prioritizeMainContent: false,
+	prioritizeInteractivity: false,
+	useDeferredLoading: false,
 	preferReducedMotion: false,
 	hasBatteryIssues: false,
 	hasGPUAcceleration: true,
@@ -203,21 +235,22 @@ const highCapabilities: DeviceCapabilities = {
 	preventIOSOverscrollFreezing: false,
 	useIOSCompatibleEffects: false,
 	useObjectPooling: true,
-	objectPoolSize: 400, // 300 stars with room for more
-	objectPoolMargin: 0.2, // 20% extra capacity
+	objectPoolSize: 400, // Headroom for generic visual units
+	objectPoolMargin: 0.2,
 	starfield: {
 		enabled: true,
-		maxStars: 60,
+		maxUnits: 60,
 		animationSpeed: 1.0,
 		qualityLevel: 'normal'
 	}
-};
+});
 
-// Default medium capability settings
-const mediumCapabilities: DeviceCapabilities = {
+// Default medium capability settings (generic)
+const mediumCapabilities: DeviceCapabilities = mirrorLegacy({
 	...highCapabilities,
 	tier: 'medium',
-	maxStars: 40,
+	maxEffectUnits: 40,
+	maxStars: 40, // Legacy compatibility
 	effectsLevel: 'reduced',
 	frameSkip: 1, // Render every other frame
 	updateInterval: 32, // ~30fps
@@ -226,27 +259,28 @@ const mediumCapabilities: DeviceCapabilities = {
 	enablePhosphorDecay: false,
 	estimatedRAM: 'medium',
 	gpuTier: 'medium',
-	prioritizeMainContent: true, // Prioritize main content on medium devices
-	prioritizeInteractivity: true, // Prioritize interactive elements on medium devices
-	useDeferredLoading: true, // Use deferred loading on medium devices
-	enableScanlines: false, // Disable complex effects
-	animateInBackground: false, // Don't animate in background to save resources
+	prioritizeMainContent: true,
+	prioritizeInteractivity: true,
+	useDeferredLoading: true,
+	enableScanlines: false,
+	animateInBackground: false,
 	useObjectPooling: true,
-	objectPoolSize: 200, // Smaller pool for medium devices
-	objectPoolMargin: 0.3, // 30% extra capacity for more flexibility
+	objectPoolSize: 200,
+	objectPoolMargin: 0.3,
 	starfield: {
 		enabled: true,
-		maxStars: 40,
+		maxUnits: 40,
 		animationSpeed: 0.8,
 		qualityLevel: 'reduced'
 	}
-};
+});
 
-// Default low capability settings
-const lowCapabilities: DeviceCapabilities = {
+// Default low capability settings (generic)
+const lowCapabilities: DeviceCapabilities = mirrorLegacy({
 	...mediumCapabilities,
 	tier: 'low',
-	maxStars: 20,
+	maxEffectUnits: 20,
+	maxStars: 20, // Legacy compatibility
 	effectsLevel: 'minimal',
 	frameSkip: 2, // Render every third frame
 	updateInterval: 50, // ~20fps
@@ -259,26 +293,27 @@ const lowCapabilities: DeviceCapabilities = {
 	enableScanlines: false,
 	estimatedRAM: 'low',
 	gpuTier: 'low',
-	prioritizeMainContent: true, // Definitely prioritize main content on low-end devices
-	prioritizeInteractivity: true, // Definitely prioritize interactive elements on low-end devices
-	useDeferredLoading: true, // Definitely use deferred loading on low-end devices
-	hasGPUAcceleration: false, // Assume no GPU acceleration on low-end devices
+	prioritizeMainContent: true,
+	prioritizeInteractivity: true,
+	useDeferredLoading: true,
+	hasGPUAcceleration: false,
 	useObjectPooling: true,
-	objectPoolSize: 100, // Even smaller pool for low-end devices
-	objectPoolMargin: 0.5, // 50% extra capacity to avoid creating new objects
+	objectPoolSize: 100,
+	objectPoolMargin: 0.5,
 	starfield: {
 		enabled: true,
-		maxStars: 25,
+		maxUnits: 25,
 		animationSpeed: 0.5,
 		qualityLevel: 'minimal'
 	}
-};
+});
 
-// Special iOS optimized settings for iPhone and similar devices
-const iosOptimizedCapabilities: DeviceCapabilities = {
+// Special iOS optimized settings (generic)
+const iosOptimizedCapabilities: DeviceCapabilities = mirrorLegacy({
 	...mediumCapabilities,
 	tier: 'medium',
-	maxStars: 30,
+	maxEffectUnits: 30,
+	maxStars: 30, // Legacy compatibility
 	frameSkip: 1,
 	useCanvas: true,
 	useShadersIfAvailable: false,
@@ -291,15 +326,15 @@ const iosOptimizedCapabilities: DeviceCapabilities = {
 	useIOSCompatibleEffects: true,
 	enableParallax: false,
 	useObjectPooling: true,
-	objectPoolSize: 150, // iOS-specific pool size
-	objectPoolMargin: 0.3, // 30% extra capacity
+	objectPoolSize: 150,
+	objectPoolMargin: 0.3,
 	starfield: {
 		enabled: true,
-		maxStars: 30,
+		maxUnits: 30,
 		animationSpeed: 0.7,
 		qualityLevel: 'reduced'
 	}
-};
+});
 
 /**
  * Fast GPU acceleration check - avoids overhead of WebGL extension queries
@@ -387,8 +422,7 @@ function getQuickCapabilitiesEstimate(): DeviceCapabilities {
 
 		// Apply iOS-specific optimizations if needed
 		if (isIOS) {
-			// Special handling for iOS devices
-			capabilities = {
+			capabilities = mirrorLegacy({
 				...capabilities,
 				...iosOptimizedCapabilities,
 				isIOS: true,
@@ -402,14 +436,15 @@ function getQuickCapabilitiesEstimate(): DeviceCapabilities {
 				preventIOSOverscrollFreezing: true,
 				optimizeForIOSSafari: true,
 				useIOSCompatibleEffects: true
-			};
+			});
 
 			// Additional optimizations for older iOS devices
 			if (/(iPhone [5-8]|iPad [1-4]|iPod)/.test(ua)) {
 				capabilities.tier = 'low';
-				capabilities.maxStars = 15;
+				capabilities.maxEffectUnits = 15;
+				capabilities.maxStars = 15; // Legacy compatibility
 				capabilities.frameSkip = 2;
-				capabilities.starfield.maxStars = 15;
+				capabilities.starfield.maxUnits = 15; // Legacy compatibility object used generically
 				capabilities.starfield.animationSpeed = 0.4;
 				capabilities.starfield.qualityLevel = 'minimal';
 			}
@@ -423,7 +458,7 @@ function getQuickCapabilitiesEstimate(): DeviceCapabilities {
 			capabilities.isDesktop = false;
 			capabilities.devicePixelRatio = pixelRatio;
 
-			// Less effects on Android by default
+			// Fewer complex effects on Android by default
 			capabilities.enableInterlace = false;
 			capabilities.enableChromaticAberration = false;
 			capabilities.enablePhosphorDecay = false;
@@ -431,12 +466,13 @@ function getQuickCapabilitiesEstimate(): DeviceCapabilities {
 			// Reduce effects on older Android versions
 			if (/Android [1-7]\./.test(ua)) {
 				capabilities.tier = 'low';
-				capabilities.maxStars = 15;
+				capabilities.maxEffectUnits = 15;
+				capabilities.maxStars = 15; // Legacy compatibility
 				capabilities.frameSkip = 2;
 				capabilities.enableScanlines = false;
 				capabilities.enableBlur = false;
 				capabilities.enableShadows = false;
-				capabilities.starfield.maxStars = 15;
+				capabilities.starfield.maxUnits = 15;
 				capabilities.starfield.animationSpeed = 0.4;
 				capabilities.starfield.qualityLevel = 'minimal';
 			}
@@ -454,7 +490,7 @@ function getQuickCapabilitiesEstimate(): DeviceCapabilities {
 		}
 
 		// Return the optimized capabilities
-		return capabilities;
+		return mirrorLegacy(capabilities);
 	} catch (e) {
 		// Fallback to medium capabilities if any error occurs
 		return mediumCapabilities;
@@ -516,35 +552,40 @@ async function determineDeviceCapabilities(): Promise<DeviceCapabilities> {
 					// Update capabilities based on benchmark score
 					if (benchmarkScore < 0.5) {
 						// Lower performance than initially detected
-						deviceCapabilities.update((caps) => ({
-							...caps,
-							tier: 'low',
-							frameSkip: Math.max(1, caps.frameSkip),
-							enableBlur: false,
-							enableShadows: false,
-							maxStars: Math.min(caps.maxStars, 25),
-							starfield: {
-								...caps.starfield,
-								maxStars: Math.min(caps.starfield.maxStars, 25),
-								animationSpeed: caps.starfield.animationSpeed * 0.8,
-								qualityLevel: 'minimal'
-							}
-						}));
+						deviceCapabilities.update((caps) =>
+							mirrorLegacy({
+								...caps,
+								tier: 'low',
+								frameSkip: Math.max(1, caps.frameSkip),
+								enableBlur: false,
+								enableShadows: false,
+								maxEffectUnits: Math.min(caps.maxEffectUnits, 25),
+								maxStars: Math.min(caps.maxEffectUnits, 25), // Legacy compatibility
+								starfield: {
+									...caps.starfield,
+									maxUnits: Math.min(caps.starfield.maxUnits, 25),
+									animationSpeed: caps.starfield.animationSpeed * 0.8,
+									qualityLevel: 'minimal'
+								}
+							})
+						);
 					} else if (benchmarkScore >= 0.8 && quickCapabilities.tier !== 'high') {
 						// Better performance than initially detected
-						deviceCapabilities.update((caps) => ({
-							...caps,
-							tier: 'medium', // Only upgrade to medium, not high
-							frameSkip: Math.min(caps.frameSkip, 1),
-							starfield: {
-								...caps.starfield,
-								animationSpeed: Math.min(caps.starfield.animationSpeed * 1.2, 1.0),
-								qualityLevel:
-									caps.starfield.qualityLevel === 'minimal'
-										? 'reduced'
-										: caps.starfield.qualityLevel
-							}
-						}));
+						deviceCapabilities.update((caps) =>
+							mirrorLegacy({
+								...caps,
+								tier: 'medium', // Only upgrade to medium, not high
+								frameSkip: Math.min(caps.frameSkip, 1),
+								starfield: {
+									...caps.starfield,
+									animationSpeed: Math.min(caps.starfield.animationSpeed * 1.2, 1.0),
+									qualityLevel:
+										caps.starfield.qualityLevel === 'minimal'
+											? 'reduced'
+											: caps.starfield.qualityLevel
+								}
+							})
+						);
 					}
 				}
 			} catch (e) {
@@ -600,8 +641,7 @@ export function setupPerformanceMonitoring() {
 			// Initialize capabilities if not already done
 			initializeCapabilities();
 
-			// Use lower frequency monitoring interval for memory
-			// Use unified memory monitoring system
+			// Use lower frequency monitoring interval for memory (generic)
 			monitoringInterval = window.setInterval(() => {
 				try {
 					// Use unified memory manager for memory checks
@@ -662,10 +702,12 @@ export function setupEventListeners() {
 			try {
 				if (document.hidden) {
 					// Pause animations when tab not visible
-					deviceCapabilities.update((caps) => ({
-						...caps,
-						animateInBackground: false
-					}));
+					deviceCapabilities.update((caps) =>
+						mirrorLegacy({
+							...caps,
+							animateInBackground: false
+						})
+					);
 				} else {
 					// Resume normal operations when tab is visible again
 					setTimeout(() => {

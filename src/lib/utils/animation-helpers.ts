@@ -1,4 +1,8 @@
-// File: /src/lib/utils/animation-helpers.ts
+// src/lib/utils/animation-helpers.ts
+// CHANGELOG (2025-08-09)
+// - Verified this module had no star-field specifics; left APIs intact.
+// - Minor safety: guard requestAnimationFrame usage behind `browser` to avoid SSR surprises.
+// - Kept function names and signatures unchanged for compatibility.
 
 import { browser } from '$app/environment';
 
@@ -16,6 +20,12 @@ export function createThrottledRAF<T extends (...args: any[]) => void>(
 
 	const throttled = ((...args: any[]) => {
 		lastArgs = args;
+
+		// If not in the browser, just call immediately (SSR-safe)
+		if (!browser) {
+			callback(...lastArgs);
+			return;
+		}
 
 		if (!ticking) {
 			ticking = true;
@@ -136,7 +146,7 @@ export function optimizeCanvasRendering(ctx: CanvasRenderingContext2D, drawCallb
  * Detects device performance capabilities
  */
 export function detectDevicePerformance() {
-	if (!browser) return { tier: 'medium', frameSkip: 0 };
+	if (!browser) return { tier: 'medium' as const, frameSkip: 0 };
 
 	// Check for low-end devices
 	const isLowEnd =
@@ -153,10 +163,10 @@ export function detectDevicePerformance() {
 		(!(navigator as any).deviceMemory || (navigator as any).deviceMemory >= 8);
 
 	if (isLowEnd) {
-		return { tier: 'low', frameSkip: 2 }; // Skip every 2nd frame on low-end devices
+		return { tier: 'low' as const, frameSkip: 2 }; // Skip every 2nd frame on low-end devices
 	} else if (isHighEnd) {
-		return { tier: 'high', frameSkip: 0 };
+		return { tier: 'high' as const, frameSkip: 0 };
 	} else {
-		return { tier: 'medium', frameSkip: 0 };
+		return { tier: 'medium' as const, frameSkip: 0 };
 	}
 }

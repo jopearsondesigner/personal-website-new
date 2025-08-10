@@ -1,6 +1,6 @@
 // src/lib/utils/memory-manager.ts
 import { browser } from '$app/environment';
-import { writable, derived, get, type Writable } from 'svelte/store';
+import { writable, derived, type Writable } from 'svelte/store';
 
 /**
  * Memory usage information interface
@@ -34,7 +34,7 @@ export interface MemoryEvent {
 }
 
 /**
- * Object pool statistics interface
+ * Object pool statistics interface (generic)
  */
 export interface ObjectPoolStats {
 	totalCapacity: number;
@@ -43,9 +43,9 @@ export interface ObjectPoolStats {
 	objectsCreated: number;
 	objectsReused: number;
 	reuseRatio: number;
-	estimatedMemorySaved: number;
+	estimatedMemorySaved: number; // in KB (approx)
 	poolName: string;
-	poolType: string;
+	poolType: string; // e.g., "Effect", "Geometry", "Generic"
 }
 
 /**
@@ -53,15 +53,15 @@ export interface ObjectPoolStats {
  */
 export interface MemoryOptimizationConfig {
 	enableAggressiveGC: boolean;
-	maxMemoryUsage: number;
-	gcThreshold: number;
+	maxMemoryUsage: number; // MB guardrail (advisory)
+	gcThreshold: number; // 0..1 (usagePercentage) to hint GC
 	hibernationEnabled: boolean;
-	hibernationDelay: number;
+	hibernationDelay: number; // ms
 	poolSizeLimit: number;
 	enableMemoryWarnings: boolean;
 	logMemoryStats: boolean;
-	monitoringInterval: number;
-	batchUpdateInterval: number;
+	monitoringInterval: number; // ms
+	batchUpdateInterval: number; // ms
 }
 
 /**
@@ -78,7 +78,7 @@ export interface PerformanceMetrics {
 /**
  * Unified Memory Manager
  * Single source of truth for all memory management operations
- * Eliminates store conflicts and reduces monitoring overhead
+ * Generalized (no star-field specific logic)
  */
 class MemoryManager {
 	// Configuration
@@ -105,7 +105,6 @@ class MemoryManager {
 	private monitoringRAFId: number | null = null;
 	private batchUpdateTimer: ReturnType<typeof setTimeout> | null = null;
 	private lastMonitorTime = 0;
-	private lastBatchUpdate = 0;
 
 	// Cleanup management
 	private cleanupTasks: Array<() => void> = [];
@@ -118,7 +117,6 @@ class MemoryManager {
 
 	// Performance optimization flags
 	private isPageHidden = false;
-	private isLowPowerMode = false;
 	private lastGCTime = 0;
 	private gcCooldownPeriod = 5000;
 
@@ -146,8 +144,8 @@ class MemoryManager {
 			poolSizeLimit: 1000,
 			enableMemoryWarnings: true,
 			logMemoryStats: false,
-			monitoringInterval: 2000, // 2 seconds between checks
-			batchUpdateInterval: 500, // Batch store updates every 500ms
+			monitoringInterval: 2000, // 2 seconds
+			batchUpdateInterval: 500, // half second
 			...config
 		};
 
@@ -160,7 +158,6 @@ class MemoryManager {
 			updateTime: 0
 		};
 
-		// Browser-only initialization
 		if (browser) {
 			this.safeInitialize();
 		}
@@ -173,12 +170,11 @@ class MemoryManager {
 		if (!browser || this.isInitialized) return;
 
 		try {
-			// Check if memory API is available
-			if (!this.isMemoryAPIAvailable()) {
-				console.warn('Memory API not available - using fallback monitoring');
+			if (!this.isMemoryAPIAvailable() && this.config.logMemoryStats) {
+				console.warn('Memory API not available - using fallback estimation');
 			}
 
-			// Initialize object pools
+			// Initialize generic/default pools (no star-field specifics)
 			this.initializeDefaultPools();
 
 			// Setup event listeners
@@ -187,13 +183,13 @@ class MemoryManager {
 			// Start monitoring
 			this.startMonitoring();
 
-			// Initialize batch update system
+			// Start batch updates
 			this.initializeBatchUpdates();
 
 			this.isInitialized = true;
 
 			if (this.config.logMemoryStats) {
-				console.log('🧠 MemoryManager initialized successfully');
+				console.log('🧠 MemoryManager initialized');
 			}
 		} catch (error) {
 			console.error('Error initializing MemoryManager:', error);
@@ -213,34 +209,24 @@ class MemoryManager {
 	}
 
 	/**
-	 * Initialize default object pools
+	 * Initialize default object pools (generic)
 	 */
 	private initializeDefaultPools(): void {
-		// Create star objects pool
+		// Generic effect object pool
 		this.createObjectPool(
-			'stars',
+			'visual-effects',
 			() => ({
-				x: 0,
-				y: 0,
-				z: 0,
-				prevX: 0,
-				prevY: 0,
 				inUse: false,
 				reset() {
-					this.x = 0;
-					this.y = 0;
-					this.z = 0;
-					this.prevX = 0;
-					this.prevY = 0;
 					this.inUse = false;
 				}
 			}),
-			300 // Initial capacity
+			200
 		);
 
-		// Create render batch pool
+		// Render batch pool (generic typed arrays kept for reuse)
 		this.createObjectPool(
-			'renderBatches',
+			'render-batches',
 			() => ({
 				positions: new Float32Array(100),
 				colors: new Uint8Array(400),
@@ -248,27 +234,24 @@ class MemoryManager {
 				count: 0,
 				reset() {
 					this.count = 0;
-					// Keep typed arrays for reuse
 				}
 			}),
 			10
 		);
 
-		// Create performance snapshot pool
+		// Performance snapshot pool (generic)
 		this.createObjectPool(
-			'performanceSnapshots',
+			'perf-snapshots',
 			() => ({
 				timestamp: 0,
 				fps: 0,
 				frameTime: 0,
 				memoryUsage: 0,
-				starCount: 0,
 				reset() {
 					this.timestamp = 0;
 					this.fps = 0;
 					this.frameTime = 0;
 					this.memoryUsage = 0;
-					this.starCount = 0;
 				}
 			}),
 			20
@@ -281,22 +264,19 @@ class MemoryManager {
 	private setupEventListeners(): void {
 		if (!browser) return;
 
-		// Visibility change handler
 		document.addEventListener('visibilitychange', this.handleVisibilityChange);
-
-		// Page unload cleanup
 		window.addEventListener('beforeunload', this.handlePageUnload);
 
 		// Memory pressure events (if supported)
 		if ('memory' in navigator && 'addEventListener' in (navigator as any).memory) {
 			try {
 				(navigator as any).memory.addEventListener('pressure', this.handleMemoryPressureEvent);
-			} catch (error) {
-				// Memory pressure events not supported
+			} catch {
+				/* ignore */
 			}
 		}
 
-		// Listen for custom memory events
+		// Custom events
 		window.addEventListener('memoryOptimization', this.handleMemoryOptimizationEvent);
 		window.addEventListener('memoryHibernation', this.handleMemoryHibernationEvent);
 	}
@@ -320,7 +300,6 @@ class MemoryManager {
 	 */
 	public stopMonitoring(): void {
 		if (!this.isMonitoring) return;
-
 		this.isMonitoring = false;
 
 		if (this.monitoringRAFId !== null) {
@@ -358,29 +337,19 @@ class MemoryManager {
 		if (!browser || this.isPageHidden) return;
 
 		try {
-			// Get current memory information
 			const memoryInfo = this.getCurrentMemoryInfo(timestamp);
 			if (!memoryInfo) return;
 
-			// Update current state
 			this.currentMemoryInfo = memoryInfo;
-
-			// Add to history
 			this.addToMemoryHistory(memoryInfo);
-
-			// Detect garbage collection
 			this.detectGarbageCollection(memoryInfo);
-
-			// Evaluate memory pressure
 			this.evaluateMemoryPressure(memoryInfo);
-
-			// Update performance metrics
 			this.updatePerformanceMetrics(timestamp);
 
-			// Schedule batched store updates
+			// Queue store updates (batched)
 			this.scheduleBatchedStoreUpdate();
 
-			// Perform cleanup if needed
+			// Perform periodic cleanup when necessary
 			this.performPeriodicCleanup(memoryInfo);
 		} catch (error) {
 			console.error('Error in monitoring check:', error);
@@ -411,9 +380,9 @@ class MemoryManager {
 					timestamp
 				};
 			} else {
-				// Fallback estimation based on object pools and DOM
+				// Fallback estimation
 				const estimatedUsage = this.estimateMemoryUsage();
-				const estimatedLimit = 512 * 1024 * 1024; // 512MB estimate
+				const estimatedLimit = 512 * 1024 * 1024; // 512MB
 
 				return {
 					usedJSHeapSize: estimatedUsage,
@@ -433,29 +402,23 @@ class MemoryManager {
 	}
 
 	/**
-	 * Estimate memory usage when Memory API is not available
+	 * Estimate memory usage when Memory API is not available (generic)
 	 */
 	private estimateMemoryUsage(): number {
 		let estimatedUsage = 0;
 
-		// Estimate from object pools
-		for (const [name, stats] of this.poolStats) {
-			// Rough estimate: 240 bytes per star object
-			if (name === 'stars') {
-				estimatedUsage += stats.activeObjects * 240;
-			}
-			// Other pools
-			else {
-				estimatedUsage += stats.activeObjects * 100;
-			}
+		// Estimate from object pools (assume ~160 bytes per pooled object on average)
+		for (const [, stats] of this.poolStats) {
+			const perObjectBytes = 160;
+			estimatedUsage += stats.activeObjects * perObjectBytes;
 		}
 
-		// Estimate DOM overhead
+		// Estimate DOM overhead very roughly
 		const elementCount = document.querySelectorAll('*').length;
-		estimatedUsage += elementCount * 100; // ~100 bytes per element
+		estimatedUsage += elementCount * 100; // ~100 bytes per element (very rough)
 
-		// Add base overhead
-		estimatedUsage += 10 * 1024 * 1024; // 10MB base
+		// Base overhead
+		estimatedUsage += 10 * 1024 * 1024; // 10MB baseline
 
 		return estimatedUsage;
 	}
@@ -465,23 +428,21 @@ class MemoryManager {
 	 */
 	private addToMemoryHistory(memoryInfo: MemoryInfo): void {
 		this.memoryHistory.push(memoryInfo);
-
 		if (this.memoryHistory.length > this.maxHistorySize) {
 			this.memoryHistory = this.memoryHistory.slice(-this.maxHistorySize);
 		}
 	}
 
 	/**
-	 * Detect garbage collection events
+	 * Detect garbage collection events (heuristic)
 	 */
 	private detectGarbageCollection(memoryInfo: MemoryInfo): boolean {
 		if (this.memoryHistory.length < 2) return false;
 
 		const previousInfo = this.memoryHistory[this.memoryHistory.length - 2];
 		const memoryDrop = previousInfo.usedJSHeapSize - memoryInfo.usedJSHeapSize;
-		const dropRatio = memoryDrop / previousInfo.usedJSHeapSize;
+		const dropRatio = memoryDrop / Math.max(previousInfo.usedJSHeapSize, 1);
 
-		// Significant drop suggests GC
 		const now = memoryInfo.timestamp;
 		if (dropRatio > 0.1 && now - this.lastGCTime > this.gcCooldownPeriod) {
 			this.lastGCTime = now;
@@ -504,121 +465,73 @@ class MemoryManager {
 	 * Evaluate memory pressure and take appropriate action
 	 */
 	private evaluateMemoryPressure(memoryInfo: MemoryInfo): void {
-		const usagePercentage = memoryInfo.usagePercentage;
-		let newPressure: MemoryPressure;
-
-		if (usagePercentage >= this.THRESHOLDS.CRITICAL_PRESSURE) {
-			newPressure = 'critical';
-		} else if (usagePercentage >= this.THRESHOLDS.HIGH_PRESSURE) {
-			newPressure = 'high';
-		} else if (usagePercentage >= this.THRESHOLDS.MEDIUM_PRESSURE) {
-			newPressure = 'medium';
-		} else {
-			newPressure = 'low';
-		}
+		const usage = memoryInfo.usagePercentage;
+		let newPressure: MemoryPressure =
+			usage >= this.THRESHOLDS.CRITICAL_PRESSURE
+				? 'critical'
+				: usage >= this.THRESHOLDS.HIGH_PRESSURE
+					? 'high'
+					: usage >= this.THRESHOLDS.MEDIUM_PRESSURE
+						? 'medium'
+						: 'low';
 
 		if (newPressure !== this.currentPressure) {
-			const previousPressure = this.currentPressure;
+			const prev = this.currentPressure;
 			this.currentPressure = newPressure;
 
-			// Emit pressure change event
 			this.emitMemoryEvent({
 				type: 'pressure',
 				timestamp: memoryInfo.timestamp,
 				memoryInfo,
 				severity:
 					newPressure === 'critical' ? 'critical' : newPressure === 'high' ? 'warning' : 'info',
-				details: `Memory pressure changed from ${previousPressure} to ${newPressure}`
+				details: `Memory pressure changed from ${prev} to ${newPressure}`
 			});
 
-			// Notify pressure listeners
 			this.notifyPressureListeners(newPressure);
-
-			// Take pressure-specific actions
 			this.handleMemoryPressure(newPressure, memoryInfo);
 		}
 	}
 
 	/**
-	 * Handle memory pressure with appropriate responses
+	 * Handle memory pressure with appropriate responses (generic)
 	 */
 	private handleMemoryPressure(pressure: MemoryPressure, memoryInfo: MemoryInfo): void {
 		switch (pressure) {
 			case 'medium':
-				this.handleMediumPressure(memoryInfo);
+				this.cleanupObjectPools();
+				this.emitCustomEvent('memoryOptimization', {
+					type: 'reduce_quality',
+					factor: 0.85,
+					reason: 'medium_pressure'
+				});
+				if (this.config.logMemoryStats) console.log('🟡 Medium memory pressure');
 				break;
 			case 'high':
-				this.handleHighPressure(memoryInfo);
+				this.cleanupObjectPools();
+				this.clearOldHistory();
+				this.requestGarbageCollection();
+				this.emitCustomEvent('memoryOptimization', {
+					type: 'reduce_effects',
+					factor: 0.6,
+					reason: 'high_pressure'
+				});
+				if (this.config.logMemoryStats) console.log('🟠 High memory pressure');
 				break;
 			case 'critical':
-				this.handleCriticalPressure(memoryInfo);
+				this.performEmergencyCleanup();
+				this.requestGarbageCollection(true);
+				this.emitCustomEvent('memoryOptimization', {
+					type: 'emergency_mode',
+					factor: 0.3,
+					reason: 'critical_pressure'
+				});
+				console.error('🔴 Critical memory pressure');
 				break;
 			case 'low':
-				// Allow recovery
+				// no-op
 				break;
 		}
-	}
-
-	/**
-	 * Handle medium memory pressure
-	 */
-	private handleMediumPressure(memoryInfo: MemoryInfo): void {
-		// Clean object pools
-		this.cleanupObjectPools();
-
-		// Emit optimization event
-		this.emitCustomEvent('memoryOptimization', {
-			type: 'reduce_quality',
-			factor: 0.8,
-			reason: 'medium_pressure'
-		});
-
-		if (this.config.logMemoryStats) {
-			console.log('🟡 Medium memory pressure - gentle optimization');
-		}
-	}
-
-	/**
-	 * Handle high memory pressure
-	 */
-	private handleHighPressure(memoryInfo: MemoryInfo): void {
-		// More aggressive cleanup
-		this.cleanupObjectPools();
-		this.clearOldHistory();
-
-		// Request garbage collection
-		this.requestGarbageCollection();
-
-		// Emit optimization event
-		this.emitCustomEvent('memoryOptimization', {
-			type: 'reduce_effects',
-			factor: 0.6,
-			reason: 'high_pressure'
-		});
-
-		if (this.config.logMemoryStats) {
-			console.log('🟠 High memory pressure - aggressive optimization');
-		}
-	}
-
-	/**
-	 * Handle critical memory pressure
-	 */
-	private handleCriticalPressure(memoryInfo: MemoryInfo): void {
-		// Emergency cleanup
-		this.performEmergencyCleanup();
-
-		// Force garbage collection
-		this.requestGarbageCollection(true);
-
-		// Emit critical optimization event
-		this.emitCustomEvent('memoryOptimization', {
-			type: 'emergency_mode',
-			factor: 0.3,
-			reason: 'critical_pressure'
-		});
-
-		console.error('🔴 Critical memory pressure - emergency optimization');
 	}
 
 	/**
@@ -626,11 +539,10 @@ class MemoryManager {
 	 */
 	private updatePerformanceMetrics(timestamp: number): void {
 		if (this.lastMonitorTime > 0) {
-			const deltaTime = timestamp - this.lastMonitorTime;
-			this.performanceMetrics.frameTime = deltaTime;
-			this.performanceMetrics.fps = deltaTime > 0 ? 1000 / deltaTime : 60;
+			const dt = timestamp - this.lastMonitorTime;
+			this.performanceMetrics.frameTime = dt;
+			this.performanceMetrics.fps = dt > 0 ? 1000 / dt : 60;
 		}
-
 		this.performanceMetrics.updateTime = performance.now() - timestamp;
 	}
 
@@ -638,22 +550,15 @@ class MemoryManager {
 	 * Initialize batched store update system
 	 */
 	private initializeBatchUpdates(): void {
-		// Clear any existing timer
-		if (this.batchUpdateTimer) {
-			clearTimeout(this.batchUpdateTimer);
-		}
-
-		// Start batch update cycle
+		if (this.batchUpdateTimer) clearTimeout(this.batchUpdateTimer);
 		this.scheduleBatchUpdate();
 	}
 
 	/**
-	 * Schedule batched store update
+	 * Queue/store batched updates
 	 */
 	private scheduleBatchedStoreUpdate(): void {
 		if (!this.currentMemoryInfo) return;
-
-		// Queue memory info update
 		this.pendingStoreUpdates.set('memoryInfo', this.currentMemoryInfo);
 		this.pendingStoreUpdates.set('memoryPressure', this.currentPressure);
 		this.pendingStoreUpdates.set('performanceMetrics', { ...this.performanceMetrics });
@@ -664,41 +569,30 @@ class MemoryManager {
 	 */
 	private scheduleBatchUpdate(): void {
 		if (!browser) return;
-
 		this.batchUpdateTimer = setTimeout(() => {
 			this.processBatchedUpdates();
-			this.scheduleBatchUpdate(); // Schedule next batch
+			this.scheduleBatchUpdate();
 		}, this.config.batchUpdateInterval);
 	}
 
 	/**
-	 * Process all pending store updates in a single batch
+	 * Process pending batched updates
 	 */
 	private processBatchedUpdates(): void {
 		if (this.pendingStoreUpdates.size === 0) return;
 
 		try {
-			// Process memory info update
 			const memoryInfo = this.pendingStoreUpdates.get('memoryInfo');
-			if (memoryInfo) {
-				this.notifyMemoryListeners(memoryInfo);
-			}
+			if (memoryInfo) this.notifyMemoryListeners(memoryInfo);
 
-			// Process other updates
 			const memoryPressure = this.pendingStoreUpdates.get('memoryPressure');
-			if (memoryPressure) {
-				this.notifyPressureListeners(memoryPressure);
-			}
+			if (memoryPressure) this.notifyPressureListeners(memoryPressure);
 
-			// Execute queued store updates
 			while (this.storeUpdateQueue.length > 0) {
 				const updateFn = this.storeUpdateQueue.shift();
-				if (updateFn) {
-					updateFn();
-				}
+				if (updateFn) updateFn();
 			}
 
-			// Clear pending updates
 			this.pendingStoreUpdates.clear();
 		} catch (error) {
 			console.error('Error processing batched updates:', error);
@@ -717,15 +611,9 @@ class MemoryManager {
 	 */
 	public createObjectPool<T>(name: string, factory: () => T, initialSize: number = 10): void {
 		const pool: T[] = [];
-
-		// Pre-populate pool
-		for (let i = 0; i < initialSize; i++) {
-			pool.push(factory());
-		}
-
+		for (let i = 0; i < initialSize; i++) pool.push(factory());
 		this.objectPools.set(name, pool);
 
-		// Initialize stats
 		this.poolStats.set(name, {
 			totalCapacity: initialSize,
 			activeObjects: 0,
@@ -744,39 +632,35 @@ class MemoryManager {
 	}
 
 	/**
-	 * Get object from pool
+	 * Get an object from pool
 	 */
 	public getFromPool<T>(name: string, factory?: () => T): T | null {
 		const pool = this.objectPools.get(name);
 		const stats = this.poolStats.get(name);
-
 		if (!pool || !stats) {
 			console.warn(`Pool '${name}' not found`);
 			return null;
 		}
 
 		let obj: T;
-
-		// Try to reuse from pool
 		if (pool.length > 0) {
-			obj = pool.pop()!;
+			obj = pool.pop() as T;
 			stats.objectsReused++;
-			stats.estimatedMemorySaved += 0.24; // ~240 bytes saved per reuse
+			stats.estimatedMemorySaved += 0.16; // ~160 bytes saved per reuse (approx KB)
 		} else if (factory) {
-			// Create new object if pool empty
 			obj = factory();
 			stats.objectsCreated++;
 		} else {
 			return null;
 		}
 
-		// Update utilization
 		stats.activeObjects++;
-		stats.utilizationRate = stats.activeObjects / stats.totalCapacity;
-		stats.reuseRatio = stats.objectsReused / (stats.objectsCreated + stats.objectsReused);
+		stats.utilizationRate = stats.totalCapacity > 0 ? stats.activeObjects / stats.totalCapacity : 0;
 
-		// Mark as in use
-		if (typeof obj === 'object' && obj !== null && 'inUse' in obj) {
+		const totalOps = stats.objectsCreated + stats.objectsReused;
+		stats.reuseRatio = totalOps > 0 ? stats.objectsReused / totalOps : 0;
+
+		if (typeof obj === 'object' && obj !== null && 'inUse' in (obj as any)) {
 			(obj as any).inUse = true;
 		}
 
@@ -789,26 +673,21 @@ class MemoryManager {
 	public returnToPool(name: string, obj: any): void {
 		const pool = this.objectPools.get(name);
 		const stats = this.poolStats.get(name);
-
 		if (!pool || !stats) {
 			console.warn(`Pool '${name}' not found`);
 			return;
 		}
 
-		// Reset object if it has reset method
-		if (typeof obj.reset === 'function') {
+		if (typeof obj?.reset === 'function') {
 			obj.reset();
 		}
-
-		// Mark as not in use
 		if ('inUse' in obj) {
 			obj.inUse = false;
 		}
 
-		// Return to pool
 		pool.push(obj);
 		stats.activeObjects = Math.max(0, stats.activeObjects - 1);
-		stats.utilizationRate = stats.activeObjects / stats.totalCapacity;
+		stats.utilizationRate = stats.totalCapacity > 0 ? stats.activeObjects / stats.totalCapacity : 0;
 	}
 
 	/**
@@ -817,61 +696,47 @@ class MemoryManager {
 	public updatePoolStats(name: string, updates: Partial<ObjectPoolStats>): void {
 		const stats = this.poolStats.get(name);
 		if (!stats) return;
-
-		// Apply updates
 		Object.assign(stats, updates);
 
 		// Recalculate derived values
 		if (stats.totalCapacity > 0) {
 			stats.utilizationRate = stats.activeObjects / stats.totalCapacity;
 		}
-
-		const totalOperations = stats.objectsCreated + stats.objectsReused;
-		if (totalOperations > 0) {
-			stats.reuseRatio = stats.objectsReused / totalOperations;
-		}
+		const totalOps = stats.objectsCreated + stats.objectsReused;
+		stats.reuseRatio = totalOps > 0 ? stats.objectsReused / totalOps : 0;
 	}
 
 	/**
-	 * Cleanup object pools
+	 * Cleanup object pools (reduce unused objects; keep small buffer)
 	 */
 	private cleanupObjectPools(): void {
 		for (const [name, pool] of this.objectPools) {
 			const stats = this.poolStats.get(name);
 			if (!stats) continue;
 
-			// Reduce pool size if too large
-			const excessSize = pool.length - 50; // Keep max 50 unused objects
-			if (excessSize > 0) {
-				pool.splice(0, excessSize);
-
+			// Keep at most 50 unused objects
+			const excess = Math.max(0, pool.length - 50);
+			if (excess > 0) {
+				pool.splice(0, excess);
 				if (this.config.logMemoryStats) {
-					console.log(`🧹 Cleaned up ${excessSize} objects from pool '${name}'`);
+					console.log(`🧹 Cleaned ${excess} objects from pool '${name}'`);
 				}
 			}
 		}
 	}
 
 	/**
-	 * Clear old memory history
+	 * Clear old memory history/events
 	 */
 	private clearOldHistory(): void {
-		// Keep only recent history
-		if (this.memoryHistory.length > 50) {
-			this.memoryHistory = this.memoryHistory.slice(-50);
-		}
-
-		// Keep only recent events
-		if (this.memoryEvents.length > 25) {
-			this.memoryEvents = this.memoryEvents.slice(-25);
-		}
+		if (this.memoryHistory.length > 50) this.memoryHistory = this.memoryHistory.slice(-50);
+		if (this.memoryEvents.length > 25) this.memoryEvents = this.memoryEvents.slice(-25);
 	}
 
 	/**
 	 * Perform general cleanup
 	 */
 	public performCleanup(): void {
-		// Run registered cleanup tasks
 		for (const task of this.cleanupTasks) {
 			try {
 				task();
@@ -880,112 +745,85 @@ class MemoryManager {
 			}
 		}
 
-		// Cleanup object pools
 		this.cleanupObjectPools();
-
-		// Clear old data
 		this.clearOldHistory();
 
-		this.emitMemoryEvent({
-			type: 'cleanup',
-			timestamp: performance.now(),
-			memoryInfo: this.currentMemoryInfo!,
-			severity: 'info',
-			details: 'General cleanup completed'
-		});
+		if (this.currentMemoryInfo) {
+			this.emitMemoryEvent({
+				type: 'cleanup',
+				timestamp: performance.now(),
+				memoryInfo: this.currentMemoryInfo,
+				severity: 'info',
+				details: 'General cleanup completed'
+			});
+		}
 	}
 
 	/**
-	 * Perform emergency cleanup
+	 * Perform emergency cleanup (generic)
 	 */
 	private performEmergencyCleanup(): void {
-		// Run emergency callbacks
 		for (const callback of this.emergencyCleanupCallbacks) {
 			try {
 				callback();
 			} catch (error) {
-				console.error('Error in emergency cleanup:', error);
+				console.error('Error in emergency cleanup callback:', error);
 			}
 		}
 
-		// Aggressive pool cleanup
-		for (const [name, pool] of this.objectPools) {
-			if (name !== 'stars') {
-				// Keep essential pools
-				pool.length = 0;
-			}
+		// Aggressively trim all pools (keep minimal buffer)
+		for (const [, pool] of this.objectPools) {
+			pool.length = Math.min(pool.length, 10);
 		}
 
-		// Clear most history
 		this.memoryHistory = this.memoryHistory.slice(-10);
 		this.memoryEvents = this.memoryEvents.slice(-10);
 
-		// Force cleanup
 		this.performCleanup();
-
-		console.log('🚨 Emergency cleanup completed');
 	}
 
 	/**
-	 * Perform periodic cleanup based on memory state
+	 * Perform periodic cleanup when memory usage is high
 	 */
 	private performPeriodicCleanup(memoryInfo: MemoryInfo): void {
-		// Only cleanup if memory usage is high
 		if (memoryInfo.usagePercentage > this.THRESHOLDS.CLEANUP_THRESHOLD) {
 			this.performCleanup();
 		}
 	}
 
 	/**
-	 * Request garbage collection
+	 * Request garbage collection (where available) or hint
 	 */
 	private requestGarbageCollection(force: boolean = false): void {
 		const now = performance.now();
-
-		// Respect cooldown unless forced
-		if (!force && now - this.lastGCTime < this.gcCooldownPeriod) {
-			return;
-		}
-
+		if (!force && now - this.lastGCTime < this.gcCooldownPeriod) return;
 		this.lastGCTime = now;
 
 		try {
-			// Try manual GC if available
 			if ((window as any).gc) {
 				(window as any).gc();
-
-				if (this.config.logMemoryStats) {
-					console.log('🗑️ Manual garbage collection triggered');
-				}
+				if (this.config.logMemoryStats) console.log('🗑️ Manual GC triggered');
 			}
-		} catch (error) {
-			// GC not available
+		} catch {
+			/* ignore */
 		}
 
-		// Alternative GC hints
 		this.createGCHint();
 	}
 
 	/**
-	 * Create GC hints by allocating and releasing objects
+	 * Create GC hints by allocating and releasing temporary objects
 	 */
 	private createGCHint(): void {
-		// Create temporary objects to hint GC
-		const tempObjects = [];
-		for (let i = 0; i < 100; i++) {
-			tempObjects.push({ data: new Array(100).fill(i) });
-		}
+		const temp: Array<{ data: number[] }> = [];
+		for (let i = 0; i < 100; i++) temp.push({ data: new Array(100).fill(i) });
+		const sum = temp.reduce((acc, o) => acc + o.data.length, 0);
+		void sum;
+		temp.length = 0;
 
-		// Force computation
-		const sum = tempObjects.reduce((acc, obj) => acc + obj.data.length, 0);
-
-		// Clear references
-		tempObjects.length = 0;
-
-		// Additional async hint
 		Promise.resolve().then(() => {
-			const asyncHint = new Array(1000).fill(sum);
-			asyncHint.length = 0;
+			const asyncHint = new Array(1000).fill(1);
+			void asyncHint.length;
 		});
 	}
 
@@ -994,7 +832,6 @@ class MemoryManager {
 	 */
 	public registerCleanupTask(task: () => void): () => void {
 		this.cleanupTasks.push(task);
-
 		return () => {
 			this.cleanupTasks = this.cleanupTasks.filter((t) => t !== task);
 		};
@@ -1005,93 +842,80 @@ class MemoryManager {
 	 */
 	public registerEmergencyCleanup(callback: () => void): () => void {
 		this.emergencyCleanupCallbacks.push(callback);
-
 		return () => {
 			this.emergencyCleanupCallbacks = this.emergencyCleanupCallbacks.filter((c) => c !== callback);
 		};
 	}
 
 	/**
-	 * Add memory change listener
+	 * Legacy/starfield hook retained for compatibility (now generic no-op-ish).
+	 * If a 'starfield' pool exists, it will be trimmed; otherwise this simply registers
+	 * a small cleanup task to trim any pool prefixed with 'starfield' if present later.
+	 */
+	public registerStarfieldCleanup(): () => void {
+		const cleanup = () => {
+			for (const [name, pool] of this.objectPools) {
+				if (name === 'starfield' || name.startsWith('starfield')) {
+					pool.length = Math.min(pool.length, 20);
+				}
+			}
+		};
+		return this.registerCleanupTask(cleanup);
+	}
+
+	/**
+	 * Subscribe/listen helpers
 	 */
 	public onMemoryChange(listener: (info: MemoryInfo) => void): () => void {
 		this.memoryListeners.push(listener);
-
-		// Immediately notify with current state
-		if (this.currentMemoryInfo) {
-			listener(this.currentMemoryInfo);
-		}
-
+		if (this.currentMemoryInfo) listener(this.currentMemoryInfo);
 		return () => {
 			this.memoryListeners = this.memoryListeners.filter((l) => l !== listener);
 		};
 	}
 
-	/**
-	 * Add memory event listener
-	 */
 	public onMemoryEvent(listener: (event: MemoryEvent) => void): () => void {
 		this.eventListeners.push(listener);
-
 		return () => {
 			this.eventListeners = this.eventListeners.filter((l) => l !== listener);
 		};
 	}
 
-	/**
-	 * Add memory pressure listener
-	 */
 	public onMemoryPressure(listener: (pressure: MemoryPressure) => void): () => void {
 		this.pressureListeners.push(listener);
-
-		// Immediately notify with current state
 		listener(this.currentPressure);
-
 		return () => {
 			this.pressureListeners = this.pressureListeners.filter((l) => l !== listener);
 		};
 	}
 
 	/**
-	 * Emit memory event
+	 * Emitters
 	 */
 	private emitMemoryEvent(event: MemoryEvent): void {
-		// Add to events history
 		this.memoryEvents.push(event);
-
-		// Trim history
 		if (this.memoryEvents.length > this.maxEventsSize) {
 			this.memoryEvents = this.memoryEvents.slice(-this.maxEventsSize);
 		}
-
-		// Notify listeners
 		this.notifyEventListeners(event);
 
-		// Log if enabled
 		if (this.config.logMemoryStats) {
-			const logMethod =
+			const log =
 				event.severity === 'critical'
 					? console.error
 					: event.severity === 'warning'
 						? console.warn
 						: console.info;
-			logMethod(`[Memory] ${event.details}`);
+			log(`[Memory] ${event.details}`);
 		}
 	}
 
-	/**
-	 * Emit custom DOM event
-	 */
 	private emitCustomEvent(eventName: string, detail: any): void {
 		if (!browser) return;
-
 		const event = new CustomEvent(eventName, { detail });
 		window.dispatchEvent(event);
 	}
 
-	/**
-	 * Notify memory listeners
-	 */
 	private notifyMemoryListeners(memoryInfo: MemoryInfo): void {
 		for (const listener of this.memoryListeners) {
 			try {
@@ -1102,9 +926,6 @@ class MemoryManager {
 		}
 	}
 
-	/**
-	 * Notify event listeners
-	 */
 	private notifyEventListeners(event: MemoryEvent): void {
 		for (const listener of this.eventListeners) {
 			try {
@@ -1115,9 +936,6 @@ class MemoryManager {
 		}
 	}
 
-	/**
-	 * Notify pressure listeners
-	 */
 	private notifyPressureListeners(pressure: MemoryPressure): void {
 		for (const listener of this.pressureListeners) {
 			try {
@@ -1129,15 +947,13 @@ class MemoryManager {
 	}
 
 	/**
-	 * Handle visibility change
+	 * Visibility/unload handlers
 	 */
 	private handleVisibilityChange = (): void => {
 		if (!browser) return;
-
 		this.isPageHidden = document.hidden;
 
 		if (document.hidden) {
-			// Page hidden - trigger hibernation
 			this.performCleanup();
 			if (this.config.hibernationEnabled) {
 				setTimeout(() => {
@@ -1147,113 +963,60 @@ class MemoryManager {
 				}, this.config.hibernationDelay);
 			}
 		} else {
-			// Page visible - resume normal operation
 			this.handleResume();
 		}
 	};
 
-	/**
-	 * Handle page unload
-	 */
 	private handlePageUnload = (): void => {
 		this.cleanup();
 	};
 
-	/**
-	 * Handle memory pressure event from browser
-	 */
-	private handleMemoryPressureEvent = (event: any): void => {
-		if (this.currentMemoryInfo) {
-			this.handleCriticalPressure(this.currentMemoryInfo);
-		}
+	private handleMemoryPressureEvent = (): void => {
+		if (this.currentMemoryInfo) this.handleMemoryPressure('critical', this.currentMemoryInfo);
 	};
 
-	/**
-	 * Handle memory optimization event
-	 */
 	private handleMemoryOptimizationEvent = (event: any): void => {
-		const { detail } = event;
-		if (this.config.logMemoryStats) {
-			console.log('Memory optimization event:', detail);
-		}
+		if (this.config.logMemoryStats) console.log('Memory optimization event:', event?.detail);
 	};
 
-	/**
-	 * Handle memory hibernation event
-	 */
 	private handleMemoryHibernationEvent = (event: any): void => {
 		const { detail } = event;
-		if (detail.action === 'hibernate') {
-			this.handleHibernation();
-		} else if (detail.action === 'resume') {
-			this.handleResume();
-		}
+		if (detail?.action === 'hibernate') this.handleHibernation();
+		else if (detail?.action === 'resume') this.handleResume();
 	};
 
-	/**
-	 * Handle hibernation mode
-	 */
 	private handleHibernation(): void {
-		// Reduce monitoring frequency
 		this.config.monitoringInterval *= 4;
 		this.config.batchUpdateInterval *= 2;
-
-		// Perform cleanup
 		this.performCleanup();
-
-		if (this.config.logMemoryStats) {
-			console.log('📱 Entered hibernation mode');
-		}
+		if (this.config.logMemoryStats) console.log('📱 Entered hibernation mode');
 	}
 
-	/**
-	 * Handle resume from hibernation
-	 */
 	private handleResume(): void {
-		// Restore normal monitoring frequency
 		this.config.monitoringInterval = Math.max(2000, this.config.monitoringInterval / 4);
 		this.config.batchUpdateInterval = Math.max(500, this.config.batchUpdateInterval / 2);
-
-		if (this.config.logMemoryStats) {
-			console.log('👁️ Resumed from hibernation');
-		}
+		if (this.config.logMemoryStats) console.log('👁️ Resumed from hibernation');
 	}
 
 	/**
-	 * Public API Methods
-	 */
-
-	/**
-	 * Get current memory information
+	 * Public API / getters
 	 */
 	public getCurrentMemory(): MemoryInfo | null {
 		return this.currentMemoryInfo;
 	}
 
-	/**
-	 * Get memory history
-	 */
 	public getMemoryHistory(): MemoryInfo[] {
 		return [...this.memoryHistory];
 	}
 
-	/**
-	 * Get memory events
-	 */
 	public getMemoryEvents(): MemoryEvent[] {
 		return [...this.memoryEvents];
 	}
 
-	/**
-	 * Get current memory pressure
-	 */
 	public getMemoryPressure(): MemoryPressure {
 		return this.currentPressure;
 	}
 
-	/**
-	 * Get object pool statistics
-	 */
 	public getPoolStats(name?: string): ObjectPoolStats | Map<string, ObjectPoolStats> {
 		if (name) {
 			return this.poolStats.get(name) || (null as any);
@@ -1261,32 +1024,18 @@ class MemoryManager {
 		return new Map(this.poolStats);
 	}
 
-	/**
-	 * Get performance metrics
-	 */
 	public getPerformanceMetrics(): PerformanceMetrics {
 		return { ...this.performanceMetrics };
 	}
 
-	/**
-	 * Update configuration
-	 */
 	public updateConfig(newConfig: Partial<MemoryOptimizationConfig>): void {
 		this.config = { ...this.config, ...newConfig };
 	}
 
-	/**
-	 * Force memory check
-	 */
 	public forceMemoryCheck(): void {
-		if (browser) {
-			this.performMonitoringCheck(performance.now());
-		}
+		if (browser) this.performMonitoringCheck(performance.now());
 	}
 
-	/**
-	 * Get memory leak diagnostic report
-	 */
 	public getMemoryReport(): string {
 		if (!this.currentMemoryInfo) return 'No memory data available';
 
@@ -1303,17 +1052,17 @@ class MemoryManager {
 
 		// Object pools
 		report += '### Object Pools\n\n';
-		for (const [name, stats] of this.poolStats) {
+		for (const [, stats] of this.poolStats) {
 			report += `**${stats.poolName} (${stats.poolType})**\n`;
 			report += `- Utilization: ${(stats.utilizationRate * 100).toFixed(1)}% (${stats.activeObjects}/${stats.totalCapacity})\n`;
 			report += `- Reuse Ratio: ${(stats.reuseRatio * 100).toFixed(1)}%\n`;
-			report += `- Memory Saved: ${stats.estimatedMemorySaved.toFixed(1)} KB\n\n`;
+			report += `- Memory Saved (est): ${stats.estimatedMemorySaved.toFixed(1)} KB\n\n`;
 		}
 
 		// Recent events
 		report += '### Recent Events\n\n';
-		const recentEvents = this.memoryEvents.slice(-10);
-		for (const event of recentEvents) {
+		const recent = this.memoryEvents.slice(-10);
+		for (const event of recent) {
 			const time = new Date(event.timestamp).toLocaleTimeString();
 			report += `- ${time}: [${event.severity.toUpperCase()}] ${event.details}\n`;
 		}
@@ -1325,16 +1074,13 @@ class MemoryManager {
 	 * Cleanup all resources
 	 */
 	public cleanup(): void {
-		// Stop monitoring
 		this.stopMonitoring();
 
-		// Clear timers
 		if (this.batchUpdateTimer) {
 			clearTimeout(this.batchUpdateTimer);
 			this.batchUpdateTimer = null;
 		}
 
-		// Remove event listeners
 		if (browser) {
 			document.removeEventListener('visibilitychange', this.handleVisibilityChange);
 			window.removeEventListener('beforeunload', this.handlePageUnload);
@@ -1342,7 +1088,6 @@ class MemoryManager {
 			window.removeEventListener('memoryHibernation', this.handleMemoryHibernationEvent);
 		}
 
-		// Clear pools and data
 		this.objectPools.clear();
 		this.poolStats.clear();
 		this.memoryHistory = [];
@@ -1354,23 +1099,28 @@ class MemoryManager {
 		this.pressureListeners = [];
 		this.pendingStoreUpdates.clear();
 		this.storeUpdateQueue = [];
-
 		this.isInitialized = false;
 
-		if (this.config.logMemoryStats) {
-			console.log('🧹 MemoryManager cleaned up');
-		}
+		if (this.config.logMemoryStats) console.log('🧹 MemoryManager cleaned up');
 	}
 }
 
 // Create singleton instance
 export const memoryManager = new MemoryManager();
 
-// Svelte stores for reactive integration
+/**
+ * Svelte stores for reactive integration
+ */
 export const currentMemoryInfo = writable<MemoryInfo | null>(null);
 export const memoryEvents = writable<MemoryEvent[]>([]);
 export const memoryPressure = writable<MemoryPressure>('low');
 export const memoryUsageStore = writable<number>(0);
+
+/**
+ * Expose a single pool stats store for dashboards.
+ * We’ll publish aggregated stats across all pools to keep
+ * consumers stable without star-field specific assumptions.
+ */
 export const objectPoolStatsStore = writable<ObjectPoolStats>({
 	totalCapacity: 0,
 	activeObjects: 0,
@@ -1379,13 +1129,12 @@ export const objectPoolStatsStore = writable<ObjectPoolStats>({
 	objectsReused: 0,
 	reuseRatio: 0,
 	estimatedMemorySaved: 0,
-	poolName: 'Stars',
-	poolType: 'Star'
+	poolName: 'All Pools',
+	poolType: 'Aggregate'
 });
 
 // Setup store synchronization in browser
 if (browser) {
-	// Delay initialization to avoid SSR issues
 	setTimeout(() => {
 		// Subscribe to memory changes
 		memoryManager.onMemoryChange((info) => {
@@ -1403,21 +1152,49 @@ if (browser) {
 			memoryPressure.set(pressure);
 		});
 
-		// Setup pool stats synchronization
-		const updatePoolStats = () => {
-			const stats = memoryManager.getPoolStats('stars') as ObjectPoolStats;
-			if (stats) {
-				objectPoolStatsStore.set(stats);
+		// Aggregate pool stats periodically
+		const updateAggregatedPoolStats = () => {
+			const statsMap = memoryManager.getPoolStats() as Map<string, ObjectPoolStats>;
+			let aggregate: ObjectPoolStats = {
+				totalCapacity: 0,
+				activeObjects: 0,
+				utilizationRate: 0,
+				objectsCreated: 0,
+				objectsReused: 0,
+				reuseRatio: 0,
+				estimatedMemorySaved: 0,
+				poolName: 'All Pools',
+				poolType: 'Aggregate'
+			};
+
+			if (statsMap && statsMap.size > 0) {
+				let pools = 0;
+				for (const [, stats] of statsMap) {
+					aggregate.totalCapacity += stats.totalCapacity;
+					aggregate.activeObjects += stats.activeObjects;
+					aggregate.objectsCreated += stats.objectsCreated;
+					aggregate.objectsReused += stats.objectsReused;
+					aggregate.estimatedMemorySaved += stats.estimatedMemorySaved;
+					pools++;
+				}
+				aggregate.utilizationRate =
+					aggregate.totalCapacity > 0 ? aggregate.activeObjects / aggregate.totalCapacity : 0;
+
+				const totalOps = aggregate.objectsCreated + aggregate.objectsReused;
+				aggregate.reuseRatio = totalOps > 0 ? aggregate.objectsReused / totalOps : 0;
 			}
+
+			objectPoolStatsStore.set(aggregate);
 		};
 
-		// Update pool stats periodically
-		setInterval(updatePoolStats, 1000);
-		updatePoolStats(); // Initial update
+		setInterval(updateAggregatedPoolStats, 1000);
+		updateAggregatedPoolStats();
 	}, 100);
 }
 
-// Derived stores
+/**
+ * Derived stores
+ */
 export const memoryUsagePercentage = derived(
 	currentMemoryInfo,
 	($info) => $info?.usagePercentage || 0
@@ -1425,7 +1202,9 @@ export const memoryUsagePercentage = derived(
 
 export const availableMemoryMB = derived(currentMemoryInfo, ($info) => $info?.availableMB || 0);
 
-// Utility functions
+/**
+ * Utility helpers
+ */
 export function formatBytes(bytes: number): string {
 	const sizes = ['Bytes', 'KB', 'MB', 'GB'];
 	if (bytes === 0) return '0 Bytes';
@@ -1433,32 +1212,32 @@ export function formatBytes(bytes: number): string {
 	return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + ' ' + sizes[i];
 }
 
+/**
+ * Generic recommendations based on current pressure level.
+ * No star-field specifics; suitable for any visual system.
+ */
 export function getMemoryRecommendations(): string[] {
 	const pressure = memoryManager.getMemoryPressure();
-	const recommendations: string[] = [];
+	const recs: string[] = [];
 
 	switch (pressure) {
 		case 'low':
-			recommendations.push('Memory usage is optimal');
+			recs.push('Memory usage is within normal range.');
 			break;
 		case 'medium':
-			recommendations.push('Consider reducing star count by 10-20%');
-			recommendations.push('Clean up unused objects');
+			recs.push('Reduce non-essential visual effects by ~10–20%.');
+			recs.push('Ensure unused objects are returned to pools.');
 			break;
 		case 'high':
-			recommendations.push('Reduce visual effects');
-			recommendations.push('Lower rendering quality');
-			recommendations.push('Enable object pooling');
+			recs.push('Disable expensive effects (blur/shadows) and lower render quality.');
+			recs.push('Increase pooling and avoid per-frame allocations.');
+			recs.push('Consider lowering update frequency for background animations.');
 			break;
 		case 'critical':
-			recommendations.push('Emergency: Disable non-essential features');
-			recommendations.push('Force garbage collection');
-			recommendations.push('Restart application if issues persist');
+			recs.push('Emergency: disable non-essential features and pause background animations.');
+			recs.push('Trigger cleanup and consider forcing a soft reload if pressure persists.');
 			break;
 	}
 
-	return recommendations;
+	return recs;
 }
-
-// Export the manager instance for external use
-// (Already exported elsewhere, so this export is removed to fix redeclaration error)

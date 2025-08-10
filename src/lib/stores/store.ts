@@ -1,35 +1,7 @@
-import { writable, type Writable } from 'svelte/store';
+// src/lib/stores/store.ts
+// CHANGELOG (2025-08-10)
+// - Acts as a barrel that re-exports from layout-store.ts to keep import paths stable.
+// - Ensures `{ layoutStore }` is a named export at `$lib/stores/store`.
 
-interface LayoutStore {
-	navbarHeight: number;
-	isNavbarVisible: boolean;
-	previousNavbarHeight: number;
-}
-
-const createLayoutStore = () => {
-	const defaultValues: LayoutStore = {
-		navbarHeight: 0,
-		isNavbarVisible: true,
-		previousNavbarHeight: 0
-	};
-
-	const { subscribe, set, update } = writable<LayoutStore>(defaultValues);
-
-	return {
-		subscribe,
-		setNavbarHeight: (height: number) =>
-			update((state) => ({
-				...state,
-				previousNavbarHeight: state.navbarHeight,
-				navbarHeight: height
-			})),
-		toggleNavbarVisibility: () =>
-			update((state) => ({
-				...state,
-				isNavbarVisible: !state.isNavbarVisible
-			})),
-		reset: () => set(defaultValues)
-	};
-};
-
-export const layoutStore = createLayoutStore();
+export { layoutStore, cssVars } from './layout-store';
+export type { LayoutStoreState as LayoutStore } from './layout-store';
