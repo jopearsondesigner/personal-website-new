@@ -13,6 +13,7 @@
 	import ControlsPortal from '$lib/components/ui/ControlsPortal.svelte';
 	import GameControls from '$lib/components/game/GameControls.svelte';
 	import ArcadeBackground from '$lib/components/vfx/ArcadeBackground.svelte';
+	import VectorStarfield from '$lib/components/vfx/VectorStarfield.svelte';
 	import { deviceCapabilities, setupPerformanceMonitoring } from '$lib/utils/device-performance';
 	import {
 		memoryManager,
@@ -887,8 +888,21 @@
 							style="z-index: 1;"
 						></div>
 
-						<!-- NEW: Background (auto picks CSS on low perf, Canvas on capable devices) -->
-						<ArcadeBackground mode="auto" />
+						<!-- RESERVED: Future Starfield Layer (z-index: 2) -->
+						<div class="starfield-container rounded-arcade" style="z-index: 2;">
+							<VectorStarfield
+								enabled={currentScreen === 'main'}
+								layers={3}
+								density={1.0}
+								maxStars={650}
+								targetFPS={isLowPerformanceDevice ? 30 : 60}
+								baseSpeed={isLowPerformanceDevice ? 0.22 : 0.32}
+								qualityScale={1.0}
+								lowPowerMode={isLowPerformanceDevice}
+								lineWidth={1.0}
+								color="#CFFFE6"
+							/>
+						</div>
 						<div
 							id="text-wrapper"
 							class="absolute inset-0 flex flex-col items-center justify-center p-2 mt-12 box-border"
