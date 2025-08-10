@@ -15,6 +15,9 @@
 	import ArcadeBackground from '$lib/components/vfx/ArcadeBackground.svelte';
 	import VectorStarfield from '$lib/components/vfx/VectorStarfield.svelte';
 	import { deviceCapabilities, setupPerformanceMonitoring } from '$lib/utils/device-performance';
+	import { bindFxIntensity } from '$lib/utils/fx-intensity-controller';
+	import { fxTuner } from '$lib/actions/fx-tuner';
+
 	import {
 		memoryManager,
 		currentMemoryInfo,
@@ -61,6 +64,8 @@
 	let frameRateUnsubscribe: Function | null = null;
 
 	let currentGameState: GameState = 'idle';
+
+	let unbindFx: () => void;
 
 	// PERFORMANCE FIX #1: Isolate scroll state from animation logic
 	let isScrolling = false;
@@ -731,6 +736,13 @@
 			// Let reactive statement handle it based on proper conditions
 		});
 
+		// You can target #arcade-screen if you prefer scoping rather than :root
+		unbindFx = bindFxIntensity({
+			// target: document.getElementById('arcade-screen') as HTMLElement,
+			// Optional: tweak the curve
+			// qualityToIntensity: (q) => 0.5 + (q ** 1.15) * 0.8
+		});
+
 		return () => {
 			// Cleanup function called if component is unmounted before destroy
 			if (initialRaf) cancelAnimationFrame(initialRaf);
@@ -825,6 +837,8 @@
 		// Clear any other references or pending operations
 		currentTimeline = null;
 
+		unbindFx?.();
+
 		// Clean up any GSAP animations that might still be running
 		if (typeof window !== 'undefined' && gsap && gsap.ticker) {
 			gsap.ticker.remove(() => {}); // Pass an empty function instead of null
@@ -866,8 +880,23 @@
 				<div
 					id="arcade-screen"
 					class="crt-screen hardware-accelerated relative glow will-change-transform"
-					data-radius-sync
-					bind:this={arcadeScreen}
+					use:fxTuner={{
+						// Let quality auto-drive intensity ↓
+						followQuality: true,
+
+						// But also give stars extra pop by default
+						starContrast: 1.25, // bump until you like the visibility
+						starBrightness: 1.08,
+						starAlphaBoost: 1.05,
+
+						// Make overall glass a bit subtler globally
+						intensity: 0.85, // overrides quality mapping; remove to let FPS control it
+						animSpeed: 0.9, // calm glass motion a touch
+						blurMult: 0.9,
+
+						// Small accessibility boost on hover/focus
+						hoverBoost: { contrast: 1.12, brightness: 1.05, alpha: 1.0 }
+					}}
 				>
 					<!-- Every layer inside #arcade-screen inherits the same radius -->
 					<div class="phosphor-decay rounded-arcade"></div>
@@ -929,7 +958,7 @@
 					{/if}
 
 					<div
-						class="screen-glass-container rounded-arcade hardware-accelerated"
+						class="screen-glass-container rounded-arcade hardware-accelerated fx-default"
 						style="z-index: 3;"
 					>
 						<div class="screen-glass-outer rounded-arcade"></div>
@@ -991,6 +1020,15 @@
 		--glass-reflection: rgba(255, 255, 255, 0.15);
 		--screen-glow-opacity: 0.6;
 
+		/* Master intensity (0 = off, 1 = normal, >1 = stronger) */
+		--fx-intensity: 1;
+
+		/* Animation speed multiplier (0 = no motion, 1 = normal, 0.7 = calmer) */
+		--fx-anim-speed: 1;
+
+		/* Optional global blur multiplier for glassy looks */
+		--fx-blur-mult: 1;
+
 		/* Enhanced Glass Physics */
 		--glass-thickness: 0.4vmin;
 		--glass-refraction: 1.2;
@@ -1001,6 +1039,19 @@
 		--glass-dust-opacity: 0.03;
 		--glass-smudge-opacity: 0.04;
 		--internal-reflection-opacity: 0.045;
+
+		--fx-glass-reflectivity: calc(var(--glass-reflectivity) * var(--fx-intensity));
+		--fx-glass-specular-intensity: calc(var(--glass-specular-intensity) * var(--fx-intensity));
+		--fx-glass-smudge-opacity: calc(var(--glass-smudge-opacity) * var(--fx-intensity));
+		--fx-glass-dust-opacity: calc(var(--glass-dust-opacity) * var(--fx-intensity));
+		--fx-internal-reflection-opacity: calc(
+			var(--internal-reflection-opacity) * var(--fx-intensity)
+		);
+
+		/* Defaults if not set by the action */
+		--star-contrast: 1;
+		--star-brightness: 1;
+		--star-alpha: 1;
 
 		/* Shadows & Effects */
 		--cabinet-shadow:
@@ -1108,11 +1159,6 @@
 	/* ==========================================================================
 	   Rounded Corner Sync (single source of truth for all inner layers)
 	   ========================================================================== */
-
-	/* Use the existing variable as the canonical radius */
-	:root {
-		/* already present: --border-radius */
-	}
 
 	/* Make the radius enforceable at the container level */
 	#arcade-screen[data-radius-sync] {
@@ -1247,7 +1293,12 @@
 		pointer-events: none;
 		border-radius: var(--border-radius);
 		overflow: hidden;
-		/* Ready for future starfield integration */
+	}
+
+	.starfield-container canvas {
+		filter: contrast(var(--star-contrast)) brightness(var(--star-brightness));
+		opacity: var(--star-alpha);
+		will-change: filter, opacity;
 	}
 
 	/* Add subtle CRT monitor characteristics */
@@ -1300,6 +1351,26 @@
 	:global(html.light) #blank-monitor-background.blank-crt-monitor,
 	:global(html.light) .blank-crt-monitor {
 		background-color: #111 !important;
+	}
+
+	/* ==========================================================================
+       Visual Effects Presets
+       ========================================================================== */
+
+	.fx-subtle {
+		--fx-intensity: 0.55;
+		--fx-anim-speed: 0.75;
+		--fx-blur-mult: 0.75;
+	}
+	.fx-default {
+		--fx-intensity: 1;
+		--fx-anim-speed: 1;
+		--fx-blur-mult: 1;
+	}
+	.fx-bold {
+		--fx-intensity: 1.35;
+		--fx-anim-speed: 1.05;
+		--fx-blur-mult: 1.15;
 	}
 
 	/* ==========================================================================
@@ -1978,10 +2049,12 @@
 			transparent 100%
 		);
 		border-radius: var(--border-radius);
-		backdrop-filter: brightness(1.03) contrast(1.05);
 		mix-blend-mode: overlay;
 		transform: perspective(1000px) translateZ(var(--glass-thickness));
-		opacity: 0.7;
+		opacity: clamp(0, 1, calc(0.7 * var(--fx-intensity)));
+		backdrop-filter: brightness(1.03) contrast(1.05);
+		/* optional, if you want blur to scale softly */
+		filter: blur(calc(0px * var(--fx-blur-mult)));
 	}
 
 	.screen-glass-inner {
@@ -1993,7 +2066,7 @@
 			rgba(0, 0, 0, 0.07) 75%,
 			rgba(0, 0, 0, 0.15) 100%
 		);
-		opacity: 0.5;
+		opacity: clamp(0, 1, calc(0.5 * var(--fx-intensity)));
 		border-radius: var(--border-radius);
 		transform: perspective(1000px) translateZ(calc(var(--glass-thickness) * 0.5));
 	}
@@ -2009,10 +2082,11 @@
 			rgba(255, 255, 255, 0.03) 60%,
 			transparent 80%
 		);
-		opacity: 0.6;
+		opacity: clamp(0, 1, calc(0.6 * var(--fx-intensity)));
+		animation-duration: calc(8s / var(--fx-anim-speed));
 		border-radius: var(--border-radius);
 		mix-blend-mode: screen;
-		animation: slowGlassShift 8s ease-in-out infinite alternate;
+		animation: slowGlassShift ease-in-out infinite alternate;
 	}
 
 	.screen-glass-edge {
@@ -2020,7 +2094,7 @@
 		inset: 0;
 		border: 2px solid var(--glass-edge-highlight);
 		border-radius: var(--border-radius);
-		opacity: 0.12;
+		opacity: clamp(0, 1, calc(0.12 * var(--fx-intensity)));
 		box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.1);
 		background: transparent;
 		background-clip: padding-box;
@@ -2031,8 +2105,8 @@
 		position: absolute;
 		inset: 0;
 		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-		opacity: var(--glass-smudge-opacity);
-		filter: contrast(120%) brightness(150%);
+		opacity: clamp(0, 1, var(--fx-glass-smudge-opacity));
+		filter: contrast(120%) brightness(150%) blur(calc(0.2px * var(--fx-blur-mult)));
 		border-radius: var(--border-radius);
 		mix-blend-mode: overlay;
 		transform: scale(1.01);
@@ -2042,7 +2116,8 @@
 		position: absolute;
 		inset: 0;
 		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='dust'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23dust)'/%3E%3C/svg%3E");
-		opacity: var(--glass-dust-opacity);
+		opacity: clamp(0, 1, var(--fx-glass-dust-opacity));
+		filter: blur(calc(0.15px * var(--fx-blur-mult)));
 		border-radius: var(--border-radius);
 		mix-blend-mode: overlay;
 		transform: scale(1.02);
@@ -2056,11 +2131,12 @@
 			rgba(255, 255, 255, var(--glass-specular-intensity)) 0%,
 			transparent 25%
 		);
-		opacity: 0.2;
+		opacity: clamp(0, 1, calc(0.2 * var(--fx-intensity)));
+		animation-duration: calc(10s / var(--fx-anim-speed));
 		border-radius: var(--border-radius);
 		mix-blend-mode: screen;
 		filter: blur(3px);
-		animation: subtleSpecularShift 10s ease-in-out infinite alternate;
+		animation: subtleSpecularShift ease-in-out infinite alternate;
 	}
 
 	.screen-internal-reflection {
@@ -2073,10 +2149,11 @@
 			transparent 2px,
 			rgba(255, 255, 255, 0.02) 3px
 		);
-		opacity: var(--internal-reflection-opacity);
+		opacity: clamp(0, 1, var(--fx-internal-reflection-opacity));
+		animation-duration: calc(15s / var(--fx-anim-speed));
 		border-radius: var(--border-radius);
 		mix-blend-mode: screen;
-		animation: subtleReflectionShift 15s ease-in-out infinite alternate;
+		animation: subtleReflectionShift ease-in-out infinite alternate;
 	}
 
 	@keyframes slowGlassShift {
@@ -2174,7 +2251,8 @@
 	}
 
 	:global(html.light) #scanline-overlay {
-		opacity: 0.4;
+		opacity: calc(0.6 * var(--fx-intensity));
+		animation-duration: calc(0.2s / var(--fx-anim-speed));
 		background-size: 100% 3px;
 	}
 
@@ -2272,7 +2350,7 @@
 		/* Streamlined scanline effect */
 		#scanline-overlay {
 			background-size: 100% 6px; /* Wider scanlines */
-			animation: scanline 0.3s linear infinite; /* Slower movement */
+			animation: scanline linear infinite; /* Slower movement */
 		}
 
 		/* Apply rounded cabinet styles for mobile */
@@ -2516,6 +2594,17 @@
 	.ios-optimized #scanline-overlay {
 		opacity: 0.5;
 		background-size: 100% 6px;
+	}
+
+	/* Auto-disable some layers when intensity is very low */
+	.fx-subtle .screen-glass-smudges,
+	.fx-subtle .screen-glass-dust {
+		display: none;
+	}
+
+	html[data-device-type='low-performance'] .screen-glass-reflection,
+	html[data-device-type='low-performance'] .screen-glare {
+		animation: none;
 	}
 
 	/* ==========================================================================
