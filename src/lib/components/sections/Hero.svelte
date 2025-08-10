@@ -12,6 +12,7 @@
 	import { layoutStore } from '$lib/stores/store';
 	import ControlsPortal from '$lib/components/ui/ControlsPortal.svelte';
 	import GameControls from '$lib/components/game/GameControls.svelte';
+	import ArcadeBackground from '$lib/components/vfx/ArcadeBackground.svelte';
 	import { deviceCapabilities, setupPerformanceMonitoring } from '$lib/utils/device-performance';
 	import {
 		memoryManager,
@@ -886,10 +887,8 @@
 							style="z-index: 1;"
 						></div>
 
-						<!-- RESERVED: Future Starfield Layer (z-index: 2) -->
-						<!-- The starfield will be inserted here with z-index: 2 -->
-
-						<!-- Content wrapper -->
+						<!-- NEW: Background (auto picks CSS on low perf, Canvas on capable devices) -->
+						<ArcadeBackground mode="auto" />
 						<div
 							id="text-wrapper"
 							class="absolute inset-0 flex flex-col items-center justify-center p-2 mt-12 box-border"
