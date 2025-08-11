@@ -890,7 +890,7 @@
 						starAlphaBoost: 1.05,
 
 						// Make overall glass a bit subtler globally
-						intensity: 0.85, // overrides quality mapping; remove to let FPS control it
+						intensity: 0.0, // overrides quality mapping; remove to let FPS control it
 						animSpeed: 0.9, // calm glass motion a touch
 						blurMult: 0.9,
 
@@ -1292,10 +1292,14 @@
 			repeating-linear-gradient(0deg, transparent 0px, rgba(0, 20, 40, 0.1) 1px, transparent 2px) !important;
 	}
 
-	/* STARFIELD READY: Future starfield container preparation */
+	/* ==========================================================================
+   STARFIELD READY: Future starfield container preparation
+   ========================================================================== */
 	.starfield-container {
 		position: absolute;
 		inset: 0;
+		contain: paint style;
+		content-visibility: visible;
 		z-index: 2;
 		pointer-events: none;
 		border-radius: var(--border-radius);
@@ -1678,10 +1682,9 @@
 		transform: translateZ(0);
 		backface-visibility: hidden;
 		perspective: 1000px;
-		will-change: transform, opacity;
+		will-change: transform;
 		contain: layout style paint;
-		content-visibility: auto;
-		view-transition-name: screen;
+		content-visibility: visible;
 	}
 
 	/* Disable text selection in the Hero section */
@@ -1838,6 +1841,11 @@
 		);
 		pointer-events: none;
 		z-index: 2;
+	}
+
+	/* Reduce screen glare on low-performance devices */
+	html[data-device-type='low-performance'] .screen-glare {
+		opacity: 0.2;
 	}
 
 	.screen-glass {
@@ -2033,15 +2041,24 @@
 		border-radius: 0;
 	}
 
-	/* Enhanced Glass Effects System */
-	.screen-glass-container {
+	/* ==========================================================================
+   Enhanced Glass Effects System - Performance Optimized
+   ========================================================================== */
+	.screen-glass-outer {
 		position: absolute;
 		inset: 0;
-		overflow: hidden;
-		pointer-events: none;
-		z-index: 20; /* Increased z-index to be above all content */
-		will-change: transform, filter;
-		transform-style: preserve-3d;
+		background: linear-gradient(
+			135deg,
+			transparent 0%,
+			rgba(255, 255, 255, 0.01) 15%,
+			rgba(255, 255, 255, var(--glass-reflectivity)) 45%,
+			rgba(255, 255, 255, 0.01) 75%,
+			transparent 100%
+		);
+		border-radius: var(--border-radius);
+		mix-blend-mode: overlay;
+		transform: perspective(1000px) translateZ(var(--glass-thickness));
+		opacity: clamp(0, 1, calc(0.7 * var(--fx-intensity)));
 	}
 
 	.screen-glass-outer {
@@ -2078,6 +2095,12 @@
 		transform: perspective(1000px) translateZ(calc(var(--glass-thickness) * 0.5));
 	}
 
+	/* Remove backdrop-filter on low-performance devices */
+	html:not([data-device-type='low-performance']) .screen-glass-outer {
+		backdrop-filter: brightness(1.03) contrast(1.05);
+		filter: blur(calc(0px * var(--fx-blur-mult)));
+	}
+
 	.screen-glass-reflection {
 		position: absolute;
 		inset: 0;
@@ -2094,6 +2117,12 @@
 		border-radius: var(--border-radius);
 		mix-blend-mode: screen;
 		animation: slowGlassShift ease-in-out infinite alternate;
+	}
+
+	/* Disable expensive glass reflection animation on low-performance devices */
+	html[data-device-type='low-performance'] .screen-glass-reflection {
+		animation: none;
+		opacity: 0.3;
 	}
 
 	.screen-glass-edge {
