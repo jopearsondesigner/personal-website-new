@@ -493,7 +493,7 @@
 
 			if (specular) {
 				specular.style.transform = `translate(${-moveX * 0.8}px, ${-moveY * 0.8}px)`;
-				specular.style.opacity = 0.2 + Math.abs(offsetX * offsetY) * 0.1;
+				specular.style.opacity = String(0.2 + Math.abs(offsetX * offsetY) * 0.1);
 			}
 
 			if (reflection) {
@@ -879,24 +879,27 @@
 
 				<div
 					id="arcade-screen"
+					data-radius-sync
 					class="crt-screen hardware-accelerated relative glow will-change-transform"
 					use:fxTuner={{
 						// Let quality auto-drive intensity ↓
 						followQuality: true,
 
-						// But also give stars extra pop by default
-						starContrast: 1.25, // bump until you like the visibility
+						// Give stars extra pop by default
+						starContrast: 1.25,
 						starBrightness: 1.08,
 						starAlphaBoost: 1.05,
 
-						// Make overall glass a bit subtler globally
-						intensity: 0.0, // overrides quality mapping; remove to let FPS control it
-						animSpeed: 0.9, // calm glass motion a touch
+						// NOTE: If you want to force-disable glass from template, uncomment:
+						// intensity: 0.0,
+
+						animSpeed: 0.9,
 						blurMult: 0.9,
 
 						// Small accessibility boost on hover/focus
 						hoverBoost: { contrast: 1.12, brightness: 1.05, alpha: 1.0 }
 					}}
+					bind:this={arcadeScreen}
 				>
 					<!-- Every layer inside #arcade-screen inherits the same radius -->
 					<div class="phosphor-decay rounded-arcade"></div>
@@ -917,8 +920,8 @@
 							style="z-index: 1;"
 						></div>
 
-						<!-- RESERVED: Future Starfield Layer (z-index: 2) -->
-						<div class="starfield-container rounded-arcade" style="z-index: 2;">
+						<!-- Starfield Layer (explicit z-index below glass/scanlines) -->
+						<div class="starfield-container rounded-arcade" style="z-index: 8;">
 							<VectorStarfield
 								enabled={currentScreen === 'main'}
 								layers={3}
@@ -932,10 +935,12 @@
 								color="#CFFFE6"
 							/>
 						</div>
+
+						<!-- UI -->
 						<div
 							id="text-wrapper"
 							class="absolute inset-0 flex flex-col items-center justify-center p-2 mt-12 box-border"
-							style="z-index: 5;"
+							style="z-index: 40;"
 						>
 							<div id="header" class="text-center mb-2 animate-transform" bind:this={header}>
 								Power-up Your Brand!
@@ -957,9 +962,10 @@
 						<GameScreen on:stateChange={handleGameStateChange} />
 					{/if}
 
+					<!-- Glass stack (now clearly above stars, below scanlines) -->
 					<div
 						class="screen-glass-container rounded-arcade hardware-accelerated fx-default"
-						style="z-index: 3;"
+						style="z-index: 20;"
 					>
 						<div class="screen-glass-outer rounded-arcade"></div>
 						<div class="screen-glass-inner rounded-arcade"></div>
@@ -971,10 +977,11 @@
 						<div class="screen-internal-reflection rounded-arcade"></div>
 					</div>
 
+					<!-- Scanlines always on top (visual-only) -->
 					<div
 						id="scanline-overlay"
 						class="absolute inset-0 pointer-events-none rounded-arcade"
-						style="z-index: 4;"
+						style="z-index: 30;"
 					></div>
 				</div>
 			</div>
@@ -1298,7 +1305,8 @@
 	.starfield-container {
 		position: absolute;
 		inset: 0;
-		contain: paint style;
+		/* changed to avoid isolating paint/compositing that could dim stars */
+		contain: layout style;
 		content-visibility: visible;
 		z-index: 2;
 		pointer-events: none;
@@ -1417,11 +1425,11 @@
 				transparent 100%
 			);
 		mix-blend-mode: overlay;
-		opacity: 0.7;
+		opacity: clamp(0, 1, calc(0.7 * var(--fx-intensity)));
 	}
 
 	:global(html.light) .screen-reflection {
-		opacity: 0.4;
+		opacity: clamp(0, 1, calc(0.4 * var(--fx-intensity)));
 		background: linear-gradient(
 			35deg,
 			transparent 0%,
@@ -1841,11 +1849,7 @@
 		);
 		pointer-events: none;
 		z-index: 2;
-	}
-
-	/* Reduce screen glare on low-performance devices */
-	html[data-device-type='low-performance'] .screen-glare {
-		opacity: 0.2;
+		opacity: clamp(0, 1, calc(0.5 * var(--fx-intensity)));
 	}
 
 	.screen-glass {
@@ -1862,7 +1866,7 @@
 		);
 		pointer-events: none;
 		mix-blend-mode: overlay;
-		opacity: 0.8;
+		opacity: clamp(0, 1, calc(0.8 * var(--fx-intensity)));
 		z-index: 2;
 	}
 
@@ -1974,6 +1978,11 @@
 		animation: scanline 0.2s linear infinite;
 		border-radius: inherit;
 		z-index: 25;
+		pointer-events: none;
+		/* ensure it doesn’t unexpectedly isolate/flatten other layers */
+		isolation: auto;
+		mix-blend-mode: normal;
+		will-change: background-position;
 	}
 
 	#arcade-screen.glow::after {
@@ -2042,25 +2051,8 @@
 	}
 
 	/* ==========================================================================
-   Enhanced Glass Effects System - Performance Optimized
+   Enhanced Glass Effects System - Performance Optimized (updated opacities)
    ========================================================================== */
-	.screen-glass-outer {
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(
-			135deg,
-			transparent 0%,
-			rgba(255, 255, 255, 0.01) 15%,
-			rgba(255, 255, 255, var(--glass-reflectivity)) 45%,
-			rgba(255, 255, 255, 0.01) 75%,
-			transparent 100%
-		);
-		border-radius: var(--border-radius);
-		mix-blend-mode: overlay;
-		transform: perspective(1000px) translateZ(var(--glass-thickness));
-		opacity: clamp(0, 1, calc(0.7 * var(--fx-intensity)));
-	}
-
 	.screen-glass-outer {
 		position: absolute;
 		inset: 0;
@@ -2081,6 +2073,12 @@
 		filter: blur(calc(0px * var(--fx-blur-mult)));
 	}
 
+	/* Remove backdrop-filter on low-performance devices */
+	html:not([data-device-type='low-performance']) .screen-glass-outer {
+		backdrop-filter: brightness(1.03) contrast(1.05);
+		filter: blur(calc(0px * var(--fx-blur-mult)));
+	}
+
 	.screen-glass-inner {
 		position: absolute;
 		inset: 0;
@@ -2093,12 +2091,6 @@
 		opacity: clamp(0, 1, calc(0.5 * var(--fx-intensity)));
 		border-radius: var(--border-radius);
 		transform: perspective(1000px) translateZ(calc(var(--glass-thickness) * 0.5));
-	}
-
-	/* Remove backdrop-filter on low-performance devices */
-	html:not([data-device-type='low-performance']) .screen-glass-outer {
-		backdrop-filter: brightness(1.03) contrast(1.05);
-		filter: blur(calc(0px * var(--fx-blur-mult)));
 	}
 
 	.screen-glass-reflection {
@@ -2237,7 +2229,7 @@
 			rgba(255, 255, 255, 0.01) 50%,
 			transparent 100%
 		);
-		opacity: 0.6;
+		opacity: clamp(0, 1, calc(0.6 * var(--fx-intensity)));
 	}
 
 	:global(html.light) .cabinet-wear {
