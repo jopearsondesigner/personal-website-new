@@ -16,6 +16,9 @@
 	export let lineWidth: number = 1.0; // logical px before DPR scaling
 	export let brightnessMin: number = 0.7; // 0..1
 	export let brightnessMax: number = 1.0; // 0..1
+	// Rendering mode
+	export let opaque: boolean = false; // false => transparent canvas
+	export let fovScale: number = 0.34; // 0.28..0.40 sweet spot; higher = wider spread
 
 	// Performance
 	export let targetFPS: number = 60; // 30 for low-end
@@ -67,23 +70,37 @@
 
 	function setupCanvas() {
 		if (!canvas) return;
-		const rect = canvas.getBoundingClientRect();
-		dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-		width = Math.max(1, Math.floor(rect.width));
-		height = Math.max(1, Math.floor(rect.height));
 
-		canvas.width = Math.floor(width * dpr);
-		canvas.height = Math.floor(height * dpr);
+		const container = canvas.parentElement as HTMLElement | null;
+		const rect = (container ?? canvas).getBoundingClientRect();
+
+		const nextDpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+		const cssW = Math.max(1, Math.floor(rect.width));
+		const cssH = Math.max(1, Math.floor(rect.height));
+
+		if (cssW === width && cssH === height && nextDpr === dpr && ctx) return;
+
+		dpr = nextDpr;
+		width = cssW;
+		height = cssH;
+
+		const bsW = Math.floor(width * dpr);
+		const bsH = Math.floor(height * dpr);
+		if (canvas.width !== bsW) canvas.width = bsW;
+		if (canvas.height !== bsH) canvas.height = bsH;
+
 		canvas.style.width = `${width}px`;
 		canvas.style.height = `${height}px`;
 
 		ctx = canvas.getContext('2d', {
-			alpha: true,
+			alpha: !opaque, // ← transparent when opaque=false
 			desynchronized: true
 		}) as CanvasRenderingContext2D;
+
 		if (ctx) {
 			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 			ctx.lineCap = 'round';
+			ctx.globalCompositeOperation = 'source-over';
 		}
 	}
 
@@ -109,7 +126,7 @@
 			const uy = Math.sin(theta);
 
 			const bright = pick(brightnessMin, brightnessMax);
-			const z = pick(0.35, 1.0); // far to near; smaller => closer
+			const z = pick(0.55, 1.1); // was 0.35..1.0
 			const s = layerSpeedMultiplier(layer, layers) * (1 + (Math.random() * 2 - 1) * speedJitter);
 
 			stars.push({ ux, uy, z, s, bright, layer });
@@ -141,12 +158,18 @@
 			(projectAndDraw as any)._acc = 0;
 		}
 
-		// Clear (transparent so black base shows through)
-		ctx.clearRect(0, 0, width, height);
+		// Clear frame: transparent if not opaque; solid black if opaque
+		if (opaque) {
+			ctx.fillStyle = '#000';
+			ctx.fillRect(0, 0, width, height);
+		} else {
+			ctx.clearRect(0, 0, width, height);
+		}
 
 		const cx = width / 2;
 		const cy = height / 2;
-		const fov = perspective ?? 0.9 * Math.min(width, height);
+		// AFTER: tunable FOV
+		const fov = perspective ?? fovScale * Math.min(width, height);
 		const lw = Math.max(0.5, lineWidth); // logical px; DPR is in transform
 
 		ctx.save();
@@ -215,10 +238,10 @@
 
 	function resize() {
 		const prevW = width,
-			prevH = height;
+			prevH = height,
+			prevDpr = dpr;
 		setupCanvas();
-		// rebuild star pool if dimensions changed significantly
-		if (width !== prevW || height !== prevH) {
+		if (width !== prevW || height !== prevH || dpr !== prevDpr) {
 			rebuildPool();
 		}
 	}
@@ -227,10 +250,11 @@
 
 	onMount(() => {
 		if (typeof window === 'undefined') return;
+
 		setupCanvas();
 		rebuildPool();
 
-		// Hook optional frameRateController quality changes
+		// Optional: respond to frameRateController quality
 		const frc: any = (window as any)?.frameRateController ?? null;
 		let unsubscribe: (() => void) | null = null;
 		if (frc?.subscribeQuality) {
@@ -240,19 +264,36 @@
 			});
 		}
 
-		ro = new ResizeObserver(() => resize());
-		ro.observe(canvas);
+		// Observe the CONTAINER (parent of canvas)
+		const container = canvas.parentElement as HTMLElement | null;
+		let ro: ResizeObserver | null = null;
+		if (typeof ResizeObserver !== 'undefined' && container) {
+			ro = new ResizeObserver(() => {
+				resize();
+			});
+			ro.observe(container);
+		}
+
+		// Fallback: window resize (throttled)
+		const onWinResize = (() => {
+			let raf = 0;
+			return () => {
+				if (raf) return;
+				raf = requestAnimationFrame(() => {
+					raf = 0;
+					resize();
+				});
+			};
+		})();
+		window.addEventListener('resize', onWinResize, { passive: true });
 
 		if (enabled) start();
 
 		return () => {
 			stop();
-			if (ro) {
-				ro.disconnect();
-				ro = null;
-			}
+			if (ro) ro.disconnect();
+			window.removeEventListener('resize', onWinResize);
 			if (unsubscribe) unsubscribe();
-			// let GC collect arrays by clearing refs
 			stars.length = 0;
 			ctx = null;
 		};

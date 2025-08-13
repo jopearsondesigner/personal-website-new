@@ -921,18 +921,20 @@
 						></div>
 
 						<!-- Starfield Layer (explicit z-index below glass/scanlines) -->
-						<div class="starfield-container rounded-arcade" style="z-index: 8;">
+						<div class="starfield-container rounded-arcade" style="z-index: 15;">
 							<VectorStarfield
 								enabled={currentScreen === 'main'}
 								layers={3}
-								density={1.0}
-								maxStars={650}
+								density={1.6}
+								maxStars={900}
 								targetFPS={isLowPerformanceDevice ? 30 : 60}
 								baseSpeed={isLowPerformanceDevice ? 0.22 : 0.32}
 								qualityScale={1.0}
 								lowPowerMode={isLowPerformanceDevice}
-								lineWidth={1.0}
+								lineWidth={1.1}
 								color="#CFFFE6"
+								opaque={false}
+								fovScale={0.34}
 							/>
 						</div>
 
@@ -1152,15 +1154,11 @@
 		z-index: 0;
 		aspect-ratio: 4/3;
 		box-shadow: var(--screen-shadow);
-
-		/* REMOVED: All background properties to prevent conflicts with blank monitor */
-		/* The blank-crt-monitor div will handle all background rendering */
 		background: transparent !important;
 		background-color: transparent !important;
 		background-image: none !important;
-
 		transform-style: preserve-3d;
-		overflow: hidden;
+		isolation: isolate; /* keep all blending local */
 	}
 
 	/* ==========================================================================
@@ -1305,13 +1303,12 @@
 	.starfield-container {
 		position: absolute;
 		inset: 0;
-		/* changed to avoid isolating paint/compositing that could dim stars */
-		contain: layout style;
+		contain: layout; /* no style/paint containment */
 		content-visibility: visible;
-		z-index: 2;
 		pointer-events: none;
 		border-radius: var(--border-radius);
 		overflow: hidden;
+		isolation: auto;
 	}
 
 	.starfield-container canvas {
