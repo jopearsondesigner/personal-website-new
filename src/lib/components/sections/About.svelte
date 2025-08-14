@@ -115,7 +115,7 @@ DO NOT REMOVE THIS COMMENT -->
 							class="avatar-wrapper"
 						>
 							<img
-								src="assets/images/home/jo_avatar.png"
+								src="assets/images/home/jo_avatar.svg"
 								alt="Jo Pearson - Pixelated Avatar"
 								class="avatar-image"
 							/>
