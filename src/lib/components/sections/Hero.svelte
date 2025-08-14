@@ -14,7 +14,12 @@
 	import GameControls from '$lib/components/game/GameControls.svelte';
 	import ArcadeBackground from '$lib/components/vfx/ArcadeBackground.svelte';
 	import VectorStarfield from '$lib/components/vfx/VectorStarfield.svelte';
-	import { deviceCapabilities, setupPerformanceMonitoring } from '$lib/utils/device-performance';
+	import {
+		deviceCapabilities,
+		setupPerformanceMonitoring,
+		setupEventListeners as setupDevicePerfEventListeners
+	} from '$lib/utils/device-performance';
+	// Svelte auto-subscription: use $deviceCapabilities anywhere in <script> or markup
 	import { bindFxIntensity } from '$lib/utils/fx-intensity-controller';
 	import { fxTuner } from '$lib/actions/fx-tuner';
 
@@ -61,6 +66,7 @@
 
 	// Performance monitoring setup
 	let perfMonitor: ReturnType<typeof setupPerformanceMonitoring> | null = null;
+	let capsVisibilityCleanup: (() => void) | null = null;
 	let frameRateUnsubscribe: Function | null = null;
 
 	let currentGameState: GameState = 'idle';
@@ -122,25 +128,23 @@
 		stopAnimations(false);
 	}
 
+	$: fxClass =
+		$deviceCapabilities.effectsLevel === 'minimal'
+			? 'fx-subtle'
+			: $deviceCapabilities.effectsLevel === 'reduced'
+				? 'fx-default'
+				: 'fx-bold';
+
 	// Device detection function optimized with memoization
 	function detectDeviceCapabilities() {
 		if (!browser) return;
-
-		// Check if mobile
-		isMobileDevice = window.innerWidth < 768;
-
-		// Try to detect lower-performance devices
-		isLowPerformanceDevice =
-			isMobileDevice &&
-			// Check for older/lower-powered devices
-			(navigator.hardwareConcurrency <= 4 ||
-				// iOS Safari can struggle with these effects
-				(navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome')));
-
-		// Set a data attribute that CSS can use for selective effects
+		const tier = $deviceCapabilities?.tier ?? 'high';
+		const isMobile = $deviceCapabilities?.isMobile ?? window.innerWidth < 768;
+		isMobileDevice = !!isMobile;
+		isLowPerformanceDevice = tier === 'low';
 		document.documentElement.setAttribute(
 			'data-device-type',
-			isLowPerformanceDevice ? 'low-performance' : isMobileDevice ? 'mobile' : 'desktop'
+			tier === 'low' ? 'low-performance' : isMobile ? 'mobile' : 'desktop'
 		);
 	}
 
@@ -470,7 +474,8 @@
 			if (!glassContainer) return;
 
 			// Skip updates on low-performance frames
-			if (!frameRateController.shouldRenderFrame()) return;
+			if (!frameRateController.shouldRenderFrame() || $deviceCapabilities.preferReducedMotion)
+				return;
 
 			// Calculate relative position
 			const rect = glassContainer.getBoundingClientRect();
@@ -558,6 +563,30 @@
 					if (pressure === 'high' || pressure === 'critical') {
 						// Reduce quality through frameRateController
 						frameRateController.setQualityOverride(pressure === 'critical' ? 0.5 : 0.7);
+						// Nudge capability limits so effect counts follow too
+						deviceCapabilities.update((caps) => ({
+							...caps,
+							maxEffectUnits: Math.max(
+								10,
+								Math.floor(caps.maxEffectUnits * (pressure === 'critical' ? 0.6 : 0.8))
+							),
+							maxStars: Math.max(
+								10,
+								Math.floor(caps.maxEffectUnits * (pressure === 'critical' ? 0.6 : 0.8))
+							), // legacy mirror
+							starfield: {
+								...caps.starfield,
+								maxUnits: Math.max(
+									10,
+									Math.floor(caps.starfield.maxUnits * (pressure === 'critical' ? 0.6 : 0.8))
+								),
+								animationSpeed: Math.max(
+									0.35,
+									caps.starfield.animationSpeed * (pressure === 'critical' ? 0.8 : 0.9)
+								),
+								qualityLevel: pressure === 'critical' ? 'minimal' : caps.starfield.qualityLevel
+							}
+						}));
 					}
 				});
 
@@ -582,13 +611,10 @@
 		}
 	}
 
-	function setupEventListeners() {
+	function setupHeroEventListeners() {
 		// Define optimized event handlers
 		const optimizedResizeCheck = createThrottledRAF(() => {
-			// Only perform resize operations if frameRateController allows
 			if (!frameRateController.shouldRenderFrame()) return;
-
-			// Update device capabilities on resize
 			detectDeviceCapabilities();
 			debouncedOrientationCheck();
 		}, 100);
@@ -596,60 +622,42 @@
 		// PERFORMANCE FIX #11: Optimized visibility handler
 		const visibilityHandler = () => {
 			const isVisible = !document.hidden;
-
-			// Track visibility changes to prevent unnecessary resets
 			if (lastVisibilityState === isVisible) return;
 			lastVisibilityState = isVisible;
 
 			if (document.hidden) {
-				// Pause frame rate controller
-				if (frameRateController && typeof frameRateController.setAdaptiveEnabled === 'function') {
-					frameRateController.setAdaptiveEnabled(false);
-				}
+				frameRateController.setAdaptiveEnabled(false);
 			} else {
-				// Resume frame rate controller
-				if (frameRateController && typeof frameRateController.setAdaptiveEnabled === 'function') {
-					frameRateController.setAdaptiveEnabled(true);
-				}
+				frameRateController.setAdaptiveEnabled(true);
 			}
 		};
 
 		const orientationChangeHandler = () => {
-			// Detect new device capabilities after orientation change
 			setTimeout(() => {
 				detectDeviceCapabilities();
 			}, 300);
 		};
 
-		// Create touch event handler for mobile
 		const touchStartHandler = (e: TouchEvent) => {
-			if (currentScreen === 'game') {
-				e.preventDefault();
-			}
+			if (currentScreen === 'game') e.preventDefault();
 		};
 
-		// Use passive option for all event listeners
 		const passiveOptions = { passive: true };
 		const nonPassiveOptions = { passive: false };
 
-		// Setup resize observer with optimized callback
 		if (typeof ResizeObserver === 'function') {
 			resizeObserver = new ResizeObserver(optimizedResizeCheck);
 			if (arcadeScreen) {
 				resizeObserver.observe(arcadeScreen);
-
-				// Add touch handler to arcade screen
 				if (isMobileDevice) {
 					arcadeScreen.addEventListener('touchstart', touchStartHandler as any, nonPassiveOptions);
 				}
 			}
 		}
 
-		// Add event listeners
 		if (typeof window !== 'undefined') {
 			window.addEventListener('resize', optimizedResizeCheck, passiveOptions);
 			window.addEventListener('orientationchange', orientationChangeHandler, passiveOptions);
-			// Add scroll event listener
 			window.addEventListener('scroll', handleScroll, passiveOptions);
 		}
 
@@ -657,13 +665,11 @@
 			document.addEventListener('visibilitychange', visibilityHandler, passiveOptions);
 		}
 
-		// Add passive touch events for better scrolling performance on mobile
 		if (isMobileDevice && typeof document !== 'undefined') {
 			document.addEventListener('touchstart', () => {}, { passive: true });
 			document.addEventListener('touchmove', () => {}, { passive: true });
 		}
 
-		// Store handlers for cleanup
 		eventHandlers = {
 			resize: optimizedResizeCheck as EventListener,
 			orientationChange: orientationChangeHandler as EventListener,
@@ -675,15 +681,22 @@
 
 	// Initialize frame rate controller settings
 	function setupFrameRateController() {
-		// Set target FPS based on device capabilities
-		const capabilities = get(deviceCapabilities);
+		// Get device capabilities once
+		const caps = get(deviceCapabilities);
 
-		// Setup target FPS (60 for high/medium, 30 for low)
-		const targetFPS = isLowPerformanceDevice ? 30 : 60;
+		// Derive FPS target from caps.updateInterval if available,
+		// otherwise fall back to 60 (high/medium) or 30 (low)
+		let targetFPS: number;
+		if (caps.updateInterval) {
+			targetFPS = Math.max(15, Math.min(120, Math.round(1000 / (caps.updateInterval || 16))));
+		} else {
+			targetFPS = isLowPerformanceDevice ? 30 : 60;
+		}
+
 		frameRateController.setTargetFPS(targetFPS);
 
-		// Set max frame skipping based on device capabilities
-		const maxSkip = capabilities.frameSkip || (isLowPerformanceDevice ? 2 : 0);
+		// Set max frame skipping
+		const maxSkip = caps.frameSkip ?? (isLowPerformanceDevice ? 2 : 0);
 		frameRateController.setMaxSkippedFrames(maxSkip);
 
 		// Enable adaptive quality control
@@ -691,7 +704,6 @@
 
 		// Subscribe to quality changes to adapt animations
 		frameRateUnsubscribe = frameRateController.subscribeQuality((quality) => {
-			// Animation quality adaptations can be added here if needed
 			try {
 				// Future: Adapt animation complexity based on quality
 			} catch (error) {
@@ -710,6 +722,8 @@
 
 		// Initialize performance monitoring first
 		perfMonitor = setupPerformanceMonitoring();
+		// Optional: also mirror module’s visibility optimizations
+		capsVisibilityCleanup = setupDevicePerfEventListeners ? setupDevicePerfEventListeners() : null;
 
 		hasMounted = true;
 
@@ -719,8 +733,8 @@
 		// Initialize core components
 		initializeComponents();
 
-		// Set up event listeners (with passive option)
-		setupEventListeners();
+		// Set up this component's own listeners
+		setupHeroEventListeners();
 
 		// Initial setup - use RAF for first render timing
 		const initialRaf = requestAnimationFrame(() => {
@@ -777,6 +791,10 @@
 		if (perfMonitor) {
 			perfMonitor();
 			perfMonitor = null;
+			if (capsVisibilityCleanup) {
+				capsVisibilityCleanup();
+				capsVisibilityCleanup = null;
+			}
 		}
 
 		// Unsubscribe from frameRateController
@@ -924,13 +942,23 @@
 						<div class="starfield-container rounded-arcade" style="z-index: 15;">
 							<VectorStarfield
 								enabled={currentScreen === 'main'}
-								layers={3}
-								density={1.6}
-								maxStars={900}
-								targetFPS={isLowPerformanceDevice ? 30 : 60}
-								baseSpeed={isLowPerformanceDevice ? 0.22 : 0.32}
-								qualityScale={1.0}
-								lowPowerMode={isLowPerformanceDevice}
+								layers={$deviceCapabilities.tier === 'high'
+									? 3
+									: $deviceCapabilities.tier === 'medium'
+										? 2
+										: 1}
+								density={($deviceCapabilities.effectsLevel === 'normal'
+									? 1.6
+									: $deviceCapabilities.effectsLevel === 'reduced'
+										? 1.2
+										: 0.8) * frameRateController.getCurrentQuality()}
+								maxStars={$deviceCapabilities.maxEffectUnits}
+								targetFPS={Math.round(1000 / $deviceCapabilities.updateInterval)}
+								baseSpeed={$deviceCapabilities.starfield.animationSpeed *
+									(0.8 + 0.4 * frameRateController.getCurrentQuality())}
+								qualityScale={frameRateController.getCurrentQuality()}
+								lowPowerMode={$deviceCapabilities.tier === 'low' ||
+									$deviceCapabilities.preferReducedMotion}
 								lineWidth={1.1}
 								color="#CFFFE6"
 								opaque={false}
@@ -966,7 +994,7 @@
 
 					<!-- Glass stack (now clearly above stars, below scanlines) -->
 					<div
-						class="screen-glass-container rounded-arcade hardware-accelerated fx-default"
+						class="screen-glass-container rounded-arcade hardware-accelerated {fxClass}"
 						style="z-index: 20;"
 					>
 						<div class="screen-glass-outer rounded-arcade"></div>

@@ -386,7 +386,7 @@ class FrameRateController {
 				deviceCapabilities.update((caps) => ({
 					...caps,
 					frameSkip: caps.frameSkip + 1,
-					updateInterval: Math.max(caps.updateInterval, 32) // Minimum 30fps target
+					updateInterval: Math.max(caps.updateInterval, 32) // Minimum ~30fps target
 				}));
 
 				if (this.lowBatteryMode) {
@@ -398,13 +398,13 @@ class FrameRateController {
 						updateInterval: Math.max(caps.updateInterval, 50), // ~20fps target
 						enableShadows: false,
 						enableBlur: false,
-						enableGlow: false,
 						enableParallax: false,
-						maxEffectObjects: Math.min(caps.maxEffectObjects, 30),
-						backgroundEffect: {
-							...caps.backgroundEffect,
-							maxObjects: Math.min(caps.backgroundEffect.maxObjects, 30),
-							animationSpeed: Math.min(caps.backgroundEffect.animationSpeed, 0.6),
+						maxEffectUnits: Math.min(caps.maxEffectUnits, 30),
+						maxStars: Math.min(caps.maxEffectUnits, 30), // legacy mirror
+						starfield: {
+							...caps.starfield,
+							maxUnits: Math.min(caps.starfield.maxUnits, 30),
+							animationSpeed: Math.min(caps.starfield.animationSpeed, 0.6),
 							qualityLevel: 'minimal'
 						}
 					}));
@@ -447,13 +447,13 @@ class FrameRateController {
 								frameSkip: Math.max(2, caps.frameSkip),
 								enableShadows: false,
 								enableBlur: false,
-								enableGlow: false,
 								useCanvas: true, // Canvas is typically more efficient
-								maxEffectObjects: Math.min(caps.maxEffectObjects, 30),
-								backgroundEffect: {
-									...caps.backgroundEffect,
-									maxObjects: Math.min(caps.backgroundEffect.maxObjects, 30),
-									animationSpeed: Math.min(caps.backgroundEffect.animationSpeed, 0.6),
+								maxEffectUnits: Math.min(caps.maxEffectUnits, 30),
+								maxStars: Math.min(caps.maxEffectUnits, 30), // legacy mirror
+								starfield: {
+									...caps.starfield,
+									maxUnits: Math.min(caps.starfield.maxUnits, 30),
+									animationSpeed: Math.min(caps.starfield.animationSpeed, 0.6),
 									qualityLevel: 'minimal'
 								}
 							}));
@@ -485,9 +485,9 @@ class FrameRateController {
 					enableParallax: false,
 					enablePulse: false,
 					frameSkip: Math.max(1, caps.frameSkip),
-					backgroundEffect: {
-						...caps.backgroundEffect,
-						animationSpeed: Math.min(caps.backgroundEffect.animationSpeed, 0.5),
+					starfield: {
+						...caps.starfield,
+						animationSpeed: Math.min(caps.starfield.animationSpeed, 0.5),
 						qualityLevel: 'minimal'
 					}
 				}));
