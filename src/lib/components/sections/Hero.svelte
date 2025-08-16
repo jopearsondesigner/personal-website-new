@@ -23,17 +23,7 @@
 	import { bindFxIntensity } from '$lib/utils/fx-intensity-controller';
 	import { fxTuner } from '$lib/actions/fx-tuner';
 
-	import {
-		memoryManager,
-		currentMemoryInfo,
-		memoryEvents,
-		memoryPressure,
-		memoryUsageStore,
-		objectPoolStatsStore,
-		type MemoryInfo,
-		type MemoryEvent,
-		type MemoryPressure
-	} from '$lib/utils/memory-manager';
+	import { memoryManager, type MemoryEvent, type MemoryPressure } from '$lib/utils/memory-manager';
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
 	import { createThrottledRAF } from '$lib/utils/animation-helpers';
 
@@ -53,7 +43,6 @@
 	let glitchManager: InstanceType<typeof animations.GlitchManager>;
 	let resizeObserver: ResizeObserver | null = null;
 	let orientationTimeout: number | null = null;
-	let hasError = false;
 	let memoryManagerUnsubscribes: (() => void)[] = [];
 	let eventHandlers: {
 		resize?: EventListener;
@@ -215,7 +204,7 @@
 			// Stop current animations only if needed
 			if (prevScreen === 'main' && newScreen !== 'main') {
 				// We're leaving the main screen, stop animations
-				stopAnimations(false);
+				stopAnimations();
 				isAnimationInitialized = false; // PERFORMANCE: Reset state
 
 				// Keep glass effects active even when switching screens
@@ -378,20 +367,6 @@
 						ease: 'power2.out'
 					},
 					0.5
-				)
-				.fromTo(
-					elements.arcadeScreen,
-					{
-						filter: 'brightness(0) blur(2px)',
-						transform: 'scale(0.98)'
-					},
-					{
-						filter: 'brightness(1) blur(0)',
-						transform: 'scale(1)',
-						duration: 2.5,
-						ease: 'power2.out'
-					},
-					0
 				);
 
 			if (timeline) {
@@ -405,8 +380,7 @@
 		}
 	}
 
-	// PERFORMANCE FIX #9: Enhanced animation cleanup
-	function stopAnimations(clearBackground = false) {
+	function stopAnimations() {
 		if (!browser) return;
 
 		console.log('⚡ Stopping animations');
@@ -528,8 +502,6 @@
 		if (browser && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
 			// Apply iOS fixes to the arcade screen
 			if (arcadeScreen) {
-				// Use transform for hardware acceleration
-				arcadeScreen.style.transform = 'translateZ(0)';
 				arcadeScreen.style.backfaceVisibility = 'hidden';
 				arcadeScreen.style.webkitBackfaceVisibility = 'hidden';
 				arcadeScreen.classList.add('ios-optimized');
@@ -738,11 +710,6 @@
 
 		// Initial setup - use RAF for first render timing
 		const initialRaf = requestAnimationFrame(() => {
-			// Apply power-up sequence effect
-			if (arcadeScreen) {
-				arcadeScreen.classList.add('power-sequence');
-			}
-
 			// Check orientation initially
 			handleOrientation();
 
@@ -892,7 +859,6 @@
 					<ArcadeNavigation on:changeScreen={handleScreenChange} />
 				</div>
 
-				<!-- Add explicit border-radius and overflow-hidden -->
 				<div class="screen-bezel"></div>
 
 				<div
@@ -1041,7 +1007,6 @@
 		--arcade-screen-width: min(95vw, 800px);
 		--arcade-screen-height: min(70vh, 600px);
 		--border-radius: 4vmin;
-		--cabinet-depth: 2.5vmin;
 		--screen-recess: 1.8vmin;
 		--bezel-thickness: 0.8vmin;
 
@@ -1050,7 +1015,6 @@
 		--insert-concept-font-size: 4.45vmin;
 
 		/* Colors */
-		--screen-border-color: rgba(226, 226, 189, 1);
 		--header-text-color: rgba(227, 255, 238, 1);
 		--insert-concept-color: rgba(245, 245, 220, 1);
 		--cabinet-specular: rgba(255, 255, 255, 0.7);
@@ -1068,10 +1032,8 @@
 
 		/* Enhanced Glass Physics */
 		--glass-thickness: 0.4vmin;
-		--glass-refraction: 1.2;
 		--glass-reflectivity: 0.15;
 		--glass-specular-intensity: 0.7;
-		--glass-curvature: 3%;
 		--glass-edge-highlight: rgba(255, 255, 255, 0.8);
 		--glass-dust-opacity: 0.03;
 		--glass-smudge-opacity: 0.04;
@@ -1298,9 +1260,7 @@
 	}
 
 	/* BULLETPROOF: Scroll protection - never allow background changes during scroll */
-	.blank-crt-monitor,
-	#space-background,
-	[id='space-background'] {
+	.blank-crt-monitor {
 		opacity: 1 !important;
 		visibility: visible !important;
 		display: block !important;
@@ -1604,56 +1564,6 @@
 		}
 	}
 
-	@keyframes powerUpSequence {
-		0% {
-			filter: brightness(0) blur(2px);
-			transform: scale(0.98);
-		}
-		5% {
-			filter: brightness(0.3) blur(1px);
-			transform: scale(0.99);
-		}
-		10% {
-			filter: brightness(0.1) blur(2px);
-			transform: scale(0.98);
-		}
-		15% {
-			filter: brightness(0.5) blur(0.5px);
-			transform: scale(1);
-		}
-		30% {
-			filter: brightness(0.3) blur(1px);
-			transform: scale(0.99);
-		}
-		100% {
-			filter: brightness(1) blur(0);
-			transform: scale(1);
-		}
-	}
-
-	@keyframes glassWarmUp {
-		0% {
-			opacity: 0;
-			filter: brightness(0.5) blur(2px);
-		}
-		30% {
-			opacity: 0.3;
-			filter: brightness(0.7) blur(1px);
-		}
-		60% {
-			opacity: 0.5;
-			filter: brightness(0.85) blur(0.5px);
-		}
-		100% {
-			opacity: 1;
-			filter: brightness(1) blur(0);
-		}
-	}
-
-	.power-sequence .screen-glass-container > div {
-		animation: glassWarmUp 3s ease-out forwards;
-	}
-
 	@keyframes phosphorPersistence {
 		0% {
 			opacity: 1;
@@ -1806,26 +1716,6 @@
 		animation: interlaceFlicker calc(1000ms / var(--refresh-rate)) steps(2) infinite;
 	}
 
-	.color-bleed {
-		position: absolute;
-		inset: 0;
-		filter: blur(1.5px);
-		opacity: 0.4;
-		mix-blend-mode: screen;
-	}
-
-	.misconvergence {
-		position: absolute;
-		inset: 0;
-		transform: translate3d(var(--misconvergence-offset), 0, 0);
-		mix-blend-mode: screen;
-		opacity: 0.4;
-	}
-
-	.power-sequence {
-		animation: powerUpSequence 2.5s ease-out;
-	}
-
 	/* ==========================================================================
        Cabinet Effects
        ========================================================================== */
@@ -1903,98 +1793,6 @@
 	}
 
 	/* ==========================================================================
-       Lighting Effects
-       ========================================================================== */
-	.t-molding {
-		position: absolute;
-		inset: -4px;
-		border-radius: calc(var(--border-radius) + 8px);
-		background: transparent;
-		overflow: hidden;
-		z-index: -1;
-	}
-
-	.t-molding::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(
-			90deg,
-			rgba(255, 0, 98, 0.8) 0%,
-			rgba(255, 0, 98, 0.4) 50%,
-			rgba(255, 0, 98, 0.8) 100%
-		);
-		filter: blur(3px);
-		animation: tmoldingPulse 4s infinite;
-	}
-
-	.t-molding::after {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: rgba(255, 255, 255, 0.1);
-		box-shadow:
-			inset 0 0 15px rgba(255, 255, 255, 0.2),
-			0 0 20px rgba(255, 0, 98, 0.4);
-	}
-
-	.control-panel-light {
-		position: absolute;
-		bottom: -20px;
-		left: 10%;
-		right: 10%;
-		height: 20px;
-		background: linear-gradient(to bottom, rgba(0, 255, 255, 0.4), transparent);
-		filter: blur(8px);
-		transform: perspective(500px) rotateX(60deg);
-		transform-origin: top;
-		opacity: 0.6;
-		animation: controlPanelGlow 2s ease-in-out infinite alternate;
-	}
-
-	.corner-accent {
-		position: absolute;
-		width: 30px;
-		height: 30px;
-		background: radial-gradient(
-			circle at center,
-			rgba(255, 255, 255, 0.9),
-			rgba(255, 255, 255, 0.1) 70%,
-			transparent 100%
-		);
-		filter: blur(2px);
-		opacity: 0.7;
-	}
-
-	/* Corner accent positions */
-	.corner-accent.top-left {
-		top: -15px;
-		left: -15px;
-	}
-	.corner-accent.top-right {
-		top: -15px;
-		right: -15px;
-	}
-	.corner-accent.bottom-left {
-		bottom: -15px;
-		left: -15px;
-	}
-	.corner-accent.bottom-right {
-		bottom: -15px;
-		right: -15px;
-	}
-
-	.light-spill {
-		position: absolute;
-		inset: -50px;
-		background: radial-gradient(circle at 50% 50%, rgba(255, 0, 98, 0.15), transparent 70%);
-		filter: blur(20px);
-		mix-blend-mode: screen;
-		pointer-events: none;
-		z-index: -2;
-	}
-
-	/* ==========================================================================
        Screen Effects and Overlays
        ========================================================================== */
 	#scanline-overlay {
@@ -2020,14 +1818,6 @@
 		opacity: var(--screen-glow-opacity);
 		z-index: -1;
 		mix-blend-mode: screen;
-	}
-
-	.screen-flicker {
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(transparent 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%);
-		opacity: 0;
-		animation: screenFlicker 0.1s steps(2) infinite;
 	}
 
 	/* ==========================================================================
@@ -2367,10 +2157,6 @@
 		mix-blend-mode: multiply;
 	}
 
-	:global(html.light) .side-panel {
-		border-color: rgba(0, 0, 0, 0.06);
-	}
-
 	/* ==========================================================================
       Mobile Optimizations
       ========================================================================== */
@@ -2466,26 +2252,6 @@
 			opacity: 0.2;
 			background-size: 100% 4px;
 			animation-duration: 0.3s;
-		}
-
-		/* Reduce power-up sequence intensity for light mode */
-		:global(html.light) .power-sequence {
-			animation-duration: 2s;
-		}
-
-		@keyframes mobileLightPowerUp {
-			0% {
-				filter: brightness(0.8) blur(1px);
-				transform: scale(0.99);
-			}
-			100% {
-				filter: brightness(1) blur(0);
-				transform: scale(1);
-			}
-		}
-
-		:global(html.light) .power-sequence {
-			animation-name: mobileLightPowerUp;
 		}
 
 		/* Mobile Light Mode Cabinet Styles */
