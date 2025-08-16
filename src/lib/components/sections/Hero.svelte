@@ -29,7 +29,7 @@
 
 	import type { GameState } from '$lib/types/game';
 
-	// PERFORMANCE OPTIMIZATION: Consolidate state management
+	// Consolidate state management
 	// Device detection state
 	let isMobileDevice = false;
 	let isLowPerformanceDevice = false;
@@ -62,18 +62,18 @@
 
 	let unbindFx: () => void;
 
-	// PERFORMANCE FIX #1: Isolate scroll state from animation logic
+	//Isolate scroll state from animation logic
 	let isScrolling = false;
 	let scrollTimeout: number | null = null;
 	let lastVisibilityState = true;
 	let hasMounted = false;
 
-	// PERFORMANCE FIX #2: Add animation state guards
+	// Add animation state guards
 	let isAnimationInitialized = false;
 	let animationInitTimeout: number | null = null;
 	let lastNavbarHeight = 0;
 
-	// PERFORMANCE FIX #3: CSS Variable change detection with threshold
+	// CSS Variable change detection with threshold
 	const CSS_UPDATE_THRESHOLD = 2; // pixels
 	$: if (browser && $layoutStore?.navbarHeight !== undefined) {
 		const newHeight = $layoutStore.navbarHeight;
@@ -89,7 +89,7 @@
 		}
 	}
 
-	// PERFORMANCE FIX #4: Optimized animation reactive statement
+	// Optimized animation reactive statement
 	// Only trigger animations on specific state combinations, with debouncing
 	$: if (currentScreen === 'main' && browser && hasMounted && !isAnimationInitialized) {
 		// Debounce animation initialization to prevent rapid fire
@@ -97,7 +97,7 @@
 			clearTimeout(animationInitTimeout);
 		}
 
-		animationInitTimeout = setTimeout(() => {
+		animationInitTimeout = window.setTimeout(() => {
 			const elements = { header, insertConcept, arcadeScreen };
 			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
 				// PERFORMANCE: Only initialize if not already done
@@ -111,10 +111,10 @@
 		}, 50); // Small debounce to prevent rapid calls
 	}
 
-	// PERFORMANCE FIX #5: Reset animation state when leaving main screen
+	// Reset animation state when leaving main screen
 	$: if (currentScreen !== 'main' && isAnimationInitialized) {
 		isAnimationInitialized = false;
-		stopAnimations(false);
+		stopAnimations();
 	}
 
 	$: fxClass =
@@ -137,11 +137,11 @@
 		);
 	}
 
-	// PERFORMANCE FIX #6: Optimize scroll handling with better isolation
+	// Optimize scroll handling with better isolation
 	function handleScroll() {
 		if (!browser) return;
 
-		// PERFORMANCE: Track scroll state without affecting animations
+		// Track scroll state without affecting animations
 		const wasScrolling = isScrolling;
 		isScrolling = true;
 
@@ -153,7 +153,7 @@
 		// Debounce scroll end detection - don't trigger animations during scroll
 		scrollTimeout = window.setTimeout(() => {
 			isScrolling = false;
-			// PERFORMANCE: Only trigger updates if scroll state actually changed
+			// Only trigger updates if scroll state actually changed
 			if (wasScrolling !== isScrolling) {
 				// Scroll ended - opportunity to optimize
 				requestAnimationFrame(() => {
@@ -194,7 +194,7 @@
 		// Don't do anything if screen hasn't changed
 		if (newScreen === prevScreen) return;
 
-		// PERFORMANCE FIX #7: Remove scroll state check that was causing animation issues
+		// Remove scroll state check that was causing animation issues
 		// Update the screen state
 		screenStore.set(newScreen);
 		currentScreen = newScreen;
@@ -294,21 +294,21 @@
 		orientationTimeout = window.setTimeout(handleOrientation, 150);
 	}
 
-	// PERFORMANCE FIX #8: Enhanced animation control with state guards
+	// Enhanced animation control with state guards
 	function startAnimations(elements: {
 		header: HTMLElement;
 		insertConcept: HTMLElement;
 		arcadeScreen: HTMLElement;
 	}) {
 		try {
-			// PERFORMANCE: Guard against multiple initializations
+			// Guard against multiple initializations
 			if (isAnimationInitialized) {
 				console.log('⚡ Skipping animation start - already initialized');
 				return;
 			}
 
 			// Stop existing animations first
-			stopAnimations(false);
+			stopAnimations();
 
 			// Get the current quality setting from frameRateController
 			const currentQuality =
@@ -517,7 +517,7 @@
 		}
 	}
 
-	// PERFORMANCE FIX #10: Optimized memory monitoring initialization
+	// Optimized memory monitoring initialization
 	function initializeMemoryMonitoring() {
 		if (
 			memoryManagerUnsubscribes.length === 0 &&
@@ -591,7 +591,7 @@
 			debouncedOrientationCheck();
 		}, 100);
 
-		// PERFORMANCE FIX #11: Optimized visibility handler
+		// Optimized visibility handler
 		const visibilityHandler = () => {
 			const isVisible = !document.hidden;
 			if (lastVisibilityState === isVisible) return;
@@ -875,7 +875,7 @@
 						starAlphaBoost: 1.05,
 
 						// NOTE: If you want to force-disable glass from template, uncomment:
-						// intensity: 0.0,
+						intensity: 0.85,
 
 						animSpeed: 0.9,
 						blurMult: 0.9,
@@ -1535,35 +1535,6 @@
 		}
 	}
 
-	@keyframes tmoldingPulse {
-		0%,
-		100% {
-			opacity: 0.8;
-		}
-		50% {
-			opacity: 1;
-		}
-	}
-
-	@keyframes controlPanelGlow {
-		from {
-			opacity: 0.5;
-		}
-		to {
-			opacity: 0.7;
-		}
-	}
-
-	@keyframes screenFlicker {
-		0%,
-		100% {
-			opacity: 0;
-		}
-		50% {
-			opacity: 1;
-		}
-	}
-
 	@keyframes phosphorPersistence {
 		0% {
 			opacity: 1;
@@ -2068,16 +2039,6 @@
 		border-radius: calc(var(--border-radius) + 0.5vmin);
 	}
 
-	:global(html.light) .t-molding::before {
-		opacity: 0.4;
-		background: linear-gradient(
-			90deg,
-			rgba(0, 150, 255, 0.6) 0%,
-			rgba(0, 150, 255, 0.3) 50%,
-			rgba(0, 150, 255, 0.6) 100%
-		);
-	}
-
 	:global(html.light) .control-panel-light {
 		opacity: 0.3;
 		background: linear-gradient(to bottom, rgba(0, 150, 255, 0.3), transparent);
@@ -2329,38 +2290,6 @@
 				var(--light-cabinet-accent) 100%
 			);
 			filter: blur(3px);
-		}
-
-		:global(html.light) .t-molding::after {
-			opacity: 0.15;
-			box-shadow:
-				inset 0 0 6px rgba(255, 255, 255, 0.3),
-				0 0 8px var(--light-cabinet-accent);
-		}
-
-		/* Refined corner accents for mobile light mode */
-		:global(html.light) .corner-accent {
-			opacity: 0.3;
-			background: radial-gradient(
-				circle at center,
-				rgba(255, 255, 255, 0.7),
-				rgba(255, 255, 255, 0.05) 70%,
-				transparent 100%
-			);
-			filter: blur(1px);
-		}
-
-		/* Softer light spill for mobile light mode */
-		:global(html.light) .light-spill {
-			background: radial-gradient(circle at 50% 50%, var(--light-cabinet-accent), transparent 70%);
-			opacity: 0.06;
-			filter: blur(15px);
-		}
-
-		/* Subtler control panel light in mobile light mode */
-		:global(html.light) .control-panel-light {
-			opacity: 0.15;
-			background: linear-gradient(to bottom, var(--light-cabinet-accent), transparent);
 		}
 
 		/* Adjust arcade-screen-wrapper margin for mobile */
