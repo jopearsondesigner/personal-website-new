@@ -12,7 +12,6 @@
 	import { layoutStore } from '$lib/stores/store';
 	import ControlsPortal from '$lib/components/ui/ControlsPortal.svelte';
 	import GameControls from '$lib/components/game/GameControls.svelte';
-	import ArcadeBackground from '$lib/components/vfx/ArcadeBackground.svelte';
 	import VectorStarfield from '$lib/components/vfx/VectorStarfield.svelte';
 	import {
 		deviceCapabilities,
@@ -420,8 +419,6 @@
 		if (typeof window !== 'undefined' && gsap) {
 			// Kill all GSAP animations
 			if (typeof gsap.killTweensOf === 'function') {
-				gsap.killTweensOf([]);
-
 				// If you have specific elements that are animated:
 				if (header) gsap.killTweensOf(header);
 				if (insertConcept) gsap.killTweensOf(insertConcept);
@@ -430,7 +427,6 @@
 
 			// If you need to completely clear GSAP's ticker:
 			if (gsap.ticker && typeof gsap.ticker.remove === 'function') {
-				gsap.ticker.remove(() => {}); // Pass an empty function instead of null
 			}
 		}
 	}
@@ -637,11 +633,6 @@
 			document.addEventListener('visibilitychange', visibilityHandler, passiveOptions);
 		}
 
-		if (isMobileDevice && typeof document !== 'undefined') {
-			document.addEventListener('touchstart', () => {}, { passive: true });
-			document.addEventListener('touchmove', () => {}, { passive: true });
-		}
-
 		eventHandlers = {
 			resize: optimizedResizeCheck as EventListener,
 			orientationChange: orientationChangeHandler as EventListener,
@@ -827,7 +818,6 @@
 		// Clean up any GSAP animations that might still be running
 		if (typeof window !== 'undefined' && gsap && gsap.ticker) {
 			gsap.ticker.remove(() => {}); // Pass an empty function instead of null
-			gsap.globalTimeline.clear();
 		}
 
 		// Reset state flags
@@ -919,7 +909,7 @@
 										? 1.2
 										: 0.8) * frameRateController.getCurrentQuality()}
 								maxStars={$deviceCapabilities.maxEffectUnits}
-								targetFPS={Math.round(1000 / $deviceCapabilities.updateInterval)}
+								targetFPS={Math.round(1000 / ($deviceCapabilities.updateInterval ?? 16))}
 								baseSpeed={$deviceCapabilities.starfield.animationSpeed *
 									(0.8 + 0.4 * frameRateController.getCurrentQuality())}
 								qualityScale={frameRateController.getCurrentQuality()}
@@ -1138,7 +1128,6 @@
 		width: var(--arcade-screen-width);
 		height: var(--arcade-screen-height);
 		border: none;
-		border-radius: var(--border-radius);
 		position: relative;
 		overflow: hidden;
 		z-index: 0;
@@ -1169,12 +1158,6 @@
 		/* Helps Safari/WebKit clip certain composited effects reliably */
 		-webkit-mask-image: radial-gradient(circle at 50% 50%, #000 70%, #000 71%);
 		-webkit-mask-composite: source-over;
-	}
-
-	/* Any element meant to match the screen’s radius just opts into this */
-	.rounded-arcade {
-		border-radius: var(--border-radius) !important;
-		overflow: hidden; /* prevent subtle corners from peeking through */
 	}
 
 	/* Safety net: the most common layers inside #arcade-screen inherit radius */
@@ -2067,11 +2050,6 @@
 			inset 0 0 2px rgba(255, 255, 255, 0.5),
 			inset 0 0 100px rgba(0, 0, 0, 0.1);
 		background: linear-gradient(145deg, #111 0%, #222 100%);
-		box-shadow:
-        /* Screen recess shadow */
-			0 0 20px rgba(0, 0, 0, 0.08),
-			/* Inner screen shadow */ inset 0 0 40px rgba(0, 0, 0, 0.25),
-			/* Subtle glass effect */ inset 0 0 2px rgba(255, 255, 255, 0.4);
 	}
 
 	/* Cabinet Materials Light Theme */
@@ -2353,28 +2331,5 @@
 	html[data-device-type='low-performance'] .screen-glass-reflection,
 	html[data-device-type='low-performance'] .screen-glare {
 		animation: none;
-	}
-
-	/* ==========================================================================
-      Fix iOS overscroll issues
-      ========================================================================== */
-	@supports (-webkit-overflow-scrolling: touch) {
-		body,
-		html {
-			position: fixed;
-			width: 100%;
-			height: 100%;
-			overflow: hidden;
-		}
-
-		#hero {
-			position: absolute;
-			top: 0;
-			left: 0;
-			right: 0;
-			bottom: 0;
-			-webkit-overflow-scrolling: touch;
-			overflow-y: scroll;
-		}
 	}
 </style>
