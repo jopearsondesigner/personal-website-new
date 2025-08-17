@@ -869,7 +869,6 @@
 
 						animSpeed: 0.9,
 						blurMult: 0.9,
-
 						// Small accessibility boost on hover/focus
 						hoverBoost: { contrast: 1.12, brightness: 1.05, alpha: 1.0 }
 					}}
@@ -881,7 +880,7 @@
 					<div class="interlace rounded-arcade"></div>
 
 					<!-- Update all screen effects to include unified radius -->
-					<div class="screen-reflection rounded-arcade"></div>
+					<div class="qqqqqqqqqqqqqqqqqqqqqqqq aZ rounded-arcade"></div>
 					<div class="screen-glare rounded-arcade"></div>
 
 					<div class="glow-effect rounded-arcade"></div>
@@ -1685,10 +1684,13 @@
 	}
 
 	.screen-glass-container {
-		position: absolute;
-		inset: 0; /* gives it a real box matching #arcade-screen */
-		z-index: 20; /* now takes effect because the element is positioned */
-		pointer-events: none; /* keeps the glass from blocking clicks */
+		position: absolute; /* make z-index effective */
+		inset: 0; /* give it a real box so paint isn't clipped */
+		pointer-events: none;
+		z-index: 20; /* sits above stars (15) and below scanlines (30) */
+		contain: layout style; /* override: remove 'paint' so children can paint */
+		/* keep the stacking context from transform (via hardware-accelerated), or explicitly: */
+		/* transform: translateZ(0); */
 	}
 
 	.screen-bezel {
