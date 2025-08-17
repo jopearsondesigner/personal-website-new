@@ -43,14 +43,6 @@
 	let resizeObserver: ResizeObserver | null = null;
 	let orientationTimeout: number | null = null;
 	let memoryManagerUnsubscribes: (() => void)[] = [];
-	let eventHandlers: {
-		resize?: EventListener;
-		orientationChange?: EventListener;
-		visibility?: EventListener;
-		touchStart?: EventListener;
-		glassEffects?: EventListener;
-		scroll?: EventListener;
-	} = {};
 
 	// Performance monitoring setup
 	let perfMonitor: ReturnType<typeof setupPerformanceMonitoring> | null = null;
@@ -71,6 +63,14 @@
 	let isAnimationInitialized = false;
 	let animationInitTimeout: number | null = null;
 	let lastNavbarHeight = 0;
+
+	let eventHandlers: {
+		resize?: EventListener;
+		orientationChange?: EventListener;
+		visibility?: EventListener;
+		touchStart?: EventListener;
+		scroll?: EventListener;
+	} = {};
 
 	// CSS Variable change detection with threshold
 	const CSS_UPDATE_THRESHOLD = 2; // pixels
@@ -431,61 +431,6 @@
 		}
 	}
 
-	// Glass effects for enhanced realism - with frame rate controller integration
-	function updateGlassEffects() {
-		if (!browser) return;
-
-		// Create subtle movement with mouse for glass reflections
-		const glassContainer = document.querySelector('.screen-glass-container');
-		if (!glassContainer) return;
-
-		// Define a handler for mouse movement that uses frameRateController
-		const handleMouseMove = (e: Event) => {
-			if (!glassContainer) return;
-
-			// Skip updates on low-performance frames
-			if (!frameRateController.shouldRenderFrame() || $deviceCapabilities.preferReducedMotion)
-				return;
-
-			// Calculate relative position
-			const rect = glassContainer.getBoundingClientRect();
-			const centerX = rect.left + rect.width / 2;
-			const centerY = rect.top + rect.height / 2;
-
-			// Calculate normalized offsets (-1 to 1)
-			const mouseEvent = e as MouseEvent;
-			const offsetX = (mouseEvent.clientX - centerX) / (rect.width / 2);
-			const offsetY = (mouseEvent.clientY - centerY) / (rect.height / 2);
-
-			// Calculate movement limits
-			const maxMove = 8; // maximum movement in pixels
-			const moveX = offsetX * maxMove;
-			const moveY = offsetY * maxMove;
-
-			// Apply transformation to glass reflection elements
-			const specular = glassContainer.querySelector('.screen-glass-specular');
-			const reflection = glassContainer.querySelector('.screen-glass-reflection');
-
-			if (specular) {
-				specular.style.transform = `translate(${-moveX * 0.8}px, ${-moveY * 0.8}px)`;
-				specular.style.opacity = String(0.2 + Math.abs(offsetX * offsetY) * 0.1);
-			}
-
-			if (reflection) {
-				reflection.style.transform = `translate(${moveX * 0.3}px, ${moveY * 0.3}px)`;
-			}
-		};
-
-		// Throttle the handler more aggressively for better performance
-		const throttledHandler = createThrottledRAF(handleMouseMove, 32); // 30fps throttling
-
-		// Add event listener
-		document.addEventListener('mousemove', throttledHandler, { passive: true });
-
-		// Return the handler for cleanup
-		return throttledHandler;
-	}
-
 	// Focused initialization functions
 	function initializeComponents() {
 		// Detect device capabilities
@@ -502,14 +447,6 @@
 				arcadeScreen.style.webkitBackfaceVisibility = 'hidden';
 				arcadeScreen.classList.add('ios-optimized');
 			}
-		}
-
-		// Add glass dynamics
-		const glassEffectsHandler = updateGlassEffects();
-
-		// Store handler for cleanup
-		if (glassEffectsHandler) {
-			eventHandlers.glassEffects = glassEffectsHandler;
 		}
 	}
 
@@ -726,26 +663,17 @@
 
 		console.log('⚡ Hero component destroying');
 
-		// Get handlers
-		const { resize, orientationChange, visibility, touchStart, glassEffects, scroll } =
-			eventHandlers || {};
-
-		// Cleanup all animations and managers
+		// --- stop animations/managers as you already do ---
 		stopAnimations();
 		isAnimationInitialized = false;
-
-		// Cleanup other managers
-		if (glitchManager) {
-			glitchManager.cleanup();
-		}
+		if (glitchManager) glitchManager.cleanup?.();
 
 		if (memoryManagerUnsubscribes.length > 0) {
 			memoryManager.stopMonitoring();
-			memoryManagerUnsubscribes.forEach((unsubscribe) => unsubscribe());
+			memoryManagerUnsubscribes.forEach((u) => u());
 			memoryManagerUnsubscribes = [];
 		}
 
-		// Clean up perfMonitor if it exists
 		if (perfMonitor) {
 			perfMonitor();
 			perfMonitor = null;
@@ -755,19 +683,16 @@
 			}
 		}
 
-		// Unsubscribe from frameRateController
 		if (frameRateUnsubscribe) {
 			frameRateUnsubscribe();
 			frameRateUnsubscribe = null;
 		}
 
-		// Cleanup resize observer
 		if (resizeObserver) {
 			resizeObserver.disconnect();
 			resizeObserver = null;
 		}
 
-		// Clear any remaining timeouts
 		if (orientationTimeout) {
 			clearTimeout(orientationTimeout);
 			orientationTimeout = null;
@@ -778,49 +703,38 @@
 			scrollTimeout = null;
 		}
 
-		// PERFORMANCE FIX #12: Clear animation timeout
 		if (animationInitTimeout) {
 			clearTimeout(animationInitTimeout);
 			animationInitTimeout = null;
 		}
 
-		// Remove event listeners with the same handlers that were added
-		if (resize) window.removeEventListener('resize', resize);
-		if (orientationChange) window.removeEventListener('orientationchange', orientationChange);
-		if (visibility) document.removeEventListener('visibilitychange', visibility);
-		if (glassEffects) document.removeEventListener('mousemove', glassEffects);
-		if (scroll) window.removeEventListener('scroll', scroll);
-
-		// Remove any other event listeners that might have been added
-		if (arcadeScreen && touchStart) {
-			arcadeScreen.removeEventListener('touchstart', touchStart);
+		// --- ✅ Correct event listener cleanup using eventHandlers ---
+		if (typeof window !== 'undefined') {
+			if (eventHandlers.resize) window.removeEventListener('resize', eventHandlers.resize);
+			if (eventHandlers.orientationChange)
+				window.removeEventListener('orientationchange', eventHandlers.orientationChange);
+			if (eventHandlers.scroll) window.removeEventListener('scroll', eventHandlers.scroll);
 		}
 
-		// Manually nullify references to DOM elements
+		if (typeof document !== 'undefined') {
+			if (eventHandlers.visibility)
+				document.removeEventListener('visibilitychange', eventHandlers.visibility);
+		}
+
+		if (arcadeScreen && eventHandlers.touchStart) {
+			arcadeScreen.removeEventListener('touchstart', eventHandlers.touchStart);
+		}
+
+		// --- clear DOM refs (as you had) ---
 		header = undefined as any;
 		insertConcept = undefined as any;
 		arcadeScreen = undefined as any;
 
-		// Force garbage collection hint when available
-		if ((window as any).gc) {
-			try {
-				(window as any).gc();
-			} catch (e) {
-				// Ignore errors in garbage collection
-			}
-		}
-
-		// Clear any other references or pending operations
-		currentTimeline = null;
-
 		unbindFx?.();
 
-		// Clean up any GSAP animations that might still be running
-		if (typeof window !== 'undefined' && gsap && gsap.ticker) {
-			gsap.ticker.remove(() => {}); // Pass an empty function instead of null
-		}
+		// Optional: leave the ticker cleanup if you want, but it usually needs the same fn ref
+		// if (typeof window !== 'undefined' && gsap?.ticker) { /* only remove a stored callback */ }
 
-		// Reset state flags
 		isScrolling = false;
 	});
 </script>
