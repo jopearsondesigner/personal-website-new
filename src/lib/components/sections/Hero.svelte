@@ -949,10 +949,7 @@
 					{/if}
 
 					<!-- Glass stack (now clearly above stars, below scanlines) -->
-					<div
-						class="screen-glass-container rounded-arcade hardware-accelerated {fxClass}"
-						style="z-index: 20;"
-					>
+					<div class="screen-glass-container rounded-arcade hardware-accelerated {fxClass}">
 						<div class="screen-glass-outer rounded-arcade"></div>
 						<div class="screen-glass-inner rounded-arcade"></div>
 						<div class="screen-glass-reflection rounded-arcade"></div>
@@ -1685,6 +1682,13 @@
 		opacity: 0.3;
 		mix-blend-mode: multiply;
 		backdrop-filter: contrast(1.02);
+	}
+
+	.screen-glass-container {
+		position: absolute;
+		inset: 0; /* gives it a real box matching #arcade-screen */
+		z-index: 20; /* now takes effect because the element is positioned */
+		pointer-events: none; /* keeps the glass from blocking clicks */
 	}
 
 	.screen-bezel {
