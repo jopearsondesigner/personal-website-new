@@ -1304,6 +1304,8 @@
 			);
 		mix-blend-mode: overlay;
 		opacity: clamp(0, 1, calc(0.7 * var(--fx-intensity)));
+		pointer-events: none;
+		z-index: 21; /* add: above stars (15) & glass stack (20) */
 	}
 
 	:global(html.light) .screen-reflection {
@@ -1601,7 +1603,7 @@
 		position: absolute; /* make z-index effective */
 		inset: 0; /* give it a real box so paint isn't clipped */
 		pointer-events: none;
-		z-index: 20; /* sits above stars (15) and below scanlines (30) */
+		z-index: 20; /* sits below reflection/glare and above stars/game */
 		contain: layout style; /* override: remove 'paint' so children can paint */
 		/* keep the stacking context from transform (via hardware-accelerated), or explicitly: */
 		/* transform: translateZ(0); */
@@ -1637,7 +1639,7 @@
 			transparent 100%
 		);
 		pointer-events: none;
-		z-index: 2;
+		z-index: 22; /* add: sits above reflection, below scanlines (30) */
 		opacity: clamp(0, 1, calc(0.5 * var(--fx-intensity)));
 	}
 

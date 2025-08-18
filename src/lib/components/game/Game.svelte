@@ -1,39 +1,58 @@
 <!-- src/lib/components/game/Game.svelte -->
+
 <script lang="ts">
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { browser } from '$app/environment';
 	import { fade } from 'svelte/transition';
-	import { writable, get } from 'svelte/store';
+	import { writable, get, type Writable } from 'svelte/store';
 	import { gameStore } from '$lib/stores/game-store';
 	import type { GameState, GameData } from '$lib/types/game';
 
 	const dispatch = createEventDispatcher();
 
-	// Declare the global window property for TypeScript
-	declare global {
-		interface Window {
-			gameStoreUpdater: (gameData: any) => void;
-			isPaused?: boolean;
-		}
-	}
+	// ------------------------------
+	// Typed device state
+	// ------------------------------
+	type DeviceState = {
+		isTouchDevice: boolean;
+		windowWidth: number;
+		showControls: boolean;
+	};
 
-	// Consolidated state management
-	const deviceState = writable({
+	const deviceState: Writable<DeviceState> = writable({
 		isTouchDevice: false,
 		windowWidth: 0,
 		showControls: false
 	});
 
-	const errorState = writable({
+	// ------------------------------
+	// Typed error state
+	// ------------------------------
+	type ErrorLevel = 'error' | 'warning' | 'info';
+
+	type ErrorState = {
+		hasError: boolean;
+		message: string;
+		details: string;
+		timestamp: number;
+		isVisible: boolean;
+		dismissible: boolean;
+		level: ErrorLevel;
+	};
+
+	const errorState = writable<ErrorState>({
 		hasError: false,
 		message: '',
 		details: '',
 		timestamp: 0,
 		isVisible: false,
 		dismissible: false,
-		level: 'error' // 'error', 'warning', 'info'
+		level: 'error'
 	});
 
+	// ------------------------------
+	// Refs & runtime vars
+	// ------------------------------
 	let canvas: HTMLCanvasElement;
 	let gameContainer: HTMLDivElement;
 	let errorContainer: HTMLDivElement;
@@ -47,13 +66,17 @@
 	const GAME_WIDTH = 800;
 	const GAME_HEIGHT = 600;
 
-	// Optimized device detection using a single function that runs once
+	// ------------------------------
+	// Device detection
+	// ------------------------------
 	function detectDevice() {
 		if (!browser) return;
 
-		const isMobile =
-			/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
-			(navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+		const touchPoints = navigator.maxTouchPoints ?? 0;
+		const hasManyTouchPoints = touchPoints > 2;
+		const uaIsMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+		const isMobile: boolean = uaIsMobile || hasManyTouchPoints;
 
 		deviceState.set({
 			isTouchDevice: isMobile,
@@ -62,16 +85,17 @@
 		});
 	}
 
-	// Optimized debounce function
-	function debounce(func: Function, wait: number) {
+	// ------------------------------
+	// Utilities
+	// ------------------------------
+	function debounce<T extends (...args: any[]) => void>(func: T, wait: number) {
 		let timeout: ReturnType<typeof setTimeout>;
-		return function executedFunction(...args: any[]) {
+		return function executedFunction(this: unknown, ...args: Parameters<T>) {
 			clearTimeout(timeout);
-			timeout = setTimeout(() => func(...args), wait);
+			timeout = setTimeout(() => func.apply(this, args), wait);
 		};
 	}
 
-	// Optimized scale calculation with improved performance characteristics
 	function calculateScale() {
 		if (!gameContainer || !browser || !mounted) return;
 
@@ -79,8 +103,8 @@
 		const containerHeight = gameContainer.clientHeight;
 		const isMobile = get(deviceState).isTouchDevice;
 
-		// Use a single scale factor
-		const currentScaleFactor = isMobile ? 0.98 : 0.98;
+		// Single scale factor (tweak if needed)
+		const currentScaleFactor = 0.98;
 		const padding = isMobile ? 16 : 0;
 
 		const availableWidth = (containerWidth - padding) * currentScaleFactor;
@@ -93,9 +117,9 @@
 		scale = Math.max(scale, isMobile ? 0.4 : 0.5);
 
 		// Single DOM update
-		const wrapper = gameContainer?.querySelector('.game-scale-wrapper');
+		const wrapper = gameContainer?.querySelector('.game-scale-wrapper') as HTMLElement | null;
 		if (wrapper) {
-			(wrapper as HTMLElement).style.cssText = `
+			wrapper.style.cssText = `
 				transform: scale(${scale});
 				transform-origin: center center;
 				width: ${GAME_WIDTH}px;
@@ -104,7 +128,22 @@
 		}
 	}
 
-	// Efficient event handlers
+	// ------------------------------
+	// Controls typing & handler
+	// ------------------------------
+	const keyMap = {
+		ammo: ' ',
+		heatseeker: 'x',
+		pause: 'p',
+		enter: 'Enter'
+	} as const;
+
+	type KeyButton = keyof typeof keyMap;
+
+	type ControlDetail =
+		| { type: 'joystick'; value: { x: number; y: number } }
+		| { type: 'button'; button: KeyButton; value: boolean };
+
 	const handleResize = debounce(() => {
 		if (!browser || !mounted) return;
 		calculateScale();
@@ -115,9 +154,11 @@
 		setTimeout(handleResize, 100);
 	}
 
-	function handleControlInput(event: CustomEvent) {
-		const { detail } = event;
-		const keyEvent = detail.value ? 'keydown' : 'keyup';
+	function handleControlInput(event: CustomEvent<ControlDetail>) {
+		const detail = event.detail;
+
+		// Both joystick/button payloads include a 'value' we use to decide keydown/up
+		const keyEvent = (detail as any).value ? 'keydown' : 'keyup';
 
 		if (detail.type === 'joystick') {
 			const { x, y } = detail.value;
@@ -130,59 +171,52 @@
 				window.dispatchEvent(new KeyboardEvent(keyEvent, { key: 'ArrowUp' }));
 			}
 		} else if (detail.type === 'button') {
-			const keyMap = {
-				ammo: ' ',
-				heatseeker: 'x',
-				pause: 'p',
-				enter: 'Enter'
-			};
-
-			if (keyMap[detail.button]) {
-				window.dispatchEvent(new KeyboardEvent(keyEvent, { key: keyMap[detail.button] }));
+			const btn: KeyButton = detail.button;
+			const mapped = keyMap[btn];
+			if (mapped) {
+				window.dispatchEvent(new KeyboardEvent(keyEvent, { key: mapped }));
 			}
 		}
 	}
 
-	// Game state management
+	// ------------------------------
+	// Game state dispatch
+	// ------------------------------
 	function dispatchGameState() {
 		if (!browser) return;
 
-		// Get the current game state from the gameStore
-		const gameData = get(gameStore);
-		let currentState = 'idle';
+		const gameData = get(gameStore as unknown as Writable<GameState>);
+		let currentState: 'idle' | 'playing' | 'paused' | 'gameover' = 'idle';
 
-		// Determine the current state based on game conditions
-		if (gameData.isGameOver) {
+		if ((gameData as any).isGameOver) {
 			currentState = 'gameover';
-		} else if (gameData.isPaused) {
+		} else if ((gameData as any).isPaused) {
 			currentState = 'paused';
-		} else if (gameData.gameActive) {
+		} else if ((gameData as any).gameActive) {
 			currentState = 'playing';
 		}
 
-		// Dispatch the state change event
 		dispatch('stateChange', { state: currentState });
 	}
 
-	// Error handling with improved management
+	// ------------------------------
+	// Error handling
+	// ------------------------------
 	function handleGameError(
 		error: Error | string,
-		level: 'error' | 'warning' | 'info' = 'error',
+		level: ErrorLevel = 'error',
 		dismissible = true,
 		timeout = 5000
 	) {
 		console.error('[Game] Error occurred:', error);
 
-		// Clear any existing timeout
 		if (errorTimeout) {
 			clearTimeout(errorTimeout);
 		}
 
-		// Format error message
 		const errorMessage = typeof error === 'string' ? error : error.message;
-		const errorDetails = typeof error === 'string' ? '' : error.stack;
+		const errorDetails = typeof error === 'string' ? '' : (error.stack ?? '');
 
-		// Update error state in a single operation
 		errorState.set({
 			hasError: true,
 			message: errorMessage,
@@ -193,10 +227,10 @@
 			level
 		});
 
-		// Also update game store to pause the game
-		gameStore.setPaused(true);
+		// Pause game on error if your store exposes setPaused
+		// (If not, remove or adapt this call.)
+		(gameStore as any).setPaused?.(true);
 
-		// Auto-dismiss non-critical errors after timeout
 		if (timeout > 0) {
 			errorTimeout = setTimeout(dismissError, timeout);
 		}
@@ -211,69 +245,65 @@
 		}));
 	}
 
-	// Dynamic import of game module
+	// ------------------------------
+	// Dynamic import & init
+	// ------------------------------
 	async function loadGameModule() {
 		try {
-			// Dynamic import only when needed
 			const module = await import('./game.js');
 			gameModule = module;
 			return module;
-		} catch (error) {
+		} catch (error: any) {
 			handleGameError(`Failed to load game module: ${error.message}`, 'error', true, 0);
 			throw error;
 		}
 	}
 
-	// Optimized game initialization
 	async function initializeGame() {
 		if (!canvas || !browser) return;
 
 		try {
 			if (!gameModule) {
-				// Only load the module if not already loaded
 				gameModule = await loadGameModule();
 			}
 
-			// Setup the game with custom error handler
+			// Setup the game with custom error handler if supported by your module
 			gameInstance = await gameModule.setupGame(canvas);
 
-			// Connect to the game's internal state
-			window.gameStoreUpdater = (gameData) => {
+			// Expose an updater the game can call to push state
+			window.gameStoreUpdater = (gameData: any) => {
 				if (gameData) {
-					gameStore.updateState(gameData);
-					// Use requestAnimationFrame for smoother updates
+					(gameStore as any).updateState?.(gameData);
 					requestAnimationFrame(dispatchGameState);
 				}
 			};
 
 			calculateScale();
 
-			// Add a small delay to ensure all calculations are complete
 			setTimeout(() => {
 				isInitializing = false;
 			}, 50);
-		} catch (error) {
+		} catch (error: any) {
 			isInitializing = false;
 			handleGameError(`Game initialization failed: ${error.message}`, 'error', true, 0);
 		}
 	}
 
-	// Efficient lifecycle methods
+	// ------------------------------
+	// Lifecycle
+	// ------------------------------
 	onMount(() => {
 		if (!browser) return;
 
 		mounted = true;
 		console.log('[Game] Component mounted');
 
-		// Run once at mount
 		detectDevice();
 
-		// Setup global error handler for runtime errors
 		const errorHandler = (e: ErrorEvent) => {
-			// Only handle game-related errors
 			if (e.message?.includes('game') || e.filename?.includes('game')) {
 				handleGameError(e.error || e.message);
-				e.preventDefault(); // Prevent default error handling
+				e.preventDefault();
 			}
 		};
 
@@ -281,12 +311,10 @@
 		window.addEventListener('orientationchange', handleOrientation);
 		window.addEventListener('resize', handleResize);
 
-		// Initialize the game
 		initializeGame().catch((err) => {
 			handleGameError(`Failed to start game: ${err.message}`);
 		});
 
-		// Return cleanup function for onDestroy
 		return () => {
 			window.removeEventListener('error', errorHandler);
 			window.removeEventListener('orientationchange', handleOrientation);
@@ -307,22 +335,23 @@
 			clearTimeout(errorTimeout);
 		}
 
-		// Clean up global references
-		if (window.gameStoreUpdater) {
-			window.gameStoreUpdater = null;
+		// Clean up global references (property is optional, so delete is valid)
+		if ('gameStoreUpdater' in window) {
+			delete window.gameStoreUpdater;
 		}
 
 		mounted = false;
 	});
 
-	// Reactive statement to watch for game state changes
-	$: if (browser && $gameStore) {
+	// ------------------------------
+	// Reactive statements
+	// ------------------------------
+	$: if (browser && (gameStore as any)) {
+		// Trigger downstream listeners when the store changes
 		dispatchGameState();
 	}
 
-	// Reactive statement to handle error state changes
 	$: if ($errorState.isVisible && errorContainer) {
-		// Use CSS variables for more efficient updates
 		errorContainer.style.opacity = '1';
 		errorContainer.style.transform = 'translateY(0)';
 	} else if (errorContainer) {
