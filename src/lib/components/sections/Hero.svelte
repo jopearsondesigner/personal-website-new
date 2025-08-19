@@ -636,6 +636,8 @@
 		// Set up this component's own listeners
 		setupHeroEventListeners();
 
+		initializeGlassEffects();
+
 		// Initial setup - use RAF for first render timing
 		const initialRaf = requestAnimationFrame(() => {
 			// Check orientation initially
@@ -794,19 +796,19 @@
 					<div class="interlace rounded-arcade"></div>
 
 					<!-- Update all screen effects to include unified radius -->
-					<div class="qqqqqqqqqqqqqqqqqqqqqqqq aZ rounded-arcade"></div>
+					<div class="screen-reflection rounded-arcade"></div>
 					<div class="screen-glare rounded-arcade"></div>
 
 					<div class="glow-effect rounded-arcade"></div>
 
-					{#if currentScreen === 'main'}
-						<!-- Persistent Blank CRT Monitor Background -->
-						<div
-							id="blank-monitor-background"
-							class="absolute inset-0 blank-crt-monitor rounded-arcade"
-							style="z-index: 1;"
-						></div>
+					<!-- Persistent Blank CRT Monitor Background -->
+					<div
+						id="blank-monitor-background"
+						class="absolute inset-0 blank-crt-monitor rounded-arcade"
+						style="z-index: 1;"
+					></div>
 
+					{#if currentScreen === 'main'}
 						<!-- Starfield Layer (explicit z-index below glass/scanlines) -->
 						<div class="starfield-container rounded-arcade" style="z-index: 15;">
 							<VectorStarfield
@@ -861,8 +863,10 @@
 						<GameScreen on:stateChange={handleGameStateChange} />
 					{/if}
 
+					<div class="screen-vignette rounded-arcade"></div>
+
 					<!-- Glass stack (now clearly above stars, below scanlines) -->
-					<div class="screen-glass-container rounded-arcade hardware-accelerated {fxClass}">
+					<div class="screen-glass-container rounded-arcade {fxClass}">
 						<div class="screen-glass-outer rounded-arcade"></div>
 						<div class="screen-glass-inner rounded-arcade"></div>
 						<div class="screen-glass-reflection rounded-arcade"></div>
@@ -949,8 +953,8 @@
 
 		/* Defaults if not set by the action */
 		--star-contrast: 1;
-		--star-brightness: 1;
-		--star-alpha: 1;
+		--star-brightness: 1.12;
+		--star-alpha: 0.95;
 
 		/* Shadows & Effects */
 		--cabinet-shadow:
@@ -1096,7 +1100,7 @@
    Blank CRT Monitor Background - Starfield Ready
    ========================================================================== */
 	.blank-crt-monitor {
-		/* BULLETPROOF: Force immediate black background */
+		/* Force immediate black background */
 		background-color: #000 !important;
 		background-image:
 		/* Subtle CRT monitor texture */
@@ -1104,31 +1108,31 @@
 			/* Very subtle scanline texture */
 				repeating-linear-gradient(0deg, transparent 0px, rgba(0, 20, 40, 0.1) 1px, transparent 2px) !important;
 
-		/* BULLETPROOF: Ensure it's always visible and stable */
+		/* Ensure it's always visible and stable */
 		opacity: 1 !important;
 		visibility: visible !important;
 		display: block !important;
 
-		/* BULLETPROOF: Force hardware acceleration and prevent re-rendering */
+		/* Force hardware acceleration and prevent re-rendering */
 		transform: translateZ(0) !important;
 		backface-visibility: hidden !important;
 		-webkit-backface-visibility: hidden !important;
 
-		/* BULLETPROOF: Prevent any transition delays or animations */
+		/* Prevent any transition delays or animations */
 		transition: none !important;
 		animation: none !important;
 
-		/* BULLETPROOF: Create isolation to prevent parent effects */
+		/* Create isolation to prevent parent effects */
 		isolation: isolate !important;
 		contain: layout style paint !important;
 
-		/* BULLETPROOF: Ensure it covers everything */
+		/* Ensure it covers everything */
 		position: absolute !important;
 		inset: 0 !important;
 		width: 100% !important;
 		height: 100% !important;
 
-		/* BULLETPROOF: Match the screen border radius */
+		/* Match the screen border radius */
 		border-radius: var(--border-radius) !important;
 		overflow: hidden !important;
 
@@ -1136,23 +1140,23 @@
 		z-index: 1 !important;
 		pointer-events: none !important;
 
-		/* BULLETPROOF: Override any competing styles */
+		/* Override any competing styles */
 		background-blend-mode: normal !important;
 		mix-blend-mode: normal !important;
 		filter: none !important;
 		backdrop-filter: none !important;
 
-		/* BULLETPROOF: Prevent scroll-induced re-rendering */
+		/* Prevent scroll-induced re-rendering */
 		will-change: auto !important;
 		content-visibility: visible !important;
 	}
-	/* BULLETPROOF: Extra safety overrides for all scenarios */
+	/* Extra safety overrides for all scenarios */
 	#blank-monitor-background.blank-crt-monitor {
 		background: #000 !important;
 		opacity: 1 !important;
 	}
 
-	/* BULLETPROOF: Scroll protection - never allow background changes during scroll */
+	/* Scroll protection - never allow background changes during scroll */
 	.blank-crt-monitor {
 		opacity: 1 !important;
 		visibility: visible !important;
@@ -1168,7 +1172,7 @@
 		z-index: -2;
 	}
 
-	/* BULLETPROOF: State change protection - maintain background during all state changes */
+	/* State change protection - maintain background during all state changes */
 	#hero .blank-crt-monitor,
 	#arcade-screen .blank-crt-monitor,
 	.arcade-screen-wrapper .blank-crt-monitor {
@@ -1682,6 +1686,24 @@
 		isolation: auto;
 		mix-blend-mode: normal;
 		will-change: background-position;
+	}
+
+	/* replace your current .screen-vignette block */
+	.screen-vignette {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		border-radius: var(--border-radius);
+		/* semi-transparent blue halo; center is mostly clear, edge darkens */
+		background: radial-gradient(
+			circle at 50% 50%,
+			rgba(0, 0, 0, 0) 15%,
+			rgba(0, 28, 77, 0.35) 60%,
+			rgba(0, 0, 0, 0.65) 100%
+		);
+		z-index: 18; /* stays above stars and below glass */
+		mix-blend-mode: normal;
+		opacity: 1;
 	}
 
 	#arcade-screen.glow::after {

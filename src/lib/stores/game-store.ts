@@ -1,39 +1,55 @@
 // src/lib/stores/game-store.ts
-
 import { writable, type Writable } from 'svelte/store';
-import type { GameState, GameData } from '$lib/types/game';
 
-// ---------------------------------------------
-// Initial state — adjust to your actual GameState
-// ---------------------------------------------
-const initialState: GameState = {
+/**
+ * The concrete shape of the Game store's value.
+ * Add/adjust fields as your UI needs.
+ */
+export type GameStoreState = {
+	// Session flags
+	gameActive: boolean;
+	isPaused: boolean;
+	isGameOver: boolean;
+
+	// HUD / scoreboard
+	score: number;
+	highScore: number;
+	lives: number;
+	heatseekerCount: number;
+
+	// Optional extras you might add later:
+	// level?: number;
+	// wave?: number;
+};
+
+/** Initial state */
+const initialState: GameStoreState = {
 	gameActive: false,
 	isPaused: false,
-	isGameOver: false
-	// add any other properties required by your GameState
+	isGameOver: false,
+
+	score: 0,
+	highScore: 0,
+	lives: 3,
+	heatseekerCount: 3
 };
 
-// ---------------------------------------------
-// API definition
-// ---------------------------------------------
+/** Public API for the store */
 export type GameStoreApi = {
-	subscribe: Writable<GameState>['subscribe'];
-	updateState: (data: GameData) => void;
+	subscribe: Writable<GameStoreState>['subscribe'];
+	updateState: (data: Partial<GameStoreState>) => void;
 	setPaused: (paused: boolean) => void;
 	reset: () => void;
-	// add other methods if needed
 };
 
-// ---------------------------------------------
-// Factory function for the store
-// ---------------------------------------------
+/** Factory */
 function createGameStore(): GameStoreApi {
-	const store: Writable<GameState> = writable(initialState);
+	const store: Writable<GameStoreState> = writable(initialState);
 
 	return {
 		subscribe: store.subscribe,
 
-		updateState: (data: GameData) => {
+		updateState: (data: Partial<GameStoreState>) => {
 			store.update((s) => ({ ...s, ...data }));
 		},
 
@@ -47,7 +63,5 @@ function createGameStore(): GameStoreApi {
 	};
 }
 
-// ---------------------------------------------
-// Export singleton instance
-// ---------------------------------------------
+/** Singleton */
 export const gameStore: GameStoreApi = createGameStore();

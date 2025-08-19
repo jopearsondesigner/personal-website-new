@@ -6,8 +6,7 @@
 	import { writable } from 'svelte/store';
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { ICON_SIZE } from '$lib/constants/ui-constants';
-	// Import game store
-	import { gameStore } from '$lib/stores/game-store';
+	import { gameStore, type GameStoreState } from '$lib/stores/game-store';
 
 	// Import icons - note: using lazy imports to improve performance
 	let LeftArrowIcon: any;
@@ -29,6 +28,12 @@
 		isInitialized: false
 	});
 
+	const isTouchDevice =
+		'ontouchstart' in window ||
+		(navigator.maxTouchPoints ?? 0) > 0 ||
+		(typeof (navigator as any).msMaxTouchPoints === 'number' &&
+			(navigator as any).msMaxTouchPoints > 0);
+
 	let showInstructions = false;
 	let hasPlayedBefore = false;
 
@@ -41,6 +46,14 @@
 
 	let originalViewportContent = '';
 	let decorativeText: any[] = [];
+
+	unsubscribe = gameStore.subscribe((state: GameStoreState) => {
+		score = state.score;
+		highScore = state.highScore;
+		lives = state.lives;
+		heatseekerCount = state.heatseekerCount;
+		updateDecorativeText();
+	});
 
 	// Function to initialize device detection - run once
 	function initializeDeviceState() {
@@ -298,7 +311,8 @@
 		align-items: center;
 		justify-content: center;
 		border-radius: 3.5vmin;
-		contain: layout style paint; /* Modern performance optimization */
+		contain: layout style;
+		z-index: 10;
 	}
 
 	.game-view-container {
@@ -327,6 +341,9 @@
 		background-color: var(--dark-mode-bg);
 		padding: 2px;
 		will-change: transform; /* Hint to browser for optimized rendering */
+
+		contain: layout;
+		z-index: 2;
 	}
 
 	/* Optimized tube effect around border - simplified gradient */
@@ -370,6 +387,12 @@
 		z-index: 10;
 	}
 
+	#game-screen,
+	.game-background,
+	.game-view-container {
+		z-index: 10 !important;
+	}
+
 	/* ==========================================================================
    Side Panel Styles - Optimized
    ========================================================================== */
@@ -378,7 +401,7 @@
 		top: 0;
 		bottom: 0;
 		width: 130px; /* Reduced from 150px */
-		display: flex;
+		display: none;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
@@ -673,6 +696,4 @@
 		transition-duration: 0.3s;
 		transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 	}
-
-	@media;
 </style>
