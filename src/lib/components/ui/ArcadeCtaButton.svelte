@@ -1,6 +1,6 @@
 <!-- src/lib/components/ui/ArcadeCtaButton.svelte -->
 <script lang="ts">
-	// CTA button that swaps between default/hover SVG sprites without any JS/CSS glow.
+	// Fixed-size container = max sprite size, so no layout shift on hover.
 	export let buttonSize: number = 0.45;
 	let isHovered = false;
 
@@ -10,9 +10,19 @@
 	const HOVER_W = 349;
 	const HOVER_H = 144;
 
-	// Scale to the intrinsic size of whichever sprite is active (avoid the "shrink" bug)
-	$: w = (isHovered ? HOVER_W : DEFAULT_W) * buttonSize;
-	$: h = (isHovered ? HOVER_H : DEFAULT_H) * buttonSize;
+	// Fixed container uses the larger (hover) sprite box
+	const MAX_W = Math.max(DEFAULT_W, HOVER_W);
+	const MAX_H = Math.max(DEFAULT_H, HOVER_H);
+
+	// Container dims (lock layout)
+	$: containerW = MAX_W * buttonSize;
+	$: containerH = MAX_H * buttonSize;
+
+	// Each sprite draws at its own intrinsic size, centered in the fixed box
+	$: defaultW = DEFAULT_W * buttonSize;
+	$: defaultH = DEFAULT_H * buttonSize;
+	$: hoverW = HOVER_W * buttonSize;
+	$: hoverH = HOVER_H * buttonSize;
 
 	function onEnter() {
 		isHovered = true;
@@ -20,20 +30,225 @@
 	function onLeave() {
 		isHovered = false;
 	}
+	function onKey(e: KeyboardEvent) {
+		// Keyboard "press" feedback
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			isHovered = true;
+			setTimeout(() => (isHovered = false), 160);
+		}
+	}
 </script>
 
 <button
 	type="button"
 	aria-label="Hire me"
 	class="cta"
-	on:mouseenter={onEnter}
-	on:mouseleave={onLeave}
+	style="--w:{containerW}px; --h:{containerH}px;"
+	data-hovered={isHovered}
+	on:pointerenter={onEnter}
+	on:pointerleave={onLeave}
 	on:focus={onEnter}
 	on:blur={onLeave}
+	on:keydown={onKey}
 >
-	{#if isHovered}
+	<!-- DEFAULT sprite layer (centered inside fixed container) -->
+	<span class="sprite-layer sprite-default" style="--sw:{defaultW}px; --sh:{defaultH}px;">
+		<!-- DEFAULT: ArcadeCtaButton default (transparent background) -->
+		<svg
+			width="100%"
+			height="100%"
+			viewBox="0 0 301 96"
+			fill="none"
+			xmlns="http://www.w3.org/2000/svg"
+		>
+			<path
+				opacity="0.33"
+				d="M277 16H285V24H293V72H285V80H277V88H24V80H16V72H8V24H16V16H24V8H277V16Z"
+				fill="url(#paint0_linear_2003_1192)"
+			/>
+			<g filter="url(#filter0_d_2003_1192)">
+				<path
+					d="M50 60.5V36H57V46.5H67.5V36H74.5V60.5H67.5V50H57V60.5H50ZM82.9 60.5V57H89.9V39.5H82.9V36H103.9V39.5H96.9V57H103.9V60.5H82.9ZM108.8 60.5V36H129.8V39.5H133.3V50H126.3V53.5H129.8V57H133.3V60.5H122.8V57H119.3V53.5H115.8V60.5H108.8ZM115.8 50H122.8V46.5H126.3V39.5H115.8V50ZM138.2 60.5V36H162.7V39.5H145.2V46.5H159.2V50H145.2V57H162.7V60.5H138.2ZM197 60.5V36H204V39.5H207.5V43H211V39.5H214.5V36H221.5V60.5H214.5V46.5H211V53.5H207.5V46.5H204V60.5H197ZM226.4 60.5V36H250.9V39.5H233.4V46.5H247.4V50H233.4V57H250.9V60.5H226.4Z"
+					fill="#27FF99"
+				/>
+			</g>
+			<rect x="16" y="80" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.4" x="8" y="80" width="8" height="8" fill="#27FF99" />
+			<rect x="8" y="72" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.3" y="72" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.7" y="64" width="8" height="8" fill="#27FF99" />
+			<rect y="56" width="8" height="8" fill="#27FF99" />
+			<rect y="48" width="8" height="8" fill="#27FF99" />
+			<rect y="40" width="8" height="8" fill="#27FF99" />
+			<rect y="32" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.7" y="24" width="8" height="8" fill="#27FF99" />
+			<rect x="8" y="16" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.3" y="16" width="8" height="8" fill="#27FF99" />
+			<rect x="16" y="8" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.4" x="8" y="8" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.7" x="24" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.3" x="16" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.7" x="24" y="88" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.3" x="16" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="72" width="8" height="8" fill="#27FF99" />
+			<rect x="80" width="8" height="8" fill="#27FF99" />
+			<rect x="88" width="8" height="8" fill="#27FF99" />
+			<rect x="96" width="8" height="8" fill="#27FF99" />
+			<rect x="104" width="8" height="8" fill="#27FF99" />
+			<rect x="112" width="8" height="8" fill="#27FF99" />
+			<rect x="120" width="8" height="8" fill="#27FF99" />
+			<rect x="128" width="8" height="8" fill="#27FF99" />
+			<rect x="136" width="8" height="8" fill="#27FF99" />
+			<rect x="144" width="8" height="8" fill="#27FF99" />
+			<rect x="152" width="8" height="8" fill="#27FF99" />
+			<rect x="160" width="8" height="8" fill="#27FF99" />
+			<rect x="168" width="8" height="8" fill="#27FF99" />
+			<rect x="176" width="8" height="8" fill="#27FF99" />
+			<rect x="184" width="8" height="8" fill="#27FF99" />
+			<rect x="192" width="8" height="8" fill="#27FF99" />
+			<rect x="200" width="8" height="8" fill="#27FF99" />
+			<rect x="208" width="8" height="8" fill="#27FF99" />
+			<rect x="216" width="8" height="8" fill="#27FF99" />
+			<rect x="224" width="8" height="8" fill="#27FF99" />
+			<rect x="232" width="8" height="8" fill="#27FF99" />
+			<rect x="240" width="8" height="8" fill="#27FF99" />
+			<rect x="248" width="8" height="8" fill="#27FF99" />
+			<rect x="256" width="8" height="8" fill="#27FF99" />
+			<rect x="264" width="5" height="8" fill="#27FF99" />
+			<rect x="32" width="8" height="8" fill="#27FF99" />
+			<rect x="40" width="8" height="8" fill="#27FF99" />
+			<rect x="48" width="8" height="8" fill="#27FF99" />
+			<rect x="56" width="8" height="8" fill="#27FF99" />
+			<rect x="64" width="8" height="8" fill="#27FF99" />
+			<rect x="72" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="80" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="88" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="96" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="104" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="112" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="120" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="128" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="136" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="144" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="152" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="160" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="168" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="176" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="184" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="192" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="200" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="208" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="216" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="224" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="232" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="240" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="248" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="256" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="264" y="88" width="5" height="8" fill="#27FF99" />
+			<rect opacity="0.7" x="269" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="32" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="40" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="48" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="56" y="88" width="8" height="8" fill="#27FF99" />
+			<rect x="64" y="88" width="8" height="8" fill="#27FF99" />
+			<rect width="8" height="8" transform="matrix(-1 0 0 1 285 80)" fill="#27FF99" />
+			<rect opacity="0.4" width="8" height="8" transform="matrix(-1 0 0 1 293 80)" fill="#27FF99" />
+			<rect width="8" height="8" transform="matrix(-1 0 0 1 293 72)" fill="#27FF99" />
+			<rect opacity="0.3" width="8" height="8" transform="matrix(-1 0 0 1 301 72)" fill="#27FF99" />
+			<rect opacity="0.3" width="8" height="8" transform="matrix(-1 0 0 1 285 88)" fill="#27FF99" />
+			<line x1="277" y1="80.5" x2="285" y2="80.5" stroke="white" />
+			<line x1="285" y1="72.5" x2="293" y2="72.5" stroke="white" />
+			<rect width="8" height="8" transform="matrix(0 -1 -1 0 285 16)" fill="#27FF99" />
+			<rect
+				opacity="0.4"
+				width="8"
+				height="8"
+				transform="matrix(0 -1 -1 0 293 16)"
+				fill="#27FF99"
+			/>
+			<rect width="8" height="8" transform="matrix(0 -1 -1 0 293 24)" fill="#27FF99" />
+			<rect opacity="0.3" x="277" y="8" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.3" x="277" y="8" width="8" height="8" fill="#27FF99" />
+			<line x1="277" y1="8.5" x2="285" y2="8.5" stroke="white" />
+			<rect
+				opacity="0.3"
+				width="8"
+				height="8"
+				transform="matrix(0 -1 -1 0 301 24)"
+				fill="#27FF99"
+			/>
+			<rect opacity="0.3" width="8" height="8" transform="matrix(0 -1 -1 0 285 8)" fill="#27FF99" />
+			<line x1="285" y1="16.5" x2="293" y2="16.5" stroke="white" />
+			<rect opacity="0.7" x="269" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.7" x="293" y="64" width="8" height="8" fill="#27FF99" />
+			<rect x="293" y="56" width="8" height="8" fill="#27FF99" />
+			<rect opacity="0.7" x="293" y="24" width="8" height="8" fill="#27FF99" />
+			<rect x="293" y="32" width="8" height="8" fill="#27FF99" />
+			<rect x="293" y="40" width="8" height="8" fill="#27FF99" />
+			<rect x="293" y="48" width="8" height="8" fill="#27FF99" />
+			<line x1="8" y1="72.5" x2="16" y2="72.5" stroke="white" />
+			<line x1="16" y1="80.5" x2="24" y2="80.5" stroke="white" />
+			<line x1="8" y1="16.5" x2="16" y2="16.5" stroke="white" />
+			<line opacity="0.7" y1="24.5" x2="8" y2="24.5" stroke="white" />
+			<line x1="16" y1="8.5" x2="24" y2="8.5" stroke="white" />
+			<line x1="32" y1="0.5" x2="269" y2="0.5" stroke="white" />
+			<line x1="32" y1="88.5" x2="269" y2="88.5" stroke="white" />
+			<line opacity="0.7" x1="293" y1="24.5" x2="301" y2="24.5" stroke="white" />
+			<defs>
+				<filter
+					id="filter0_d_2003_1192"
+					x="50"
+					y="35"
+					width="200.9"
+					height="25.5"
+					filterUnits="userSpaceOnUse"
+					color-interpolation-filters="sRGB"
+				>
+					<feFlood flood-opacity="0" result="BackgroundImageFix" />
+					<feColorMatrix
+						in="SourceAlpha"
+						type="matrix"
+						values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
+						result="hardAlpha"
+					/>
+					<feOffset dy="-1" />
+					<feComposite in2="hardAlpha" operator="out" />
+					<feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0" />
+					<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_2003_1192" />
+					<feBlend
+						mode="normal"
+						in="SourceGraphic"
+						in2="effect1_dropShadow_2003_1192"
+						result="shape"
+					/>
+				</filter>
+				<linearGradient
+					id="paint0_linear_2003_1192"
+					x1="8"
+					y1="48"
+					x2="293"
+					y2="48"
+					gradientUnits="userSpaceOnUse"
+				>
+					<stop stop-color="#2B2B2B" />
+					<stop offset="0.485" stop-color="#2B2B2B" />
+					<stop offset="1" stop-color="#555555" />
+				</linearGradient>
+			</defs>
+		</svg>
+	</span>
+
+	<!-- HOVER sprite layer -->
+	<span class="sprite-layer sprite-hover" style="--sw:{hoverW}px; --sh:{hoverH}px;">
 		<!-- HOVER: ArcadeCtaButtonHover (glow baked into art) -->
-		<svg width={w} height={h} viewBox="0 0 349 144" fill="none" xmlns="http://www.w3.org/2000/svg">
+		<svg
+			width="100%"
+			height="100%"
+			viewBox="0 0 349 144"
+			fill="none"
+			xmlns="http://www.w3.org/2000/svg"
+		>
 			<g clip-path="url(#clip0_2003_1340)">
 				<path
 					opacity="0.33"
@@ -255,203 +470,141 @@
 				</clipPath>
 			</defs>
 		</svg>
-	{:else}
-		<!-- DEFAULT: ArcadeCtaButton default (transparent background) -->
-		<svg width={w} height={h} viewBox="0 0 301 96" fill="none" xmlns="http://www.w3.org/2000/svg">
-			<path
-				opacity="0.33"
-				d="M277 16H285V24H293V72H285V80H277V88H24V80H16V72H8V24H16V16H24V8H277V16Z"
-				fill="url(#paint0_linear_2003_1192)"
-			/>
-			<g filter="url(#filter0_d_2003_1192)">
-				<path
-					d="M50 60.5V36H57V46.5H67.5V36H74.5V60.5H67.5V50H57V60.5H50ZM82.9 60.5V57H89.9V39.5H82.9V36H103.9V39.5H96.9V57H103.9V60.5H82.9ZM108.8 60.5V36H129.8V39.5H133.3V50H126.3V53.5H129.8V57H133.3V60.5H122.8V57H119.3V53.5H115.8V60.5H108.8ZM115.8 50H122.8V46.5H126.3V39.5H115.8V50ZM138.2 60.5V36H162.7V39.5H145.2V46.5H159.2V50H145.2V57H162.7V60.5H138.2ZM197 60.5V36H204V39.5H207.5V43H211V39.5H214.5V36H221.5V60.5H214.5V46.5H211V53.5H207.5V46.5H204V60.5H197ZM226.4 60.5V36H250.9V39.5H233.4V46.5H247.4V50H233.4V57H250.9V60.5H226.4Z"
-					fill="#27FF99"
-				/>
-			</g>
-			<rect x="16" y="80" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.4" x="8" y="80" width="8" height="8" fill="#27FF99" />
-			<rect x="8" y="72" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.3" y="72" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.7" y="64" width="8" height="8" fill="#27FF99" />
-			<rect y="56" width="8" height="8" fill="#27FF99" />
-			<rect y="48" width="8" height="8" fill="#27FF99" />
-			<rect y="40" width="8" height="8" fill="#27FF99" />
-			<rect y="32" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.7" y="24" width="8" height="8" fill="#27FF99" />
-			<rect x="8" y="16" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.3" y="16" width="8" height="8" fill="#27FF99" />
-			<rect x="16" y="8" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.4" x="8" y="8" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.7" x="24" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.3" x="16" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.7" x="24" y="88" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.3" x="16" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="72" width="8" height="8" fill="#27FF99" />
-			<rect x="80" width="8" height="8" fill="#27FF99" />
-			<rect x="88" width="8" height="8" fill="#27FF99" />
-			<rect x="96" width="8" height="8" fill="#27FF99" />
-			<rect x="104" width="8" height="8" fill="#27FF99" />
-			<rect x="112" width="8" height="8" fill="#27FF99" />
-			<rect x="120" width="8" height="8" fill="#27FF99" />
-			<rect x="128" width="8" height="8" fill="#27FF99" />
-			<rect x="136" width="8" height="8" fill="#27FF99" />
-			<rect x="144" width="8" height="8" fill="#27FF99" />
-			<rect x="152" width="8" height="8" fill="#27FF99" />
-			<rect x="160" width="8" height="8" fill="#27FF99" />
-			<rect x="168" width="8" height="8" fill="#27FF99" />
-			<rect x="176" width="8" height="8" fill="#27FF99" />
-			<rect x="184" width="8" height="8" fill="#27FF99" />
-			<rect x="192" width="8" height="8" fill="#27FF99" />
-			<rect x="200" width="8" height="8" fill="#27FF99" />
-			<rect x="208" width="8" height="8" fill="#27FF99" />
-			<rect x="216" width="8" height="8" fill="#27FF99" />
-			<rect x="224" width="8" height="8" fill="#27FF99" />
-			<rect x="232" width="8" height="8" fill="#27FF99" />
-			<rect x="240" width="8" height="8" fill="#27FF99" />
-			<rect x="248" width="8" height="8" fill="#27FF99" />
-			<rect x="256" width="8" height="8" fill="#27FF99" />
-			<rect x="264" width="5" height="8" fill="#27FF99" />
-			<rect x="32" width="8" height="8" fill="#27FF99" />
-			<rect x="40" width="8" height="8" fill="#27FF99" />
-			<rect x="48" width="8" height="8" fill="#27FF99" />
-			<rect x="56" width="8" height="8" fill="#27FF99" />
-			<rect x="64" width="8" height="8" fill="#27FF99" />
-			<rect x="72" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="80" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="88" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="96" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="104" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="112" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="120" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="128" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="136" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="144" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="152" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="160" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="168" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="176" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="184" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="192" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="200" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="208" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="216" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="224" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="232" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="240" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="248" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="256" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="264" y="88" width="5" height="8" fill="#27FF99" />
-			<rect opacity="0.7" x="269" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="32" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="40" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="48" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="56" y="88" width="8" height="8" fill="#27FF99" />
-			<rect x="64" y="88" width="8" height="8" fill="#27FF99" />
-			<rect width="8" height="8" transform="matrix(-1 0 0 1 285 80)" fill="#27FF99" />
-			<rect opacity="0.4" width="8" height="8" transform="matrix(-1 0 0 1 293 80)" fill="#27FF99" />
-			<rect width="8" height="8" transform="matrix(-1 0 0 1 293 72)" fill="#27FF99" />
-			<rect opacity="0.3" width="8" height="8" transform="matrix(-1 0 0 1 301 72)" fill="#27FF99" />
-			<rect opacity="0.3" width="8" height="8" transform="matrix(-1 0 0 1 285 88)" fill="#27FF99" />
-			<line x1="277" y1="80.5" x2="285" y2="80.5" stroke="white" />
-			<line x1="285" y1="72.5" x2="293" y2="72.5" stroke="white" />
-			<rect width="8" height="8" transform="matrix(0 -1 -1 0 285 16)" fill="#27FF99" />
-			<rect
-				opacity="0.4"
-				width="8"
-				height="8"
-				transform="matrix(0 -1 -1 0 293 16)"
-				fill="#27FF99"
-			/>
-			<rect width="8" height="8" transform="matrix(0 -1 -1 0 293 24)" fill="#27FF99" />
-			<rect opacity="0.3" x="277" y="8" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.3" x="277" y="8" width="8" height="8" fill="#27FF99" />
-			<line x1="277" y1="8.5" x2="285" y2="8.5" stroke="white" />
-			<rect
-				opacity="0.3"
-				width="8"
-				height="8"
-				transform="matrix(0 -1 -1 0 301 24)"
-				fill="#27FF99"
-			/>
-			<rect opacity="0.3" width="8" height="8" transform="matrix(0 -1 -1 0 285 8)" fill="#27FF99" />
-			<line x1="285" y1="16.5" x2="293" y2="16.5" stroke="white" />
-			<rect opacity="0.7" x="269" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.7" x="293" y="64" width="8" height="8" fill="#27FF99" />
-			<rect x="293" y="56" width="8" height="8" fill="#27FF99" />
-			<rect opacity="0.7" x="293" y="24" width="8" height="8" fill="#27FF99" />
-			<rect x="293" y="32" width="8" height="8" fill="#27FF99" />
-			<rect x="293" y="40" width="8" height="8" fill="#27FF99" />
-			<rect x="293" y="48" width="8" height="8" fill="#27FF99" />
-			<line x1="8" y1="72.5" x2="16" y2="72.5" stroke="white" />
-			<line x1="16" y1="80.5" x2="24" y2="80.5" stroke="white" />
-			<line x1="8" y1="16.5" x2="16" y2="16.5" stroke="white" />
-			<line opacity="0.7" y1="24.5" x2="8" y2="24.5" stroke="white" />
-			<line x1="16" y1="8.5" x2="24" y2="8.5" stroke="white" />
-			<line x1="32" y1="0.5" x2="269" y2="0.5" stroke="white" />
-			<line x1="32" y1="88.5" x2="269" y2="88.5" stroke="white" />
-			<line opacity="0.7" x1="293" y1="24.5" x2="301" y2="24.5" stroke="white" />
-			<defs>
-				<filter
-					id="filter0_d_2003_1192"
-					x="50"
-					y="35"
-					width="200.9"
-					height="25.5"
-					filterUnits="userSpaceOnUse"
-					color-interpolation-filters="sRGB"
-				>
-					<feFlood flood-opacity="0" result="BackgroundImageFix" />
-					<feColorMatrix
-						in="SourceAlpha"
-						type="matrix"
-						values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"
-						result="hardAlpha"
-					/>
-					<feOffset dy="-1" />
-					<feComposite in2="hardAlpha" operator="out" />
-					<feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0" />
-					<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_2003_1192" />
-					<feBlend
-						mode="normal"
-						in="SourceGraphic"
-						in2="effect1_dropShadow_2003_1192"
-						result="shape"
-					/>
-				</filter>
-				<linearGradient
-					id="paint0_linear_2003_1192"
-					x1="8"
-					y1="48"
-					x2="293"
-					y2="48"
-					gradientUnits="userSpaceOnUse"
-				>
-					<stop stop-color="#2B2B2B" />
-					<stop offset="0.485" stop-color="#2B2B2B" />
-					<stop offset="1" stop-color="#555555" />
-				</linearGradient>
-			</defs>
-		</svg>
-	{/if}
+	</span>
+
+	<!-- Diagonal “scanline sweep” for extra arcade feel -->
+	<span class="shine" aria-hidden="true"></span>
 </button>
 
 <style>
+	/* Button container is a fixed box = larger sprite size to prevent layout shift */
 	.cta {
+		width: var(--w);
+		height: var(--h);
+		position: relative;
+		display: inline-block;
+		vertical-align: middle;
 		background: transparent;
 		border: 0;
 		padding: 0;
 		line-height: 0;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
 		cursor: pointer;
-	}
-	.cta:focus {
+
+		/* subtle idle bob with 8-bit feel */
+		animation: pixelFloat 1800ms steps(10, end) infinite;
+
+		transform: translateZ(0);
+		will-change: transform, filter;
+		transition:
+			transform 120ms cubic-bezier(0.2, 0.8, 0.15, 1),
+			filter 120ms;
 		outline: none;
 	}
 	.cta:focus-visible {
 		outline: 2px solid #27ff99;
 		outline-offset: 3px;
+		border-radius: 6px;
+	}
+
+	@keyframes pixelFloat {
+		0% {
+			transform: translateY(0);
+		}
+		50% {
+			transform: translateY(-1.5px);
+		}
+		100% {
+			transform: translateY(0);
+		}
+	}
+
+	/* Pause float + add press-in bounce while hovered/focused */
+	.cta[data-hovered='true'] {
+		animation: none;
+		transform: translateY(1px) scale(0.985);
+		filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.35));
+	}
+
+	/* Absolutely center each sprite inside the fixed box */
+	.sprite-layer {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: var(--sw);
+		height: var(--sh);
+		transform: translate(-50%, -50%);
+		pointer-events: none;
+
+		/* crisp look if these were raster; harmless for SVGs */
+		image-rendering: pixelated;
+		-ms-interpolation-mode: nearest-neighbor;
+
+		will-change: opacity, transform;
+	}
+
+	/* Crossfade between sprites with a tiny “spring” */
+	.sprite-default {
+		opacity: 1;
+		transition:
+			opacity 90ms linear,
+			transform 140ms cubic-bezier(0.2, 0.9, 0.1, 1.2);
+	}
+	.sprite-hover {
+		opacity: 0;
+		transition:
+			opacity 90ms linear,
+			transform 140ms cubic-bezier(0.2, 0.9, 0.1, 1.2);
+	}
+	.cta[data-hovered='true'] .sprite-default {
+		opacity: 0;
+		transform: translate(-50%, -50%) scale(0.98);
+	}
+	.cta[data-hovered='true'] .sprite-hover {
+		opacity: 1;
+		transform: translate(-50%, -50%) scale(1.015);
+	}
+
+	/* Quick diagonal "scanline shine" sweep on hover */
+	.shine {
+		position: absolute;
+		inset: -4%;
+		border-radius: 10px;
+		background: linear-gradient(
+			35deg,
+			transparent 40%,
+			rgba(255, 255, 255, 0.12) 50%,
+			transparent 60%
+		);
+		opacity: 0;
+		mix-blend-mode: overlay;
+		pointer-events: none;
+		transform: translateY(-20%);
+		transition: opacity 200ms linear;
+	}
+	.cta[data-hovered='true'] .shine {
+		opacity: 1;
+		animation: sweep 420ms linear 1;
+	}
+	@keyframes sweep {
+		0% {
+			transform: translate(-10%, -30%) rotate(0.001deg);
+		}
+		100% {
+			transform: translate(10%, 30%) rotate(0.001deg);
+		}
+	}
+
+	/* Motion sensitivity */
+	@media (prefers-reduced-motion: reduce) {
+		.cta {
+			animation: none;
+			transition: none;
+		}
+		.sprite-default,
+		.sprite-hover,
+		.shine {
+			transition: none;
+			animation: none;
+		}
 	}
 </style>
