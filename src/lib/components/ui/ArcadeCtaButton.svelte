@@ -471,14 +471,21 @@
 			</defs>
 		</svg>
 	</span>
-
-	<!-- Diagonal “scanline sweep” for extra arcade feel -->
-	<span class="shine" aria-hidden="true"></span>
 </button>
 
 <style>
-	/* Button container is a fixed box = larger sprite size to prevent layout shift */
+	/* --------------------------------------------
+	   Arcade depth pulse + neon glow (no shimmer)
+	   -------------------------------------------- */
 	.cta {
+		--pulse-scale-min: 0.992; /* subtle: 0.992–1.008 feels 90s attract-mode */
+		--pulse-scale-max: 1.008;
+		--pulse-speed: 1800ms;
+
+		--glow-opacity-idle-min: 0.22;
+		--glow-opacity-idle-max: 0.45;
+		--glow-opacity-hover: 0.85; /* boost when hovered/focused */
+
 		width: var(--w);
 		height: var(--h);
 		position: relative;
@@ -490,39 +497,64 @@
 		line-height: 0;
 		cursor: pointer;
 
-		/* subtle idle bob with 8-bit feel */
-		animation: pixelFloat 1800ms steps(10, end) infinite;
+		/* Smooth depth breathing: toward/away viewer */
+		animation: arcadeDepth var(--pulse-speed) ease-in-out infinite alternate;
 
 		transform: translateZ(0);
-		will-change: transform, filter;
-		transition:
-			transform 120ms cubic-bezier(0.2, 0.8, 0.15, 1),
-			filter 120ms;
+		transform-origin: 50% 50%;
+		will-change: transform;
+		transition: transform 120ms cubic-bezier(0.2, 0.8, 0.15, 1);
+
 		outline: none;
 	}
+
+	/* Neon ring that gently breathes (subtle) */
+	.cta::before {
+		content: '';
+		position: absolute;
+		inset: -4px; /* slight overscan so the glow peeks out */
+		border-radius: 12px;
+		pointer-events: none;
+		opacity: var(--glow-opacity-idle-min);
+		box-shadow:
+			0 0 8px rgba(39, 255, 153, 0.45),
+			0 0 16px rgba(39, 255, 153, 0.35),
+			0 0 28px rgba(39, 255, 153, 0.18);
+		animation: neonGlow var(--pulse-speed) ease-in-out infinite alternate;
+		transition: opacity 140ms linear;
+	}
+
 	.cta:focus-visible {
 		outline: 2px solid #27ff99;
 		outline-offset: 3px;
 		border-radius: 6px;
 	}
 
-	@keyframes pixelFloat {
-		0% {
-			transform: translateY(0);
-		}
-		50% {
-			transform: translateY(-1.5px);
-		}
-		100% {
-			transform: translateY(0);
-		}
+	/* Pause pulse + add press-in bounce while hovered/focused */
+	.cta[data-hovered='true'] {
+		animation-play-state: paused;
+		transform: translateY(1px) scale(0.985);
+	}
+	.cta[data-hovered='true']::before {
+		opacity: var(--glow-opacity-hover);
+		animation-duration: 900ms; /* slightly livelier when engaged */
 	}
 
-	/* Pause float + add press-in bounce while hovered/focused */
-	.cta[data-hovered='true'] {
-		animation: none;
-		transform: translateY(1px) scale(0.985);
-		filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.35));
+	@keyframes arcadeDepth {
+		from {
+			transform: scale(var(--pulse-scale-min));
+		}
+		to {
+			transform: scale(var(--pulse-scale-max));
+		}
+	}
+	@keyframes neonGlow {
+		from {
+			opacity: var(--glow-opacity-idle-min);
+		}
+		to {
+			opacity: var(--glow-opacity-idle-max);
+		}
 	}
 
 	/* Absolutely center each sprite inside the fixed box */
@@ -564,45 +596,18 @@
 		transform: translate(-50%, -50%) scale(1.015);
 	}
 
-	/* Quick diagonal "scanline shine" sweep on hover */
-	.shine {
-		position: absolute;
-		inset: -4%;
-		border-radius: 10px;
-		background: linear-gradient(
-			35deg,
-			transparent 40%,
-			rgba(255, 255, 255, 0.12) 50%,
-			transparent 60%
-		);
-		opacity: 0;
-		mix-blend-mode: overlay;
-		pointer-events: none;
-		transform: translateY(-20%);
-		transition: opacity 200ms linear;
-	}
-	.cta[data-hovered='true'] .shine {
-		opacity: 1;
-		animation: sweep 420ms linear 1;
-	}
-	@keyframes sweep {
-		0% {
-			transform: translate(-10%, -30%) rotate(0.001deg);
-		}
-		100% {
-			transform: translate(10%, 30%) rotate(0.001deg);
-		}
-	}
-
 	/* Motion sensitivity */
 	@media (prefers-reduced-motion: reduce) {
 		.cta {
 			animation: none;
 			transition: none;
 		}
+		.cta::before {
+			animation: none;
+			transition: none;
+		}
 		.sprite-default,
-		.sprite-hover,
-		.shine {
+		.sprite-hover {
 			transition: none;
 			animation: none;
 		}
