@@ -52,6 +52,9 @@
 	on:blur={onLeave}
 	on:keydown={onKey}
 >
+	<!-- GLOW LAYER (outside the sprites; subtle neon rim that pulses) -->
+	<span class="neon" aria-hidden="true"></span>
+
 	<!-- DEFAULT sprite layer (centered inside fixed container) -->
 	<span class="sprite-layer sprite-default" style="--sw:{defaultW}px; --sh:{defaultH}px;">
 		<!-- DEFAULT: ArcadeCtaButton default (transparent background) -->
@@ -474,18 +477,24 @@
 </button>
 
 <style>
-	/* --------------------------------------------
-	   Arcade depth pulse + neon glow (no shimmer)
-	   -------------------------------------------- */
+	/* -----------------------------------------------------------
+	   Tweakables (arcade-authentic defaults)
+	   ----------------------------------------------------------- */
+	:global(:root) {
+	}
 	.cta {
-		--pulse-scale-min: 0.992; /* subtle: 0.992–1.008 feels 90s attract-mode */
-		--pulse-scale-max: 1.008;
-		--pulse-speed: 1800ms;
+		/* Dimensions come from inline style --w/--h */
+		--neon: #27ff99;
+		--pulse-scale: 1.03; /* peak zoom at idle */
+		--hover-scale: 1.06; /* zoom when hovered/focused */
+		--pulse-duration: 2200ms; /* idle loop speed */
+		--neon-opacity-idle: 0.12; /* neon rim at idle */
+		--neon-opacity-hover: 0.38; /* neon rim when hovered */
+		--neon-blur: 6px; /* softness of rim */
+	}
 
-		--glow-opacity-idle-min: 0.22;
-		--glow-opacity-idle-max: 0.45;
-		--glow-opacity-hover: 0.85; /* boost when hovered/focused */
-
+	/* Button container is a fixed box = larger sprite size to prevent layout shift */
+	.cta {
 		width: var(--w);
 		height: var(--h);
 		position: relative;
@@ -497,64 +506,38 @@
 		line-height: 0;
 		cursor: pointer;
 
-		/* Smooth depth breathing: toward/away viewer */
-		animation: arcadeDepth var(--pulse-speed) ease-in-out infinite alternate;
-
+		/* Authentic attract-mode "breathing" zoom */
+		animation: zoomPulse var(--pulse-duration) ease-in-out infinite;
 		transform: translateZ(0);
-		transform-origin: 50% 50%;
-		will-change: transform;
-		transition: transform 120ms cubic-bezier(0.2, 0.8, 0.15, 1);
-
+		will-change: transform, filter;
+		transition:
+			transform 160ms cubic-bezier(0.2, 0.8, 0.15, 1),
+			filter 160ms;
 		outline: none;
 	}
-
-	/* Neon ring that gently breathes (subtle) */
-	.cta::before {
-		content: '';
-		position: absolute;
-		inset: -4px; /* slight overscan so the glow peeks out */
-		border-radius: 12px;
-		pointer-events: none;
-		opacity: var(--glow-opacity-idle-min);
-		box-shadow:
-			0 0 8px rgba(39, 255, 153, 0.45),
-			0 0 16px rgba(39, 255, 153, 0.35),
-			0 0 28px rgba(39, 255, 153, 0.18);
-		animation: neonGlow var(--pulse-speed) ease-in-out infinite alternate;
-		transition: opacity 140ms linear;
-	}
-
 	.cta:focus-visible {
 		outline: 2px solid #27ff99;
 		outline-offset: 3px;
 		border-radius: 6px;
 	}
 
-	/* Pause pulse + add press-in bounce while hovered/focused */
-	.cta[data-hovered='true'] {
-		animation-play-state: paused;
-		transform: translateY(1px) scale(0.985);
-	}
-	.cta[data-hovered='true']::before {
-		opacity: var(--glow-opacity-hover);
-		animation-duration: 900ms; /* slightly livelier when engaged */
+	@keyframes zoomPulse {
+		0% {
+			transform: scale(1);
+		}
+		50% {
+			transform: scale(var(--pulse-scale));
+		}
+		100% {
+			transform: scale(1);
+		}
 	}
 
-	@keyframes arcadeDepth {
-		from {
-			transform: scale(var(--pulse-scale-min));
-		}
-		to {
-			transform: scale(var(--pulse-scale-max));
-		}
-	}
-	@keyframes neonGlow {
-		from {
-			opacity: var(--glow-opacity-idle-min);
-		}
-		to {
-			opacity: var(--glow-opacity-idle-max);
-		}
+	/* Hover/focus: lean forward toward viewer + stronger neon; stop idle pulse */
+	.cta[data-hovered='true'] {
+		animation: none;
+		transform: scale(var(--hover-scale)) translateY(0.5px);
+		filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.35));
 	}
 
 	/* Absolutely center each sprite inside the fixed box */
@@ -589,11 +572,41 @@
 	}
 	.cta[data-hovered='true'] .sprite-default {
 		opacity: 0;
-		transform: translate(-50%, -50%) scale(0.98);
+		transform: translate(-50%, -50%) scale(0.99);
 	}
 	.cta[data-hovered='true'] .sprite-hover {
 		opacity: 1;
 		transform: translate(-50%, -50%) scale(1.015);
+	}
+
+	/* NEW: Neon rim pulse (rectangle behind sprites, not a shimmer) */
+	.neon {
+		position: absolute;
+		inset: 3%;
+		border-radius: 10px;
+		box-shadow: 0 0 0 1px color-mix(in oklab, var(--neon), transparent 40%);
+		filter: blur(var(--neon-blur));
+		background: radial-gradient(
+			120% 90% at 50% 50%,
+			color-mix(in oklab, var(--neon), transparent 80%) 0%,
+			transparent 65%
+		);
+		opacity: var(--neon-opacity-idle);
+		pointer-events: none;
+		animation: neonPulse calc(var(--pulse-duration) * 1.05) ease-in-out infinite;
+	}
+	@keyframes neonPulse {
+		0%,
+		100% {
+			opacity: var(--neon-opacity-idle);
+		}
+		50% {
+			opacity: calc(var(--neon-opacity-idle) + 0.1);
+		}
+	}
+	.cta[data-hovered='true'] .neon {
+		opacity: var(--neon-opacity-hover);
+		animation-duration: 1600ms;
 	}
 
 	/* Motion sensitivity */
@@ -602,12 +615,9 @@
 			animation: none;
 			transition: none;
 		}
-		.cta::before {
-			animation: none;
-			transition: none;
-		}
 		.sprite-default,
-		.sprite-hover {
+		.sprite-hover,
+		.neon {
 			transition: none;
 			animation: none;
 		}
