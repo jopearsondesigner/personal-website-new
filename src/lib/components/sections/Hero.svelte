@@ -18,28 +18,24 @@
 		setupPerformanceMonitoring,
 		setupEventListeners as setupDevicePerfEventListeners
 	} from '$lib/utils/device-performance';
-	// Svelte auto-subscription: use $deviceCapabilities anywhere in <script> or markup
 	import { bindFxIntensity } from '$lib/utils/fx-intensity-controller';
 	import { fxTuner } from '$lib/actions/fx-tuner';
-
 	import { memoryManager, type MemoryEvent, type MemoryPressure } from '$lib/utils/memory-manager';
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
 	import { createThrottledRAF } from '$lib/utils/animation-helpers';
-
 	import type { GameState } from '$lib/types/game';
 
-	// Consolidate state management
-	// Device detection state
+	// Consolidate state management with proper typing
 	let isMobileDevice = false;
 	let isLowPerformanceDevice = false;
 
 	// Component state with typed definitions
 	let currentTimeline: gsap.core.Timeline | null = null;
-	let header: HTMLElement;
-	let insertConcept: HTMLElement;
-	let arcadeScreen: HTMLElement;
+	let header: HTMLElement | undefined;
+	let insertConcept: HTMLElement | undefined;
+	let arcadeScreen: HTMLElement | undefined;
 	let currentScreen = 'main';
-	let glitchManager: InstanceType<typeof animations.GlitchManager>;
+	let glitchManager: InstanceType<typeof animations.GlitchManager> | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 	let orientationTimeout: number | null = null;
 	let memoryManagerUnsubscribes: (() => void)[] = [];
@@ -47,13 +43,12 @@
 	// Performance monitoring setup
 	let perfMonitor: ReturnType<typeof setupPerformanceMonitoring> | null = null;
 	let capsVisibilityCleanup: (() => void) | null = null;
-	let frameRateUnsubscribe: Function | null = null;
+	let frameRateUnsubscribe: (() => void) | null = null;
 
 	let currentGameState: GameState = 'idle';
+	let unbindFx: (() => void) | undefined;
 
-	let unbindFx: () => void;
-
-	//Isolate scroll state from animation logic
+	// Isolate scroll state from animation logic
 	let isScrolling = false;
 	let scrollTimeout: number | null = null;
 	let lastVisibilityState = true;
@@ -64,6 +59,10 @@
 	let animationInitTimeout: number | null = null;
 	let lastNavbarHeight = 0;
 
+	// RAF tracking for proper cleanup
+	let pendingRafIds: number[] = [];
+
+	// Type-safe event handlers storage
 	let eventHandlers: {
 		resize?: EventListener;
 		orientationChange?: EventListener;
@@ -72,15 +71,34 @@
 		scroll?: EventListener;
 	} = {};
 
+	// Helper to track RAF calls
+	function trackRAF(callback: () => void): number {
+		const id = requestAnimationFrame(callback);
+		pendingRafIds.push(id);
+		return id;
+	}
+
+	// Helper to cleanup RAF calls
+	function cleanupRAF() {
+		pendingRafIds.forEach((id) => cancelAnimationFrame(id));
+		pendingRafIds = [];
+	}
+
+	// Ensure this var exists for TS (used later for a class binding)
+	let fxClass: 'fx-subtle' | 'fx-default' | 'fx-bold' = 'fx-default';
+
 	// CSS Variable change detection with threshold
 	const CSS_UPDATE_THRESHOLD = 2; // pixels
+
 	$: if (browser && $layoutStore?.navbarHeight !== undefined) {
 		const newHeight = $layoutStore.navbarHeight;
+
 		// Only update if change is significant to prevent layout thrashing
 		if (Math.abs(newHeight - lastNavbarHeight) > CSS_UPDATE_THRESHOLD) {
 			// Use RAF for optimal performance timing
-			if (frameRateController.shouldRenderFrame()) {
-				requestAnimationFrame(() => {
+			if (frameRateController?.shouldRenderFrame?.()) {
+				trackRAF(() => {
+					// ✅ FIX: use a proper template literal here
 					document.documentElement.style.setProperty('--navbar-height', `${newHeight}px`);
 					lastNavbarHeight = newHeight;
 				});
@@ -88,26 +106,33 @@
 		}
 	}
 
-	// Optimized animation reactive statement
-	// Only trigger animations on specific state combinations, with debouncing
+	// Optimized animation reactive statement with better guards
 	$: if (currentScreen === 'main' && browser && hasMounted && !isAnimationInitialized) {
-		// Debounce animation initialization to prevent rapid fire
+		// Clear any existing timeout to prevent race conditions
 		if (animationInitTimeout) {
 			clearTimeout(animationInitTimeout);
+			animationInitTimeout = null;
 		}
 
 		animationInitTimeout = window.setTimeout(() => {
-			const elements = { header, insertConcept, arcadeScreen };
-			if (elements.header && elements.insertConcept && elements.arcadeScreen) {
-				// PERFORMANCE: Only initialize if not already done
-				if (!isAnimationInitialized) {
-					requestAnimationFrame(() => {
-						startAnimations(elements);
-						isAnimationInitialized = true;
-					});
+			try {
+				const elements = { header, insertConcept, arcadeScreen };
+				if (elements.header && elements.insertConcept && elements.arcadeScreen) {
+					// Guard against double initialization
+					if (!isAnimationInitialized) {
+						trackRAF(() => {
+							startAnimations(elements);
+							isAnimationInitialized = true;
+						});
+					}
 				}
+			} catch (error) {
+				console.error('Animation initialization failed:', error);
+				isAnimationInitialized = false;
+			} finally {
+				animationInitTimeout = null;
 			}
-		}, 50); // Small debounce to prevent rapid calls
+		}, 50);
 	}
 
 	// Reset animation state when leaving main screen
@@ -117,23 +142,33 @@
 	}
 
 	$: fxClass =
-		$deviceCapabilities.effectsLevel === 'minimal'
+		$deviceCapabilities?.effectsLevel === 'minimal'
 			? 'fx-subtle'
-			: $deviceCapabilities.effectsLevel === 'reduced'
+			: $deviceCapabilities?.effectsLevel === 'reduced'
 				? 'fx-default'
 				: 'fx-bold';
 
-	// Device detection function optimized with memoization
+	// Device detection function optimized with memoization and error handling
 	function detectDeviceCapabilities() {
 		if (!browser) return;
-		const tier = $deviceCapabilities?.tier ?? 'high';
-		const isMobile = $deviceCapabilities?.isMobile ?? window.innerWidth < 768;
-		isMobileDevice = !!isMobile;
-		isLowPerformanceDevice = tier === 'low';
-		document.documentElement.setAttribute(
-			'data-device-type',
-			tier === 'low' ? 'low-performance' : isMobile ? 'mobile' : 'desktop'
-		);
+
+		try {
+			const caps = get(deviceCapabilities);
+			const tier = caps?.tier ?? 'high';
+			const isMobile = caps?.isMobile ?? window.innerWidth < 768;
+			isMobileDevice = !!isMobile;
+			isLowPerformanceDevice = tier === 'low';
+
+			document.documentElement.setAttribute(
+				'data-device-type',
+				tier === 'low' ? 'low-performance' : isMobile ? 'mobile' : 'desktop'
+			);
+		} catch (error) {
+			console.warn('Device capability detection failed:', error);
+			// Fallback values
+			isMobileDevice = window.innerWidth < 768;
+			isLowPerformanceDevice = false;
+		}
 	}
 
 	// Optimize scroll handling with better isolation
@@ -149,14 +184,13 @@
 			clearTimeout(scrollTimeout);
 		}
 
-		// Debounce scroll end detection - don't trigger animations during scroll
+		// Debounce scroll end detection
 		scrollTimeout = window.setTimeout(() => {
 			isScrolling = false;
 			// Only trigger updates if scroll state actually changed
-			if (wasScrolling !== isScrolling) {
-				// Scroll ended - opportunity to optimize
-				requestAnimationFrame(() => {
-					// Perform any scroll-end optimizations here
+			if (wasScrolling !== isScrolling && frameRateController?.shouldRenderFrame?.()) {
+				trackRAF(() => {
+					// Perform any scroll-end optimizations here if needed
 				});
 			}
 		}, 150);
@@ -165,109 +199,124 @@
 	function initializeGlassEffects() {
 		if (!browser) return;
 
-		// Get the glass container
-		const glassContainer = document.querySelector('.screen-glass-container');
-		if (!glassContainer) return;
+		try {
+			const glassContainer = document.querySelector('.screen-glass-container');
+			if (!glassContainer) return;
 
-		// Apply initial glass physics based on screen type
-		if (currentScreen === 'game') {
-			// For game screen, slightly adjust glass properties for gameplay visibility
-			document.documentElement.style.setProperty('--glass-reflectivity', '0.12');
-			document.documentElement.style.setProperty('--glass-dust-opacity', '0.02');
-			document.documentElement.style.setProperty('--glass-smudge-opacity', '0.03');
-			document.documentElement.style.setProperty('--internal-reflection-opacity', '0.035');
-		} else {
-			// For main screen, use default glass settings
-			document.documentElement.style.setProperty('--glass-reflectivity', '0.15');
-			document.documentElement.style.setProperty('--glass-dust-opacity', '0.03');
-			document.documentElement.style.setProperty('--glass-smudge-opacity', '0.04');
-			document.documentElement.style.setProperty('--internal-reflection-opacity', '0.045');
+			// Apply initial glass physics based on screen type
+			const properties =
+				currentScreen === 'game'
+					? {
+							'--glass-reflectivity': '0.12',
+							'--glass-dust-opacity': '0.02',
+							'--glass-smudge-opacity': '0.03',
+							'--internal-reflection-opacity': '0.035'
+						}
+					: {
+							'--glass-reflectivity': '0.15',
+							'--glass-dust-opacity': '0.03',
+							'--glass-smudge-opacity': '0.04',
+							'--internal-reflection-opacity': '0.045'
+						};
+
+			Object.entries(properties).forEach(([prop, value]) => {
+				document.documentElement.style.setProperty(prop, value);
+			});
+		} catch (error) {
+			console.warn('Glass effects initialization failed:', error);
 		}
 	}
 
-	// Event handlers
-	function handleScreenChange(event: CustomEvent) {
+	// Enhanced event handlers with proper typing
+	function handleScreenChange(event: CustomEvent<string>) {
 		const newScreen = event.detail;
 		const prevScreen = currentScreen;
 
 		// Don't do anything if screen hasn't changed
 		if (newScreen === prevScreen) return;
 
-		// Remove scroll state check that was causing animation issues
 		// Update the screen state
 		screenStore.set(newScreen);
 		currentScreen = newScreen;
 
 		// Create a transition function to handle the change
 		const performTransition = () => {
-			// Stop current animations only if needed
-			if (prevScreen === 'main' && newScreen !== 'main') {
-				// We're leaving the main screen, stop animations
-				stopAnimations();
-				isAnimationInitialized = false; // PERFORMANCE: Reset state
+			try {
+				const glassContainer = document.querySelector(
+					'.screen-glass-container'
+				) as HTMLElement | null;
 
-				// Keep glass effects active even when switching screens
-				const glassContainer = document.querySelector('.screen-glass-container');
-				if (glassContainer) {
-					// Ensure glass container remains visible during transition
-					(glassContainer as HTMLElement).style.opacity = '1';
-					(glassContainer as HTMLElement).style.pointerEvents = 'none';
+				// Leaving "main" → pause hero timeline, keep glass on to prevent flicker
+				if (prevScreen === 'main' && newScreen !== 'main') {
+					stopAnimations();
+					isAnimationInitialized = false;
 
-					// Add a brief transition effect to simulate screen change under glass
-					gsap.fromTo(
-						glassContainer,
-						{ filter: 'brightness(1.2) blur(0.5px)' },
-						{ filter: 'brightness(1) blur(0px)', duration: 0.3 }
-					);
+					if (glassContainer) {
+						glassContainer.style.opacity = '1';
+						glassContainer.style.pointerEvents = 'none';
+						gsap?.fromTo(
+							glassContainer,
+							{ filter: 'brightness(1.15) blur(0.4px)' },
+							{ filter: 'brightness(1) blur(0px)', duration: 0.28, overwrite: true }
+						);
+					}
 				}
-			} else if (newScreen === 'main' && prevScreen !== 'main') {
-				// We're returning to main screen - animations will be handled by reactive statement
 
-				// Add glass transition effect when returning to main screen
-				const glassContainer = document.querySelector('.screen-glass-container');
-				if (glassContainer) {
-					gsap.fromTo(
-						glassContainer,
-						{ filter: 'brightness(1.1) blur(0.3px)' },
-						{ filter: 'brightness(1) blur(0px)', duration: 0.3 }
-					);
+				// Returning to "main" → quick glass settle to mask DOM reshuffle
+				if (newScreen === 'main' && prevScreen !== 'main') {
+					if (glassContainer) {
+						gsap?.fromTo(
+							glassContainer,
+							{ filter: 'brightness(1.08) blur(0.25px)' },
+							{ filter: 'brightness(1) blur(0px)', duration: 0.25, overwrite: true }
+						);
+					}
 				}
+
+				initializeGlassEffects();
+			} catch (error) {
+				console.error('Screen transition failed:', error);
 			}
-			initializeGlassEffects();
 		};
 
-		// Use requestAnimationFrame for smoother transitions
-		requestAnimationFrame(performTransition);
+		// Use RAF for smoother transitions
+		trackRAF(performTransition);
 	}
 
-	function handleControlInput(event: CustomEvent) {
+	function handleControlInput(event: CustomEvent<{ type: string; value: any }>) {
 		if (!browser) return;
 
-		const { detail } = event;
-		if (detail.type === 'joystick') {
-			// Use throttled frame to optimize input handling
-			if (frameRateController.shouldRenderFrame()) {
-				requestAnimationFrame(() => {
-					if (detail.value.x < -0.5) {
-						window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
-					} else if (detail.value.x > 0.5) {
-						window.dispatchEvent(
-							new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
-						);
+		try {
+			const { detail } = event;
+			if (detail.type === 'joystick' && frameRateController?.shouldRenderFrame?.()) {
+				trackRAF(() => {
+					const { value } = detail;
+					const events: KeyboardEvent[] = [];
+
+					if (value.x < -0.5) {
+						events.push(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+					} else if (value.x > 0.5) {
+						events.push(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
 					} else {
-						window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowLeft', bubbles: true }));
-						window.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }));
+						events.push(
+							new KeyboardEvent('keyup', { key: 'ArrowLeft', bubbles: true }),
+							new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true })
+						);
 					}
 
-					if (detail.value.y < -0.5) {
-						window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+					if (value.y < -0.5) {
+						events.push(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
 					}
+
+					events.forEach((evt) => window.dispatchEvent(evt));
 				});
 			}
+		} catch (error) {
+			console.error('Control input handling failed:', error);
 		}
 	}
 
-	function handleGameStateChange(event: { detail: { state: GameState } }) {
+	function handleGameStateChange(event: CustomEvent<{ state: GameState }>) {
 		currentGameState = event.detail.state;
 		console.log('Game state changed to:', currentGameState);
 	}
@@ -276,13 +325,16 @@
 	function handleOrientation() {
 		if (!browser) return;
 
-		const isLandscape = window.innerWidth > window.innerHeight;
+		try {
+			const isLandscape = window.innerWidth > window.innerHeight;
 
-		// Only update when needed based on frame rate controller
-		if (frameRateController.shouldRenderFrame()) {
-			requestAnimationFrame(() => {
-				document.body.classList.toggle('landscape', isLandscape);
-			});
+			if (frameRateController?.shouldRenderFrame?.()) {
+				trackRAF(() => {
+					document.body.classList.toggle('landscape', isLandscape);
+				});
+			}
+		} catch (error) {
+			console.warn('Orientation handling failed:', error);
 		}
 	}
 
@@ -293,7 +345,7 @@
 		orientationTimeout = window.setTimeout(handleOrientation, 150);
 	}
 
-	// Enhanced animation control with state guards
+	// Enhanced animation control with better error handling
 	function startAnimations(elements: {
 		header: HTMLElement;
 		insertConcept: HTMLElement;
@@ -309,144 +361,137 @@
 			// Stop existing animations first
 			stopAnimations();
 
-			// Get the current quality setting from frameRateController
-			const currentQuality =
-				frameRateController && typeof frameRateController.getCurrentQuality === 'function'
-					? frameRateController.getCurrentQuality()
-					: 1.0;
+			// Get the current quality setting with fallback
+			const currentQuality = frameRateController?.getCurrentQuality?.() ?? 1.0;
 
-			// Initialize glitch manager with enhanced settings - only if quality allows
+			// Initialize glitch manager with enhanced settings
 			if (glitchManager && typeof glitchManager.cleanup === 'function') {
 				glitchManager.cleanup();
+				glitchManager = null;
 			}
 
 			// Only use glitch effects on capable devices and at higher quality levels
-			if (!isLowPerformanceDevice && currentQuality > 0.6) {
-				if (animations && typeof animations.GlitchManager === 'function') {
+			if (!isLowPerformanceDevice && currentQuality > 0.6 && animations?.GlitchManager) {
+				try {
 					glitchManager = new animations.GlitchManager();
 					if (glitchManager && typeof glitchManager.start === 'function') {
-						glitchManager.start([elements.header]); // Apply only to header
+						glitchManager.start([elements.header]);
 					}
+				} catch (glitchError) {
+					console.warn('Glitch manager initialization failed:', glitchError);
+					glitchManager = null;
 				}
 			}
 
 			// Create and start optimized GSAP timeline
-			const timeline = gsap
-				.timeline({
-					paused: true,
-					defaults: {
-						ease: 'power2.out',
-						duration: 1
-					}
-				})
-				.fromTo(
-					elements.header,
-					{
-						opacity: 0,
-						y: -50,
-						scale: 0.8
-					},
-					{
-						opacity: 1,
-						y: 0,
-						scale: 1,
-						duration: 1.2,
-						ease: 'back.out(1.7)'
-					},
-					0
-				)
-				.fromTo(
-					elements.insertConcept,
-					{
-						opacity: 0
-					},
-					{
-						opacity: 1,
-						duration: 0.8,
-						ease: 'power2.out'
-					},
-					0.5
-				);
+			if (gsap?.timeline) {
+				const timeline = gsap
+					.timeline({
+						paused: true,
+						defaults: {
+							ease: 'power2.out',
+							duration: 1
+						}
+					})
+					.fromTo(
+						elements.header,
+						{
+							opacity: 0,
+							y: -50,
+							scale: 0.8
+						},
+						{
+							opacity: 1,
+							y: 0,
+							scale: 1,
+							duration: 1.2,
+							ease: 'back.out(1.7)'
+						},
+						0
+					)
+					.fromTo(
+						elements.insertConcept,
+						{
+							opacity: 0
+						},
+						{
+							opacity: 1,
+							duration: 0.8,
+							ease: 'power2.out'
+						},
+						0.5
+					);
 
-			if (timeline) {
-				currentTimeline = timeline;
-				timeline.play();
-				console.log('⚡ Animations started successfully');
+				if (timeline) {
+					currentTimeline = timeline;
+					timeline.play();
+					console.log('⚡ Animations started successfully');
+				}
 			}
 		} catch (error) {
 			console.error('Animation initialization failed:', error);
-			isAnimationInitialized = false; // Reset on error
+			isAnimationInitialized = false;
 		}
 	}
 
 	function stopAnimations() {
 		if (!browser) return;
-
-		console.log('⚡ Stopping animations');
-
-		// Stop glitch manager
-		if (glitchManager) {
-			if (typeof glitchManager.stop === 'function') {
-				glitchManager.stop();
-			} else if (typeof glitchManager.cleanup === 'function') {
-				// Fallback to cleanup if stop isn't available
-				glitchManager.cleanup();
-			}
-		}
-
-		// Kill GSAP timeline with proper cleanup
-		if (currentTimeline) {
-			// First pause to stop animations
-			if (typeof currentTimeline.pause === 'function') {
-				currentTimeline.pause();
+		// Use a local flag to avoid noisy logs if called redundantly
+		try {
+			// Stop glitch manager if present
+			if (glitchManager) {
+				try {
+					glitchManager.stop?.();
+					glitchManager.cleanup?.();
+				} catch (error) {
+					console.warn('Glitch manager cleanup failed:', error);
+				} finally {
+					glitchManager = null;
+				}
 			}
 
-			// Clear all tweens from the timeline
-			if (typeof currentTimeline.clear === 'function') {
-				currentTimeline.clear();
+			// Kill GSAP timeline with proper cleanup
+			if (currentTimeline) {
+				try {
+					currentTimeline.pause?.();
+					currentTimeline.clear?.();
+					currentTimeline.kill?.();
+				} catch (error) {
+					console.warn('GSAP timeline cleanup failed:', error);
+				} finally {
+					currentTimeline = null;
+				}
 			}
 
-			// Finally kill the timeline
-			if (typeof currentTimeline.kill === 'function') {
-				currentTimeline.kill();
+			// Safer approach to clean up lingering tweens
+			if (typeof window !== 'undefined' && gsap?.killTweensOf) {
+				try {
+					if (header) gsap.killTweensOf(header);
+					if (insertConcept) gsap.killTweensOf(insertConcept);
+					if (arcadeScreen) gsap.killTweensOf(arcadeScreen);
+				} catch (error) {
+					console.warn('GSAP cleanup failed:', error);
+				}
 			}
-
-			// Remove reference
-			currentTimeline = null;
-		}
-
-		// Safer approach to clean up GSAP animations
-		if (typeof window !== 'undefined' && gsap) {
-			// Kill all GSAP animations
-			if (typeof gsap.killTweensOf === 'function') {
-				// If you have specific elements that are animated:
-				if (header) gsap.killTweensOf(header);
-				if (insertConcept) gsap.killTweensOf(insertConcept);
-				if (arcadeScreen) gsap.killTweensOf(arcadeScreen);
-			}
-
-			// If you need to completely clear GSAP's ticker:
-			if (gsap.ticker && typeof gsap.ticker.remove === 'function') {
-			}
+		} finally {
+			// No-op; keep structure symmetrical for future hooks
 		}
 	}
 
 	// Focused initialization functions
 	function initializeComponents() {
-		// Detect device capabilities
-		detectDeviceCapabilities();
+		try {
+			detectDeviceCapabilities();
+			initializeMemoryMonitoring();
 
-		// Initialize memory monitoring
-		initializeMemoryMonitoring();
-
-		// Add iOS-specific fixes
-		if (browser && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
-			// Apply iOS fixes to the arcade screen
-			if (arcadeScreen) {
+			// Add iOS-specific fixes
+			if (browser && /iPad|iPhone|iPod/.test(navigator.userAgent) && arcadeScreen) {
 				arcadeScreen.style.backfaceVisibility = 'hidden';
 				arcadeScreen.style.webkitBackfaceVisibility = 'hidden';
 				arcadeScreen.classList.add('ios-optimized');
 			}
+		} catch (error) {
+			console.error('Component initialization failed:', error);
 		}
 	}
 
@@ -459,16 +504,14 @@
 			'memory' in (performance as any)
 		) {
 			try {
-				// Start monitoring with the unified memory manager
 				memoryManager.startMonitoring();
 
 				// Subscribe to memory pressure events with throttling
 				const pressureUnsubscribe = memoryManager.onMemoryPressure((pressure: MemoryPressure) => {
-					// Only respond to significant pressure changes
 					if (pressure === 'high' || pressure === 'critical') {
-						// Reduce quality through frameRateController
-						frameRateController.setQualityOverride(pressure === 'critical' ? 0.5 : 0.7);
-						// Nudge capability limits so effect counts follow too
+						frameRateController?.setQualityOverride?.(pressure === 'critical' ? 0.5 : 0.7);
+
+						// Update device capabilities
 						deviceCapabilities.update((caps) => ({
 							...caps,
 							maxEffectUnits: Math.max(
@@ -478,7 +521,7 @@
 							maxStars: Math.max(
 								10,
 								Math.floor(caps.maxEffectUnits * (pressure === 'critical' ? 0.6 : 0.8))
-							), // legacy mirror
+							),
 							starfield: {
 								...caps.starfield,
 								maxUnits: Math.max(
@@ -498,18 +541,13 @@
 				// Subscribe to memory events for leak detection
 				const eventUnsubscribe = memoryManager.onMemoryEvent((event: MemoryEvent) => {
 					if (event.type === 'critical') {
-						// Significantly reduce quality through frameRateController
-						frameRateController.setQualityOverride(0.5);
-
-						// Perform cleanup
+						frameRateController?.setQualityOverride?.(0.5);
 						memoryManager.performCleanup();
 					}
 				});
 
-				// Store unsubscribe functions for cleanup
 				memoryManagerUnsubscribes.push(pressureUnsubscribe, eventUnsubscribe);
 			} catch (error) {
-				// Fallback: disable memory monitoring if initialization fails
 				console.warn('Memory manager initialization failed, disabling memory monitoring:', error);
 				memoryManagerUnsubscribes = [];
 			}
@@ -517,99 +555,112 @@
 	}
 
 	function setupHeroEventListeners() {
-		// Define optimized event handlers
-		const optimizedResizeCheck = createThrottledRAF(() => {
-			if (!frameRateController.shouldRenderFrame()) return;
-			detectDeviceCapabilities();
-			debouncedOrientationCheck();
-		}, 100);
-
-		// Optimized visibility handler
-		const visibilityHandler = () => {
-			const isVisible = !document.hidden;
-			if (lastVisibilityState === isVisible) return;
-			lastVisibilityState = isVisible;
-
-			if (document.hidden) {
-				frameRateController.setAdaptiveEnabled(false);
-			} else {
-				frameRateController.setAdaptiveEnabled(true);
-			}
-		};
-
-		const orientationChangeHandler = () => {
-			setTimeout(() => {
+		try {
+			// Define optimized event handlers
+			const optimizedResizeCheck = createThrottledRAF(() => {
+				if (!frameRateController?.shouldRenderFrame?.()) return;
 				detectDeviceCapabilities();
-			}, 300);
-		};
+				debouncedOrientationCheck();
+			}, 100);
 
-		const touchStartHandler = (e: TouchEvent) => {
-			if (currentScreen === 'game') e.preventDefault();
-		};
+			// Optimized visibility handler
+			const visibilityHandler = () => {
+				const isVisible = !document.hidden;
+				if (lastVisibilityState === isVisible) return;
+				lastVisibilityState = isVisible;
 
-		const passiveOptions = { passive: true };
-		const nonPassiveOptions = { passive: false };
+				if (document.hidden) {
+					frameRateController?.setAdaptiveEnabled?.(false);
+				} else {
+					frameRateController?.setAdaptiveEnabled?.(true);
+				}
+			};
 
-		if (typeof ResizeObserver === 'function') {
-			resizeObserver = new ResizeObserver(optimizedResizeCheck);
-			if (arcadeScreen) {
+			const orientationChangeHandler = () => {
+				setTimeout(() => {
+					detectDeviceCapabilities();
+				}, 300);
+			};
+
+			const touchStartHandler = (e: TouchEvent) => {
+				if (currentScreen === 'game') e.preventDefault();
+			};
+
+			const passiveOptions = { passive: true };
+			const nonPassiveOptions = { passive: false };
+
+			// Setup ResizeObserver
+			if (typeof ResizeObserver === 'function' && arcadeScreen) {
+				// Wrap the optimized check so the callback signature matches ResizeObserverCallback
+				const roCb: ResizeObserverCallback = () => optimizedResizeCheck();
+				resizeObserver = new ResizeObserver(roCb);
 				resizeObserver.observe(arcadeScreen);
+
 				if (isMobileDevice) {
-					arcadeScreen.addEventListener('touchstart', touchStartHandler as any, nonPassiveOptions);
+					arcadeScreen.addEventListener('touchstart', touchStartHandler, nonPassiveOptions);
 				}
 			}
-		}
 
-		if (typeof window !== 'undefined') {
-			window.addEventListener('resize', optimizedResizeCheck, passiveOptions);
-			window.addEventListener('orientationchange', orientationChangeHandler, passiveOptions);
-			window.addEventListener('scroll', handleScroll, passiveOptions);
-		}
+			// Setup window event listeners
+			if (typeof window !== 'undefined') {
+				window.addEventListener('resize', optimizedResizeCheck, passiveOptions);
+				window.addEventListener('orientationchange', orientationChangeHandler, passiveOptions);
+				window.addEventListener('scroll', handleScroll, passiveOptions);
+			}
 
-		if (typeof document !== 'undefined') {
-			document.addEventListener('visibilitychange', visibilityHandler, passiveOptions);
-		}
+			// Setup document event listeners
+			if (typeof document !== 'undefined') {
+				document.addEventListener('visibilitychange', visibilityHandler, passiveOptions);
+			}
 
-		eventHandlers = {
-			resize: optimizedResizeCheck as EventListener,
-			orientationChange: orientationChangeHandler as EventListener,
-			visibility: visibilityHandler as EventListener,
-			touchStart: touchStartHandler as EventListener,
-			scroll: handleScroll as EventListener
-		};
+			// Store handlers for cleanup
+			eventHandlers = {
+				resize: optimizedResizeCheck,
+				orientationChange: orientationChangeHandler,
+				visibility: visibilityHandler,
+				touchStart: touchStartHandler,
+				scroll: handleScroll
+			};
+		} catch (error) {
+			console.error('Event listener setup failed:', error);
+		}
 	}
 
 	// Initialize frame rate controller settings
 	function setupFrameRateController() {
-		// Get device capabilities once
-		const caps = get(deviceCapabilities);
+		try {
+			const caps = get(deviceCapabilities);
 
-		// Derive FPS target from caps.updateInterval if available,
-		// otherwise fall back to 60 (high/medium) or 30 (low)
-		let targetFPS: number;
-		if (caps.updateInterval) {
-			targetFPS = Math.max(15, Math.min(120, Math.round(1000 / (caps.updateInterval || 16))));
-		} else {
-			targetFPS = isLowPerformanceDevice ? 30 : 60;
-		}
-
-		frameRateController.setTargetFPS(targetFPS);
-
-		// Set max frame skipping
-		const maxSkip = caps.frameSkip ?? (isLowPerformanceDevice ? 2 : 0);
-		frameRateController.setMaxSkippedFrames(maxSkip);
-
-		// Enable adaptive quality control
-		frameRateController.setAdaptiveEnabled(true);
-
-		// Subscribe to quality changes to adapt animations
-		frameRateUnsubscribe = frameRateController.subscribeQuality((quality) => {
-			try {
-				// Future: Adapt animation complexity based on quality
-			} catch (error) {
-				console.warn('Error in quality adjustment callback:', error);
+			// Derive FPS target from caps.updateInterval
+			let targetFPS: number;
+			if (caps?.updateInterval) {
+				targetFPS = Math.max(15, Math.min(120, Math.round(1000 / caps.updateInterval)));
+			} else {
+				targetFPS = isLowPerformanceDevice ? 30 : 60;
 			}
-		});
+
+			frameRateController?.setTargetFPS?.(targetFPS);
+
+			// Set max frame skipping
+			const maxSkip = caps?.frameSkip ?? (isLowPerformanceDevice ? 2 : 0);
+			frameRateController?.setMaxSkippedFrames?.(maxSkip);
+
+			// Enable adaptive quality control
+			frameRateController?.setAdaptiveEnabled?.(true);
+
+			// Subscribe to quality changes
+			if (frameRateController?.subscribeQuality) {
+				frameRateUnsubscribe = frameRateController.subscribeQuality((quality) => {
+					try {
+						// Future: Adapt animation complexity based on quality
+					} catch (error) {
+						console.warn('Error in quality adjustment callback:', error);
+					}
+				});
+			}
+		} catch (error) {
+			console.error('Frame rate controller setup failed:', error);
+		}
 	}
 
 	// Lifecycle hooks
@@ -618,45 +669,64 @@
 
 		console.log('⚡ Hero component mounting');
 
-		currentScreen = 'main';
+		let initialRaf: number | null = null;
 
-		// Initialize performance monitoring first
-		perfMonitor = setupPerformanceMonitoring();
-		// Optional: also mirror module’s visibility optimizations
-		capsVisibilityCleanup = setupDevicePerfEventListeners ? setupDevicePerfEventListeners() : null;
+		try {
+			currentScreen = 'main';
 
-		hasMounted = true;
+			// Initialize performance monitoring first
+			if (setupPerformanceMonitoring) {
+				perfMonitor = setupPerformanceMonitoring();
+			}
 
-		// Setup frame rate controller
-		setupFrameRateController();
+			if (setupDevicePerfEventListeners) {
+				capsVisibilityCleanup = setupDevicePerfEventListeners();
+			}
 
-		// Initialize core components
-		initializeComponents();
+			hasMounted = true;
 
-		// Set up this component's own listeners
-		setupHeroEventListeners();
+			// Setup frame rate controller
+			setupFrameRateController();
 
-		initializeGlassEffects();
+			// Initialize core components
+			initializeComponents();
 
-		// Initial setup - use RAF for first render timing
-		const initialRaf = requestAnimationFrame(() => {
-			// Check orientation initially
-			handleOrientation();
+			// Set up event listeners
+			setupHeroEventListeners();
 
-			// PERFORMANCE: Don't auto-start animations in onMount
-			// Let reactive statement handle it based on proper conditions
-		});
+			// Initialize glass effects
+			initializeGlassEffects();
 
-		// You can target #arcade-screen if you prefer scoping rather than :root
-		unbindFx = bindFxIntensity({
-			// target: document.getElementById('arcade-screen') as HTMLElement,
-			// Optional: tweak the curve
-			// qualityToIntensity: (q) => 0.5 + (q ** 1.15) * 0.8
-		});
+			// If device tier is low or prefers reduced motion, soften expensive layers early
+			try {
+				const caps = get(deviceCapabilities);
+				if (caps?.tier === 'low' || caps?.preferReducedMotion) {
+					document.documentElement.classList.add('fx-subtle');
+				}
+			} catch {
+				/* non-fatal */
+			}
+
+			// Initial setup - use RAF for first render timing
+			initialRaf = trackRAF(() => {
+				handleOrientation();
+			});
+
+			// Bind FX intensity
+			if (bindFxIntensity) {
+				unbindFx = bindFxIntensity({});
+			}
+		} catch (error) {
+			console.error('Hero component mount failed:', error);
+		}
 
 		return () => {
-			// Cleanup function called if component is unmounted before destroy
-			if (initialRaf) cancelAnimationFrame(initialRaf);
+			// Cleanup function for early unmount
+			if (initialRaf) {
+				cancelAnimationFrame(initialRaf);
+				const index = pendingRafIds.indexOf(initialRaf);
+				if (index > -1) pendingRafIds.splice(index, 1);
+			}
 		};
 	});
 
@@ -665,79 +735,125 @@
 
 		console.log('⚡ Hero component destroying');
 
-		// --- stop animations/managers as you already do ---
-		stopAnimations();
-		isAnimationInitialized = false;
-		if (glitchManager) glitchManager.cleanup?.();
+		try {
+			// Stop animations and managers
+			stopAnimations();
+			isAnimationInitialized = false;
 
-		if (memoryManagerUnsubscribes.length > 0) {
-			memoryManager.stopMonitoring();
-			memoryManagerUnsubscribes.forEach((u) => u());
-			memoryManagerUnsubscribes = [];
-		}
+			if (glitchManager) {
+				glitchManager.cleanup?.();
+				glitchManager = null;
+			}
 
-		if (perfMonitor) {
-			perfMonitor();
-			perfMonitor = null;
+			// Memory monitoring cleanup
+			if (memoryManagerUnsubscribes.length > 0) {
+				memoryManager.stopMonitoring();
+				memoryManagerUnsubscribes.forEach((unsubscribe) => {
+					try {
+						unsubscribe();
+					} catch (error) {
+						console.warn('Memory manager unsubscribe failed:', error);
+					}
+				});
+				memoryManagerUnsubscribes = [];
+			}
+
+			// Performance monitoring cleanup
+			if (perfMonitor) {
+				try {
+					perfMonitor();
+				} catch (error) {
+					console.warn('Performance monitor cleanup failed:', error);
+				}
+				perfMonitor = null;
+			}
+
 			if (capsVisibilityCleanup) {
-				capsVisibilityCleanup();
+				try {
+					capsVisibilityCleanup();
+				} catch (error) {
+					console.warn('Visibility cleanup failed:', error);
+				}
 				capsVisibilityCleanup = null;
 			}
-		}
 
-		if (frameRateUnsubscribe) {
-			frameRateUnsubscribe();
-			frameRateUnsubscribe = null;
-		}
+			// Frame rate controller cleanup
+			if (frameRateUnsubscribe) {
+				try {
+					frameRateUnsubscribe();
+				} catch (error) {
+					console.warn('Frame rate unsubscribe failed:', error);
+				}
+				frameRateUnsubscribe = null;
+			}
 
-		if (resizeObserver) {
-			resizeObserver.disconnect();
-			resizeObserver = null;
-		}
+			// Observer cleanup
+			if (resizeObserver) {
+				resizeObserver.disconnect();
+				resizeObserver = null;
+			}
 
-		if (orientationTimeout) {
-			clearTimeout(orientationTimeout);
-			orientationTimeout = null;
-		}
+			// Timeout cleanup
+			if (orientationTimeout) {
+				clearTimeout(orientationTimeout);
+				orientationTimeout = null;
+			}
 
-		if (scrollTimeout) {
-			clearTimeout(scrollTimeout);
-			scrollTimeout = null;
-		}
+			if (scrollTimeout) {
+				clearTimeout(scrollTimeout);
+				scrollTimeout = null;
+			}
 
-		if (animationInitTimeout) {
-			clearTimeout(animationInitTimeout);
-			animationInitTimeout = null;
-		}
+			if (animationInitTimeout) {
+				clearTimeout(animationInitTimeout);
+				animationInitTimeout = null;
+			}
 
-		// --- ✅ Correct event listener cleanup using eventHandlers ---
-		if (typeof window !== 'undefined') {
-			if (eventHandlers.resize) window.removeEventListener('resize', eventHandlers.resize);
-			if (eventHandlers.orientationChange)
-				window.removeEventListener('orientationchange', eventHandlers.orientationChange);
-			if (eventHandlers.scroll) window.removeEventListener('scroll', eventHandlers.scroll);
-		}
+			// RAF cleanup
+			cleanupRAF();
 
-		if (typeof document !== 'undefined') {
-			if (eventHandlers.visibility)
+			// Event listener cleanup
+			if (typeof window !== 'undefined') {
+				if (eventHandlers.resize) {
+					window.removeEventListener('resize', eventHandlers.resize);
+				}
+				if (eventHandlers.orientationChange) {
+					window.removeEventListener('orientationchange', eventHandlers.orientationChange);
+				}
+				if (eventHandlers.scroll) {
+					window.removeEventListener('scroll', eventHandlers.scroll);
+				}
+			}
+
+			if (typeof document !== 'undefined' && eventHandlers.visibility) {
 				document.removeEventListener('visibilitychange', eventHandlers.visibility);
+			}
+
+			if (arcadeScreen && eventHandlers.touchStart) {
+				arcadeScreen.removeEventListener('touchstart', eventHandlers.touchStart);
+			}
+
+			// Clear DOM refs safely
+			header = undefined;
+			insertConcept = undefined;
+			arcadeScreen = undefined;
+
+			// FX binding cleanup
+			if (unbindFx) {
+				try {
+					unbindFx();
+				} catch (error) {
+					console.warn('FX unbind failed:', error);
+				}
+				unbindFx = undefined;
+			}
+
+			// Reset state
+			isScrolling = false;
+			eventHandlers = {};
+		} catch (error) {
+			console.error('Hero component destroy failed:', error);
 		}
-
-		if (arcadeScreen && eventHandlers.touchStart) {
-			arcadeScreen.removeEventListener('touchstart', eventHandlers.touchStart);
-		}
-
-		// --- clear DOM refs (as you had) ---
-		header = undefined as any;
-		insertConcept = undefined as any;
-		arcadeScreen = undefined as any;
-
-		unbindFx?.();
-
-		// Optional: leave the ticker cleanup if you want, but it usually needs the same fn ref
-		// if (typeof window !== 'undefined' && gsap?.ticker) { /* only remove a stored callback */ }
-
-		isScrolling = false;
 	});
 </script>
 
@@ -745,9 +861,9 @@
 	id="hero"
 	class="w-full relative overflow-hidden flex items-center justify-center hardware-accelerated"
 	style="
-    margin-top: calc(-.5 * {$layoutStore.navbarHeight}px);
-    height: calc(100vh + {$layoutStore.navbarHeight}px);
-  "
+		margin-top: calc(-0.5 * var(--navbar-height, 64px));
+		height: calc(100vh + var(--navbar-height, 64px));
+	"
 >
 	<div
 		id="arcade-cabinet"
@@ -772,20 +888,13 @@
 					data-radius-sync
 					class="crt-screen hardware-accelerated relative glow will-change-transform"
 					use:fxTuner={{
-						// Let quality auto-drive intensity ↓
 						followQuality: true,
-
-						// Give stars extra pop by default
 						starContrast: 1.25,
 						starBrightness: 1.08,
 						starAlphaBoost: 1.05,
-
-						// NOTE: If you want to force-disable glass from template, uncomment:
 						intensity: 0.85,
-
 						animSpeed: 0.9,
 						blurMult: 0.9,
-						// Small accessibility boost on hover/focus
 						hoverBoost: { contrast: 1.12, brightness: 1.05, alpha: 1.0 }
 					}}
 					bind:this={arcadeScreen}
@@ -813,23 +922,23 @@
 						<div class="starfield-container rounded-arcade" style="z-index: 15;">
 							<VectorStarfield
 								enabled={currentScreen === 'main'}
-								layers={$deviceCapabilities.tier === 'high'
+								layers={$deviceCapabilities?.tier === 'high'
 									? 3
-									: $deviceCapabilities.tier === 'medium'
+									: $deviceCapabilities?.tier === 'medium'
 										? 2
 										: 1}
-								density={($deviceCapabilities.effectsLevel === 'normal'
+								density={($deviceCapabilities?.effectsLevel === 'normal'
 									? 1.6
-									: $deviceCapabilities.effectsLevel === 'reduced'
+									: $deviceCapabilities?.effectsLevel === 'reduced'
 										? 1.2
-										: 0.8) * frameRateController.getCurrentQuality()}
-								maxStars={$deviceCapabilities.maxEffectUnits}
-								targetFPS={Math.round(1000 / ($deviceCapabilities.updateInterval ?? 16))}
-								baseSpeed={$deviceCapabilities.starfield.animationSpeed *
-									(0.8 + 0.4 * frameRateController.getCurrentQuality())}
-								qualityScale={frameRateController.getCurrentQuality()}
-								lowPowerMode={$deviceCapabilities.tier === 'low' ||
-									$deviceCapabilities.preferReducedMotion}
+										: 0.8) * (frameRateController?.getCurrentQuality?.() ?? 1)}
+								maxStars={$deviceCapabilities?.maxEffectUnits ?? 50}
+								targetFPS={Math.round(1000 / ($deviceCapabilities?.updateInterval ?? 16))}
+								baseSpeed={($deviceCapabilities?.starfield?.animationSpeed ?? 0.8) *
+									(0.8 + 0.4 * (frameRateController?.getCurrentQuality?.() ?? 1))}
+								qualityScale={frameRateController?.getCurrentQuality?.() ?? 1}
+								lowPowerMode={$deviceCapabilities?.tier === 'low' ||
+									$deviceCapabilities?.preferReducedMotion}
 								lineWidth={1.1}
 								color="#CFFFE6"
 								opaque={false}
@@ -1091,7 +1200,7 @@
 		border-radius: inherit;
 	}
 
-	/* Ensure the container actually provides the “inherit” value */
+	/* Ensure the container actually provides the "inherit" value */
 	#arcade-screen[data-radius-sync] {
 		border-radius: var(--border-radius);
 	}
@@ -1226,7 +1335,7 @@
 	}
 
 	/* Light theme variant */
-	/* BULLETPROOF: Light theme variant - starfield ready */
+	/* Light theme variant - starfield ready */
 	:global(html.light) .blank-crt-monitor {
 		background-color: #111 !important;
 		background-image:
@@ -1238,7 +1347,7 @@
 				transparent 2px
 			) !important;
 
-		/* BULLETPROOF: Extra safety for light theme */
+		/* Extra safety for light theme */
 		opacity: 1 !important;
 		visibility: visible !important;
 		display: block !important;
@@ -1248,7 +1357,7 @@
 		box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5);
 	}
 
-	/* BULLETPROOF: Light theme state protection */
+	/* Light theme state protection */
 	:global(html.light) #blank-monitor-background.blank-crt-monitor,
 	:global(html.light) .blank-crt-monitor {
 		background-color: #111 !important;
@@ -1420,6 +1529,61 @@
 			0 0 0.4vmin rgba(245, 245, 220, 0.25),
 			0 0 1.5vmin rgba(245, 245, 220, 0.15),
 			0 0 2vmin rgba(245, 245, 220, 0.05);
+
+		/* Classic arcade "Insert Coin" blinking animation */
+		animation: insertCoinBlink 2s ease-in-out infinite;
+		animation-delay: 1s; /* Start blinking after initial page load */
+	}
+
+	/* Classic arcade insert coin blinking animation */
+	@keyframes insertCoinBlink {
+		0%,
+		50% {
+			opacity: 1;
+		}
+		51%,
+		100% {
+			opacity: 0.3;
+		}
+	}
+
+	/* Pause blinking animation when user hovers (indicates engagement) */
+	#insert-concept:hover {
+		animation-play-state: paused;
+		opacity: 1;
+	}
+
+	/* Reduce animation intensity on low-performance devices */
+	html[data-device-type='low-performance'] #insert-concept {
+		animation: insertCoinBlinkSimple 3s ease-in-out infinite;
+	}
+
+	@keyframes insertCoinBlinkSimple {
+		0%,
+		70% {
+			opacity: 1;
+		}
+		71%,
+		100% {
+			opacity: 0.5;
+		}
+	}
+
+	/* Light theme variant with adjusted opacity levels */
+	:global(html.light) #insert-concept {
+		animation: insertCoinBlinkLight 2s ease-in-out infinite;
+		animation-delay: 1s;
+	}
+
+	@keyframes insertCoinBlinkLight {
+		0%,
+		50% {
+			opacity: 0.9;
+		}
+		51%,
+		100% {
+			opacity: 0.4;
+		}
 	}
 
 	/* ==========================================================================
@@ -1543,7 +1707,7 @@
 		position: relative;
 		overflow: hidden;
 
-		/* BULLETPROOF: Remove background - let blank monitor handle it */
+		/* Remove background - let blank monitor handle it */
 		background: transparent !important;
 		background-color: transparent !important;
 		background-image: none !important;
@@ -1682,13 +1846,12 @@
 		border-radius: inherit;
 		z-index: 25;
 		pointer-events: none;
-		/* ensure it doesn’t unexpectedly isolate/flatten other layers */
+		/* ensure it doesn't unexpectedly isolate/flatten other layers */
 		isolation: auto;
 		mix-blend-mode: normal;
 		will-change: background-position;
 	}
 
-	/* replace your current .screen-vignette block */
 	.screen-vignette {
 		position: absolute;
 		inset: 0;
@@ -1764,7 +1927,7 @@
 	}
 
 	/* ==========================================================================
-   Enhanced Glass Effects System - Performance Optimized (updated opacities)
+   Glass Effects System - Performance Optimized
    ========================================================================== */
 	.screen-glass-outer {
 		position: absolute;
