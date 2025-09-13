@@ -1,6 +1,7 @@
 <!-- src/lib/components/vfx/VectorStarfield.svelte -->
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { memoryManager } from '$lib/utils/memory-manager';
 
 	/*** Public props (tunable) ***/
 	export let enabled: boolean = true;
@@ -46,10 +47,23 @@
 		bright: number;
 		// layer index (0..layers-1)
 		layer: number;
+		// Pool management
+		inUse: boolean;
+		reset(): void;
 	};
 
 	let stars: Star[] = [];
 	let lastTs = 0;
+
+	// Object pool management
+	const POOL_NAME = 'starfield-objects';
+	let poolInitialized = false;
+	let cleanupUnsubscriber: (() => void) | null = null;
+
+	// Performance tracking
+	let frameCount = 0;
+	let lastStatsUpdate = 0;
+	let statsUpdateInterval = 1000; // Update stats every second
 
 	// Layer speed multipliers (near -> faster)
 	function layerSpeedMultiplier(i: number, total: number): number {
@@ -113,24 +127,167 @@
 		return Math.max(50, Math.floor(lowPowerMode ? capped * 0.6 : capped));
 	}
 
-	function rebuildPool() {
-		const count = starBudget();
-		stars.length = 0;
-		const cx = width / 2;
-		const cy = height / 2;
+	function initializeObjectPool() {
+		if (poolInitialized || typeof window === 'undefined') return;
 
+		try {
+			// Create the star factory function
+			const starFactory = (): Star => ({
+				ux: 0,
+				uy: 0,
+				z: 1,
+				s: 1,
+				bright: 1,
+				layer: 0,
+				inUse: false,
+				reset() {
+					this.inUse = false;
+					this.ux = 0;
+					this.uy = 0;
+					this.z = 1;
+					this.s = 1;
+					this.bright = 1;
+					this.layer = 0;
+				}
+			});
+
+			// Create pool with initial capacity
+			const initialPoolSize = Math.min(maxStars, 1000);
+			memoryManager.createObjectPool(POOL_NAME, starFactory, initialPoolSize);
+
+			// Register cleanup callback
+			cleanupUnsubscriber = memoryManager.registerCleanupTask(() => {
+				// Return all active stars to pool during cleanup
+				for (const star of stars) {
+					if (star.inUse) {
+						memoryManager.returnToPool(POOL_NAME, star);
+					}
+				}
+				stars.length = 0;
+			});
+
+			poolInitialized = true;
+			console.log(`🌟 Starfield object pool initialized with ${initialPoolSize} objects`);
+		} catch (error) {
+			console.error('Failed to initialize starfield object pool:', error);
+		}
+	}
+
+	function createStarFromPool(layer: number): Star | null {
+		if (!poolInitialized) return null;
+
+		try {
+			const star = memoryManager.getFromPool<Star>(POOL_NAME, () => ({
+				ux: 0,
+				uy: 0,
+				z: 1,
+				s: 1,
+				bright: 1,
+				layer: 0,
+				inUse: false,
+				reset() {
+					this.inUse = false;
+					this.ux = 0;
+					this.uy = 0;
+					this.z = 1;
+					this.s = 1;
+					this.bright = 1;
+					this.layer = 0;
+				}
+			}));
+
+			if (star) {
+				// Initialize star properties
+				const theta = Math.random() * Math.PI * 2;
+				star.ux = Math.cos(theta);
+				star.uy = Math.sin(theta);
+				star.bright = pick(brightnessMin, brightnessMax);
+				star.z = pick(0.55, 1.1);
+				star.s = layerSpeedMultiplier(layer, layers) * (1 + (Math.random() * 2 - 1) * speedJitter);
+				star.layer = layer;
+				star.inUse = true;
+			}
+
+			return star;
+		} catch (error) {
+			console.error('Error getting star from pool:', error);
+			return null;
+		}
+	}
+
+	function returnStarToPool(star: Star) {
+		if (!poolInitialized || !star.inUse) return;
+
+		try {
+			memoryManager.returnToPool(POOL_NAME, star);
+		} catch (error) {
+			console.error('Error returning star to pool:', error);
+		}
+	}
+
+	function rebuildPool() {
+		if (!poolInitialized) {
+			initializeObjectPool();
+		}
+
+		// Return all current stars to pool
+		for (const star of stars) {
+			if (star.inUse) {
+				returnStarToPool(star);
+			}
+		}
+		stars.length = 0;
+
+		const count = starBudget();
+
+		// Get new stars from pool
 		for (let i = 0; i < count; i++) {
 			const layer = layers > 1 ? i % layers : 0;
-			const theta = Math.random() * Math.PI * 2;
-			const ux = Math.cos(theta);
-			const uy = Math.sin(theta);
-
-			const bright = pick(brightnessMin, brightnessMax);
-			const z = pick(0.55, 1.1); // was 0.35..1.0
-			const s = layerSpeedMultiplier(layer, layers) * (1 + (Math.random() * 2 - 1) * speedJitter);
-
-			stars.push({ ux, uy, z, s, bright, layer });
+			const star = createStarFromPool(layer);
+			if (star) {
+				stars.push(star);
+			}
 		}
+
+		// Update pool statistics
+		updatePoolStatistics();
+	}
+
+	function updatePoolStatistics() {
+		if (!poolInitialized) return;
+
+		try {
+			const activeStars = stars.filter((star) => star.inUse).length;
+			const now = performance.now();
+
+			// Update every second to avoid overwhelming the system
+			if (now - lastStatsUpdate > statsUpdateInterval) {
+				memoryManager.updatePoolStats(POOL_NAME, {
+					activeObjects: activeStars,
+					poolName: 'Starfield',
+					poolType: 'Visual Effect'
+				});
+				lastStatsUpdate = now;
+			}
+		} catch (error) {
+			console.error('Error updating pool statistics:', error);
+		}
+	}
+
+	function recycleStar(star: Star) {
+		if (!poolInitialized) return;
+
+		// Reset star to far distance
+		star.z = pick(0.6, 1.0);
+
+		// Randomize direction slightly on recycle
+		const theta = Math.random() * Math.PI * 2;
+		star.ux = Math.cos(theta);
+		star.uy = Math.sin(theta);
+		star.bright = pick(brightnessMin, brightnessMax);
+
+		// This counts as a "reuse" in pool statistics
+		// The memory manager will track this automatically
 	}
 
 	function projectAndDraw(now: number) {
@@ -145,6 +302,7 @@
 
 		const dt = Math.min(0.05, (now - lastTs) / 1000 || 0);
 		lastTs = now;
+		frameCount++;
 
 		// Optional target FPS frame skipping
 		if (targetFPS && targetFPS < 60) {
@@ -178,6 +336,7 @@
 
 		for (let i = 0; i < stars.length; i++) {
 			const st = stars[i];
+			if (!st.inUse) continue;
 
 			// advance depth
 			const zSpeed = baseSpeed * st.s;
@@ -185,12 +344,7 @@
 
 			// recycle when too close
 			if (st.z < 0.08) {
-				st.z = pick(0.6, 1.0);
-				// randomize direction slightly on recycle
-				const theta = Math.random() * Math.PI * 2;
-				st.ux = Math.cos(theta);
-				st.uy = Math.sin(theta);
-				st.bright = pick(brightnessMin, brightnessMax);
+				recycleStar(st);
 				continue;
 			}
 
@@ -220,6 +374,10 @@
 		}
 
 		ctx.restore();
+
+		// Update pool statistics periodically
+		updatePoolStatistics();
+
 		rafId = requestAnimationFrame(projectAndDraw);
 	}
 
@@ -250,6 +408,9 @@
 
 	onMount(() => {
 		if (typeof window === 'undefined') return;
+
+		// Initialize object pool first
+		initializeObjectPool();
 
 		setupCanvas();
 		rebuildPool();
@@ -291,10 +452,19 @@
 
 		return () => {
 			stop();
+
+			// Return all stars to pool before cleanup
+			for (const star of stars) {
+				if (star.inUse) {
+					returnStarToPool(star);
+				}
+			}
+			stars.length = 0;
+
 			if (ro) ro.disconnect();
 			window.removeEventListener('resize', onWinResize);
 			if (unsubscribe) unsubscribe();
-			stars.length = 0;
+			if (cleanupUnsubscriber) cleanupUnsubscriber();
 			ctx = null;
 		};
 	});

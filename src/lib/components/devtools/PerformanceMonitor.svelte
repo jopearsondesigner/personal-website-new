@@ -196,23 +196,24 @@
 		lastUpdateTime: 0
 	};
 
-	function updateMemoizedStats() {
-		if (!browser) return; // ADD THIS LINE
+	// Recompute memoized stats when POOL or MEMORY stores change (throttled)
+	function updateMemoizedStatsFromStores(pool: any, memUsage: number) {
+		if (!browser) return;
 
 		const now = performance.now();
-		if (now - memoizedStats.lastUpdateTime < 250) return; // Throttle updates
+		if (now - memoizedStats.lastUpdateTime < 250) return; // Throttle
 
 		memoizedStats = {
-			utilizationPercentage: ((safeObjectPoolStats.utilizationRate || 0) * 100).toFixed(0),
-			reuseRatioPercentage: ((safeObjectPoolStats.reuseRatio || 0) * 100).toFixed(0),
-			memoryPercentage: ((safeMemoryUsage || 0) * 100).toFixed(0),
+			utilizationPercentage: ((pool?.utilizationRate ?? 0) * 100).toFixed(0),
+			reuseRatioPercentage: ((pool?.reuseRatio ?? 0) * 100).toFixed(0),
+			memoryPercentage: ((memUsage ?? 0) * 100).toFixed(0),
 			lastUpdateTime: now
 		};
 	}
 
-	// Call updateMemoizedStats when stores change (browser only)
+	// 🔁 Make this block *depend* on the stores so it actually re-runs
 	$: if (browser && $perfMonitorVisible) {
-		updateMemoizedStats();
+		updateMemoizedStatsFromStores($objectPoolStatsStore, $memoryUsageStore);
 	}
 
 	// Update chart data from current performance metrics

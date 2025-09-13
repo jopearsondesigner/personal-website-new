@@ -203,20 +203,16 @@
 			const glassContainer = document.querySelector('.screen-glass-container');
 			if (!glassContainer) return;
 
-			// Apply initial glass physics based on screen type
+			// Apply lightweight glass physics based on screen type
 			const properties =
 				currentScreen === 'game'
 					? {
-							'--glass-reflectivity': '0.12',
-							'--glass-dust-opacity': '0.02',
-							'--glass-smudge-opacity': '0.03',
-							'--internal-reflection-opacity': '0.035'
+							'--glass-opacity': '0.08',
+							'--glass-highlight': '0.04'
 						}
 					: {
-							'--glass-reflectivity': '0.15',
-							'--glass-dust-opacity': '0.03',
-							'--glass-smudge-opacity': '0.04',
-							'--internal-reflection-opacity': '0.045'
+							'--glass-opacity': '0.12',
+							'--glass-highlight': '0.06'
 						};
 
 			Object.entries(properties).forEach(([prop, value]) => {
@@ -974,16 +970,12 @@
 
 					<div class="screen-vignette rounded-arcade"></div>
 
-					<!-- Glass stack (now clearly above stars, below scanlines) -->
+					<!-- ⚡ OPTIMIZED LIGHTWEIGHT GLASS SYSTEM - 2 layers only -->
 					<div class="screen-glass-container rounded-arcade {fxClass}">
-						<div class="screen-glass-outer rounded-arcade"></div>
-						<div class="screen-glass-inner rounded-arcade"></div>
-						<div class="screen-glass-reflection rounded-arcade"></div>
-						<div class="screen-glass-edge rounded-arcade"></div>
-						<div class="screen-glass-smudges rounded-arcade"></div>
-						<div class="screen-glass-dust rounded-arcade"></div>
-						<div class="screen-glass-specular rounded-arcade"></div>
-						<div class="screen-internal-reflection rounded-arcade"></div>
+						<!-- Primary glass reflection - lightweight gradient only -->
+						<div class="screen-glass-primary rounded-arcade"></div>
+						<!-- Secondary highlight - minimal opacity overlay -->
+						<div class="screen-glass-highlight rounded-arcade"></div>
 					</div>
 
 					<!-- Scanlines always on top (visual-only) -->
@@ -1031,7 +1023,6 @@
 		--header-text-color: rgba(227, 255, 238, 1);
 		--insert-concept-color: rgba(245, 245, 220, 1);
 		--cabinet-specular: rgba(255, 255, 255, 0.7);
-		--glass-reflection: rgba(255, 255, 255, 0.15);
 		--screen-glow-opacity: 0.6;
 
 		/* Master intensity (0 = off, 1 = normal, >1 = stronger) */
@@ -1043,22 +1034,13 @@
 		/* Optional global blur multiplier for glassy looks */
 		--fx-blur-mult: 1;
 
-		/* Enhanced Glass Physics */
-		--glass-thickness: 0.4vmin;
-		--glass-reflectivity: 0.15;
-		--glass-specular-intensity: 0.7;
-		--glass-edge-highlight: rgba(255, 255, 255, 0.8);
-		--glass-dust-opacity: 0.03;
-		--glass-smudge-opacity: 0.04;
-		--internal-reflection-opacity: 0.045;
+		/* ⚡ OPTIMIZED: Lightweight Glass Variables */
+		--glass-opacity: 0.12;
+		--glass-highlight: 0.06;
 
-		--fx-glass-reflectivity: calc(var(--glass-reflectivity) * var(--fx-intensity));
-		--fx-glass-specular-intensity: calc(var(--glass-specular-intensity) * var(--fx-intensity));
-		--fx-glass-smudge-opacity: calc(var(--glass-smudge-opacity) * var(--fx-intensity));
-		--fx-glass-dust-opacity: calc(var(--glass-dust-opacity) * var(--fx-intensity));
-		--fx-internal-reflection-opacity: calc(
-			var(--internal-reflection-opacity) * var(--fx-intensity)
-		);
+		/* Dynamic glass variables based on fx intensity */
+		--fx-glass-opacity: calc(var(--glass-opacity) * var(--fx-intensity));
+		--fx-glass-highlight: calc(var(--glass-highlight) * var(--fx-intensity));
 
 		/* Defaults if not set by the action */
 		--star-contrast: 1;
@@ -1075,7 +1057,7 @@
 			inset 0 0 2px rgba(255, 255, 255, 0.3), inset 0 0 100px rgba(0, 0, 0, 0.7);
 
 		--bezel-shadow:
-			inset 0 0 20px rgba(0, 0, 0, 0.9), 0 0 2px var(--glass-reflection),
+			inset 0 0 20px rgba(0, 0, 0, 0.9), 0 0 2px rgba(255, 255, 255, 0.15),
 			0 0 15px rgba(39, 255, 153, 0.2);
 
 		--screen-curve: radial-gradient(
@@ -1388,7 +1370,6 @@
        ========================================================================== */
 	.screen-reflection,
 	.screen-glare,
-	.screen-glass,
 	.glow-effect,
 	.phosphor-decay,
 	.shadow-mask,
@@ -1811,24 +1792,6 @@
 		opacity: clamp(0, 1, calc(0.5 * var(--fx-intensity)));
 	}
 
-	.screen-glass {
-		position: absolute;
-		inset: 0;
-		border-radius: var(--border-radius);
-		background: linear-gradient(
-			35deg,
-			transparent 0%,
-			rgba(255, 255, 255, 0.02) 25%,
-			rgba(255, 255, 255, 0.05) 47%,
-			rgba(255, 255, 255, 0.02) 50%,
-			transparent 100%
-		);
-		pointer-events: none;
-		mix-blend-mode: overlay;
-		opacity: clamp(0, 1, calc(0.8 * var(--fx-intensity)));
-		z-index: 2;
-	}
-
 	:global(.game-screen-content) {
 		/* These styles help game content appear properly through the glass */
 		filter: contrast(1.05) brightness(1.1);
@@ -1927,187 +1890,70 @@
 	}
 
 	/* ==========================================================================
-   Glass Effects System - Performance Optimized
+   ⚡ OPTIMIZED LIGHTWEIGHT GLASS EFFECTS SYSTEM
+   Performance: 2 layers only, no animations, no backdrop-filter, no SVG noise
    ========================================================================== */
-	.screen-glass-outer {
+
+	/* PRIMARY GLASS LAYER - Main reflection effect */
+	.screen-glass-primary {
 		position: absolute;
 		inset: 0;
+		border-radius: var(--border-radius);
 		background: linear-gradient(
 			135deg,
 			transparent 0%,
-			rgba(255, 255, 255, 0.01) 15%,
-			rgba(255, 255, 255, var(--glass-reflectivity)) 45%,
-			rgba(255, 255, 255, 0.01) 75%,
+			rgba(255, 255, 255, var(--fx-glass-opacity)) 35%,
+			rgba(255, 255, 255, calc(var(--fx-glass-opacity) * 0.3)) 65%,
 			transparent 100%
 		);
-		border-radius: var(--border-radius);
-		mix-blend-mode: overlay;
-		transform: perspective(1000px) translateZ(var(--glass-thickness));
-		opacity: clamp(0, 1, calc(0.7 * var(--fx-intensity)));
-		backdrop-filter: brightness(1.03) contrast(1.05);
-		/* optional, if you want blur to scale softly */
-		filter: blur(calc(0px * var(--fx-blur-mult)));
+		opacity: clamp(0, 1, calc(0.8 * var(--fx-intensity)));
+		pointer-events: none;
+		/* NO backdrop-filter - performance killer */
+		/* NO animations - constant repaints */
+		/* NO blend modes - expensive compositing */
+		/* NO transforms - layout thrashing */
 	}
 
-	/* Remove backdrop-filter on low-performance devices */
-	html:not([data-device-type='low-performance']) .screen-glass-outer {
-		backdrop-filter: brightness(1.03) contrast(1.05);
-		filter: blur(calc(0px * var(--fx-blur-mult)));
-	}
-
-	.screen-glass-inner {
+	/* SECONDARY HIGHLIGHT LAYER - Subtle specular highlight */
+	.screen-glass-highlight {
 		position: absolute;
 		inset: 0;
+		border-radius: var(--border-radius);
 		background: radial-gradient(
-			ellipse at center,
-			transparent 30%,
-			rgba(0, 0, 0, 0.07) 75%,
-			rgba(0, 0, 0, 0.15) 100%
-		);
-		opacity: clamp(0, 1, calc(0.5 * var(--fx-intensity)));
-		border-radius: var(--border-radius);
-		transform: perspective(1000px) translateZ(calc(var(--glass-thickness) * 0.5));
-	}
-
-	.screen-glass-reflection {
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(
-			135deg,
-			transparent 20%,
-			rgba(255, 255, 255, 0.03) 40%,
-			rgba(255, 255, 255, 0.07) 50%,
-			rgba(255, 255, 255, 0.03) 60%,
-			transparent 80%
+			ellipse at 30% 20%,
+			rgba(255, 255, 255, var(--fx-glass-highlight)) 0%,
+			transparent 40%
 		);
 		opacity: clamp(0, 1, calc(0.6 * var(--fx-intensity)));
-		animation-duration: calc(8s / var(--fx-anim-speed));
-		border-radius: var(--border-radius);
-		mix-blend-mode: screen;
-		animation: slowGlassShift ease-in-out infinite alternate;
+		pointer-events: none;
 	}
 
-	/* Disable expensive glass reflection animation on low-performance devices */
-	html[data-device-type='low-performance'] .screen-glass-reflection {
-		animation: none;
-		opacity: 0.3;
+	/* FX intensity scaling for different device capabilities */
+	.fx-subtle .screen-glass-primary {
+		opacity: clamp(0, 1, calc(0.4 * var(--fx-intensity)));
 	}
 
-	.screen-glass-edge {
-		position: absolute;
-		inset: 0;
-		border: 2px solid var(--glass-edge-highlight);
-		border-radius: var(--border-radius);
-		opacity: clamp(0, 1, calc(0.12 * var(--fx-intensity)));
-		box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.1);
-		background: transparent;
-		background-clip: padding-box;
-		backdrop-filter: blur(0.5px);
+	.fx-subtle .screen-glass-highlight {
+		opacity: clamp(0, 1, calc(0.3 * var(--fx-intensity)));
 	}
 
-	.screen-glass-smudges {
-		position: absolute;
-		inset: 0;
-		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-		opacity: clamp(0, 1, var(--fx-glass-smudge-opacity));
-		filter: contrast(120%) brightness(150%) blur(calc(0.2px * var(--fx-blur-mult)));
-		border-radius: var(--border-radius);
-		mix-blend-mode: overlay;
-		transform: scale(1.01);
+	.fx-bold .screen-glass-primary {
+		opacity: clamp(0, 1, calc(1.2 * var(--fx-intensity)));
 	}
 
-	.screen-glass-dust {
-		position: absolute;
-		inset: 0;
-		background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='dust'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23dust)'/%3E%3C/svg%3E");
-		opacity: clamp(0, 1, var(--fx-glass-dust-opacity));
-		filter: blur(calc(0.15px * var(--fx-blur-mult)));
-		border-radius: var(--border-radius);
-		mix-blend-mode: overlay;
-		transform: scale(1.02);
+	.fx-bold .screen-glass-highlight {
+		opacity: clamp(0, 1, calc(0.9 * var(--fx-intensity)));
 	}
 
-	.screen-glass-specular {
-		position: absolute;
-		inset: 0;
-		background: radial-gradient(
-			ellipse at 35% 25%,
-			rgba(255, 255, 255, var(--glass-specular-intensity)) 0%,
-			transparent 25%
-		);
-		opacity: clamp(0, 1, calc(0.2 * var(--fx-intensity)));
-		animation-duration: calc(10s / var(--fx-anim-speed));
-		border-radius: var(--border-radius);
-		mix-blend-mode: screen;
-		filter: blur(3px);
-		animation: subtleSpecularShift ease-in-out infinite alternate;
-	}
-
-	.screen-internal-reflection {
-		position: absolute;
-		inset: 0;
-		background-image: repeating-linear-gradient(
-			135deg,
-			transparent 0px,
-			rgba(255, 255, 255, 0.015) 1px,
-			transparent 2px,
-			rgba(255, 255, 255, 0.02) 3px
-		);
-		opacity: clamp(0, 1, var(--fx-internal-reflection-opacity));
-		animation-duration: calc(15s / var(--fx-anim-speed));
-		border-radius: var(--border-radius);
-		mix-blend-mode: screen;
-		animation: subtleReflectionShift ease-in-out infinite alternate;
-	}
-
-	@keyframes slowGlassShift {
-		0% {
-			opacity: 0.5;
-			transform: translateY(-1px) scale(1.01);
-		}
-		100% {
-			opacity: 0.65;
-			transform: translateY(1px) scale(1.02);
-		}
-	}
-
-	@keyframes subtleSpecularShift {
-		0% {
-			opacity: 0.15;
-			transform: translate(-2px, -1px) scale(1);
-		}
-		100% {
-			opacity: 0.22;
-			transform: translate(2px, 1px) scale(1.03);
-		}
-	}
-
-	@keyframes subtleReflectionShift {
-		0% {
-			opacity: var(--internal-reflection-opacity);
-			transform: translateX(-1px) translateY(1px);
-		}
-		100% {
-			opacity: calc(var(--internal-reflection-opacity) * 1.2);
-			transform: translateX(1px) translateY(-1px);
-		}
+	/* Disable glass effects completely on low-performance devices */
+	html[data-device-type='low-performance'] .screen-glass-primary,
+	html[data-device-type='low-performance'] .screen-glass-highlight {
+		display: none;
 	}
 
 	/* ==========================================================================
        Light Theme Variants
        ========================================================================== */
-	:global(html.light) .screen-glass {
-		background: linear-gradient(
-			35deg,
-			transparent 0%,
-			rgba(255, 255, 255, 0.01) 25%,
-			rgba(255, 255, 255, 0.02) 47%,
-			rgba(255, 255, 255, 0.01) 50%,
-			transparent 100%
-		);
-		opacity: clamp(0, 1, calc(0.6 * var(--fx-intensity)));
-	}
-
 	:global(html.light) .cabinet-wear {
 		background: repeating-linear-gradient(
 			45deg,
@@ -2157,6 +2003,15 @@
 			inset 0 0 2px rgba(255, 255, 255, 0.5),
 			inset 0 0 100px rgba(0, 0, 0, 0.1);
 		background: linear-gradient(145deg, #111 0%, #222 100%);
+	}
+
+	/* Light theme glass effects - slightly reduced opacity */
+	:global(html.light) .screen-glass-primary {
+		opacity: clamp(0, 1, calc(0.6 * var(--fx-intensity)));
+	}
+
+	:global(html.light) .screen-glass-highlight {
+		opacity: clamp(0, 1, calc(0.4 * var(--fx-intensity)));
 	}
 
 	/* Cabinet Materials Light Theme */
@@ -2274,6 +2129,15 @@
 			content-visibility: auto;
 			/* Don't use view transitions on mobile */
 			view-transition-name: none;
+		}
+
+		/* ⚡ MOBILE GLASS OPTIMIZATION - Further reduce opacity */
+		.screen-glass-primary {
+			opacity: clamp(0, 1, calc(0.5 * var(--fx-intensity)));
+		}
+
+		.screen-glass-highlight {
+			opacity: clamp(0, 1, calc(0.3 * var(--fx-intensity)));
 		}
 	}
 
@@ -2406,7 +2270,6 @@
 		animation: scanline 0.4s linear infinite; /* Even slower movement */
 	}
 
-	html[data-device-type='low-performance'] .screen-glass,
 	html[data-device-type='low-performance'] .screen-reflection,
 	html[data-device-type='low-performance'] .screen-glare {
 		animation: none;
@@ -2430,13 +2293,7 @@
 	}
 
 	/* Auto-disable some layers when intensity is very low */
-	.fx-subtle .screen-glass-smudges,
-	.fx-subtle .screen-glass-dust {
-		display: none;
-	}
-
-	html[data-device-type='low-performance'] .screen-glass-reflection,
-	html[data-device-type='low-performance'] .screen-glare {
-		animation: none;
+	.fx-subtle .screen-glass-highlight {
+		opacity: clamp(0, 1, calc(0.2 * var(--fx-intensity)));
 	}
 </style>
