@@ -59,6 +59,19 @@
 	let animationInitTimeout: number | null = null;
 	let lastNavbarHeight = 0;
 
+	// ---- Global animation pause switch (visibility + quality) ----
+	function setAnimPaused(paused: boolean) {
+		if (!browser) return;
+		if (paused) {
+			document.documentElement.setAttribute('data-anim-paused', '1');
+		} else {
+			document.documentElement.removeAttribute('data-anim-paused');
+		}
+	}
+
+	// Starfield visibility
+	let starfieldEnabled = true;
+
 	// RAF tracking for proper cleanup
 	let pendingRafIds: number[] = [];
 
@@ -562,6 +575,8 @@
 			// Optimized visibility handler
 			const visibilityHandler = () => {
 				const isVisible = !document.hidden;
+				// Pause CSS animations when hidden
+				setAnimPaused(!isVisible);
 				if (lastVisibilityState === isVisible) return;
 				lastVisibilityState = isVisible;
 
@@ -622,6 +637,33 @@
 		}
 	}
 
+	// Observe hero visibility to pause starfield offscreen
+	function setupHeroVisibilityObserver() {
+		if (!browser) return;
+		try {
+			const heroEl = document.getElementById('hero');
+			if (!heroEl || typeof IntersectionObserver === 'undefined') return;
+			const obs = new IntersectionObserver(
+				(entries) => {
+					for (const e of entries) {
+						// Enable when at least ~35% visible (tweak after device info)
+						starfieldEnabled = e.intersectionRatio >= 0.35;
+					}
+				},
+				{ root: null, threshold: [0, 0.1, 0.35, 0.6, 1] }
+			);
+			obs.observe(heroEl);
+			// Cleanup observer on destroy
+			memoryManagerUnsubscribes.push(() => {
+				try {
+					obs.disconnect();
+				} catch {}
+			});
+		} catch (err) {
+			console.warn('Visibility observer failed:', err);
+		}
+	}
+
 	// Initialize frame rate controller settings
 	function setupFrameRateController() {
 		try {
@@ -646,9 +688,24 @@
 
 			// Subscribe to quality changes
 			if (frameRateController?.subscribeQuality) {
+				// If a prior subscription exists (hot reload), clean it up first
+				try {
+					frameRateUnsubscribe?.();
+				} catch {}
+
 				frameRateUnsubscribe = frameRateController.subscribeQuality((quality) => {
 					try {
-						// Future: Adapt animation complexity based on quality
+						// Drive a CSS var used by scanline cadence (Patch 3)
+						if (browser) {
+							const ms = Math.round(200 / Math.max(0.5, quality)); // 200ms @1.0 → slower if quality < 1
+							document.documentElement.style.setProperty('--scanline-speed-ms', `${ms}`);
+						}
+
+						// Pause decorative CSS loops at very low quality (Patch 1)
+						// (Auto-resumes when quality recovers, since we pass a boolean)
+						setAnimPaused(quality < 0.65);
+
+						// (Future hook) Adjust effect complexity here if needed.
 					} catch (error) {
 						console.warn('Error in quality adjustment callback:', error);
 					}
@@ -686,6 +743,8 @@
 
 			// Initialize core components
 			initializeComponents();
+
+			setupHeroVisibilityObserver();
 
 			// Set up event listeners
 			setupHeroEventListeners();
@@ -917,7 +976,7 @@
 						<!-- Starfield Layer (explicit z-index below glass/scanlines) -->
 						<div class="starfield-container rounded-arcade" style="z-index: 15;">
 							<VectorStarfield
-								enabled={currentScreen === 'main'}
+								enabled={starfieldEnabled && currentScreen === 'main'}
 								layers={$deviceCapabilities?.tier === 'high'
 									? 3
 									: $deviceCapabilities?.tier === 'medium'
@@ -928,7 +987,7 @@
 									: $deviceCapabilities?.effectsLevel === 'reduced'
 										? 1.2
 										: 0.8) * (frameRateController?.getCurrentQuality?.() ?? 1)}
-								maxStars={$deviceCapabilities?.maxEffectUnits ?? 50}
+								maxStars={Math.min($deviceCapabilities?.maxEffectUnits ?? 50, 120)}
 								targetFPS={Math.round(1000 / ($deviceCapabilities?.updateInterval ?? 16))}
 								baseSpeed={($deviceCapabilities?.starfield?.animationSpeed ?? 0.8) *
 									(0.8 + 0.4 * (frameRateController?.getCurrentQuality?.() ?? 1))}
@@ -1402,6 +1461,13 @@
 		z-index: 21; /* add: above stars (15) & glass stack (20) */
 	}
 
+	/* Fallback: cheaper blending on low-tier devices and iOS-optimized screens */
+	html[data-device-type='low-performance'] .screen-reflection,
+	.ios-optimized .screen-reflection {
+		mix-blend-mode: normal !important;
+		opacity: clamp(0, 1, calc(0.45 * var(--fx-intensity))) !important;
+	}
+
 	:global(html.light) .screen-reflection {
 		opacity: clamp(0, 1, calc(0.4 * var(--fx-intensity)));
 		background: linear-gradient(
@@ -1805,7 +1871,8 @@
 	#scanline-overlay {
 		background: linear-gradient(0deg, rgba(255, 255, 255, 0) 50%, rgba(255, 255, 255, 0.0675) 51%);
 		background-size: 100% 4px;
-		animation: scanline 0.2s linear infinite;
+		animation: scanline calc(var(--scanline-speed-ms, 200) * 1ms) linear infinite;
+
 		border-radius: inherit;
 		z-index: 25;
 		pointer-events: none;
@@ -1830,6 +1897,10 @@
 		z-index: 18; /* stays above stars and below glass */
 		mix-blend-mode: normal;
 		opacity: 1;
+	}
+
+	html[data-device-type='low-performance'] #scanline-overlay {
+		animation-duration: calc(var(--scanline-speed-ms, 260) * 1ms);
 	}
 
 	#arcade-screen.glow::after {
@@ -2295,5 +2366,23 @@
 	/* Auto-disable some layers when intensity is very low */
 	.fx-subtle .screen-glass-highlight {
 		opacity: clamp(0, 1, calc(0.2 * var(--fx-intensity)));
+	}
+
+	/* ---- Global animation pause rules ---- */
+	[data-anim-paused='1'] #scanline-overlay,
+	[data-anim-paused='1'] .interlace,
+	[data-anim-paused='1'] .phosphor-decay,
+	[data-anim-paused='1'] #insert-concept {
+		animation-play-state: paused !important;
+	}
+
+	/* Respect reduced motion by pausing decorative loops */
+	@media (prefers-reduced-motion: reduce) {
+		#scanline-overlay,
+		.interlace,
+		.phosphor-decay,
+		#insert-concept {
+			animation-play-state: paused !important;
+		}
 	}
 </style>
