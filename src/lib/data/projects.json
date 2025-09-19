@@ -1,0 +1,79 @@
+[
+    {
+      "title": "Arcade Portfolio",
+      "slug": "arcade-portfolio",
+      "description": "A retro arcade-themed portfolio website built with SvelteKit, featuring interactive CRT effects and GSAP animations.",
+      "image": "/images/projects/arcade-portfolio.webp",
+      "tags": ["SvelteKit", "GSAP", "TailwindCSS"],
+      "category": "Digital Products",
+      "link": "/projects/arcade-portfolio",
+      "metricLabel": "Performance",
+      "metricValue": "98 Lighthouse"
+    },
+    {
+      "title": "E-Commerce Platform",
+      "slug": "ecommerce-platform",
+      "description": "Modern e-commerce platform with cart functionality, Stripe payments, and optimized product search for mobile and desktop.",
+      "image": "/images/projects/ecommerce.webp",
+      "tags": ["SvelteKit", "Stripe", "TypeScript"],
+      "category": "Digital Products",
+      "link": "/projects/ecommerce-platform",
+      "metricLabel": "Sales Growth",
+      "metricValue": "+42%"
+    },
+    {
+      "title": "Game Dashboard",
+      "slug": "game-dashboard",
+      "description": "Interactive dashboard for tracking player stats, achievements, and live game performance using WebSockets.",
+      "image": "/images/projects/game-dashboard.webp",
+      "tags": ["D3.js", "WebSockets", "SvelteKit"],
+      "category": "Digital Products",
+      "link": "/projects/game-dashboard",
+      "metricLabel": "Engagement",
+      "metricValue": "+30%"
+    },
+    {
+      "title": "Indie Game Studio Branding",
+      "slug": "indie-game-branding",
+      "description": "Comprehensive brand identity system including logo design, color palettes, and game-inspired marketing materials.",
+      "image": "/images/projects/brand-identity.webp",
+      "tags": ["Illustrator", "Photoshop", "Brand Strategy"],
+      "category": "Branding & Visual Design",
+      "link": "/projects/indie-game-branding",
+      "metricLabel": "Brand Recognition",
+      "metricValue": "+55%"
+    },
+    {
+      "title": "Startup Rebrand Campaign",
+      "slug": "startup-rebrand",
+      "description": "A full rebrand for a growing startup, complete with new visual identity, website refresh, and pitch deck design.",
+      "image": "/images/projects/startup-rebrand.webp",
+      "tags": ["Branding", "UI/UX", "Figma"],
+      "category": "Branding & Visual Design",
+      "link": "/projects/startup-rebrand",
+      "metricLabel": "Investor Interest",
+      "metricValue": "+25%"
+    },
+    {
+      "title": "UX Flow Optimization",
+      "slug": "ux-flow-optimization",
+      "description": "Researched and redesigned user flows for a SaaS product, reducing friction and improving onboarding success rates.",
+      "image": "/images/projects/ux-flow.webp",
+      "tags": ["User Research", "Wireframes", "Prototyping"],
+      "category": "UX Strategy & Prototyping",
+      "link": "/projects/ux-flow-optimization",
+      "metricLabel": "Onboarding Completion",
+      "metricValue": "+60%"
+    },
+    {
+      "title": "Mobile App Wireframes",
+      "slug": "mobile-app-wireframes",
+      "description": "Interactive wireframes for a mobile productivity app, optimized for rapid iteration and stakeholder feedback.",
+      "image": "/images/projects/mobile-wireframes.webp",
+      "tags": ["Figma", "UX", "Prototyping"],
+      "category": "UX Strategy & Prototyping",
+      "link": "/projects/mobile-app-wireframes",
+      "metricLabel": "Iteration Speed",
+      "metricValue": "3x Faster"
+    }
+  ]

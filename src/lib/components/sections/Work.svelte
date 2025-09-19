@@ -1,103 +1,66 @@
 <!-- src/lib/components/sections/Work.svelte -->
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { fade, fly } from 'svelte/transition';
-	import { backOut } from 'svelte/easing';
+	import { gsap } from 'gsap';
 	import ProjectCard from '$lib/components/ui/ProjectCard.svelte';
 
-	// For intersection observer animation
-	let sectionVisible = false;
-	let sectionElement: HTMLElement;
+	// Categories
+	const categories = ['Digital Products', 'Branding & Visual Design', 'UX Strategy'];
+	let activeCategory = categories[0];
 
-	// Sample projects data
-	const projects = [
-		{
-			title: 'Arcade Portfolio',
-			description: 'A retro arcade-themed portfolio website built with SvelteKit.',
-			image: '/images/projects/arcade-portfolio.webp',
-			tags: ['SvelteKit', 'GSAP', 'Responsive'],
-			link: '/projects/arcade-portfolio'
-		},
-		{
-			title: 'E-Commerce Platform',
-			description: 'Modern e-commerce site with cart functionality and payment processing.',
-			image: '/images/projects/ecommerce.webp',
-			tags: ['SvelteKit', 'Stripe', 'TailwindCSS'],
-			link: '/projects/ecommerce'
-		},
-		{
-			title: 'Game Dashboard',
-			description: 'Interactive dashboard for tracking player statistics and achievements.',
-			image: '/images/projects/game-dashboard.webp',
-			tags: ['SvelteKit', 'D3.js', 'WebSockets'],
-			link: '/projects/game-dashboard'
-		}
-	];
+	// Project data
+	import projectsData from '$lib/data/projects.json';
+	let filteredProjects = [];
+
+	// Filter projects by category
+	const filterProjects = () => {
+		filteredProjects = projectsData.filter((p) => p.category === activeCategory);
+	};
 
 	onMount(() => {
-		const observer = new IntersectionObserver(
-			(entries) => {
-				if (entries[0].isIntersecting) {
-					sectionVisible = true;
-					observer.disconnect(); // Only animate once
-				}
-			},
-			{ threshold: 0.2 }
-		);
-
-		if (sectionElement) {
-			observer.observe(sectionElement);
-		}
-
-		return () => {
-			observer.disconnect();
-		};
+		filterProjects();
 	});
+
+	// Handle category switch
+	function selectCategory(category: string) {
+		activeCategory = category;
+		filterProjects();
+
+		// GSAP arcade-style transition
+		gsap.fromTo(
+			'.project-card',
+			{ opacity: 0, y: 30 },
+			{ opacity: 1, y: 0, stagger: 0.1, duration: 0.6, ease: 'back.out(1.7)' }
+		);
+	}
 </script>
 
-<section id="work" class="section work-section">
-	<div class="container mx-auto px-4">
-		{#if sectionVisible}
-			<div in:fly={{ y: 50, duration: 800, delay: 200, easing: backOut }}>
-				<h2
-					class="text-3xl md:text-4xl font-press-start text-arcadeBlack-500 dark:text-arcadeWhite-200 mb-8"
-				>
-					Work
-				</h2>
-			</div>
+<section id="work" class="py-16 bg-arcadeBlack-900 text-arcadeWhite-100">
+	<div class="container mx-auto px-4 text-center">
+		<h2 class="text-4xl font-press-start mb-8">Choose Your Mission</h2>
 
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-				{#each projects as project, i}
-					<div in:fly={{ y: 50, duration: 600, delay: 400 + i * 150, easing: backOut }}>
-						<ProjectCard {...project} />
-					</div>
-				{/each}
-			</div>
-
-			<div class="text-center mt-12" in:fade={{ delay: 1200, duration: 500 }}>
-				<a
-					href="/projects"
-					class="inline-flex items-center px-6 py-3 bg-arcadeBlack-500 dark:bg-arcadeBlack-700
-					text-arcadeWhite-200 rounded-lg shadow-md hover:shadow-lg
-					transform transition-all duration-300 hover:scale-105
-					border border-arcadeNeonGreen-500/30 hover:border-arcadeNeonGreen-500
-					hover:bg-arcadeBlack-600"
+		<!-- Category Selector -->
+		<div class="flex justify-center gap-4 mb-10">
+			{#each categories as category}
+				<button
+					on:click={() => selectCategory(category)}
+					class={`px-6 py-3 rounded-lg text-lg font-bold transition-all duration-300
+						${
+							activeCategory === category
+								? 'bg-arcadeNeonGreen-600 shadow-lg scale-105'
+								: 'bg-arcadeBlack-700 hover:bg-arcadeBlack-600'
+						}`}
 				>
-					<span class="mr-2">View All Projects</span>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-					>
-						<path
-							fill-rule="evenodd"
-							d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z"
-							clip-rule="evenodd"
-						/>
-					</svg>
-				</a>
-			</div>
-		{/if}
+					{category}
+				</button>
+			{/each}
+		</div>
+
+		<!-- Project Grid -->
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+			{#each filteredProjects as project (project.title)}
+				<ProjectCard {...project} class="project-card" />
+			{/each}
+		</div>
 	</div>
 </section>
