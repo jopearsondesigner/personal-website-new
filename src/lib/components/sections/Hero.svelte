@@ -24,10 +24,13 @@
 	import { frameRateController } from '$lib/utils/frame-rate-controller';
 	import { createThrottledRAF } from '$lib/utils/animation-helpers';
 	import type { GameState } from '$lib/types/game';
+	import { writable } from 'svelte/store';
 
 	// Consolidate state management with proper typing
 	let isMobileDevice = false;
 	let isLowPerformanceDevice = false;
+	const qualityForProps = writable(1);
+	let qualityNow = 1; // local mirror used in props
 
 	// Component state with typed definitions
 	let currentTimeline: gsap.core.Timeline | null = null;
@@ -58,6 +61,26 @@
 	let isAnimationInitialized = false;
 	let animationInitTimeout: number | null = null;
 	let lastNavbarHeight = 0;
+	let lastCapUpdate = 0;
+
+	// Helper: throttle function
+	function throttle<T extends (...args: any[]) => void>(fn: T, ms = 250) {
+		let last = 0,
+			t: number | null = null,
+			lastArgs: any[] | null = null;
+		return (...args: any[]) => {
+			const now = Date.now();
+			const run = () => {
+				last = now;
+				t = null;
+				fn(...(lastArgs as any[]));
+				lastArgs = null;
+			};
+			lastArgs = args;
+			if (now - last >= ms) run();
+			else if (t == null) t = window.setTimeout(run, ms - (now - last));
+		};
+	}
 
 	// ---- Global animation pause switch (visibility + quality) ----
 	function setAnimPaused(paused: boolean) {
@@ -71,6 +94,7 @@
 
 	// Starfield visibility
 	let starfieldEnabled = true;
+	let starfieldVisible = true; // internal visibility for hysteresis
 
 	// RAF tracking for proper cleanup
 	let pendingRafIds: number[] = [];
@@ -182,6 +206,18 @@
 			isMobileDevice = window.innerWidth < 768;
 			isLowPerformanceDevice = false;
 		}
+	}
+
+	function safeUpdateDeviceCaps(updater: (caps: any) => any) {
+		const now = Date.now();
+		if (now - lastCapUpdate < 1000) return; // throttle to 1 Hz
+		deviceCapabilities.update((caps) => {
+			const next = updater(caps);
+			// minimal delta check: skip if same (tune as needed)
+			if (JSON.stringify(next) === JSON.stringify(caps)) return caps;
+			lastCapUpdate = now;
+			return next;
+		});
 	}
 
 	// Optimize scroll handling with better isolation
@@ -521,13 +557,9 @@
 						frameRateController?.setQualityOverride?.(pressure === 'critical' ? 0.5 : 0.7);
 
 						// Update device capabilities
-						deviceCapabilities.update((caps) => ({
+						safeUpdateDeviceCaps((caps) => ({
 							...caps,
 							maxEffectUnits: Math.max(
-								10,
-								Math.floor(caps.maxEffectUnits * (pressure === 'critical' ? 0.6 : 0.8))
-							),
-							maxStars: Math.max(
 								10,
 								Math.floor(caps.maxEffectUnits * (pressure === 'critical' ? 0.6 : 0.8))
 							),
@@ -643,17 +675,29 @@
 		try {
 			const heroEl = document.getElementById('hero');
 			if (!heroEl || typeof IntersectionObserver === 'undefined') return;
+
+			const ENTER = 0.6;
+			const EXIT = 0.25;
+
 			const obs = new IntersectionObserver(
 				(entries) => {
 					for (const e of entries) {
-						// Enable when at least ~35% visible (tweak after device info)
-						starfieldEnabled = e.intersectionRatio >= 0.35;
+						const r = e.intersectionRatio;
+
+						// Hysteresis: only flip when crossing distinct bands
+						if (!starfieldVisible && r >= ENTER) {
+							starfieldVisible = true;
+							starfieldEnabled = true;
+						} else if (starfieldVisible && r <= EXIT) {
+							starfieldVisible = false;
+							starfieldEnabled = false;
+						}
 					}
 				},
-				{ root: null, threshold: [0, 0.1, 0.35, 0.6, 1] }
+				{ root: null, threshold: [0, 0.25, 0.6, 1] }
 			);
+
 			obs.observe(heroEl);
-			// Cleanup observer on destroy
 			memoryManagerUnsubscribes.push(() => {
 				try {
 					obs.disconnect();
@@ -697,13 +741,13 @@
 					try {
 						// Drive a CSS var used by scanline cadence (Patch 3)
 						if (browser) {
-							const ms = Math.round(200 / Math.max(0.5, quality)); // 200ms @1.0 → slower if quality < 1
+							const ms = Math.round(220 / Math.max(0.6, quality)); // slow a bit more
 							document.documentElement.style.setProperty('--scanline-speed-ms', `${ms}`);
 						}
 
 						// Pause decorative CSS loops at very low quality (Patch 1)
 						// (Auto-resumes when quality recovers, since we pass a boolean)
-						setAnimPaused(quality < 0.65);
+						setAnimPaused(quality < 0.8);
 
 						// (Future hook) Adjust effect complexity here if needed.
 					} catch (error) {
@@ -751,6 +795,14 @@
 
 			// Initialize glass effects
 			initializeGlassEffects();
+
+			if (frameRateController?.subscribeQuality) {
+				const throttled = throttle((q: number) => {
+					qualityForProps.set(q);
+					qualityNow = q;
+				}, 250); // 4 Hz
+				frameRateUnsubscribe = frameRateController.subscribeQuality(throttled);
+			}
 
 			// If device tier is low or prefers reduced motion, soften expensive layers early
 			try {
@@ -986,12 +1038,12 @@
 									? 1.6
 									: $deviceCapabilities?.effectsLevel === 'reduced'
 										? 1.2
-										: 0.8) * (frameRateController?.getCurrentQuality?.() ?? 1)}
+										: 0.8) * qualityNow}
 								maxStars={Math.min($deviceCapabilities?.maxEffectUnits ?? 50, 120)}
 								targetFPS={Math.round(1000 / ($deviceCapabilities?.updateInterval ?? 16))}
 								baseSpeed={($deviceCapabilities?.starfield?.animationSpeed ?? 0.8) *
-									(0.8 + 0.4 * (frameRateController?.getCurrentQuality?.() ?? 1))}
-								qualityScale={frameRateController?.getCurrentQuality?.() ?? 1}
+									(0.8 + 0.4 * qualityNow)}
+								qualityScale={qualityNow}
 								lowPowerMode={$deviceCapabilities?.tier === 'low' ||
 									$deviceCapabilities?.preferReducedMotion}
 								lineWidth={1.1}
@@ -1112,8 +1164,8 @@
 			inset 0 3px 8px rgba(0, 0, 0, 0.2);
 
 		--screen-shadow:
-			0 0 30px rgba(0, 0, 0, 0.8), inset 0 0 50px rgba(0, 0, 0, 0.9),
-			inset 0 0 2px rgba(255, 255, 255, 0.3), inset 0 0 100px rgba(0, 0, 0, 0.7);
+			0 0 24px rgba(0, 0, 0, 0.65), inset 0 0 36px rgba(0, 0, 0, 0.6),
+			/* keep a single strong inner */ inset 0 0 1px rgba(255, 255, 255, 0.25); /* keep a thin highlight */
 
 		--bezel-shadow:
 			inset 0 0 20px rgba(0, 0, 0, 0.9), 0 0 2px rgba(255, 255, 255, 0.15),
@@ -1455,7 +1507,7 @@
 				rgba(255, 255, 255, 0.02) 50%,
 				transparent 100%
 			);
-		mix-blend-mode: overlay;
+		mix-blend-mode: normal;
 		opacity: clamp(0, 1, calc(0.7 * var(--fx-intensity)));
 		pointer-events: none;
 		z-index: 21; /* add: above stars (15) & glass stack (20) */
@@ -1706,9 +1758,11 @@
 		transform: translateZ(0);
 		backface-visibility: hidden;
 		perspective: 1000px;
-		will-change: transform;
-		contain: layout style paint;
-		content-visibility: visible;
+		/* REMOVE these two globally: */
+		/* will-change: transform;            <-- remove (keep on actual anim targets) */
+		/* contain: layout style paint;       <-- remove paint/style */
+		contain: layout; /* keep layout only */
+		content-visibility: visible; /* ok */
 	}
 
 	/* Disable text selection in the Hero section */
@@ -1735,9 +1789,7 @@
 
 	.animate-transform {
 		will-change: transform;
-		transform: translateZ(0);
 	}
-
 	.animate-opacity {
 		will-change: opacity;
 	}
@@ -2369,7 +2421,10 @@
 	}
 
 	/* ---- Global animation pause rules ---- */
-	[data-anim-paused='1'] #scanline-overlay,
+	[data-anim-paused='1'] #scanline-overlay {
+		animation-play-state: paused !important;
+		background-position: 0 0 !important; /* stop moving */
+	}
 	[data-anim-paused='1'] .interlace,
 	[data-anim-paused='1'] .phosphor-decay,
 	[data-anim-paused='1'] #insert-concept {
@@ -2384,5 +2439,11 @@
 		#insert-concept {
 			animation-play-state: paused !important;
 		}
+	}
+
+	html[data-device-type='desktop']:not([data-device-type='low-performance'])
+		.fx-bold
+		.screen-reflection {
+		mix-blend-mode: overlay;
 	}
 </style>

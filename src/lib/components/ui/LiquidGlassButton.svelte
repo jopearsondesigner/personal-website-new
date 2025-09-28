@@ -192,7 +192,7 @@ DO NOT REMOVE THIS COMMENT -->
 		border: none;
 		outline: none;
 
-		/* Base colors */
+		/* Base colors - neutral white for good contrast */
 		color: rgba(255, 255, 255, 0.95);
 		background: transparent;
 
@@ -221,20 +221,16 @@ DO NOT REMOVE THIS COMMENT -->
 	}
 
 	.liquid-glass-button--static .glass-surface {
-		/* Simple gradient background */
-		background: linear-gradient(135deg, rgba(119, 255, 161, 0.2) 0%, rgba(119, 255, 161, 0.1) 100%);
-		border: 1px solid rgba(119, 255, 161, 0.3);
+		/* Simple gradient background with teal brand colors */
+		background: linear-gradient(135deg, rgba(0, 168, 168, 0.2) 0%, rgba(0, 168, 168, 0.1) 100%);
+		border: 1px solid rgba(0, 168, 168, 0.3);
 		border-radius: inherit;
 		/* No backdrop-filter for maximum compatibility */
 	}
 
 	.liquid-glass-button--static:hover:not(:disabled) {
 		/* Minimal hover effect */
-		background: linear-gradient(
-			135deg,
-			rgba(119, 255, 161, 0.25) 0%,
-			rgba(119, 255, 161, 0.15) 100%
-		);
+		background: linear-gradient(135deg, rgba(0, 168, 168, 0.25) 0%, rgba(0, 168, 168, 0.15) 100%);
 	}
 
 	/* =============================================================================
@@ -250,26 +246,26 @@ DO NOT REMOVE THIS COMMENT -->
 	.liquid-glass-button--simplified .glass-surface {
 		background: linear-gradient(
 			135deg,
-			rgba(119, 255, 161, 0.18) 0%,
-			rgba(119, 255, 161, 0.1) 50%,
-			rgba(119, 255, 161, 0.15) 100%
+			rgba(0, 168, 168, 0.18) 0%,
+			rgba(0, 168, 168, 0.1) 50%,
+			rgba(0, 168, 168, 0.15) 100%
 		);
 
 		/* Reduced backdrop blur for better performance */
 		backdrop-filter: blur(8px);
 		-webkit-backdrop-filter: blur(8px);
 
-		border: 1px solid rgba(119, 255, 161, 0.3);
+		border: 1px solid rgba(0, 168, 168, 0.3);
 		border-radius: inherit;
 	}
 
 	.liquid-glass-button--simplified:hover:not(:disabled) {
 		transform: translateY(-1px) scale(1.01);
-		box-shadow: 0 4px 16px rgba(119, 255, 161, 0.2);
+		box-shadow: 0 4px 16px rgba(0, 168, 168, 0.2);
 	}
 
 	.liquid-glass-button--simplified .glass-edge-glow {
-		background: var(--arcade-neon-green-400);
+		background: #00a8a8;
 		opacity: 0;
 		filter: blur(4px);
 		transition: opacity 0.2s ease;
@@ -294,16 +290,16 @@ DO NOT REMOVE THIS COMMENT -->
 	.liquid-glass-button--full .glass-surface {
 		background: linear-gradient(
 			135deg,
-			rgba(119, 255, 161, 0.18) 0%,
-			rgba(119, 255, 161, 0.1) 50%,
-			rgba(119, 255, 161, 0.15) 100%
+			rgba(0, 168, 168, 0.18) 0%,
+			rgba(0, 168, 168, 0.1) 50%,
+			rgba(0, 168, 168, 0.15) 100%
 		);
 
 		/* Full backdrop blur effect */
 		backdrop-filter: blur(16px) saturate(180%);
 		-webkit-backdrop-filter: blur(16px) saturate(180%);
 
-		border: 1px solid rgba(119, 255, 161, 0.3);
+		border: 1px solid rgba(0, 168, 168, 0.3);
 		border-radius: inherit;
 	}
 
@@ -340,11 +336,7 @@ DO NOT REMOVE THIS COMMENT -->
 	}
 
 	.liquid-glass-button--full .glass-edge-glow {
-		background: linear-gradient(
-			135deg,
-			var(--arcade-neon-green-400),
-			var(--arcade-bright-cyan-400)
-		);
+		background: linear-gradient(135deg, #00a8a8, #1ad1d1);
 		opacity: 0;
 		filter: blur(8px);
 		transition: opacity 0.3s ease;
@@ -353,7 +345,7 @@ DO NOT REMOVE THIS COMMENT -->
 	.liquid-glass-button--full:hover:not(:disabled) {
 		transform: translateY(-2px) scale(1.02);
 		box-shadow:
-			0 8px 32px rgba(119, 255, 161, 0.25),
+			0 8px 32px rgba(0, 168, 168, 0.25),
 			0 4px 16px rgba(0, 0, 0, 0.1);
 	}
 
@@ -464,7 +456,7 @@ DO NOT REMOVE THIS COMMENT -->
 		position: absolute;
 		inset: 0;
 		border-radius: inherit;
-		background: radial-gradient(circle at center, rgba(119, 255, 161, 0.3) 0%, transparent 70%);
+		background: radial-gradient(circle at center, rgba(0, 168, 168, 0.3) 0%, transparent 70%);
 		opacity: 0;
 		transform: scale(0.8);
 		pointer-events: none;
@@ -503,7 +495,7 @@ DO NOT REMOVE THIS COMMENT -->
 
 	/* Focus State */
 	.liquid-glass-button:focus-visible {
-		outline: 2px solid var(--arcade-neon-green-400);
+		outline: 2px solid #00a8a8;
 		outline-offset: 2px;
 	}
 
@@ -551,6 +543,7 @@ DO NOT REMOVE THIS COMMENT -->
 	   Theme Variants
 	   ============================================================================= */
 
+	/* Light theme adjustments - neutral dark text */
 	:global(html.light) .liquid-glass-button {
 		color: rgba(0, 0, 0, 0.9);
 	}
@@ -562,7 +555,7 @@ DO NOT REMOVE THIS COMMENT -->
 			rgba(255, 255, 255, 0.7) 50%,
 			rgba(255, 255, 255, 0.8) 100%
 		) !important;
-		border-color: rgba(119, 255, 161, 0.4) !important;
+		border-color: rgba(0, 168, 168, 0.4) !important;
 	}
 
 	:global(html.light) .button-content {
@@ -643,7 +636,7 @@ DO NOT REMOVE THIS COMMENT -->
 		}
 
 		.glass-surface {
-			background: rgba(119, 255, 161, 0.9) !important;
+			background: rgba(0, 168, 168, 0.9) !important;
 			backdrop-filter: none !important;
 		}
 
