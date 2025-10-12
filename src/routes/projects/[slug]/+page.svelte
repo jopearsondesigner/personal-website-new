@@ -1,21 +1,45 @@
 <script lang="ts">
-	import type { PageData } from './$types';
-	import { base } from '$app/paths';
+        import type { PageData } from './$types';
+        import { base, assets } from '$app/paths';
 	export let data: PageData;
 	const { project } = data;
 
-	// optional helper for images that may start with '/'
-	const withBase = (p: string) => (p?.startsWith('/') ? base + p : p);
+        const withBase = (path: string) => {
+                if (!path) return base;
+                if (path.startsWith('http') || path.startsWith('mailto:') || path.startsWith('tel:')) {
+                        return path;
+                }
+
+                if (path.startsWith('/')) {
+                        return `${base}${path}`;
+                }
+
+                return `${base}/${path}`;
+        };
+
+        const withAssets = (path: string) => {
+                if (!path) return path;
+                if (path.startsWith('http') || path.startsWith('data:')) {
+                        return path;
+                }
+
+                const normalizedAssets = assets?.replace(/\/$/, '') ?? '';
+                const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+                return `${normalizedAssets}${normalizedPath}` || normalizedPath;
+        };
+
+        const projectImage = withAssets(project.image);
 </script>
 
 <section class="container mx-auto px-4 py-16">
 	<!-- Back Button -->
-	<a
-		href={`${base}/projects`}
-		class="inline-flex items-center text-arcadeNeonGreen-400 hover:text-arcadeNeonGreen-300 mb-6"
-	>
-		← Back to Projects
-	</a>
+        <a
+                href={withBase('/projects')}
+                class="inline-flex items-center text-arcadeNeonGreen-400 hover:text-arcadeNeonGreen-300 mb-6"
+        >
+                ← Back to Projects
+        </a>
 
 	<!-- Project Header -->
 	<div class="text-center mb-12">
@@ -29,7 +53,7 @@
 
 	<!-- Project Hero Image -->
 	<div class="relative rounded-xl overflow-hidden shadow-lg max-w-4xl mx-auto">
-		<img src={withBase(project.image)} alt={project.title} class="w-full object-cover" loading="lazy" />
+                <img src={projectImage} alt={project.title} class="w-full object-cover" loading="lazy" />
 		<div class="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/40 to-transparent"></div>
 	</div>
 

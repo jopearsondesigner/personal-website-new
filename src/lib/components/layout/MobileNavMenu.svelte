@@ -1,21 +1,45 @@
 <!-- src/lib/components/layout/MobileNavMenu.svelte -->
 <script lang="ts">
-	import { fly, fade, slide } from 'svelte/transition';
-	import { cubicInOut } from 'svelte/easing';
-	import { Sun, Moon, Gear } from 'svelte-bootstrap-icons';
-	import { theme } from '$lib/stores/theme';
-	import { onMount, onDestroy } from 'svelte';
-	import { page } from '$app/stores';
-	import { browser } from '$app/environment';
-	import { navSections, navigationStore } from '$lib/stores/navigation';
-	import { tick } from 'svelte';
-	import { base } from '$app/paths'; // Import the base path
-	import { perfMonitorVisible, togglePerformanceMonitor } from '$lib/stores/performance-monitor';
+import { fly, fade, slide } from 'svelte/transition';
+import { cubicInOut } from 'svelte/easing';
+import { Sun, Moon, Gear } from 'svelte-bootstrap-icons';
+import { theme } from '$lib/stores/theme';
+import { onMount, onDestroy } from 'svelte';
+import { page } from '$app/stores';
+import { browser } from '$app/environment';
+import { navSections, navigationStore } from '$lib/stores/navigation';
+import { tick } from 'svelte';
+import { base } from '$app/paths'; // Import the base path
+import { perfMonitorVisible, togglePerformanceMonitor } from '$lib/stores/performance-monitor';
+
+const withBase = (path: string) => {
+        if (!path) return base;
+        if (path.startsWith('http') || path.startsWith('mailto:') || path.startsWith('tel:')) {
+                return path;
+        }
+
+        if (path.startsWith('/')) {
+                return `${base}${path}`;
+        }
+
+        if (path.startsWith('#')) {
+                return `${base}/${path}`;
+        }
+
+        return `${base}/${path}`;
+};
+
+const isHomePath = (path: string) => {
+        if (!path) return false;
+        return path === '/' || path === `${base}/` || path === base;
+};
 
 	export let isOpen = false;
 
 	// Current path tracking
-	let currentPath = '/';
+let currentPath = '/';
+let isHomePage = false;
+$: isHomePage = isHomePath(currentPath);
 	// Store scroll position
 	let scrollPosition = 0;
 	// DOM elements
@@ -158,11 +182,8 @@
 		const sectionId = target.replace('#', '');
 
 		// Check if we're on the homepage
-		const isHomePage =
-			currentPath === '/' ||
-			currentPath === base + '/' ||
-			window.location.pathname === '/' ||
-			window.location.pathname === base + '/';
+                const windowPath = browser ? window.location.pathname : currentPath;
+                const isHome = isHomePath(windowPath) || isHomePage;
 
 		// Close the menu first
 		closeMenu();
@@ -172,15 +193,15 @@
 
 		// Then handle navigation differently based on current page
 		setTimeout(() => {
-			if (isHomePage) {
-				// We're on the homepage - use the navigationStore to scroll
-				navigationStore.scrollToSection(sectionId);
-			} else {
-				// We're on another page (e.g., blog) - navigate to homepage with hash
-				window.location.href = `${base}/#${sectionId}`;
-			}
-		}, 150); // Add a small delay to ensure menu closing animation completes
-	}
+                        if (isHome) {
+                                // We're on the homepage - use the navigationStore to scroll
+                                navigationStore.scrollToSection(sectionId);
+                        } else {
+                                // We're on another page (e.g., blog) - navigate to homepage with hash
+                                window.location.href = withBase(`/#${sectionId}`);
+                        }
+                }, 150); // Add a small delay to ensure menu closing animation completes
+        }
 
 	// Improved close menu function
 	function closeMenu() {
@@ -402,15 +423,15 @@
 			{/if}
 			<nav class="flex-1 px-6 py-2">
 				<ul class="space-y-5 list-none p-0 m-0">
-					{#each $navSections as section}
-						<li>
-							<a
-								href="{base}#{section.id}"
-								class="menu-link block text-base group relative overflow-hidden px-2 py-1
-									text-arcadeBlack-500 dark:text-arcadeWhite-300
-									{section.isActive ? 'active-link dark:text-arcadeNeonGreen-500' : ''}"
-								on:click={(e) => smoothScroll(`#${section.id}`, e)}
-							>
+                                        {#each $navSections as section}
+                                                <li>
+                                                        <a
+                                                                href={isHomePage ? `#${section.id}` : withBase(`/#${section.id}`)}
+                                                                class="menu-link block text-base group relative overflow-hidden px-2 py-1
+                                                                        text-arcadeBlack-500 dark:text-arcadeWhite-300
+                                                                        {section.isActive ? 'active-link dark:text-arcadeNeonGreen-500' : ''}"
+                                                                on:click={(e) => smoothScroll(`#${section.id}`, e)}
+                                                        >
 								<!-- Glowing background effect that appears on hover -->
 								<span
 									class="absolute inset-0 bg-gradient-to-r
@@ -431,14 +452,14 @@
 					{/each}
 
 					<!-- Add blog link separately if needed -->
-					<li>
-						<a
-							href="{base}/blog"
-							class="menu-link block text-base group relative overflow-hidden px-2 py-1
-								text-arcadeBlack-500 dark:text-arcadeWhite-300
-								{currentPath === '/blog' || currentPath === base + '/blog'
-								? 'active-link dark:text-arcadeNeonGreen-500'
-								: ''}"
+                                        <li>
+                                                <a
+                                                        href={withBase('/blog')}
+                                                        class="menu-link block text-base group relative overflow-hidden px-2 py-1
+                                                                text-arcadeBlack-500 dark:text-arcadeWhite-300
+                                                                {currentPath === '/blog' || currentPath === base + '/blog'
+                                                                ? 'active-link dark:text-arcadeNeonGreen-500'
+                                                                : ''}"
 						>
 							<!-- Glowing background effect that appears on hover -->
 							<span
