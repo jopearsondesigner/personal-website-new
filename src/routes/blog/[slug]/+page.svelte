@@ -1,6 +1,9 @@
 <!-- src/routes/blog/[slug]/+page.svelte -->
 <script lang="ts">
-	export let data;
+        import { base } from '$app/paths';
+        export let data;
+
+        const backHref = `${base}/blog`;
 </script>
 
 <div class="bg-darkModeBg text-arcadeWhite min-h-screen p-4 md:p-8">
@@ -11,9 +14,9 @@
 			{data.post.content}
 		</div>
 		<div class="mt-8">
-			<a href="/blog" class="p-2 bg-arcadeRed text-arcadeWhite rounded hover:bg-red-700">
-				Back to Blog
-			</a>
-		</div>
-	</div>
+                        <a href={backHref} class="p-2 bg-arcadeRed text-arcadeWhite rounded hover:bg-red-700">
+                                Back to Blog
+                        </a>
+                </div>
+        </div>
 </div>

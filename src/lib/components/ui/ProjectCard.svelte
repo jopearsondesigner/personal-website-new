@@ -1,6 +1,7 @@
 <!-- src/lib/components/ui/ProjectCard.svelte -->
 <script lang="ts">
-	import { onMount } from 'svelte';
+        import { onMount } from 'svelte';
+        import { base, assets } from '$app/paths';
 
 	/*** Public props ***/
 	export let slug: string; // <-- Required for dynamic URLs
@@ -21,9 +22,42 @@
 	let loaded = false;
 	let prefersReducedMotion = false;
 
-	onMount(() => {
-		prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-	});
+        const withBase = (path: string) => {
+                if (!path) return base;
+                if (path.startsWith('http') || path.startsWith('mailto:') || path.startsWith('tel:')) {
+                        return path;
+                }
+
+                if (path.startsWith('/')) {
+                        return `${base}${path}`;
+                }
+
+                return `${base}/${path}`;
+        };
+
+        const withAssets = (path: string) => {
+                if (!path) return path;
+                if (path.startsWith('http') || path.startsWith('data:')) {
+                        return path;
+                }
+
+                const normalizedAssets = assets?.replace(/\/$/, '') ?? '';
+                const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+                return `${normalizedAssets}${normalizedPath}` || normalizedPath;
+        };
+
+        const avifSource = (path: string) => path.replace(/\.[^.]+$/, '.avif');
+        const jpgFallback = (path: string) => path.replace(/\.webp$/i, '.jpg');
+
+        $: imageWebp = withAssets(image);
+        $: imageAvif = withAssets(avifSource(image));
+        $: imageJpg = withAssets(jpgFallback(image));
+        $: projectHref = withBase(`/projects/${slug}`);
+
+        onMount(() => {
+                prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+        });
 
 	function onKeyActivate(e: KeyboardEvent) {
 		if (e.key === 'Enter' || e.key === ' ') {
@@ -34,7 +68,7 @@
 </script>
 
 <a
-	href={`/projects/${slug}`}
+        href={projectHref}
 	aria-label={`View project: ${title}`}
 	on:keydown={onKeyActivate}
 	class="
@@ -85,10 +119,10 @@
 		<!-- Picture: AVIF/WEBP with fallback -->
 		<picture>
 			<!-- If you export AVIF too, keep both sources; else remove avif line -->
-			<source srcset={image.replace(/\.[^.]+$/, '.avif')} type="image/avif" />
-			<source srcset={image} type="image/webp" />
-			<img
-				src={image.replace('.webp', '.jpg')}
+                        <source srcset={imageAvif} type="image/avif" />
+                        <source srcset={imageWebp} type="image/webp" />
+                        <img
+                                src={imageJpg}
 				alt={title}
 				class="
 			h-full w-full object-cover

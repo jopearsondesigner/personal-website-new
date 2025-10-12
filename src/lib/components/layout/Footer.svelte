@@ -1,24 +1,37 @@
 <!-- src/lib/components/layout/Footer.svelte -->
 <script lang="ts">
-	import { theme } from '$lib/stores/theme';
+        import { theme } from '$lib/stores/theme';
+        import { base } from '$app/paths';
 
-	// Footer links
-	const navLinks = [
-		{ name: 'Home', url: '/' },
-		{ name: 'About', url: '/#about' },
+        // Footer links
+        const navLinks = [
+                { name: 'Home', url: '/' },
+                { name: 'About', url: '/#about' },
 		{ name: 'Work', url: '/#work' },
 		{ name: 'Contact', url: '/#contact' },
 		{ name: 'Blog', url: '/blog' }
 	];
 
-	const socialLinks = [
-		{ name: 'GitHub', url: 'https://github.com' },
-		{ name: 'LinkedIn', url: 'https://linkedin.com' },
-		{ name: 'Twitter', url: 'https://twitter.com' },
-		{ name: 'Instagram', url: 'https://instagram.com' }
-	];
+const socialLinks = [
+                { name: 'GitHub', url: 'https://github.com' },
+                { name: 'LinkedIn', url: 'https://linkedin.com' },
+                { name: 'Twitter', url: 'https://twitter.com' },
+                { name: 'Instagram', url: 'https://instagram.com' }
+        ];
 
-	const currentYear = new Date().getFullYear();
+        const currentYear = new Date().getFullYear();
+
+        const withBase = (path: string) => {
+                if (!path) return base;
+                if (path.startsWith('http') || path.startsWith('mailto:') || path.startsWith('tel:')) {
+                        return path;
+                }
+
+                const normalizedBase = base?.replace(/\/$/, '') ?? '';
+                const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+                return `${normalizedBase}${normalizedPath}` || normalizedPath;
+        };
 </script>
 
 <footer
@@ -105,15 +118,15 @@
 					Navigate
 				</h3>
 				<ul class="space-y-2">
-					{#each navLinks as link}
-						<li>
-							<a
-								href={link.url}
-								class="text-arcadeBlack-500/80 dark:text-arcadeWhite-200/80 hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500 transition-colors duration-300"
-							>
-								{link.name}
-							</a>
-						</li>
+                                        {#each navLinks as link}
+                                                <li>
+                                                        <a
+                                                                href={withBase(link.url)}
+                                                                class="text-arcadeBlack-500/80 dark:text-arcadeWhite-200/80 hover:text-arcadeNeonGreen-500 dark:hover:text-arcadeNeonGreen-500 transition-colors duration-300"
+                                                        >
+                                                                {link.name}
+                                                        </a>
+                                                </li>
 					{/each}
 				</ul>
 			</div>

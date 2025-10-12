@@ -5,8 +5,9 @@ DO NOT REMOVE THIS COMMENT -->
 	import { onMount } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
 	import { backOut } from 'svelte/easing';
-	import CRTDisplay from '$lib/components/ui/CRTDisplay.svelte';
-	import LiquidGlassCTA from '$lib/components/ui/LiquidGlassCTA.svelte';
+        import CRTDisplay from '$lib/components/ui/CRTDisplay.svelte';
+        import LiquidGlassCTA from '$lib/components/ui/LiquidGlassCTA.svelte';
+        import { assets } from '$app/paths';
 
 	import SkillBar from '$lib/components/ui/SkillBar.svelte';
 
@@ -46,10 +47,24 @@ DO NOT REMOVE THIS COMMENT -->
 		'Startup-proven approach that scales to enterprise needs'
 	];
 
-	onMount(() => {
-		const observer = new IntersectionObserver(
-			(entries) => {
-				if (entries[0].isIntersecting) {
+        const withAssets = (path: string) => {
+                if (!path) return path;
+                if (path.startsWith('http') || path.startsWith('data:')) {
+                        return path;
+                }
+
+                const normalizedAssets = assets?.replace(/\/$/, '') ?? '';
+                const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+                return `${normalizedAssets}${normalizedPath}` || normalizedPath;
+        };
+
+        const avatarSrc = withAssets('/assets/images/home/jo_avatar.svg');
+
+        onMount(() => {
+                const observer = new IntersectionObserver(
+                        (entries) => {
+                                if (entries[0].isIntersecting) {
 					sectionVisible = true;
 					observer.disconnect(); // Only animate once
 				}
@@ -114,11 +129,11 @@ DO NOT REMOVE THIS COMMENT -->
 							in:fly={{ x: 50, duration: 800, delay: 800, easing: backOut }}
 							class="avatar-wrapper"
 						>
-							<img
-								src="assets/images/home/jo_avatar.svg"
-								alt="Jo Pearson - Pixelated Avatar"
-								class="avatar-image"
-							/>
+                                                        <img
+                                                                src={avatarSrc}
+                                                                alt="Jo Pearson - Pixelated Avatar"
+                                                                class="avatar-image"
+                                                        />
 						</div>
 					</svelte:fragment>
 				</CRTDisplay>

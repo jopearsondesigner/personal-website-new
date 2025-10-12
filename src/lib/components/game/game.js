@@ -2,17 +2,20 @@
 
 // Guardains of Lumara: Vela's Voyage
 
+import { assets } from '$app/paths';
+
+const assetPrefix = (assets ?? '').replace(/\/$/, '');
+
 function getAssetPath(path) {
-	// Remove leading slash if present
-	path = path.startsWith('/') ? path.slice(1) : path;
+        if (!path) return path;
 
-	// Check if running in development or production
-	const baseUrl =
-		typeof window !== 'undefined' && window.location.pathname.includes('/personal-website-new')
-			? '/personal-website-new'
-			: '';
+        const sanitized = path.replace(/^\.?\//, '');
 
-	return `${baseUrl}/${path}`;
+        if (!assetPrefix) {
+                return `/${sanitized}`;
+        }
+
+        return `${assetPrefix}/${sanitized}`;
 }
 
 // Initialize variables without accessing document
@@ -3767,7 +3770,7 @@ class AnimatedProjectile {
 		this.firingEnemy = firingEnemy; // Store a reference to the enemy that fired the projectile
 		if (!this.constructor.spriteSheet) {
 			this.constructor.spriteSheet = new Image();
-			this.constructor.spriteSheet.src = `./assets/images/game/projectile_main_sprite.png`;
+                this.constructor.spriteSheet.src = getAssetPath('assets/images/game/projectile_main_sprite.png');
 		}
 		this.spriteSheet = this.constructor.spriteSheet;
 		this.fireballEffects = [];
